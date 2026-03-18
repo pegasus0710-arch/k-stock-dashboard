@@ -47,8 +47,7 @@ const INTERVALS = [
 ]
 
 function TradingViewChart({ symbol, interval }) {
-  const ticker = symbol.replace('KRX:', '')
-  const tvUrl = `https://kr.tradingview.com/widgetembed/?frameElementId=tv&symbol=KRX%3A${ticker}&interval=${interval}&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=181c23&studies=[]&theme=dark&style=1&timezone=Asia%2FSeoul&locale=kr&utm_source=&utm_medium=widget&utm_campaign=chart`
+  const tvUrl = `https://www.tradingview.com/widgetembed/?symbol=${encodeURIComponent(symbol)}&interval=${interval}&theme=dark&style=1&locale=kr&timezone=Asia%2FSeoul&hide_top_toolbar=0&hide_legend=0&save_image=0&backgroundColor=%23181c23`
   return (
     <iframe
       key={`${symbol}-${interval}`}
