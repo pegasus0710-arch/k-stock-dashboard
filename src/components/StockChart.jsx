@@ -50,9 +50,32 @@ export default function StockChart() {
     setActiveStock(THEME_STOCKS[theme][0])
   }
 
-  const naverUrl   = `https://finance.naver.com/item/main.naver?code=${activeStock.code}`
-  const chartUrl   = `https://finance.naver.com/item/fchart.naver?code=${activeStock.code}`
-  const tvUrl      = `https://kr.tradingview.com/chart/?symbol=KRX:${activeStock.code}`
+  const links = [
+    {
+      label: '네이버증권 차트',
+      desc: '일봉·주봉·월봉·재무정보',
+      url: `https://finance.naver.com/item/fchart.naver?code=${activeStock.code}`,
+      color: '#03c75a',
+    },
+    {
+      label: 'TradingView',
+      desc: '고급 기술적 분석 차트',
+      url: `https://kr.tradingview.com/chart/?symbol=KRX:${activeStock.code}`,
+      color: '#3b82f6',
+    },
+    {
+      label: '네이버증권 종목',
+      desc: '공시·뉴스·재무제표',
+      url: `https://finance.naver.com/item/main.naver?code=${activeStock.code}`,
+      color: '#14b8a6',
+    },
+    {
+      label: 'DART 공시',
+      desc: '전자공시 원문 조회',
+      url: `https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(activeStock.name)}`,
+      color: '#f59e0b',
+    },
+  ]
 
   return (
     <div className="stock-chart-page">
@@ -86,19 +109,38 @@ export default function StockChart() {
         <div className="chart-area">
           <div className="chart-controls">
             <span className="chart-stock-name">{activeStock.name}</span>
-            <div className="interval-btns">
-              <a href={naverUrl} target="_blank" rel="noreferrer" className="interval-btn">네이버증권</a>
-              <a href={tvUrl}    target="_blank" rel="noreferrer" className="interval-btn">TradingView</a>
-            </div>
+            <span className="dim mono" style={{ fontSize: 12 }}>{activeStock.code}</span>
           </div>
 
-          <div className="chart-embed">
-            <iframe
-              key={activeStock.code}
-              src={chartUrl}
-              style={{ width: '100%', height: '100%', border: 'none', background: '#181c23' }}
-              title={activeStock.name}
-            />
+          <div className="chart-links-area">
+            <p className="chart-links-guide dim">
+              차트 직접 임베드는 2단계(KIS API) 연동 후 지원 예정이에요.<br/>
+              지금은 아래 링크로 바로 확인할 수 있어요.
+            </p>
+            <div className="chart-link-grid">
+              {links.map(l => (
+                
+                  key={l.label}
+                  href={l.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="chart-link-card"
+                  style={{ borderColor: l.color + '55' }}
+                >
+                  <span className="chart-link-dot" style={{ background: l.color }} />
+                  <div>
+                    <div className="chart-link-label" style={{ color: l.color }}>{l.label}</div>
+                    <div className="chart-link-desc dim">{l.desc}</div>
+                  </div>
+                  <span className="chart-link-arrow">→</span>
+                </a>
+              ))}
+            </div>
+
+            <div className="chart-info-note">
+              <span style={{ color: 'var(--accent-amber)' }}>●</span>
+              &nbsp;2단계에서 KIS API 연동 시 실시간 시세·차트가 앱 안에 직접 표시돼요
+            </div>
           </div>
         </div>
       </div>
