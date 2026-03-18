@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import './StockChart.css'
 
-/* 테마별 대표 종목 (TradingView KRX 심볼) */
 const THEME_STOCKS = {
   '반도체·AI':  [
     { name: '삼성전자',   symbol: 'KRX:005930' },
@@ -29,13 +28,13 @@ const THEME_STOCKS = {
     { name: 'POSCO홀딩스',    symbol: 'KRX:005490' },
   ],
   '바이오': [
-    { name: '셀트리온',          symbol: 'KRX:068270' },
-    { name: '삼성바이오로직스',  symbol: 'KRX:207940' },
-    { name: 'HLB',               symbol: 'KRX:028300' },
+    { name: '셀트리온',         symbol: 'KRX:068270' },
+    { name: '삼성바이오로직스', symbol: 'KRX:207940' },
+    { name: 'HLB',              symbol: 'KRX:028300' },
   ],
   '밸류업·금융': [
-    { name: 'KB금융',   symbol: 'KRX:105560' },
-    { name: '신한지주', symbol: 'KRX:055550' },
+    { name: 'KB금융',       symbol: 'KRX:105560' },
+    { name: '신한지주',     symbol: 'KRX:055550' },
     { name: '하나금융지주', symbol: 'KRX:086790' },
   ],
 }
@@ -48,44 +47,17 @@ const INTERVALS = [
 ]
 
 function TradingViewChart({ symbol, interval }) {
-  const containerRef = useRef(null)
-
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    /* 이전 위젯 제거 */
-    containerRef.current.innerHTML = ''
-
-    const script = document.createElement('script')
-    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js'
-    script.async = true
-    script.innerHTML = JSON.stringify({
-      autosize: true,
-      symbol,
-      interval,
-      timezone: 'Asia/Seoul',
-      theme: 'dark',
-      style: '1',
-      locale: 'kr',
-      backgroundColor: '#181c23',
-      gridColor: '#252a35',
-      hide_top_toolbar: false,
-      hide_legend: false,
-      save_image: false,
-      calendar: false,
-      hide_volume: false,
-      support_host: 'https://www.tradingview.com',
-    })
-
-    containerRef.current.appendChild(script)
-
-    return () => {
-      if (containerRef.current) containerRef.current.innerHTML = ''
-    }
-  }, [symbol, interval])
-
+  const ticker = symbol.replace('KRX:', '')
+  const tvUrl = `https://kr.tradingview.com/widgetembed/?frameElementId=tv&symbol=KRX%3A${ticker}&interval=${interval}&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=181c23&studies=[]&theme=dark&style=1&timezone=Asia%2FSeoul&locale=kr&utm_source=&utm_medium=widget&utm_campaign=chart`
   return (
-    <div className="tradingview-widget-container" ref={containerRef} style={{ height: '100%', width: '100%' }} />
+    <iframe
+      key={`${symbol}-${interval}`}
+      src={tvUrl}
+      style={{ width: '100%', height: '100%', border: 'none' }}
+      allowTransparency="true"
+      scrolling="no"
+      allowFullScreen
+    />
   )
 }
 
@@ -101,48 +73,29 @@ export default function StockChart() {
 
   return (
     <div className="stock-chart-page">
-
-      {/* 테마 선택 */}
       <div className="theme-selector">
         {THEMES.map(t => (
-          <button
-            key={t}
-            className={`theme-sel-btn ${activeTheme === t ? 'active' : ''}`}
-            onClick={() => handleTheme(t)}
-          >
+          <button key={t} className={`theme-sel-btn ${activeTheme === t ? 'active' : ''}`} onClick={() => handleTheme(t)}>
             {t}
           </button>
         ))}
       </div>
-
       <div className="chart-layout">
-
-        {/* 종목 리스트 (왼쪽) */}
         <aside className="stock-list">
           <p className="stock-list-title dim">종목 선택</p>
           {THEME_STOCKS[activeTheme].map(s => (
-            <button
-              key={s.symbol}
-              className={`stock-item ${activeStock.symbol === s.symbol ? 'active' : ''}`}
-              onClick={() => setActiveStock(s)}
-            >
+            <button key={s.symbol} className={`stock-item ${activeStock.symbol === s.symbol ? 'active' : ''}`} onClick={() => setActiveStock(s)}>
               <span className="stock-item-name">{s.name}</span>
               <span className="stock-item-symbol dim mono">{s.symbol.replace('KRX:', '')}</span>
             </button>
           ))}
         </aside>
-
-        {/* 차트 영역 (오른쪽) */}
         <div className="chart-area">
           <div className="chart-controls">
             <span className="chart-stock-name">{activeStock.name}</span>
             <div className="interval-btns">
               {INTERVALS.map(i => (
-                <button
-                  key={i.value}
-                  className={`interval-btn ${activeInterval === i.value ? 'active' : ''}`}
-                  onClick={() => setActiveInterval(i.value)}
-                >
+                <button key={i.value} className={`interval-btn ${activeInterval === i.value ? 'active' : ''}`} onClick={() => setActiveInterval(i.value)}>
                   {i.label}
                 </button>
               ))}
@@ -152,7 +105,6 @@ export default function StockChart() {
             <TradingViewChart symbol={activeStock.symbol} interval={activeInterval} />
           </div>
         </div>
-
       </div>
     </div>
   )
