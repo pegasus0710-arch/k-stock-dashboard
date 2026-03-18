@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './StockChart.css'
 
 const THEME_STOCKS = {
@@ -46,23 +46,53 @@ const INTERVALS = [
   { label: '월봉', value: 'M' },
 ]
 
+let tvScriptLoaded = false
+
 function TradingViewChart({ symbol, interval }) {
-  const tvUrl = `https://www.tradingview.com/widgetembed/?symbol=${encodeURIComponent(symbol)}&interval=${interval}&theme=dark&style=1&locale=kr&timezone=Asia%2FSeoul&hide_top_toolbar=0&hide_legend=0&save_image=0&backgroundColor=%23181c23`
-  return (
-    <iframe
-      key={`${symbol}-${interval}`}
-      src={tvUrl}
-      style={{ width: '100%', height: '100%', border: 'none' }}
-      allowTransparency="true"
-      scrolling="no"
-      allowFullScreen
-    />
-  )
+  const containerRef = useRef(null)
+
+  useEffect(() => {
+    const containerId = `tv_${symbol.replace(':', '_')}_${interval}_${Date.now()}`
+    if (containerRef.current) {
+      containerRef.current.id = containerId
+      containerRef.current.innerHTML = ''
+    }
+
+    const initWidget = () => {
+      if (!containerRef.current || !window.TradingView) return
+      new window.TradingView.widget({
+        autosize: true,
+        symbol,
+        interval,
+        timezone: 'Asia/Seoul',
+        theme: 'dark',
+        style: '1',
+        locale: 'kr',
+        toolbar_bg: '#181c23',
+        enable_publishing: false,
+        container_id: containerId,
+      })
+    }
+
+    if (tvScriptLoaded) {
+      initWidget()
+    } else {
+      const script = document.createElement('script')
+      script.src = 'https://s3.tradingview.com/tv.js'
+      script.async = true
+      script.onload = () => { tvScriptLoaded = true; initWidget() }
+      document.head.appendChild(script)
+    }
+
+    return () => { if (containerRef.current) containerRef.current.innerHTML = '' }
+  }, [symbol, interval])
+
+  return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
 }
 
 export default function StockChart() {
-  const [activeTheme,    setActiveTheme]    = useState(THEMES[0])
-  const [activeStock,    setActiveStock]    = useState(THEME_STOCKS[THEMES[0]][0])
+  const [activeTheme, setActiveTheme] = useState(THEMES[0])
+  const [activeStock, setActiveStock] = useState(THEME_STOCKS[THEMES[0]][0])
   const [activeInterval, setActiveInterval] = useState('D')
 
   const handleTheme = (theme) => {
@@ -101,7 +131,7 @@ export default function StockChart() {
             </div>
           </div>
           <div className="chart-embed">
-            <TradingViewChart symbol={activeStock.symbol} interval={activeInterval} />
+            <TradingViewChart key={`${activeStock.symbol}-${activeInterval}`} symbol={activeStock.symbol} interval={activeInterval} />
           </div>
         </div>
       </div>
