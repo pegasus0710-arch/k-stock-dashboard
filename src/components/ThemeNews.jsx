@@ -51,15 +51,7 @@ export default function ThemeNews() {
           max_tokens: 1024,
           messages: [{
             role: 'user',
-            content: `오늘 날짜 기준(${new Date().toLocaleDateString('ko-KR')}) 한국 증시에서 "${theme.label}" 테마(키워드: ${theme.keyword})의 주요 동향을 아래 형식으로 정리해줘.
-
-형식:
-📌 오늘의 핵심 이슈 (2~3줄)
-📈 주목 종목 & 포인트 (종목명과 이유 2~3개)
-⚠️ 리스크 요인 (1~2줄)
-💡 내일 체크포인트 (1~2줄)
-
-간결하고 투자자 관점에서 실용적으로 작성해줘.`,
+            content: `오늘 날짜 기준(${new Date().toLocaleDateString('ko-KR')}) 한국 증시에서 "${theme.label}" 테마(키워드: ${theme.keyword})의 주요 동향을 아래 형식으로 정리해줘.\n\n형식:\n📌 오늘의 핵심 이슈 (2~3줄)\n📈 주목 종목 & 포인트 (종목명과 이유 2~3개)\n⚠️ 리스크 요인 (1~2줄)\n💡 내일 체크포인트 (1~2줄)\n\n간결하고 투자자 관점에서 실용적으로 작성해줘.`,
           }],
         }),
       })
@@ -100,7 +92,7 @@ export default function ThemeNews() {
             {theme.label} 분석
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
-            
+            <a
               href={`https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(theme.keyword)}&sort=1`}
               target="_blank"
               rel="noreferrer"
@@ -136,7 +128,7 @@ export default function ThemeNews() {
               <span className="dim" style={{ fontSize: 12 }}>관련 키워드:</span>
               <div className="keyword-tags">
                 {theme.keyword.split(' ').map(kw => (
-                  
+                  <a
                     key={kw}
                     href={`https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(kw)}&sort=1`}
                     target="_blank"
