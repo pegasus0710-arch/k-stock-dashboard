@@ -1,0 +1,171 @@
+/* ─── Dashboard Layout ─── */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ─── Macro Row ─── */
+.macro-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.macro-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.macro-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+.macro-value { font-size: 20px; font-weight: 500; letter-spacing: -0.02em; }
+.macro-sub   { font-size: 11px; }
+
+/* ─── Grid ─── */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+/* ─── Panel Base ─── */
+.panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.panel-badge {
+  font-size: 10px;
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent-blue);
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+.panel-note {
+  font-size: 11px;
+  margin-top: 10px;
+}
+
+/* ─── Theme Panel ─── */
+.theme-panel { grid-column: 1 / -1; }
+.theme-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.theme-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-dim);
+  transition: background 0.15s;
+}
+.theme-row:hover { background: var(--bg-hover); }
+.theme-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.theme-name {
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 90px;
+}
+.theme-stocks {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.stock-chip {
+  font-size: 11px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-dim);
+}
+.theme-pct { font-size: 13px; min-width: 60px; text-align: right; }
+
+/* ─── News Panel ─── */
+.news-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 30px 20px;
+  color: var(--text-secondary);
+  text-align: center;
+  font-size: 13px;
+}
+.placeholder-icon {
+  font-size: 28px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+/* ─── Checklist ─── */
+.checklist {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.checklist li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.check-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ─── Schedule ─── */
+.schedule-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.schedule-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 13px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-dim);
+}
+.schedule-item:last-child { border-bottom: none; }
+.schedule-date { font-size: 11px; min-width: 32px; padding-top: 2px; }
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .macro-row { grid-template-columns: repeat(2, 1fr); }
+  .dash-grid  { grid-template-columns: 1fr; }
+  .theme-panel { grid-column: auto; }
+  .theme-stocks { display: none; }
+}

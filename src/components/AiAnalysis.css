@@ -1,0 +1,30 @@
+.ai-analysis {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 40px;
+}
+.ai-analysis .coming-soon-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  text-align: center;
+  max-width: 480px;
+  width: 100%;
+}
+.ai-analysis .cs-icon { font-size: 40px; color: var(--accent-purple); margin-bottom: 16px; }
+.ai-analysis h2 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+.ai-analysis > .coming-soon-panel > p { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; }
+.ai-analysis .coming-list {
+  list-style: none;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: var(--bg-panel);
+  border-radius: var(--radius-md);
+}
+.ai-analysis .coming-list li { font-size: 13px; color: var(--text-secondary); }
