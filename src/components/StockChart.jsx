@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './StockChart.css'
 
 const THEME_STOCKS = {
@@ -40,42 +40,102 @@ const THEME_STOCKS = {
 }
 
 const THEMES = Object.keys(THEME_STOCKS)
+const CANDLE_TYPES = [
+  { label: '일봉', value: 'd' },
+  { label: '주봉', value: 'w' },
+  { label: '월봉', value: 'm' },
+]
+
+function CandleChart({ data }) {
+  const containerRef = useRef(null)
+
+  useEffect(() => {
+    if (!data?.candles?.length || !containerRef.current) return
+    const LW = window.LightweightCharts
+    if (!LW) return
+
+    containerRef.current.innerHTML = ''
+
+    const chart = LW.createChart(containerRef.current, {
+      width:  containerRef.current.clientWidth,
+      height: containerRef.current.clientHeight || 420,
+      layout: { background: { color: '#181c23' }, textColor: '#8a91a8' },
+      grid:   { vertLines: { color: '#252a35' }, horzLines: { color: '#252a35' } },
+      crosshair: { mode: LW.CrosshairMode.Normal },
+      rightPriceScale: { borderColor: '#252a35' },
+      timeScale: { borderColor: '#252a35', timeVisible: false },
+    })
+
+    const series = chart.addCandlestickSeries({
+      upColor:         '#22c55e',
+      downColor:       '#ef4444',
+      borderUpColor:   '#22c55e',
+      borderDownColor: '#ef4444',
+      wickUpColor:     '#22c55e',
+      wickDownColor:   '#ef4444',
+    })
+
+    series.setData(data.candles)
+    chart.timeScale().fitContent()
+
+    const handleResize = () => {
+      if (containerRef.current)
+        chart.applyOptions({ width: containerRef.current.clientWidth })
+    }
+    window.addEventListener('resize', handleResize)
+    return () => { window.removeEventListener('resize', handleResize); chart.remove() }
+  }, [data])
+
+  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+}
 
 export default function StockChart() {
-  const [activeTheme, setActiveTheme] = useState(THEMES[0])
-  const [activeStock, setActiveStock] = useState(THEME_STOCKS[THEMES[0]][0])
+  const [activeTheme,  setActiveTheme]  = useState(THEMES[0])
+  const [activeStock,  setActiveStock]  = useState(THEME_STOCKS[THEMES[0]][0])
+  const [candleType,   setCandleType]   = useState(CANDLE_TYPES[0])
+  const [chartData,    setChartData]    = useState(null)
+  const [loading,      setLoading]      = useState(false)
+  const [error,        setError]        = useState('')
+  const [lwLoaded,     setLwLoaded]     = useState(false)
+
+  useEffect(() => {
+    if (window.LightweightCharts) { setLwLoaded(true); return }
+    const script = document.createElement('script')
+    script.src = 'https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js'
+    script.onload = () => setLwLoaded(true)
+    document.head.appendChild(script)
+  }, [])
+
+  useEffect(() => {
+    if (!lwLoaded) return
+    loadChart()
+  }, [activeStock, candleType, lwLoaded])
+
+  const loadChart = async () => {
+    setLoading(true)
+    setError('')
+    setChartData(null)
+    try {
+      const res  = await fetch(`/api/chart?code=${activeStock.code}&freq=${candleType.value}`)
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || '데이터 없음')
+      setChartData(data)
+    } catch (e) {
+      setError('차트 데이터를 불러오지 못했어요.')
+    }
+    setLoading(false)
+  }
 
   const handleTheme = (theme) => {
     setActiveTheme(theme)
     setActiveStock(THEME_STOCKS[theme][0])
   }
 
-  const links = [
-    {
-      label: '네이버증권 차트',
-      desc: '일봉·주봉·월봉·재무정보',
-      url: `https://finance.naver.com/item/fchart.naver?code=${activeStock.code}`,
-      color: '#03c75a',
-    },
-    {
-      label: 'TradingView',
-      desc: '고급 기술적 분석 차트',
-      url: `https://kr.tradingview.com/chart/?symbol=KRX:${activeStock.code}`,
-      color: '#3b82f6',
-    },
-    {
-      label: '네이버증권 종목',
-      desc: '공시·뉴스·재무제표',
-      url: `https://finance.naver.com/item/main.naver?code=${activeStock.code}`,
-      color: '#14b8a6',
-    },
-    {
-      label: 'DART 공시',
-      desc: '전자공시 원문 조회',
-      url: `https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(activeStock.name)}`,
-      color: '#f59e0b',
-    },
-  ]
+  const priceChange = chartData ? chartData.currentPrice - chartData.prevClose : 0
+  const pricePct    = chartData?.prevClose
+    ? ((priceChange / chartData.prevClose) * 100).toFixed(2)
+    : '0.00'
+  const isUp = priceChange >= 0
 
   return (
     <div className="stock-chart-page">
@@ -108,39 +168,67 @@ export default function StockChart() {
 
         <div className="chart-area">
           <div className="chart-controls">
-            <span className="chart-stock-name">{activeStock.name}</span>
-            <span className="dim mono" style={{ fontSize: 12 }}>{activeStock.code}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span className="chart-stock-name">{activeStock.name}</span>
+              {chartData && (
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span className="mono" style={{ fontSize: 17, fontWeight: 500 }}>
+                    {chartData.currentPrice.toLocaleString()}원
+                  </span>
+                  <span className={`mono ${isUp ? 'up' : 'down'}`} style={{ fontSize: 13 }}>
+                    {isUp ? '+' : ''}{priceChange.toLocaleString()} ({isUp ? '+' : ''}{pricePct}%)
+                  </span>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {CANDLE_TYPES.map(c => (
+                <button
+                  key={c.value}
+                  className={`interval-btn ${candleType.value === c.value ? 'active' : ''}`}
+                  onClick={() => setCandleType(c)}
+                >
+                  {c.label}
+                </button>
+              ))}
+              <a
+                href={`https://finance.naver.com/item/fchart.naver?code=${activeStock.code}`}
+                target="_blank" rel="noreferrer"
+                className="interval-btn"
+                style={{ textDecoration: 'none', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' }}
+              >
+                네이버↗
+              </a>
+            </div>
           </div>
 
-          <div className="chart-links-area">
-            <p className="chart-links-guide dim">
-              차트 직접 임베드는 2단계(KIS API) 연동 후 지원 예정이에요.<br/>
-              지금은 아래 링크로 바로 확인할 수 있어요.
-            </p>
-            <div className="chart-link-grid">
-              {links.map(l => (
-                
-                  key={l.label}
-                  href={l.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="chart-link-card"
-                  style={{ borderColor: l.color + '55' }}
+          <div className="chart-embed">
+            {loading && (
+              <div className="chart-loading">
+                <div className="loading-spinner" />
+                <p>차트 데이터 불러오는 중...</p>
+              </div>
+            )}
+            {error && !loading && (
+              <div className="chart-error">
+                <p>{error}</p>
+                <button onClick={loadChart} className="retry-btn">다시 시도</button>
+                <a
+                  href={`https://finance.naver.com/item/fchart.naver?code=${activeStock.code}`}
+                  target="_blank" rel="noreferrer"
+                  className="retry-btn"
+                  style={{ textDecoration: 'none', marginTop: 4 }}
                 >
-                  <span className="chart-link-dot" style={{ background: l.color }} />
-                  <div>
-                    <div className="chart-link-label" style={{ color: l.color }}>{l.label}</div>
-                    <div className="chart-link-desc dim">{l.desc}</div>
-                  </div>
-                  <span className="chart-link-arrow">→</span>
+                  네이버 차트 보기↗
                 </a>
-              ))}
-            </div>
-
-            <div className="chart-info-note">
-              <span style={{ color: 'var(--accent-amber)' }}>●</span>
-              &nbsp;2단계에서 KIS API 연동 시 실시간 시세·차트가 앱 안에 직접 표시돼요
-            </div>
+              </div>
+            )}
+            {!loading && !error && chartData && lwLoaded && (
+              <CandleChart
+                key={`${activeStock.code}-${candleType.value}`}
+                data={chartData}
+              />
+            )}
           </div>
         </div>
       </div>
