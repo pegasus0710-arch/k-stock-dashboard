@@ -2,32 +2,32 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg-base:    #0a0c10;
-  --bg-panel:   #111318;
-  --bg-card:    #181c23;
-  --bg-hover:   #1e2330;
-  --border:     #252a35;
-  --border-dim: #1a1f28;
+  --bg-base:    #f4f6f9;
+  --bg-panel:   #ffffff;
+  --bg-card:    #ffffff;
+  --bg-hover:   #f0f4ff;
+  --border:     #e2e8f0;
+  --border-dim: #edf2f7;
 
-  --text-primary:   #e8eaf0;
-  --text-secondary: #8a91a8;
-  --text-dim:       #4a5168;
+  --text-primary:   #1a202c;
+  --text-secondary: #64748b;
+  --text-dim:       #a0aec0;
 
-  --accent-blue:   #3b82f6;
-  --accent-teal:   #14b8a6;
-  --accent-green:  #22c55e;
-  --accent-red:    #ef4444;
-  --accent-amber:  #f59e0b;
-  --accent-purple: #a855f7;
+  --accent-blue:   #2563eb;
+  --accent-teal:   #0d9488;
+  --accent-green:  #16a34a;
+  --accent-red:    #dc2626;
+  --accent-amber:  #d97706;
+  --accent-purple: #7c3aed;
 
   /* 7 테마 컬러 */
-  --theme-semi:    #3b82f6;
-  --theme-defense: #ef4444;
-  --theme-ship:    #14b8a6;
-  --theme-nuclear: #f59e0b;
-  --theme-battery: #22c55e;
-  --theme-bio:     #a855f7;
-  --theme-value:   #f97316;
+  --theme-semi:    #2563eb;
+  --theme-defense: #dc2626;
+  --theme-ship:    #0d9488;
+  --theme-nuclear: #d97706;
+  --theme-battery: #16a34a;
+  --theme-bio:     #7c3aed;
+  --theme-value:   #ea580c;
 
   --font-kr: 'Noto Sans KR', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
@@ -35,6 +35,9 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 html, body, #root {
@@ -47,24 +50,14 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ─── Scrollbar ─── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-/* ─── Utility ─── */
 .mono { font-family: var(--font-mono); }
-.up   { color: var(--accent-green); }
-.down { color: var(--accent-red); }
+.up   { color: var(--accent-red); }
+.down { color: var(--accent-blue); }
 .dim  { color: var(--text-secondary); }
 
-button {
-  cursor: pointer;
-  border: none;
-  background: none;
-  font-family: inherit;
-  font-size: inherit;
-  color: inherit;
-}
-
+button { cursor: pointer; border: none; background: none; font-family: inherit; font-size: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }
