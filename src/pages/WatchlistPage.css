@@ -1,0 +1,136 @@
+.add-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.add-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: var(--font-kr);
+  color: var(--text-primary);
+  background: white;
+  outline: none;
+  flex: 1;
+  min-width: 140px;
+}
+.add-input:focus { border-color: #2563eb; }
+.add-input.mono  { font-family: var(--font-mono); }
+.add-input--memo { flex: 2; }
+.add-select {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: var(--font-kr);
+  color: var(--text-primary);
+  background: white;
+  outline: none;
+  cursor: pointer;
+}
+@media (min-width: 2560px) { .add-input, .add-select { padding: 11px 16px; font-size: 15px; } }
+
+.preset-section { border-top: 1px solid var(--border-dim); padding-top: 16px; }
+.preset-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px; }
+.preset-chip {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 12px;
+  background: white; border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px; font-family: var(--font-kr);
+  cursor: pointer; transition: all 0.12s;
+  text-align: left;
+}
+.preset-chip:hover:not(:disabled) { border-color: var(--tc); background: color-mix(in srgb, var(--tc) 6%, white); }
+.preset-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+.preset-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.preset-name { flex: 1; color: var(--text-primary); }
+.preset-added { color: #16a34a; font-weight: 700; font-size: 11px; }
+
+.watch-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.theme-filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.filter-chip {
+  padding: 5px 13px;
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  font-size: 12px; font-weight: 500;
+  font-family: var(--font-kr);
+  color: var(--text-secondary);
+  background: white;
+  cursor: pointer; transition: all 0.12s;
+}
+.filter-chip:hover { color: var(--text-primary); }
+.filter-chip.active { font-weight: 700; }
+.sort-select {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px; font-family: var(--font-kr);
+  background: white; cursor: pointer; outline: none;
+  flex-shrink: 0;
+}
+
+/* 종목 카드 */
+.watch-card {
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.14s, transform 0.12s, box-shadow 0.14s;
+}
+.watch-card:hover {
+  border-color: var(--sc);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--sc) 12%, transparent);
+}
+.watch-card-top { display: flex; align-items: center; justify-content: space-between; }
+.watch-theme-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+.watch-theme-label { font-size: 11px; font-weight: 600; }
+.watch-remove {
+  font-size: 11px; color: var(--text-dim);
+  border: none; background: none; cursor: pointer; padding: 2px 4px;
+  border-radius: 4px; transition: background 0.1s, color 0.1s;
+}
+.watch-remove:hover { background: #fef2f2; color: #dc2626; }
+.watch-name  { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.watch-code  { font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); }
+.watch-memo  { font-size: 12px; color: var(--text-secondary); background: #f8fafc; border-radius: 6px; padding: 5px 8px; }
+.watch-added { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+.watch-actions { display: flex; gap: 5px; margin-top: 6px; }
+.watch-action-btn {
+  flex: 1; padding: 6px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11px; font-family: var(--font-kr);
+  background: #f8fafc; color: var(--text-secondary);
+  cursor: pointer; text-align: center;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.watch-action-btn:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+
+@media (min-width: 2560px) {
+  .watch-name { font-size: 18px; }
+  .watch-code { font-size: 13px; }
+  .watch-card { padding: 22px; gap: 8px; }
+  .watch-action-btn { font-size: 13px; padding: 8px 0; }
+}
+
+.watch-empty {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px; padding: 60px 24px; text-align: center;
+}
+.empty-icon { font-size: 36px; opacity: 0.3; }
+.watch-empty p { font-size: 14px; color: var(--text-secondary); }
+.sub-text { font-size: 12px; color: var(--text-dim); }

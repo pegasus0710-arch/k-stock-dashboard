@@ -1,0 +1,42 @@
+.news-theme-chips { display:flex; flex-wrap:wrap; gap:7px; }
+.news-theme-chip {
+  display:flex; align-items:center; gap:5px;
+  padding:6px 14px; border:1.5px solid var(--border); border-radius:18px;
+  font-size:12px; font-weight:500; font-family:var(--font-kr); color:var(--text-secondary);
+  background:white; cursor:pointer; transition:all .12s; position:relative;
+}
+.news-theme-chip:hover { color:var(--text-primary); border-color:#94a3b8; }
+.news-theme-chip.active { background:#2563eb; color:white; border-color:#2563eb; font-weight:700; }
+.news-cached-dot { width:6px;height:6px;background:#16a34a;border-radius:50%;flex-shrink:0; }
+@media (min-width:2560px) { .news-theme-chip { padding:9px 18px; font-size:14px; } }
+
+.news-link-chip {
+  display:flex; align-items:center; justify-content:center;
+  padding:10px 14px;
+  background:#f8faff; border:1px solid var(--border); border-radius:var(--radius-sm);
+  font-size:12px; font-weight:500; color:var(--text-secondary);
+  transition:background .12s,border-color .12s,color .12s; text-align:center;
+}
+.news-link-chip:hover { background:#eff6ff; border-color:#bfdbfe; color:#2563eb; }
+@media (min-width:2560px) { .news-link-chip { font-size:14px; padding:14px; } }
+
+.dart-card {
+  display:flex; align-items:center; gap:12px;
+  padding:14px 16px; background:#fafafa; border:1px solid var(--border); border-radius:var(--radius-md);
+  transition:background .12s,border-color .12s,transform .12s;
+}
+.dart-card:hover { background:#f0f4ff; border-color:#bfdbfe; transform:translateY(-1px); }
+.dart-icon  { font-size:18px; flex-shrink:0; }
+.dart-label { font-size:13px; font-weight:500; color:var(--text-primary); flex:1; }
+.dart-arrow { font-size:12px; color:var(--text-dim); flex-shrink:0; }
+@media (min-width:2560px) { .dart-label { font-size:15px; } .dart-card { padding:18px 22px; } }
+
+.news-search { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.news-search-input {
+  flex:1; min-width:200px; padding:9px 14px;
+  border:1px solid var(--border); border-radius:var(--radius-sm);
+  font-size:13px; font-family:var(--font-kr); color:var(--text-primary);
+  background:white; outline:none;
+}
+.news-search-input:focus { border-color:#2563eb; }
+@media (min-width:2560px) { .news-search-input { padding:12px 18px; font-size:15px; } }
