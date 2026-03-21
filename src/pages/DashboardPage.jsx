@@ -12,12 +12,12 @@ const THEMES = [
 ]
 
 const QUICK_LINKS = [
-  { label:'네이버 증권',  url:'https://finance.naver.com',                                                    icon:'📊' },
-  { label:'KRX 시장정보', url:'https://data.krx.co.kr',                                                       icon:'🏛️' },
-  { label:'DART 공시',    url:'https://dart.fss.or.kr',                                                       icon:'📋' },
-  { label:'한국은행',     url:'https://www.bok.or.kr',                                                        icon:'🏦' },
-  { label:'코스피 지수',  url:'https://finance.naver.com/sise/sise_index.naver?code=KOSPI',                   icon:'📈' },
-  { label:'코스닥 지수',  url:'https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ',                  icon:'📉' },
+  { label:'네이버 증권',  url:'https://finance.naver.com',                                                   icon:'📊' },
+  { label:'KRX 시장정보', url:'https://data.krx.co.kr',                                                      icon:'🏛️' },
+  { label:'DART 공시',    url:'https://dart.fss.or.kr',                                                      icon:'📋' },
+  { label:'한국은행',     url:'https://www.bok.or.kr',                                                       icon:'🏦' },
+  { label:'코스피 지수',  url:'https://finance.naver.com/sise/sise_index.naver?code=KOSPI',                  icon:'📈' },
+  { label:'코스닥 지수',  url:'https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ',                 icon:'📉' },
 ]
 
 const MACRO_GROUPS = [
@@ -71,22 +71,51 @@ function loadBriefing() {
 }
 function saveBriefing(text) {
   try {
-    const now = new Date(); const hm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+    const now = new Date()
+    const hm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
     localStorage.setItem(SKEY, JSON.stringify({ date:new Date().toLocaleDateString('ko-KR'), text, savedAt:hm }))
     return hm
   } catch { return '' }
 }
+
+// ✅ 웹 검색 포함 AI 브리핑
 async function fetchBriefing(apiKey) {
   const today = new Date().toLocaleDateString('ko-KR')
-  const res = await fetch('https://api.anthropic.com/v1/messages',{
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:1000, messages:[{ role:'user', content:
-      `오늘(${today}) 한국 증시 투자자용 AI 브리핑을 아래 형식으로 작성해줘.\n\n## 📊 오늘의 시장 한줄 요약\n## 🔥 오늘 주목할 테마 TOP 3\n1. 테마명 — 이유\n2. 테마명 — 이유\n3. 테마명 — 이유\n## ⚠️ 오늘의 리스크 요인\n## 💡 오늘 투자 포인트\n## 📅 오늘 주요 일정\n\n실시간 데이터 없어도 최신 시장 흐름 기반으로 구체적으로 작성. "실시간 데이터 없음" 절대 쓰지 마.`
-    }]})
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':apiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body:JSON.stringify({
+      model:'claude-haiku-4-5-20251001',
+      max_tokens:1000,
+      tools:[{ type:'web_search_20250305', name:'web_search' }],
+      messages:[{ role:'user', content:
+        `웹 검색을 사용해서 오늘(${today}) 한국 증시 최신 뉴스와 동향을 찾아보고, 아래 형식으로 투자자용 AI 브리핑을 작성해줘.
+
+검색어: 한국 증시 오늘 ${today} 주요 뉴스
+
+## 📊 오늘의 시장 한줄 요약
+## 🔥 오늘 주목할 테마 TOP 3
+1. 테마명 — 이유
+2. 테마명 — 이유
+3. 테마명 — 이유
+## ⚠️ 오늘의 리스크 요인
+## 💡 오늘 투자 포인트
+## 📅 오늘 주요 일정
+
+반드시 웹 검색으로 실제 오늘 뉴스를 찾아서 작성해줘.`
+      }]
+    })
   })
   if(!res.ok) throw new Error(`API 오류 ${res.status}`)
-  return (await res.json()).content[0].text
+  const data = await res.json()
+  const text = data.content.filter(b=>b.type==='text').map(b=>b.text).join('\n')
+  if(!text.trim()) throw new Error('브리핑을 가져오지 못했어요.')
+  return text
 }
 
 export default function DashboardPage() {
@@ -115,8 +144,6 @@ export default function DashboardPage() {
 
   return (
     <div className="dashboard">
-
-      {/* 헤더 */}
       <div className="dash-header">
         <div className="dash-title-row">
           <div>
@@ -130,7 +157,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 매크로 지표 */}
       <section className="dash-section">
         <div className="section-label">매크로 지표</div>
         <div className="macro-groups">
@@ -151,32 +177,37 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* AI 브리핑 */}
       <section className="dash-section">
         <div className="section-header">
           <div>
-            <div className="section-label" style={{marginBottom:0}}>AI 시장 브리핑</div>
+            <div className="section-label" style={{marginBottom:0}}>🔍 AI 시장 브리핑 (웹검색 기반)</div>
             {savedAt && <span className="briefing-saved-time">오늘 {savedAt} 저장됨 · 새로고침 유지</span>}
           </div>
           <div className="briefing-btn-group">
             {briefing && <button className="briefing-clear-btn" onClick={()=>{localStorage.removeItem(SKEY);setBriefing('');setSavedAt('')}}>초기화</button>}
             <button className={`ai-briefing-btn${aiLoading?' loading':''}`} onClick={handleAI} disabled={aiLoading}>
-              {aiLoading?<><span className="btn-spinner"/>분석 중...</>:briefing?<><span>✦</span>다시 받기</>:<><span>✦</span>AI 브리핑 받기</>}
+              {aiLoading?<><span className="btn-spinner"/>검색 중...</>
+                :briefing?'↺ 다시 받기'
+                :<>🔍 AI 브리핑 받기</>}
             </button>
           </div>
         </div>
         {!briefing&&!aiLoading&&!aiError&&(
           <div className="briefing-placeholder">
-            <div className="placeholder-icon">✦</div>
+            <div className="placeholder-icon">🔍</div>
             <p>AI 브리핑 버튼을 눌러 오늘의 시장 분석을 받아보세요</p>
-            <p className="placeholder-sub">받은 브리핑은 오늘 하루 자동 저장돼요</p>
+            <p className="placeholder-sub">웹을 실시간 검색해서 오늘 뉴스 기반으로 분석해드려요</p>
           </div>
         )}
         {aiError && <div className="briefing-error">{aiError}</div>}
-        {briefing && <div className="briefing-result"><pre className="briefing-text">{briefing}</pre></div>}
+        {briefing && (
+          <div className="briefing-result">
+            <div className="briefing-web-badge">🔍 웹 검색 기반 · 오늘 저장됨</div>
+            <pre className="briefing-text">{briefing}</pre>
+          </div>
+        )}
       </section>
 
-      {/* 7대 테마 */}
       <section className="dash-section">
         <div className="section-label">7대 테마 현황</div>
         <div className="theme-grid">
@@ -200,7 +231,6 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* 2컬럼 */}
       <div className="dash-two-col">
         <section className="dash-section col-card">
           <div className="section-label">빠른 바로가기</div>
@@ -230,7 +260,6 @@ export default function DashboardPage() {
           </div>
         </section>
       </div>
-
       <div className="dash-footer-note">💡 키움 REST API 연동 후 실시간 시세·차트·수급 데이터가 자동으로 표시됩니다</div>
     </div>
   )

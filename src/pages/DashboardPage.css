@@ -183,3 +183,8 @@
   padding: 10px; background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-md);
 }
 @media (min-width: 2560px) { .dash-footer-note { font-size: 13px; } }
+
+.briefing-web-badge {
+  font-size: 10px; color: #16a34a; font-weight: 600;
+  margin-bottom: 12px; display: block;
+}
