@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useAuth } from './context/AuthContext'
 import './App.css'
 
-// 페이지 import — 없는 파일 있으면 에러나므로 try/catch 구조
 import DashboardPage  from './pages/DashboardPage'
 import MarketPage     from './pages/MarketPage'
 import ThemePage      from './pages/ThemePage'
@@ -39,23 +38,27 @@ function getTodayStr() {
 
 function getMarketStatus() {
   const t = new Date().getHours() * 60 + new Date().getMinutes()
-  if (t >= 540 && t < 930)  return { label: 'LIVE',    color: '#16a34a' }
+  if (t >= 540 && t < 930)  return { label: 'LIVE',     color: '#16a34a' }
   if (t >= 480 && t < 540)  return { label: '장 시작 전', color: '#d97706' }
-  if (t >= 930 && t < 1080) return { label: '시간외',  color: '#7c3aed' }
+  if (t >= 930 && t < 1080) return { label: '시간외',   color: '#7c3aed' }
   return { label: '장 마감', color: '#64748b' }
 }
 
 export default function App() {
-  const { user, logout } = useAuth()
-  const [activePage, setPage]   = useState('dashboard')
+  // ✅ useAuth가 null 반환해도 안전하게 처리
+  const auth = useAuth()
+  const user   = auth?.user   || null
+  const logout = auth?.logout || (() => {})
+
+  const [activePage, setPage]     = useState('dashboard')
   const [sidebarOpen, setSidebar] = useState(false)
 
-  const PageComp   = PAGES[activePage] || DashboardPage
-  const activeNav  = NAV_ITEMS.find(n => n.id === activePage)
-  const market     = getMarketStatus()
+  const PageComp  = PAGES[activePage] || DashboardPage
+  const activeNav = NAV_ITEMS.find(n => n.id === activePage)
+  const market    = getMarketStatus()
 
   const initials = user?.displayName
-    ? user.displayName.slice(0,2).toUpperCase()
+    ? user.displayName.slice(0, 2).toUpperCase()
     : (user?.email?.[0] || 'U').toUpperCase()
 
   const goTo = (id) => { setPage(id); setSidebar(false) }
