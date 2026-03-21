@@ -1,3 +1,4 @@
+/* ─── Reset & Base ─── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -7,15 +8,19 @@
   --bg-hover:   #f0f4ff;
   --border:     #e2e8f0;
   --border-dim: #edf2f7;
+
   --text-primary:   #1a202c;
   --text-secondary: #64748b;
   --text-dim:       #a0aec0;
+
   --accent-blue:   #2563eb;
   --accent-teal:   #0d9488;
   --accent-green:  #16a34a;
   --accent-red:    #dc2626;
   --accent-amber:  #d97706;
   --accent-purple: #7c3aed;
+
+  /* 7 테마 컬러 */
   --theme-semi:    #2563eb;
   --theme-defense: #dc2626;
   --theme-ship:    #0d9488;
@@ -23,11 +28,14 @@
   --theme-battery: #16a34a;
   --theme-bio:     #7c3aed;
   --theme-value:   #ea580c;
+
   --font-kr: 'Noto Sans KR', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
+
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
+
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
 }
@@ -45,9 +53,11 @@ html, body, #root {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
 .mono { font-family: var(--font-mono); }
 .up   { color: var(--accent-red); }
 .down { color: var(--accent-blue); }
 .dim  { color: var(--text-secondary); }
+
 button { cursor: pointer; border: none; background: none; font-family: inherit; font-size: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }

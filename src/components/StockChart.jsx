@@ -59,11 +59,11 @@ function CandleChart({ data }) {
     const chart = LW.createChart(containerRef.current, {
       width:  containerRef.current.clientWidth,
       height: containerRef.current.clientHeight || 420,
-      layout: { background: { color: '#181c23' }, textColor: '#8a91a8' },
-      grid:   { vertLines: { color: '#252a35' }, horzLines: { color: '#252a35' } },
+      layout: { background: { color: '#ffffff' }, textColor: '#8a91a8' },
+      grid:   { vertLines: { color: '#e2e8f0' }, horzLines: { color: '#e2e8f0' } },
       crosshair: { mode: LW.CrosshairMode.Normal },
-      rightPriceScale: { borderColor: '#252a35' },
-      timeScale: { borderColor: '#252a35', timeVisible: false },
+      rightPriceScale: { borderColor: '#e2e8f0' },
+      timeScale: { borderColor: '#e2e8f0', timeVisible: false },
     })
 
     const series = chart.addCandlestickSeries({
