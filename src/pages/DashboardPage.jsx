@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './DashboardPage.css'
 
+// ─── 상수 ────────────────────────────────────────────
 const THEMES = [
   { id:'semi',    label:'반도체·AI',  color:'#2563eb', emoji:'💻', stocks:['삼성전자','SK하이닉스','한미반도체'], codes:['005930','000660','042700'] },
   { id:'defense', label:'방산',        color:'#dc2626', emoji:'🛡️', stocks:['한화에어로','현대로템','LIG넥스원'],   codes:['012450','064350','079550'] },
@@ -20,25 +21,15 @@ const QUICK_LINKS = [
   { label:'코스닥 지수',  url:'https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ',                 icon:'📉' },
 ]
 
-const MACRO_GROUPS = [
-  { group:'🇰🇷 한국', items:[
-    { label:'KOSPI',     url:'https://finance.naver.com/sise/sise_index.naver?code=KOSPI',  color:'#2563eb' },
-    { label:'KOSDAQ',    url:'https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ', color:'#16a34a' },
-    { label:'USD/KRW',   url:'https://finance.naver.com/marketindex/',                       color:'#d97706' },
-    { label:'국고채 3Y', url:'https://finance.naver.com/marketindex/interestDetail.naver?marketindexCd=IRR_GOVT03Y', color:'#7c3aed' },
-  ]},
-  { group:'🇺🇸 미국', items:[
-    { label:'S&P 500',     url:'https://finance.naver.com/world/sise.naver?symbol=SPX',  color:'#dc2626' },
-    { label:'NASDAQ',      url:'https://finance.naver.com/world/sise.naver?symbol=COMP', color:'#0d9488' },
-    { label:'DOW',         url:'https://finance.naver.com/world/sise.naver?symbol=INDU', color:'#2563eb' },
-    { label:'미 국채 10Y', url:'https://finance.naver.com/marketindex/interestDetail.naver?marketindexCd=IRR_US10Y', color:'#7c3aed' },
-  ]},
-  { group:'🌏 글로벌', items:[
-    { label:'닛케이 225', url:'https://finance.naver.com/world/sise.naver?symbol=NI225',  color:'#ea580c' },
-    { label:'상해종합',   url:'https://finance.naver.com/world/sise.naver?symbol=SHCOMP', color:'#dc2626' },
-    { label:'항셍',       url:'https://finance.naver.com/world/sise.naver?symbol=HSI',    color:'#d97706' },
-    { label:'WTI 유가',   url:'https://finance.naver.com/marketindex/worldDailyQuote.naver?marketindexCd=OIL_CL&fdtc=2', color:'#16a34a' },
-  ]},
+const GLOBAL_LINKS = [
+  { label:'S&P 500',     url:'https://finance.naver.com/world/sise.naver?symbol=SPX',  color:'#dc2626' },
+  { label:'NASDAQ',      url:'https://finance.naver.com/world/sise.naver?symbol=COMP', color:'#0d9488' },
+  { label:'DOW',         url:'https://finance.naver.com/world/sise.naver?symbol=INDU', color:'#2563eb' },
+  { label:'미 국채 10Y', url:'https://finance.naver.com/marketindex/interestDetail.naver?marketindexCd=IRR_US10Y', color:'#7c3aed' },
+  { label:'닛케이 225',  url:'https://finance.naver.com/world/sise.naver?symbol=NI225',  color:'#ea580c' },
+  { label:'상해종합',    url:'https://finance.naver.com/world/sise.naver?symbol=SHCOMP', color:'#dc2626' },
+  { label:'항셍',        url:'https://finance.naver.com/world/sise.naver?symbol=HSI',    color:'#d97706' },
+  { label:'WTI 유가',    url:'https://finance.naver.com/marketindex/worldDailyQuote.naver?marketindexCd=OIL_CL&fdtc=2', color:'#16a34a' },
 ]
 
 const TODAY_SCHEDULE = [
@@ -47,6 +38,7 @@ const TODAY_SCHEDULE = [
   { time:'종일',  label:'DART 공시 확인' },
 ]
 
+// ─── 유틸 ────────────────────────────────────────────
 function getTodayStr() {
   const d = new Date()
   const days = ['일','월','화','수','목','금','토']
@@ -59,7 +51,12 @@ function getMarketStatus() {
   if (t>=930&&t<1080) return { label:'시간외 거래',   color:'#7c3aed', dot:false }
   return { label:'장 마감', color:'#64748b', dot:false }
 }
+function fmt(n)     { return n != null ? Number(n).toLocaleString() : '—' }
+function fmtR(n)    { if (n == null) return '—'; const v=Number(n); return `${v>0?'+':''}${v.toFixed(2)}%` }
+function fmtC(n)    { if (n == null) return '—'; const v=Number(n); return `${v>0?'+':''}${v.toLocaleString()}` }
+function rateColor(n) { const v=Number(n); return v>0?'#dc2626':v<0?'#2563eb':'#64748b' }
 
+// ─── AI 브리핑 ───────────────────────────────────────
 const SKEY = 'kstock_briefing'
 function loadBriefing() {
   try {
@@ -77,37 +74,16 @@ function saveBriefing(text) {
     return hm
   } catch { return '' }
 }
-
-// ✅ 웹 검색 포함 AI 브리핑
 async function fetchBriefing(apiKey) {
   const today = new Date().toLocaleDateString('ko-KR')
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'x-api-key':apiKey,
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'
-    },
+    headers:{ 'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
     body:JSON.stringify({
-      model:'claude-haiku-4-5-20251001',
-      max_tokens:1000,
+      model:'claude-haiku-4-5-20251001', max_tokens:1000,
       tools:[{ type:'web_search_20250305', name:'web_search' }],
       messages:[{ role:'user', content:
-        `웹 검색을 사용해서 오늘(${today}) 한국 증시 최신 뉴스와 동향을 찾아보고, 아래 형식으로 투자자용 AI 브리핑을 작성해줘.
-
-검색어: 한국 증시 오늘 ${today} 주요 뉴스
-
-## 📊 오늘의 시장 한줄 요약
-## 🔥 오늘 주목할 테마 TOP 3
-1. 테마명 — 이유
-2. 테마명 — 이유
-3. 테마명 — 이유
-## ⚠️ 오늘의 리스크 요인
-## 💡 오늘 투자 포인트
-## 📅 오늘 주요 일정
-
-반드시 웹 검색으로 실제 오늘 뉴스를 찾아서 작성해줘.`
+        `웹 검색으로 오늘(${today}) 한국 증시 최신 뉴스를 찾아보고 아래 형식으로 투자자용 AI 브리핑을 작성해줘.\n\n## 📊 오늘의 시장 한줄 요약\n## 🔥 오늘 주목할 테마 TOP 3\n1. 테마명 — 이유\n2. 테마명 — 이유\n3. 테마명 — 이유\n## ⚠️ 오늘의 리스크 요인\n## 💡 오늘 투자 포인트\n## 📅 오늘 주요 일정\n\n반드시 웹 검색으로 오늘 뉴스 기반으로 작성해줘.`
       }]
     })
   })
@@ -118,6 +94,108 @@ async function fetchBriefing(apiKey) {
   return text
 }
 
+// ─── 실시간 지수 카드 컴포넌트 ───────────────────────
+function IndexCard({ market, label, color }) {
+  const [data, setData]   = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  const fetchIndex = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/kis?type=index&market=${market}`)
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      setData(json)
+      setError(false)
+    } catch { setError(true) }
+    finally { setLoading(false) }
+  }, [market])
+
+  useEffect(() => {
+    fetchIndex()
+    // 장중에만 10초마다 갱신
+    const t = new Date().getHours()*60 + new Date().getMinutes()
+    if (t >= 540 && t < 930) {
+      const timer = setInterval(fetchIndex, 10000)
+      return () => clearInterval(timer)
+    }
+  }, [fetchIndex])
+
+  const rc = data ? rateColor(data.changeRate) : color
+
+  return (
+    <div className="kis-index-card" style={{'--ic': color}}>
+      <div className="kis-index-label">{label}</div>
+      {loading && <div className="kis-loading">로딩 중...</div>}
+      {error && !loading && (
+        <div className="kis-error-small">
+          <span>데이터 오류</span>
+          <button onClick={fetchIndex} className="kis-retry">↺</button>
+        </div>
+      )}
+      {data && !loading && (
+        <>
+          <div className="kis-index-price" style={{color: rc}}>
+            {fmt(data.price)}
+          </div>
+          <div className="kis-index-change" style={{color: rc}}>
+            {fmtC(data.change)} ({fmtR(data.changeRate)})
+          </div>
+          <div className="kis-index-sub">
+            고 {fmt(data.high)} · 저 {fmt(data.low)}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── 테마 종목 실시간 가격 ───────────────────────────
+function ThemeStockPrices({ codes, stocks, color }) {
+  const [prices, setPrices] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        const res = await fetch(`/api/kis?type=prices&codes=${codes.join(',')}`)
+        const json = await res.json()
+        if (!json.error) setPrices(json.prices || [])
+      } catch {}
+      finally { setLoading(false) }
+    }
+    fetchPrices()
+  }, [codes.join(',')])
+
+  if (loading) return <div className="theme-stocks-loading">로딩 중...</div>
+
+  return (
+    <div className="theme-stocks-list">
+      {stocks.map((name, i) => {
+        const p = prices.find(x => x.code === codes[i])
+        return (
+          <button
+            key={name}
+            className="theme-stock-chip-price"
+            style={{'--theme-color': color}}
+            onClick={() => window.open(`https://finance.naver.com/item/main.naver?code=${codes[i]}`,'_blank')}
+          >
+            <span className="tsc-name">{name}</span>
+            {p && !p.error ? (
+              <span className="tsc-price" style={{color: rateColor(p.changeRate)}}>
+                {fmt(p.price)} ({fmtR(p.changeRate)})
+              </span>
+            ) : (
+              <span className="tsc-price" style={{color:'#94a3b8'}}>— →</span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── 메인 컴포넌트 ───────────────────────────────────
 export default function DashboardPage() {
   const saved = loadBriefing()
   const [briefing, setBriefing]   = useState(saved.text)
@@ -127,6 +205,12 @@ export default function DashboardPage() {
   const [marketStatus]            = useState(getMarketStatus())
   const [todayStr]                = useState(getTodayStr())
   const [activeTheme, setActive]  = useState(null)
+  const [lastUpdated, setLastUpdated] = useState('')
+
+  useEffect(() => {
+    const now = new Date()
+    setLastUpdated(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} 기준`)
+  }, [])
 
   const handleAI = async () => {
     setAiLoading(true); setAiError('')
@@ -140,15 +224,15 @@ export default function DashboardPage() {
     finally { setAiLoading(false) }
   }
 
-  const openNaver = (code) => window.open(`https://finance.naver.com/item/main.naver?code=${code}`,'_blank')
-
   return (
     <div className="dashboard">
+
+      {/* 헤더 */}
       <div className="dash-header">
         <div className="dash-title-row">
           <div>
             <h1 className="dash-title">시장 대시보드</h1>
-            <p className="dash-date">{todayStr}</p>
+            <p className="dash-date">{todayStr} · {lastUpdated}</p>
           </div>
           <div className="market-status-badge" style={{background:marketStatus.color+'18',color:marketStatus.color,borderColor:marketStatus.color+'40'}}>
             {marketStatus.dot && <span className="status-dot" style={{background:marketStatus.color}}/>}
@@ -157,26 +241,33 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* ✅ 실시간 KIS 지수 */}
       <section className="dash-section">
-        <div className="section-label">매크로 지표</div>
-        <div className="macro-groups">
-          {MACRO_GROUPS.map(g=>(
-            <div key={g.group} className="macro-group">
-              <div className="macro-group-label">{g.group}</div>
-              <div className="macro-group-items">
-                {g.items.map(m=>(
-                  <a key={m.label} href={m.url} target="_blank" rel="noreferrer"
-                     className="macro-card" style={{'--accent':m.color}}>
-                    <span className="macro-label">{m.label}</span>
-                    <span className="macro-live">확인 →</span>
-                  </a>
-                ))}
-              </div>
-            </div>
+        <div className="section-header">
+          <div className="section-label">실시간 지수 <span className="live-badge">● LIVE</span></div>
+          <span className="section-note">KIS API · 장중 10초 갱신</span>
+        </div>
+        <div className="kis-index-grid">
+          <IndexCard market="KOSPI"  label="KOSPI"  color="#2563eb" />
+          <IndexCard market="KOSDAQ" label="KOSDAQ" color="#16a34a" />
+        </div>
+      </section>
+
+      {/* 글로벌 지표 (링크) */}
+      <section className="dash-section">
+        <div className="section-label">글로벌 지표</div>
+        <div className="global-grid">
+          {GLOBAL_LINKS.map(m => (
+            <a key={m.label} href={m.url} target="_blank" rel="noreferrer"
+               className="macro-card" style={{'--accent': m.color}}>
+              <span className="macro-label">{m.label}</span>
+              <span className="macro-live">확인 →</span>
+            </a>
           ))}
         </div>
       </section>
 
+      {/* AI 브리핑 */}
       <section className="dash-section">
         <div className="section-header">
           <div>
@@ -208,29 +299,24 @@ export default function DashboardPage() {
         )}
       </section>
 
+      {/* ✅ 7대 테마 현황 (실시간 주가 포함) */}
       <section className="dash-section">
-        <div className="section-label">7대 테마 현황</div>
+        <div className="section-label">7대 테마 현황 <span className="live-badge">● LIVE</span></div>
         <div className="theme-grid">
-          {THEMES.map(t=>(
+          {THEMES.map(t => (
             <div key={t.id} className={`theme-card${activeTheme===t.id?' active':''}`}
                  style={{'--theme-color':t.color}} onClick={()=>setActive(activeTheme===t.id?null:t.id)}>
               <div className="theme-card-top">
                 <span className="theme-emoji">{t.emoji}</span>
                 <span className="theme-name" style={{color:t.color}}>{t.label}</span>
               </div>
-              <div className="theme-stocks-list">
-                {t.stocks.map((s,i)=>(
-                  <button key={s} className="theme-stock-chip"
-                          onClick={e=>{e.stopPropagation();openNaver(t.codes[i])}}>
-                    {s} →
-                  </button>
-                ))}
-              </div>
+              <ThemeStockPrices codes={t.codes} stocks={t.stocks} color={t.color} />
             </div>
           ))}
         </div>
       </section>
 
+      {/* 2컬럼 */}
       <div className="dash-two-col">
         <section className="dash-section col-card">
           <div className="section-label">빠른 바로가기</div>
@@ -260,7 +346,8 @@ export default function DashboardPage() {
           </div>
         </section>
       </div>
-      <div className="dash-footer-note">💡 키움 REST API 연동 후 실시간 시세·차트·수급 데이터가 자동으로 표시됩니다</div>
+
+      <div className="dash-footer-note">✅ KIS API 연동 완료 · 실시간 KOSPI·KOSDAQ 지수 및 종목 주가 표시 중</div>
     </div>
   )
 }

@@ -188,3 +188,84 @@
   font-size: 10px; color: #16a34a; font-weight: 600;
   margin-bottom: 12px; display: block;
 }
+
+/* ── KIS 실시간 지수 ── */
+.kis-index-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+@media (min-width: 2560px) { .kis-index-grid { gap: 20px; } }
+@media (max-width: 639px)  { .kis-index-grid { grid-template-columns: 1fr; } }
+
+.kis-index-card {
+  background: color-mix(in srgb, var(--ic) 5%, white);
+  border: 1.5px solid color-mix(in srgb, var(--ic) 25%, transparent);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  transition: transform 0.12s;
+}
+.kis-index-card:hover { transform: translateY(-1px); }
+.kis-index-label {
+  font-size: 11px; font-weight: 700;
+  color: var(--ic); letter-spacing: 0.06em;
+  text-transform: uppercase; margin-bottom: 6px;
+}
+.kis-index-price {
+  font-size: 24px; font-weight: 800;
+  font-family: var(--font-mono); letter-spacing: -0.5px;
+  margin-bottom: 4px;
+}
+.kis-index-change { font-size: 13px; font-weight: 600; font-family: var(--font-mono); margin-bottom: 4px; }
+.kis-index-sub    { font-size: 11px; color: var(--text-secondary); }
+.kis-loading      { font-size: 12px; color: var(--text-dim); padding: 8px 0; }
+.kis-error-small  { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #dc2626; padding: 4px 0; }
+.kis-retry        { font-size: 14px; cursor: pointer; background: none; border: none; color: #2563eb; }
+
+@media (min-width: 2560px) {
+  .kis-index-price  { font-size: 32px; }
+  .kis-index-change { font-size: 16px; }
+  .kis-index-card   { padding: 24px 28px; }
+}
+
+/* ── 글로벌 지표 그리드 ── */
+.global-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+@media (min-width: 2560px) { .global-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; } }
+@media (max-width: 639px)  { .global-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* ── LIVE 배지 ── */
+.live-badge {
+  font-size: 10px; color: #16a34a; font-weight: 700;
+  letter-spacing: 0.04em; margin-left: 6px;
+  animation: live-pulse 1.5s ease-in-out infinite;
+}
+@keyframes live-pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+.section-note {
+  font-size: 10px; color: var(--text-dim);
+}
+
+/* ── 테마 종목 실시간 가격 ── */
+.theme-stock-chip-price {
+  width: 100%; text-align: left; padding: 5px 8px;
+  background: white; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); cursor: pointer;
+  font-family: var(--font-kr); transition: all 0.12s;
+  display: flex; align-items: center; justify-content: space-between; gap: 4px;
+}
+.theme-stock-chip-price:hover {
+  border-color: var(--theme-color);
+  background: color-mix(in srgb, var(--theme-color) 5%, white);
+}
+.tsc-name  { font-size: 11px; color: var(--text-primary); font-weight: 500; }
+.tsc-price { font-size: 10px; font-family: var(--font-mono); white-space: nowrap; flex-shrink: 0; }
+.theme-stocks-loading { font-size: 11px; color: var(--text-dim); padding: 4px 0; }
+
+@media (min-width: 2560px) {
+  .tsc-name  { font-size: 14px; }
+  .tsc-price { font-size: 12px; }
+}
