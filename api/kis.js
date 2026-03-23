@@ -1,9 +1,7 @@
-// api/kis.js — KIS API 프록시 서버리스 함수
-// 토큰 발급 + 주가 조회 + 차트 조회
+// api/kis.js — KIS API 프록시
 
 const KIS_BASE = 'https://openapi.koreainvestment.com:9443'
 
-// ── 토큰 발급 ─────────────────────────────────────────
 async function getToken() {
   const res = await fetch(`${KIS_BASE}/oauth2/tokenP`, {
     method: 'POST',
@@ -16,15 +14,14 @@ async function getToken() {
   })
   if (!res.ok) throw new Error(`토큰 발급 실패: ${res.status}`)
   const data = await res.json()
+  if (!data.access_token) throw new Error('토큰이 없어요: ' + JSON.stringify(data))
   return data.access_token
 }
 
-// ── 공통 KIS API 호출 ────────────────────────────────
 async function kisGet(path, trId, params) {
   const token = await getToken()
   const url = new URL(`${KIS_BASE}${path}`)
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
-
   const res = await fetch(url.toString(), {
     headers: {
       'Content-Type':  'application/json',
@@ -41,15 +38,17 @@ async function kisGet(path, trId, params) {
   return data
 }
 
-// ── 핸들러 ────────────────────────────────────────────
+function safeNum(v) {
+  const n = Number(v)
+  return isNaN(n) ? 0 : n
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
   if (req.method === 'OPTIONS') return res.status(200).end()
 
-  const APP_KEY    = process.env.KIS_APP_KEY
-  const APP_SECRET = process.env.KIS_APP_SECRET
-  if (!APP_KEY || !APP_SECRET) {
+  if (!process.env.KIS_APP_KEY || !process.env.KIS_APP_SECRET) {
     return res.status(500).json({ error: 'KIS API 키가 설정되지 않았어요.' })
   }
 
@@ -58,7 +57,7 @@ export default async function handler(req, res) {
   try {
     switch (type) {
 
-      // ── 현재가 조회 ──────────────────────────────────
+      // ── 현재가 ────────────────────────────────────────
       case 'price': {
         if (!code) return res.status(400).json({ error: '종목코드가 필요해요.' })
         const data = await kisGet(
@@ -70,20 +69,20 @@ export default async function handler(req, res) {
         return res.json({
           code,
           name:       o.hts_kor_isnm,
-          price:      Number(o.stck_prpr),
-          change:     Number(o.prdy_vrss),
-          changeRate: Number(o.prdy_ctrt),
-          open:       Number(o.stck_oprc),
-          high:       Number(o.stck_hgpr),
-          low:        Number(o.stck_lwpr),
-          volume:     Number(o.acml_vol),
-          marketCap:  Number(o.hts_avls),
-          per:        Number(o.per),
-          pbr:        Number(o.pbr),
+          price:      safeNum(o.stck_prpr),
+          change:     safeNum(o.prdy_vrss),
+          changeRate: safeNum(o.prdy_ctrt),
+          open:       safeNum(o.stck_oprc),
+          high:       safeNum(o.stck_hgpr),
+          low:        safeNum(o.stck_lwpr),
+          volume:     safeNum(o.acml_vol),
+          per:        safeNum(o.per),
+          pbr:        safeNum(o.pbr),
+          sign:       o.prdy_vrss_sign, // 1:상한 2:상승 3:보합 4:하한 5:하락
         })
       }
 
-      // ── 여러 종목 현재가 일괄 조회 ───────────────────
+      // ── 여러 종목 현재가 ──────────────────────────────
       case 'prices': {
         const codes = (req.query.codes || '').split(',').filter(Boolean).slice(0, 20)
         if (!codes.length) return res.status(400).json({ error: '종목코드가 필요해요.' })
@@ -100,27 +99,26 @@ export default async function handler(req, res) {
           return {
             code:       codes[i],
             name:       o.hts_kor_isnm,
-            price:      Number(o.stck_prpr),
-            change:     Number(o.prdy_vrss),
-            changeRate: Number(o.prdy_ctrt),
-            volume:     Number(o.acml_vol),
+            price:      safeNum(o.stck_prpr),
+            change:     safeNum(o.prdy_vrss),
+            changeRate: safeNum(o.prdy_ctrt),
+            volume:     safeNum(o.acml_vol),
+            sign:       o.prdy_vrss_sign,
           }
         })
         return res.json({ prices })
       }
 
-      // ── 일봉/주봉/월봉 차트 ──────────────────────────
+      // ── 차트 ─────────────────────────────────────────
       case 'chart': {
         if (!code) return res.status(400).json({ error: '종목코드가 필요해요.' })
         const div = period === 'W' ? 'W' : period === 'M' ? 'M' : 'D'
-        const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-        const startDate = (() => {
-          const d = new Date()
-          if (div === 'M') d.setFullYear(d.getFullYear() - 5)
-          else if (div === 'W') d.setFullYear(d.getFullYear() - 2)
-          else d.setFullYear(d.getFullYear() - 1)
-          return d.toISOString().slice(0, 10).replace(/-/g, '')
-        })()
+        const today = new Date().toISOString().slice(0,10).replace(/-/g,'')
+        const d = new Date()
+        if (div==='M') d.setFullYear(d.getFullYear()-5)
+        else if (div==='W') d.setFullYear(d.getFullYear()-2)
+        else d.setFullYear(d.getFullYear()-1)
+        const startDate = d.toISOString().slice(0,10).replace(/-/g,'')
 
         const data = await kisGet(
           '/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice',
@@ -134,42 +132,47 @@ export default async function handler(req, res) {
             FID_ORG_ADJ_PRC:        '0',
           }
         )
-
         const candles = (data.output2 || []).map(o => ({
           date:   o.stck_bsop_date,
-          open:   Number(o.stck_oprc),
-          high:   Number(o.stck_hgpr),
-          low:    Number(o.stck_lwpr),
-          close:  Number(o.stck_clpr),
-          volume: Number(o.acml_vol),
+          open:   safeNum(o.stck_oprc),
+          high:   safeNum(o.stck_hgpr),
+          low:    safeNum(o.stck_lwpr),
+          close:  safeNum(o.stck_clpr),
+          volume: safeNum(o.acml_vol),
         })).reverse()
 
-        return res.json({ code, period: div, candles })
+        // 현재가 정보 (output1)
+        const o1 = data.output1 || {}
+        return res.json({
+          code, period: div, candles,
+          name:  o1.hts_kor_isnm,
+          price: safeNum(o1.stck_prpr),
+        })
       }
 
-      // ── 코스피/코스닥 지수 ───────────────────────────
+      // ── 지수 ─────────────────────────────────────────
       case 'index': {
-        const mktDiv = req.query.market === 'KOSDAQ' ? 'Q' : 'U'
-        const iscd   = req.query.market === 'KOSDAQ' ? 'Q' : '0001'
+        const market  = req.query.market || 'KOSPI'
+        const mktDiv  = market === 'KOSDAQ' ? 'Q' : 'U'
+        const iscd    = market === 'KOSDAQ' ? 'Q' : '0001'
         const data = await kisGet(
           '/uapi/domestic-stock/v1/quotations/inquire-index-price',
           'FHPUP02100000',
           { FID_COND_MRKT_DIV_CODE: mktDiv, FID_INPUT_ISCD: iscd }
         )
         const o = data.output
-        return res.json({
-          market:     req.query.market || 'KOSPI',
-          price:      Number(o.bstp_nmix_prpr),
-          change:     Number(o.bstp_nmix_prdy_vrss),
-          changeRate: Number(o.bstp_nmix_prdy_ctrt),
-          open:       Number(o.bstp_nmix_oprc),
-          high:       Number(o.bstp_nmix_hgpr),
-          low:        Number(o.bstp_nmix_lwpr),
-          volume:     Number(o.acml_vol),
-        })
+        // 장 마감 후에는 prdy_vrss 계열 필드로 fallback
+        const price      = safeNum(o.bstp_nmix_prpr)
+        const change     = safeNum(o.bstp_nmix_prdy_vrss)   || safeNum(o.prdy_vrss)
+        const changeRate = safeNum(o.bstp_nmix_prdy_ctrt)   || safeNum(o.prdy_ctrt)
+        const open       = safeNum(o.bstp_nmix_oprc)        || safeNum(o.stck_oprc)
+        const high       = safeNum(o.bstp_nmix_hgpr)        || safeNum(o.stck_hgpr)
+        const low        = safeNum(o.bstp_nmix_lwpr)        || safeNum(o.stck_lwpr)
+        const volume     = safeNum(o.acml_vol)
+        return res.json({ market, price, change, changeRate, open, high, low, volume })
       }
 
-      // ── 외국인/기관 수급 ─────────────────────────────
+      // ── 수급 ─────────────────────────────────────────
       case 'supply': {
         if (!code) return res.status(400).json({ error: '종목코드가 필요해요.' })
         const data = await kisGet(
@@ -178,12 +181,25 @@ export default async function handler(req, res) {
           { FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code }
         )
         const list = (data.output || []).slice(0, 10).map(o => ({
-          date:         o.stck_bsop_date,
-          foreign:      Number(o.frgn_ntby_qty),
-          institution:  Number(o.orgn_ntby_qty),
-          individual:   Number(o.prsn_ntby_qty),
+          date:        o.stck_bsop_date,
+          foreign:     safeNum(o.frgn_ntby_qty),
+          institution: safeNum(o.orgn_ntby_qty),
+          individual:  safeNum(o.prsn_ntby_qty),
         }))
         return res.json({ code, supply: list })
+      }
+
+      // ── 디버그 (raw 응답 확인용) ──────────────────────
+      case 'debug': {
+        const market  = req.query.market || 'KOSPI'
+        const mktDiv  = market === 'KOSDAQ' ? 'Q' : 'U'
+        const iscd    = market === 'KOSDAQ' ? 'Q' : '0001'
+        const data = await kisGet(
+          '/uapi/domestic-stock/v1/quotations/inquire-index-price',
+          'FHPUP02100000',
+          { FID_COND_MRKT_DIV_CODE: mktDiv, FID_INPUT_ISCD: iscd }
+        )
+        return res.json(data.output) // raw 전체 출력
       }
 
       default:
