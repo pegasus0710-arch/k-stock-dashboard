@@ -269,3 +269,21 @@
   .tsc-name  { font-size: 14px; }
   .tsc-price { font-size: 12px; }
 }
+
+/* ── 장마감 / 장시작전 배지 ── */
+.kis-index-top {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 6px;
+}
+.kis-index-top .kis-index-label { margin-bottom: 0; }
+
+.kis-closed-badge {
+  font-size: 10px; font-weight: 600;
+  color: #64748b; background: #f1f5f9;
+  border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 2px 7px; white-space: nowrap;
+}
+.kis-live-badge {
+  font-size: 10px; font-weight: 700; color: #16a34a;
+  animation: live-pulse 1.5s ease-in-out infinite;
+}

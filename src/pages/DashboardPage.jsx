@@ -96,17 +96,16 @@ async function fetchBriefing(apiKey) {
 
 // ─── 실시간 지수 카드 컴포넌트 ───────────────────────
 function IndexCard({ market, label, color }) {
-  const [data, setData]   = useState(null)
+  const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const [error, setError]     = useState(false)
 
   const fetchIndex = useCallback(async () => {
     try {
-      const res = await fetch(`/api/kis?type=index&market=${market}`)
+      const res  = await fetch(`/api/kis?type=index&market=${market}`)
       const json = await res.json()
       if (json.error) throw new Error(json.error)
-      setData(json)
-      setError(false)
+      setData(json); setError(false)
     } catch { setError(true) }
     finally { setLoading(false) }
   }, [market])
@@ -121,28 +120,36 @@ function IndexCard({ market, label, color }) {
     }
   }, [fetchIndex])
 
-  const rc = data ? rateColor(data.changeRate) : color
+  const isClosed = data?.status === 'closed'
+  const rc = data?.changeRate ? rateColor(data.changeRate) : color
 
   return (
     <div className="kis-index-card" style={{'--ic': color}}>
-      <div className="kis-index-label">{label}</div>
+      <div className="kis-index-top">
+        <div className="kis-index-label">{label}</div>
+        {isClosed && <span className="kis-closed-badge">장 마감</span>}
+        {!isClosed && data && <span className="kis-live-badge">● LIVE</span>}
+      </div>
       {loading && <div className="kis-loading">로딩 중...</div>}
       {error && !loading && (
         <div className="kis-error-small">
-          <span>데이터 오류</span>
+          <span>연결 오류</span>
           <button onClick={fetchIndex} className="kis-retry">↺</button>
         </div>
       )}
       {data && !loading && (
         <>
-          <div className="kis-index-price" style={{color: rc}}>
+          <div className="kis-index-price" style={{color: isClosed ? '#64748b' : rc}}>
             {fmt(data.price)}
           </div>
-          <div className="kis-index-change" style={{color: rc}}>
+          <div className="kis-index-change" style={{color: isClosed ? '#94a3b8' : rc}}>
             {fmtC(data.change)} ({fmtR(data.changeRate)})
           </div>
           <div className="kis-index-sub">
-            고 {fmt(data.high)} · 저 {fmt(data.low)}
+            {isClosed
+              ? `📅 ${data.label || '전일 종가'} · 고 ${fmt(data.high)} · 저 ${fmt(data.low)}`
+              : `고 ${fmt(data.high)} · 저 ${fmt(data.low)}`
+            }
           </div>
         </>
       )}
