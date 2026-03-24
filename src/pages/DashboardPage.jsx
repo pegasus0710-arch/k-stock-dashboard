@@ -70,7 +70,169 @@ async function fetchBriefingAI(apiKey) {
 }
 
 // ── 지수 카드 ─────────────────────────────────────────
-function IndexCard({ data, loading, color, label }) {
+// ── SVG 캔들스틱 차트 ────────────────────────────────
+function CandleChart({ candles, width = 600, height = 280 }) {
+  if (!candles || candles.length === 0) return (
+    <div className="chart-empty">데이터를 불러오는 중...</div>
+  )
+  const pad   = { top:16, bottom:36, left:56, right:16 }
+  const W     = width  - pad.left - pad.right
+  const H     = height - pad.top  - pad.bottom
+  const allH  = candles.map(c=>c.high)
+  const allL  = candles.map(c=>c.low)
+  const minP  = Math.min(...allL)
+  const maxP  = Math.max(...allH)
+  const range = maxP - minP || 1
+  const cw    = Math.max(2, W / candles.length - 1)
+  const xOf   = i => pad.left + (i + 0.5) * (W / candles.length)
+  const yOf   = v => pad.top  + H - ((v - minP) / range) * H
+
+  // Y축 레이블 (5개)
+  const yTicks = Array.from({length:5},(_,i) => minP + (range * i / 4))
+
+  // X축 레이블 (월 변경점)
+  const xLabels = []
+  candles.forEach((c,i)=>{
+    if (i===0 || c.date?.slice(4,6) !== candles[i-1]?.date?.slice(4,6)) {
+      xLabels.push({ i, label:`${c.date?.slice(4,6)}/${c.date?.slice(6,8)}` })
+    }
+  })
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${width} ${height}`}
+         style={{display:'block',background:'#0f172a',borderRadius:'8px'}}>
+      {/* 그리드 */}
+      {yTicks.map((v,i)=>(
+        <g key={i}>
+          <line x1={pad.left} x2={pad.left+W} y1={yOf(v)} y2={yOf(v)}
+            stroke="#1e293b" strokeWidth="1"/>
+          <text x={pad.left-4} y={yOf(v)+4} textAnchor="end"
+            fontSize="9" fill="#64748b">
+            {v > 1000 ? (v/1).toLocaleString(undefined,{maximumFractionDigits:0}) : v.toFixed(2)}
+          </text>
+        </g>
+      ))}
+      {/* X축 레이블 */}
+      {xLabels.slice(0,8).map(({i,label})=>(
+        <text key={i} x={xOf(i)} y={height-6} textAnchor="middle"
+          fontSize="9" fill="#64748b">{label}</text>
+      ))}
+      {/* 캔들 */}
+      {candles.map((c,i)=>{
+        const up   = c.close >= c.open
+        const clr  = up ? '#ef4444' : '#3b82f6'
+        const x    = xOf(i)
+        const yH   = yOf(c.high)
+        const yL   = yOf(c.low)
+        const yO   = yOf(Math.max(c.open, c.close))
+        const yC   = yOf(Math.min(c.open, c.close))
+        const bH   = Math.max(1, yL - yO)
+        return (
+          <g key={i}>
+            <line x1={x} x2={x} y1={yH} y2={yL} stroke={clr} strokeWidth="1"/>
+            <rect x={x - cw/2} y={yO} width={cw} height={bH} fill={clr} rx="0.5"/>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+// ── 차트 팝업 모달 ────────────────────────────────────
+function ChartModal({ item, onClose }) {
+  const [candles, setCandles]   = useState([])
+  const [period,  setPeriod]    = useState('D')
+  const [loading, setLoading]   = useState(true)
+  const [info,    setInfo]      = useState(null)
+
+  const fetchChart = useCallback(async (p) => {
+    setLoading(true)
+    try {
+      const isIndex = item.type === 'index'
+      const url     = isIndex
+        ? `/api/kis?type=index-chart&market=${item.market}&days=${p==='D'?60:p==='W'?200:500}`
+        : `/api/kis?type=chart&code=${item.code}&period=${p}`
+      const res  = await fetch(url)
+      const json = await res.json()
+      setCandles(json.candles || [])
+      setInfo({ name: item.label, price: item.price, changeRate: item.changeRate })
+    } catch {}
+    setLoading(false)
+  }, [item])
+
+  useEffect(() => { fetchChart(period) }, [period, fetchChart])
+
+  // ESC 닫기
+  useEffect(() => {
+    const fn = e => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [onClose])
+
+  const PERIODS = item.type === 'index'
+    ? [{ v:'D', l:'일봉' }, { v:'W', l:'주봉' }]
+    : [{ v:'D', l:'일봉' }, { v:'W', l:'주봉' }, { v:'M', l:'월봉' }]
+
+  return (
+    <div className="chart-modal-overlay" onClick={onClose}>
+      <div className="chart-modal" onClick={e=>e.stopPropagation()}>
+        <div className="chart-modal-header">
+          <div className="chart-modal-title">
+            <span className="chart-modal-name">{item.label}</span>
+            {item.code && <span className="chart-modal-code">{item.code}</span>}
+            {info && (
+              <span className="chart-modal-price" style={{color: rc(info.changeRate)}}>
+                {fmt(item.price)} ({fmtR(item.changeRate)})
+              </span>
+            )}
+          </div>
+          <div className="chart-modal-actions">
+            <div className="chart-period-tabs">
+              {PERIODS.map(p=>(
+                <button key={p.v}
+                  className={`chart-period-btn ${period===p.v?'active':''}`}
+                  onClick={()=>setPeriod(p.v)}>{p.l}</button>
+              ))}
+            </div>
+            {item.naverUrl && (
+              <a href={item.naverUrl} target="_blank" rel="noreferrer"
+                 className="chart-naver-btn">네이버 →</a>
+            )}
+            <button className="chart-modal-close" onClick={onClose}>✕</button>
+          </div>
+        </div>
+        <div className="chart-modal-body">
+          {loading
+            ? <div className="chart-loading"><div className="spinner-lg"/>차트 로딩 중...</div>
+            : <CandleChart candles={candles}
+                width={window.innerWidth > 1000 ? 860 : window.innerWidth - 48}
+                height={340}/>
+          }
+        </div>
+        {item.type !== 'index' && (
+          <div className="chart-modal-footer">
+            <span>KIS API 데이터</span>
+            {item.status === 'closed' && <span className="chart-closed-note">📅 장 마감 기준</span>}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── 지수 카드 (스파크라인 + 클릭 차트) ───────────────
+function IndexCard({ data, loading, color, label, onChartClick }) {
+  const [sparkline, setSparkline] = useState([])
+
+  useEffect(() => {
+    if (!data) return
+    const market = data.market
+    fetch(`/api/kis?type=index-chart&market=${market}&days=20`)
+      .then(r=>r.json())
+      .then(j=>{ if (j.candles) setSparkline(j.candles.map(c=>c.close)) })
+      .catch(()=>{})
+  }, [data?.market, data?.price])
+
   if (loading) return (
     <div className="kis-index-card" style={{'--ic':color}}>
       <div className="kis-index-top"><span className="kis-index-label">{label}</span></div>
@@ -85,48 +247,101 @@ function IndexCard({ data, loading, color, label }) {
   )
   const closed   = data.status === 'closed'
   const priceClr = closed ? '#64748b' : rc(data.changeRate)
+
   return (
-    <div className="kis-index-card" style={{'--ic':color}}>
-      <div className="kis-index-top">
-        <span className="kis-index-label">{label}</span>
-        {closed
-          ? <span className="kis-closed-badge">장 마감</span>
-          : <span className="kis-live-badge">● LIVE</span>}
-      </div>
-      <div className="kis-index-price" style={{color:priceClr}}>{fmt(data.price)}</div>
-      <div className="kis-index-change" style={{color:priceClr}}>
-        {fmtC(data.change)} ({fmtR(data.changeRate)})
-      </div>
-      <div className="kis-index-sub">
-        {closed
-          ? `📅 ${data.closeDate || '최근 종가'} · 고 ${fmt(data.high)} · 저 ${fmt(data.low)}`
-          : `고 ${fmt(data.high)} · 저 ${fmt(data.low)}`}
+    <div className="kis-index-card kis-index-card--clickable"
+         style={{'--ic':color}}
+         onClick={()=>onChartClick && onChartClick({
+           type:'index', market:data.market, label,
+           price:data.price, changeRate:data.changeRate, status:data.status
+         })}>
+      <div className="kis-index-main">
+        <div>
+          <div className="kis-index-top">
+            <span className="kis-index-label">{label}</span>
+            {closed
+              ? <span className="kis-closed-badge">장 마감</span>
+              : <span className="kis-live-badge">● LIVE</span>}
+          </div>
+          <div className="kis-index-price" style={{color:priceClr}}>{fmt(data.price)}</div>
+          <div className="kis-index-change" style={{color:priceClr}}>
+            {fmtC(data.change)} ({fmtR(data.changeRate)})
+          </div>
+          <div className="kis-index-sub">
+            {closed
+              ? `📅 ${data.closeDate||'최근 종가'} · 고 ${fmt(data.high)} · 저 ${fmt(data.low)}`
+              : `고 ${fmt(data.high)} · 저 ${fmt(data.low)}`}
+          </div>
+        </div>
+        {sparkline.length >= 2 && (
+          <div className="kis-index-sparkline">
+            <Sparkline values={sparkline}
+              color={data.changeRate >= 0 ? '#ef4444' : '#3b82f6'}/>
+            <span className="kis-chart-hint">차트 보기</span>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
 // ── 환율 카드 ─────────────────────────────────────────
+// ── 스파크라인 SVG ────────────────────────────────────
+function Sparkline({ values, color }) {
+  if (!values || values.length < 2) return null
+  const W = 80, H = 28
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * W
+    const y = H - ((v - min) / range) * (H - 4) - 2
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}
+         style={{display:'block',flexShrink:0}}>
+      <polyline points={pts} fill="none"
+        stroke={color} strokeWidth="1.8"
+        strokeLinejoin="round" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
+// ── 환율 카드 (스파크라인 포함) ───────────────────────
 function ForexCard({ forex }) {
   if (!forex) return null
+  const hist = forex.history || {}
+  const items = [
+    { label:'USD/KRW', symbol:'₩', value: forex.usdKrw?.toLocaleString(), values: hist.krw, color:'#d97706' },
+    { label:'USD/JPY', symbol:'¥', value: forex.usdJpy, values: hist.jpy, color:'#2563eb' },
+    { label:'USD/CNY', symbol:'¥', value: forex.usdCny, values: hist.cny, color:'#dc2626' },
+  ].filter(i => i.value && i.value !== 'undefined')
+
   return (
     <div className="forex-section">
-      <div className="forex-card">
-        <span className="forex-label">USD/KRW</span>
-        <span className="forex-value">₩{forex.usdKrw?.toLocaleString()}</span>
-      </div>
-      {forex.usdJpy && (
-        <div className="forex-card">
-          <span className="forex-label">USD/JPY</span>
-          <span className="forex-value">¥{forex.usdJpy}</span>
-        </div>
-      )}
-      {forex.usdCny && (
-        <div className="forex-card">
-          <span className="forex-label">USD/CNY</span>
-          <span className="forex-value">¥{forex.usdCny}</span>
-        </div>
-      )}
+      {items.map(item => {
+        const vals  = (item.values || []).filter(v => v > 0)
+        const first = vals[0] || 0
+        const last  = vals[vals.length - 1] || 0
+        const diff  = last - first
+        const pct   = first ? ((diff / first) * 100).toFixed(2) : '0.00'
+        const up    = diff >= 0
+        const lineColor = up ? item.color : '#94a3b8'
+        return (
+          <div key={item.label} className="forex-card">
+            <div className="forex-card-left">
+              <span className="forex-label">{item.label}</span>
+              <span className="forex-value">{item.symbol}{item.value}</span>
+              <span className="forex-change" style={{color: up ? '#dc2626' : '#2563eb'}}>
+                {up ? '▲' : '▼'} {Math.abs(Number(pct))}%
+                <span className="forex-period"> 7일</span>
+              </span>
+            </div>
+            {vals.length >= 2 && <Sparkline values={vals} color={lineColor} />}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -142,6 +357,7 @@ export default function DashboardPage() {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError]     = useState('')
   const [activeTheme, setActive]  = useState(null)
+  const [chartItem,   setChart]   = useState(null) // 차트 팝업
   const timerRef = useRef(null)
 
   // ── 배치 데이터 fetch ─────────────────────────────
@@ -243,8 +459,8 @@ export default function DashboardPage() {
         </div>
 
         <div className="kis-index-grid">
-          <IndexCard data={dashData?.kospi}  loading={loading} color="#2563eb" label="KOSPI"  />
-          <IndexCard data={dashData?.kosdaq} loading={loading} color="#16a34a" label="KOSDAQ" />
+          <IndexCard data={dashData?.kospi}  loading={loading} color="#2563eb" label="KOSPI"  onChartClick={setChart}/>
+          <IndexCard data={dashData?.kosdaq} loading={loading} color="#16a34a" label="KOSDAQ" onChartClick={setChart}/>
         </div>
 
         <ForexCard forex={dashData?.forex} />
@@ -327,7 +543,15 @@ export default function DashboardPage() {
                       style={{'--theme-color':t.color}}
                       onClick={e=>{
                         e.stopPropagation()
-                        window.open(`https://finance.naver.com/item/main.naver?code=${t.codes[i]}`,'_blank')
+                        setChart({
+                          type: 'stock',
+                          code: t.codes[i],
+                          label: name,
+                          price: p?.price,
+                          changeRate: p?.changeRate,
+                          status: p?.status,
+                          naverUrl: `https://finance.naver.com/item/main.naver?code=${t.codes[i]}`
+                        })
                       }}>
                       <span className="tsc-name">{name}</span>
                       {loading
@@ -336,7 +560,7 @@ export default function DashboardPage() {
                           ? <span className="tsc-price" style={{color: rc(p.changeRate)}}>
                               {fmt(p.price)} ({fmtR(p.changeRate)})
                             </span>
-                          : <span className="tsc-price" style={{color:'#94a3b8'}}>— →</span>
+                          : <span className="tsc-price tsc-chart-hint">차트 →</span>
                       }
                     </button>
                   )
@@ -381,6 +605,11 @@ export default function DashboardPage() {
       <div className="dash-footer-note">
         ✅ KIS API 연동 · {marketStatus==='open'?'장중 30초':'장외 5분'} 자동 갱신 · 환율 ExchangeRate-API
       </div>
+
+      {/* 차트 팝업 */}
+      {chartItem && (
+        <ChartModal item={chartItem} onClose={()=>setChart(null)}/>
+      )}
     </div>
   )
 }
