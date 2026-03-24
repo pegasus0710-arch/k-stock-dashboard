@@ -1,12 +1,48 @@
-// api/kis.js — KIS API 프록시 (KOSDAQ 수정 + 환율 히스토리)
+// api/kis.js — KIS API 프록시
+// 토큰을 Firebase Firestore에 저장해서 인스턴스 간 공유
+// → 새 접속마다 토큰 재발급 방지, 하루 1회만 발급
 
-const KIS_BASE = 'https://openapi.koreainvestment.com:9443'
+const KIS_BASE    = 'https://openapi.koreainvestment.com:9443'
+const FIRESTORE   = `https://firestore.googleapis.com/v1/projects/${process.env.VITE_FIREBASE_PROJECT_ID}/databases/(default)/documents`
+const TOKEN_DOC   = `${FIRESTORE}/kis_token/main`
 
-let _token = null, _tokenAt = 0
+// ── 인스턴스 메모리 캐시 (Firestore 호출 최소화) ────────
+let _memToken = null, _memAt = 0
 
-async function getToken() {
-  const now = Date.now()
-  if (_token && now < _tokenAt + 23 * 60 * 60 * 1000) return _token
+// ── Firestore에서 토큰 읽기 ──────────────────────────
+async function readTokenFromFirestore() {
+  try {
+    const res = await fetch(`${TOKEN_DOC}?key=${process.env.VITE_FIREBASE_API_KEY}`)
+    if (!res.ok) return null
+    const doc = await res.json()
+    const fields = doc.fields || {}
+    return {
+      token:    fields.token?.stringValue || null,
+      issuedAt: Number(fields.issuedAt?.integerValue || 0),
+    }
+  } catch { return null }
+}
+
+// ── Firestore에 토큰 저장 ────────────────────────────
+async function saveTokenToFirestore(token, issuedAt) {
+  try {
+    await fetch(`${TOKEN_DOC}?key=${process.env.VITE_FIREBASE_API_KEY}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          token:    { stringValue: token },
+          issuedAt: { integerValue: String(issuedAt) },
+        }
+      })
+    })
+  } catch (e) {
+    console.log('Firestore 저장 실패:', e.message)
+  }
+}
+
+// ── KIS 토큰 발급 ────────────────────────────────────
+async function issueNewToken() {
   const res = await fetch(`${KIS_BASE}/oauth2/tokenP`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -19,9 +55,37 @@ async function getToken() {
   if (!res.ok) throw new Error(`토큰 발급 실패: ${res.status}`)
   const data = await res.json()
   if (!data.access_token) throw new Error('토큰 없음')
-  _token = data.access_token
-  _tokenAt = now
-  return _token
+  return data.access_token
+}
+
+// ── 토큰 가져오기 (캐시 우선) ────────────────────────
+// 순서: 메모리 캐시 → Firestore → 신규 발급
+async function getToken() {
+  const now = Date.now()
+  const TTL = 23 * 60 * 60 * 1000 // 23시간
+
+  // 1. 메모리 캐시 확인 (가장 빠름, Firestore 호출 없음)
+  if (_memToken && now < _memAt + TTL) {
+    return _memToken
+  }
+
+  // 2. Firestore 캐시 확인 (인스턴스 재시작 후에도 유지)
+  const stored = await readTokenFromFirestore()
+  if (stored?.token && now < stored.issuedAt + TTL) {
+    // Firestore 토큰 유효 → 메모리에도 저장 후 반환
+    _memToken = stored.token
+    _memAt    = stored.issuedAt
+    return _memToken
+  }
+
+  // 3. 신규 발급 (카톡 알림 1회)
+  console.log('KIS 토큰 신규 발급')
+  const token = await issueNewToken()
+  _memToken = token
+  _memAt    = now
+  // Firestore에 비동기 저장 (응답 지연 없음)
+  saveTokenToFirestore(token, now)
+  return token
 }
 
 async function kisGet(path, trId, params) {
@@ -342,7 +406,11 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: `알 수 없는 type: ${type}` })
     }
   } catch (e) {
-    if (e.message.includes('401')) { _token = null; _tokenAt = 0 }
+    if (e.message.includes('401')) {
+      // 토큰 무효 → 메모리 + Firestore 캐시 초기화
+      _memToken = null; _memAt = 0
+      saveTokenToFirestore('', 0)
+    }
     console.error('KIS Error:', e.message)
     return res.status(500).json({ error: e.message })
   }
