@@ -132,9 +132,9 @@ function bizDate(offsetDays = 0) {
 async function fetchIndex(market) {
   const isOpen = marketStatus() === 'open'
   const mktDiv = market === 'KOSDAQ' ? 'Q' : 'U'
-  // KOSPI: '0001', KOSDAQ: '1001'
   const iscd   = market === 'KOSDAQ' ? '1001' : '0001'
 
+  // ── 실시간 (장중) ──────────────────────────────────
   if (isOpen) {
     try {
       const d = await kisGet(
@@ -143,7 +143,7 @@ async function fetchIndex(market) {
         { FID_COND_MRKT_DIV_CODE: mktDiv, FID_INPUT_ISCD: iscd }
       )
       if (d.rt_cd === '0') {
-        const o = d.output
+        const o     = d.output
         const price = n(o.bstp_nmix_prpr)
         if (price > 0) {
           return {
@@ -158,44 +158,85 @@ async function fetchIndex(market) {
           }
         }
       }
-      console.log(`${market} 실시간 오류: rt_cd=${d.rt_cd}, msg=${d.msg1}`)
+      console.log(`${market} 실시간: rt_cd=${d.rt_cd} msg=${d.msg1}`)
     } catch (e) {
-      console.log(`${market} 실시간 조회 실패:`, e.message)
+      console.log(`${market} 실시간 실패:`, e.message)
     }
   }
 
-  // 장외 OR 실시간 실패 → 일봉 종가
+  // ── 장외/실시간 실패 → 일봉 종가 ────────────────────
+  const today  = bizDate(0)
+  const before = bizDate(-10)
+
   try {
-    const today  = bizDate(0)
-    const before = bizDate(-7)
     const d = await kisGet(
       '/uapi/domestic-stock/v1/quotations/inquire-index-daily-price',
       'FHPUP02120000',
       {
         FID_COND_MRKT_DIV_CODE: mktDiv,
-        FID_INPUT_ISCD: iscd,
-        FID_INPUT_DATE_1: before,
-        FID_INPUT_DATE_2: today,
-        FID_PERIOD_DIV_CODE: 'D',
+        FID_INPUT_ISCD:         iscd,
+        FID_INPUT_DATE_1:       before,
+        FID_INPUT_DATE_2:       today,
+        FID_PERIOD_DIV_CODE:    'D',
       }
     )
+    console.log(`${market} 일봉 rt_cd=${d.rt_cd} len=${d.output2?.length}`)
+
     if (d.rt_cd === '0' && d.output2?.length > 0) {
       const o    = d.output2[0]
       const date = o.stck_bsop_date || today
-      return {
-        market, status: 'closed',
-        price:      n(o.bstp_nmix_prpr || o.stck_clpr),
-        change:     n(o.bstp_nmix_prdy_vrss || o.prdy_vrss),
-        changeRate: n(o.bstp_nmix_prdy_ctrt || o.prdy_ctrt),
-        high:       n(o.bstp_nmix_hgpr || o.stck_hgpr),
-        low:        n(o.bstp_nmix_lwpr || o.stck_lwpr),
-        volume:     n(o.acml_vol),
-        closeDate:  `${date.slice(0,4)}.${date.slice(4,6)}.${date.slice(6,8)}`,
+
+      // KOSPI/KOSDAQ 필드명 차이 대응 — 가능한 모든 필드 시도
+      const price = n(
+        o.bstp_nmix_prpr || o.stck_clpr || o.bstp_nmix_clpr ||
+        o.clpr || o.prpr || o.prc
+      )
+
+      if (price > 0) {
+        return {
+          market, status: 'closed', price,
+          change:     n(o.bstp_nmix_prdy_vrss || o.prdy_vrss || o.vrss),
+          changeRate: n(o.bstp_nmix_prdy_ctrt  || o.prdy_ctrt || o.ctrt),
+          high:       n(o.bstp_nmix_hgpr        || o.stck_hgpr || o.hgpr),
+          low:        n(o.bstp_nmix_lwpr         || o.stck_lwpr || o.lwpr),
+          volume:     n(o.acml_vol),
+          closeDate:  `${date.slice(0,4)}.${date.slice(4,6)}.${date.slice(6,8)}`,
+        }
       }
+      // price 0이면 실제 응답 필드 로그 출력 (Vercel 로그에서 확인)
+      console.log(`${market} price=0, output2[0]:`, JSON.stringify(o))
     }
   } catch (e) {
-    console.log(`${market} 일봉 조회 실패:`, e.message)
+    console.log(`${market} 일봉 실패:`, e.message)
   }
+
+  // ── KOSDAQ 최후 수단: KODEX KOSDAQ150 ETF(229200) 대체 ──
+  if (market === 'KOSDAQ') {
+    try {
+      const d = await kisGet(
+        '/uapi/domestic-stock/v1/quotations/inquire-price',
+        'FHKST01010100',
+        { FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: '229200' }
+      )
+      if (d.rt_cd === '0') {
+        const o = d.output
+        return {
+          market: 'KOSDAQ', status: 'closed',
+          price:      n(o.stck_prpr),
+          change:     n(o.prdy_vrss),
+          changeRate: n(o.prdy_ctrt),
+          high:       n(o.stck_hgpr),
+          low:        n(o.stck_lwpr),
+          volume:     n(o.acml_vol),
+          closeDate:  'ETF 참고치',
+          note:       'KODEX KOSDAQ150 ETF 기준',
+        }
+      }
+    } catch (e) {
+      console.log('KOSDAQ ETF fallback 실패:', e.message)
+    }
+  }
+
   return { market, status: 'closed', price: 0, change: 0, changeRate: 0 }
 }
 
@@ -399,6 +440,25 @@ export default async function handler(req, res) {
             institution: n(o.orgn_ntby_qty),
             individual: n(o.prsn_ntby_qty),
           })),
+        })
+      }
+
+      // ── KOSDAQ 디버그 (raw 응답 확인용) ───────────────
+      case 'debug-kosdaq': {
+        const today  = bizDate(0)
+        const before = bizDate(-10)
+        const raw = await kisGet(
+          '/uapi/domestic-stock/v1/quotations/inquire-index-daily-price',
+          'FHPUP02120000',
+          { FID_COND_MRKT_DIV_CODE:'Q', FID_INPUT_ISCD:'1001',
+            FID_INPUT_DATE_1:before, FID_INPUT_DATE_2:today, FID_PERIOD_DIV_CODE:'D' }
+        )
+        return res.json({
+          rt_cd:   raw.rt_cd,
+          msg1:    raw.msg1,
+          output1: raw.output1,
+          output2_first: raw.output2?.[0] || null,
+          output2_keys:  raw.output2?.[0] ? Object.keys(raw.output2[0]) : [],
         })
       }
 
