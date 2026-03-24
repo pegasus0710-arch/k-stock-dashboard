@@ -167,13 +167,15 @@ async function fetchIndex(market) {
   // ── 장외/실시간 실패 → 일봉 종가 ────────────────────
   const today  = bizDate(0)
   const before = bizDate(-10)
+  // ✅ 일봉 API는 KOSPI/KOSDAQ 모두 'U' 사용 (실시간은 KOSDAQ='Q')
+  const dailyMktDiv = 'U'
 
   try {
     const d = await kisGet(
       '/uapi/domestic-stock/v1/quotations/inquire-index-daily-price',
       'FHPUP02120000',
       {
-        FID_COND_MRKT_DIV_CODE: mktDiv,
+        FID_COND_MRKT_DIV_CODE: dailyMktDiv,
         FID_INPUT_ISCD:         iscd,
         FID_INPUT_DATE_1:       before,
         FID_INPUT_DATE_2:       today,
@@ -447,10 +449,11 @@ export default async function handler(req, res) {
       case 'debug-kosdaq': {
         const today  = bizDate(0)
         const before = bizDate(-10)
+        // FID_COND_MRKT_DIV_CODE: 일봉API는 'Q' 안됨 → 'U' 시도
         const raw = await kisGet(
           '/uapi/domestic-stock/v1/quotations/inquire-index-daily-price',
           'FHPUP02120000',
-          { FID_COND_MRKT_DIV_CODE:'Q', FID_INPUT_ISCD:'1001',
+          { FID_COND_MRKT_DIV_CODE:'U', FID_INPUT_ISCD:'1001',
             FID_INPUT_DATE_1:before, FID_INPUT_DATE_2:today, FID_PERIOD_DIV_CODE:'D' }
         )
         return res.json({
