@@ -287,3 +287,37 @@
   font-size: 10px; font-weight: 700; color: #16a34a;
   animation: live-pulse 1.5s ease-in-out infinite;
 }
+
+/* ── 환율 ── */
+.forex-section {
+  display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+}
+.forex-card {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; background: #fffbeb;
+  border: 1px solid #fde68a; border-radius: var(--radius-md);
+  flex: 1; min-width: 120px;
+}
+.forex-label { font-size: 10px; font-weight: 700; color: #92400e; letter-spacing: 0.05em; }
+.forex-value { font-size: 14px; font-weight: 800; color: #78350f; font-family: var(--font-mono); margin-left: auto; }
+@media (min-width: 2560px) { .forex-value { font-size: 18px; } .forex-label { font-size: 13px; } }
+
+/* ── 장마감 배지 ── */
+.closed-badge {
+  font-size: 10px; color: #64748b; font-weight: 600;
+  margin-left: 6px; letter-spacing: 0.03em;
+}
+.kis-index-top {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 6px;
+}
+.kis-index-top .kis-index-label { margin-bottom: 0; }
+.kis-closed-badge {
+  font-size: 10px; font-weight: 600; color: #64748b;
+  background: #f1f5f9; border: 1px solid #e2e8f0;
+  border-radius: 8px; padding: 2px 7px;
+}
+.kis-live-badge {
+  font-size: 10px; font-weight: 700; color: #16a34a;
+  animation: live-pulse 1.5s ease-in-out infinite;
+}
