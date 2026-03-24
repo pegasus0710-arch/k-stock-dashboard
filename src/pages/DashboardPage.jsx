@@ -71,66 +71,143 @@ async function fetchBriefingAI(apiKey) {
 
 // ── 지수 카드 ─────────────────────────────────────────
 // ── SVG 캔들스틱 차트 ────────────────────────────────
-function CandleChart({ candles, width = 600, height = 280 }) {
+// ── 차트 컴포넌트 (캔들 + 라인) ─────────────────────
+function CandleChart({ candles, width = 860, height = 320, lineMode = false }) {
   if (!candles || candles.length === 0) return (
-    <div className="chart-empty">데이터를 불러오는 중...</div>
+    <div className="chart-empty">데이터 없음</div>
   )
-  const pad   = { top:16, bottom:36, left:56, right:16 }
-  const W     = width  - pad.left - pad.right
-  const H     = height - pad.top  - pad.bottom
-  const allH  = candles.map(c=>c.high)
-  const allL  = candles.map(c=>c.low)
-  const minP  = Math.min(...allL)
-  const maxP  = Math.max(...allH)
-  const range = maxP - minP || 1
-  const cw    = Math.max(2, W / candles.length - 1)
-  const xOf   = i => pad.left + (i + 0.5) * (W / candles.length)
-  const yOf   = v => pad.top  + H - ((v - minP) / range) * H
 
-  // Y축 레이블 (5개)
-  const yTicks = Array.from({length:5},(_,i) => minP + (range * i / 4))
+  const pad = { top: 20, bottom: 40, left: 68, right: 12 }
+  const W   = width  - pad.left - pad.right
+  const H   = height - pad.top  - pad.bottom
 
-  // X축 레이블 (월 변경점)
+  // 가격 범위
+  const closes = candles.map(c => c.close).filter(v => v > 0)
+  const highs  = candles.map(c => c.high  || c.close).filter(v => v > 0)
+  const lows   = candles.map(c => c.low   || c.close).filter(v => v > 0)
+  const minP   = Math.min(...lows)
+  const maxP   = Math.max(...highs)
+  const range  = maxP - minP || 1
+  // 5% 여백
+  const minV   = minP - range * 0.05
+  const maxV   = maxP + range * 0.05
+  const rng    = maxV - minV
+
+  const xOf = i => pad.left + (i + 0.5) * (W / candles.length)
+  const yOf = v => pad.top  + H * (1 - (v - minV) / rng)
+
+  // Y축 눈금 (5개, 보기 좋게 반올림)
+  const magnitude = Math.pow(10, Math.floor(Math.log10(range / 4)))
+  const step      = Math.ceil((range / 4) / magnitude) * magnitude
+  const startTick = Math.ceil(minV / step) * step
+  const yTicks    = []
+  for (let v = startTick; v <= maxV + step * 0.1; v += step) {
+    if (v >= minV && v <= maxV) yTicks.push(Math.round(v * 100) / 100)
+  }
+
+  // X축 눈금 (월 또는 주 변경점, 최대 10개)
   const xLabels = []
-  candles.forEach((c,i)=>{
-    if (i===0 || c.date?.slice(4,6) !== candles[i-1]?.date?.slice(4,6)) {
-      xLabels.push({ i, label:`${c.date?.slice(4,6)}/${c.date?.slice(6,8)}` })
+  candles.forEach((c, i) => {
+    const prev = candles[i - 1]
+    const month = c.date?.slice(4, 6)
+    const prevMonth = prev?.date?.slice(4, 6)
+    if (i === 0 || month !== prevMonth) {
+      const mm = c.date?.slice(4, 6) || ''
+      const dd = c.date?.slice(6, 8) || ''
+      xLabels.push({ i, label: `${mm}/${dd}` })
     }
   })
+  // 너무 많으면 균등 간격
+  const maxLabels = Math.floor(W / 60)
+  const filteredX = xLabels.length > maxLabels
+    ? xLabels.filter((_, i) => i % Math.ceil(xLabels.length / maxLabels) === 0)
+    : xLabels
+
+  // 캔들 너비
+  const cw = Math.max(1.5, Math.min(12, W / candles.length - 1))
+
+  // 라인차트용 polyline
+  const linePoints = candles.map((c, i) => `${xOf(i)},${yOf(c.close)}`).join(' ')
 
   return (
     <svg width="100%" viewBox={`0 0 ${width} ${height}`}
-         style={{display:'block',background:'#0f172a',borderRadius:'8px'}}>
-      {/* 그리드 */}
-      {yTicks.map((v,i)=>(
-        <g key={i}>
-          <line x1={pad.left} x2={pad.left+W} y1={yOf(v)} y2={yOf(v)}
-            stroke="#1e293b" strokeWidth="1"/>
-          <text x={pad.left-4} y={yOf(v)+4} textAnchor="end"
-            fontSize="9" fill="#64748b">
-            {v > 1000 ? (v/1).toLocaleString(undefined,{maximumFractionDigits:0}) : v.toFixed(2)}
-          </text>
-        </g>
-      ))}
+         style={{ display: 'block', background: '#0f172a', borderRadius: '8px' }}>
+
+      {/* 그리드 + Y축 레이블 */}
+      {yTicks.map((v, i) => {
+        const y = yOf(v)
+        const label = v >= 10000
+          ? (v / 1).toLocaleString('ko-KR', { maximumFractionDigits: 0 })
+          : v >= 100
+            ? v.toLocaleString('ko-KR', { maximumFractionDigits: 1 })
+            : v.toFixed(4)
+        return (
+          <g key={i}>
+            <line x1={pad.left} x2={pad.left + W} y1={y} y2={y}
+              stroke="#1e293b" strokeWidth="1" strokeDasharray="4,3"/>
+            <text x={pad.left - 6} y={y + 4} textAnchor="end"
+              fontSize="10" fill="#64748b" fontFamily="monospace">
+              {label}
+            </text>
+          </g>
+        )
+      })}
+
       {/* X축 레이블 */}
-      {xLabels.slice(0,8).map(({i,label})=>(
-        <text key={i} x={xOf(i)} y={height-6} textAnchor="middle"
-          fontSize="9" fill="#64748b">{label}</text>
+      {filteredX.map(({ i, label }) => (
+        <text key={i} x={xOf(i)} y={height - 8} textAnchor="middle"
+          fontSize="10" fill="#64748b">{label}</text>
       ))}
-      {/* 캔들 */}
-      {candles.map((c,i)=>{
-        const up   = c.close >= c.open
-        const clr  = up ? '#ef4444' : '#3b82f6'
-        const x    = xOf(i)
-        const yH   = yOf(c.high)
-        const yL   = yOf(c.low)
-        const yO   = yOf(Math.max(c.open, c.close))
-        const yC   = yOf(Math.min(c.open, c.close))
-        const bH   = Math.max(1, yL - yO)
+
+      {/* 축 테두리 */}
+      <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + H}
+        stroke="#334155" strokeWidth="1"/>
+      <line x1={pad.left} x2={pad.left + W} y1={pad.top + H} y2={pad.top + H}
+        stroke="#334155" strokeWidth="1"/>
+
+      {/* 라인 차트 (환율·외국지수) */}
+      {lineMode && (
+        <>
+          <defs>
+            <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3"/>
+              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0"/>
+            </linearGradient>
+          </defs>
+          <polygon
+            points={`${pad.left},${pad.top + H} ${linePoints} ${pad.left + W},${pad.top + H}`}
+            fill="url(#lineGrad)"/>
+          <polyline points={linePoints} fill="none"
+            stroke="#3b82f6" strokeWidth="2"
+            strokeLinejoin="round" strokeLinecap="round"/>
+          {/* 현재가 수평선 */}
+          {closes.length > 0 && (() => {
+            const last = closes[closes.length - 1]
+            const ly   = yOf(last)
+            return (
+              <line x1={pad.left} x2={pad.left + W} y1={ly} y2={ly}
+                stroke="#f59e0b" strokeWidth="1" strokeDasharray="6,3" opacity="0.6"/>
+            )
+          })()}
+        </>
+      )}
+
+      {/* 캔들 차트 */}
+      {!lineMode && candles.map((c, i) => {
+        if (!c.close || c.close <= 0) return null
+        const up  = c.close >= c.open
+        const clr = up ? '#ef4444' : '#3b82f6'
+        const x   = xOf(i)
+        const yH  = yOf(c.high  || Math.max(c.open, c.close))
+        const yL  = yOf(c.low   || Math.min(c.open, c.close))
+        const yO  = yOf(Math.max(c.open || c.close, c.close))
+        const yC  = yOf(Math.min(c.open || c.close, c.close))
+        const bH  = Math.max(1.5, Math.abs(yL - yO))
         return (
           <g key={i}>
             <line x1={x} x2={x} y1={yH} y2={yL} stroke={clr} strokeWidth="1"/>
-            <rect x={x - cw/2} y={yO} width={cw} height={bH} fill={clr} rx="0.5"/>
+            <rect x={x - cw / 2} y={yO} width={cw} height={bH}
+              fill={clr} rx="0.5" opacity="0.9"/>
           </g>
         )
       })}
@@ -140,50 +217,61 @@ function CandleChart({ candles, width = 600, height = 280 }) {
 
 // ── 차트 팝업 모달 ────────────────────────────────────
 function ChartModal({ item, onClose }) {
-  const [candles, setCandles]   = useState([])
-  const [period,  setPeriod]    = useState('D')
-  const [loading, setLoading]   = useState(true)
-  const [info,    setInfo]      = useState(null)
+  const [candles, setCandles] = useState([])
+  const [period,  setPeriod]  = useState('D')
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState('')
+
+  // 타입별 기간 옵션
+  const PERIODS = item.type === 'stock'
+    ? [{ v:'D', l:'일봉' }, { v:'W', l:'주봉' }, { v:'M', l:'월봉' }]
+    : item.type === 'index'
+      ? [{ v:'D', l:'일봉(3개월)' }, { v:'W', l:'주봉(1년)' }]
+      : item.type === 'global'
+        ? [{ v:'3mo', l:'3개월' }, { v:'6mo', l:'6개월' }, { v:'1y', l:'1년' }]
+        : item.type === 'forex'
+          ? [{ v:'90', l:'3개월' }, { v:'365', l:'1년' }, { v:'1825', l:'5년' }]
+          : [{ v:'D', l:'일봉' }]
+
+  const isLineMode = item.type === 'forex' || item.type === 'global'
 
   const fetchChart = useCallback(async (p) => {
-    setLoading(true)
+    setLoading(true); setError('')
     try {
       let url = ''
-      if (item.type === 'index') {
-        url = `/api/kis?type=index-chart&market=${item.market}&days=${p==='D'?60:200}`
-      } else if (item.type === 'global') {
-        url = `/api/kis?type=global&symbol=${item.sym}`
-      } else if (item.type === 'forex') {
-        const days = p==='D'?90:p==='W'?365:1825
-        url = `/api/kis?type=forex-chart&pair=${item.pair}&days=${days}`
-      } else {
+      if (item.type === 'stock') {
         url = `/api/kis?type=chart&code=${item.code}&period=${p}`
+      } else if (item.type === 'index') {
+        const days = p === 'D' ? 65 : 260
+        url = `/api/kis?type=index-chart&market=${item.market}&days=${days}`
+      } else if (item.type === 'global') {
+        url = `/api/kis?type=global&symbol=${item.sym}&range=${p}`
+      } else if (item.type === 'forex') {
+        url = `/api/kis?type=forex-chart&pair=${item.pair}&days=${p}`
       }
       const res  = await fetch(url)
       const json = await res.json()
+      if (json.error) throw new Error(json.error)
       setCandles(json.candles || [])
-      setInfo({ name: item.label, price: item.price, changeRate: item.changeRate })
-    } catch {}
+    } catch (e) {
+      setError(e.message)
+    }
     setLoading(false)
   }, [item])
 
-  useEffect(() => { fetchChart(period) }, [period, fetchChart])
-
+  useEffect(() => { fetchChart(PERIODS[0].v) }, [fetchChart])
   useEffect(() => {
     const fn = e => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', fn)
     return () => window.removeEventListener('keydown', fn)
   }, [onClose])
 
-  const PERIODS = (item.type === 'index' || item.type === 'global')
-    ? [{ v:'D', l:'3개월' }, { v:'W', l:'1년' }]
-    : item.type === 'forex'
-      ? [{ v:'D', l:'3개월' }, { v:'W', l:'1년' }, { v:'M', l:'5년' }]
-      : [{ v:'D', l:'일봉' }, { v:'W', l:'주봉' }, { v:'M', l:'월봉' }]
+  const priceStr = item.type === 'forex' || item.type === 'global'
+    ? (item.price || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })
+    : fmt(item.price)
 
-  const priceDisplay = item.type === 'forex'
-    ? item.price?.toLocaleString(undefined, {maximumFractionDigits:4})
-    : item.price?.toLocaleString(undefined, {maximumFractionDigits:2})
+  const chartW = typeof window !== 'undefined'
+    ? Math.min(window.innerWidth - 48, 880) : 880
 
   return (
     <div className="chart-modal-overlay" onClick={onClose}>
@@ -192,18 +280,16 @@ function ChartModal({ item, onClose }) {
           <div className="chart-modal-title">
             <span className="chart-modal-name">{item.label}</span>
             {item.code && <span className="chart-modal-code">{item.code}</span>}
-            {info && (
-              <span className="chart-modal-price" style={{color: rc(item.changeRate)}}>
-                {priceDisplay} ({fmtR(item.changeRate)})
-              </span>
-            )}
+            <span className="chart-modal-price" style={{color: rc(item.changeRate)}}>
+              {priceStr} ({fmtR(item.changeRate)})
+            </span>
           </div>
           <div className="chart-modal-actions">
             <div className="chart-period-tabs">
               {PERIODS.map(p=>(
                 <button key={p.v}
                   className={`chart-period-btn ${period===p.v?'active':''}`}
-                  onClick={()=>setPeriod(p.v)}>{p.l}</button>
+                  onClick={()=>{ setPeriod(p.v); fetchChart(p.v) }}>{p.l}</button>
               ))}
             </div>
             {item.naverUrl && (
@@ -214,19 +300,24 @@ function ChartModal({ item, onClose }) {
           </div>
         </div>
         <div className="chart-modal-body">
-          {loading
-            ? <div className="chart-loading"><div className="spinner-lg"/>차트 로딩 중...</div>
-            : <CandleChart candles={candles}
-                width={window.innerWidth > 1000 ? 860 : window.innerWidth - 48}
-                height={340}/>
-          }
+          {loading && <div className="chart-loading"><div className="spinner-lg"/>차트 로딩 중...</div>}
+          {error && !loading && <div className="chart-error">⚠️ {error}</div>}
+          {!loading && !error && (
+            <CandleChart
+              candles={candles}
+              width={chartW}
+              height={360}
+              lineMode={isLineMode}
+            />
+          )}
         </div>
         <div className="chart-modal-footer">
           <span>
-            {item.type==='global' ? 'Yahoo Finance 데이터'
-            :item.type==='forex'  ? 'Frankfurter API · 환율 라인차트'
-            :'KIS API 데이터'}
+            {item.type==='global' ? '📊 Yahoo Finance'
+            :item.type==='forex'  ? '💱 Frankfurter API'
+            :'📈 KIS API'}
           </span>
+          {isLineMode && <span style={{color:'#64748b',fontSize:'11px'}}>라인 차트</span>}
           {item.status==='closed' && <span className="chart-closed-note">📅 장 마감 기준</span>}
         </div>
       </div>

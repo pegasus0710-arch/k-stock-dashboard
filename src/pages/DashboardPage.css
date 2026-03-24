@@ -487,3 +487,10 @@
 .forex-card--clickable { cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; }
 .forex-card--clickable:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
 .forex-chart-hint { font-size: 9px; color: #a16207; margin-top: 2px; display: block; }
+
+/* ── 차트 에러 ── */
+.chart-error {
+  display: flex; align-items: center; justify-content: center;
+  height: 200px; font-size: 13px; color: #ef4444;
+  background: #0f172a; border-radius: 8px;
+}

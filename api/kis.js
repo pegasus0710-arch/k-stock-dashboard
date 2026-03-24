@@ -386,19 +386,21 @@ export default async function handler(req, res) {
       // ── 해외 지수 (Yahoo Finance 프록시) ──────────────
       case 'global': {
         const SYMBOLS = {
-          'SP500':  '%5EGSPC', // S&P 500
-          'NASDAQ': '%5EIXIC', // NASDAQ
-          'DOW':    '%5EDJI',  // DOW
-          'US10Y':  '%5ETNX',  // 미 국채 10Y
-          'N225':   '%5EN225', // 닛케이
-          'HSI':    '%5EHSI',  // 항셍
-          'SSE':    '000001.SS', // 상해종합
-          'WTI':    'CL%3DF',  // WTI 유가
+          'SP500':  '%5EGSPC',
+          'NASDAQ': '%5EIXIC',
+          'DOW':    '%5EDJI',
+          'US10Y':  '%5ETNX',
+          'N225':   '%5EN225',
+          'HSI':    '%5EHSI',
+          'SSE':    '000001.SS',
+          'WTI':    'CL%3DF',
         }
-        const sym = req.query.symbol || 'SP500'
+        const sym      = req.query.symbol || 'SP500'
+        const range    = req.query.range  || '3mo' // 3mo, 6mo, 1y, 2y
+        const interval = range === '1y' ? '1wk' : range === '6mo' ? '1d' : '1d'
         const yahooSym = SYMBOLS[sym] || SYMBOLS['SP500']
         const yRes = await fetch(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=1d&range=3mo`,
+          `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${interval}&range=${range}`,
           { headers: { 'User-Agent': 'Mozilla/5.0' } }
         )
         if (!yRes.ok) throw new Error(`Yahoo Finance 오류: ${yRes.status}`)
@@ -410,22 +412,17 @@ export default async function handler(req, res) {
         const quotes     = result.indicators?.quote?.[0] || {}
         const candles = timestamps.map((ts, i) => ({
           date:   new Date(ts * 1000).toISOString().slice(0,10).replace(/-/g,''),
-          open:   quotes.open?.[i]  ? Math.round(quotes.open[i]  * 100) / 100 : 0,
-          high:   quotes.high?.[i]  ? Math.round(quotes.high[i]  * 100) / 100 : 0,
-          low:    quotes.low?.[i]   ? Math.round(quotes.low[i]   * 100) / 100 : 0,
-          close:  quotes.close?.[i] ? Math.round(quotes.close[i] * 100) / 100 : 0,
+          open:   quotes.open?.[i]  ? Math.round((quotes.open[i]  || 0) * 100) / 100 : 0,
+          high:   quotes.high?.[i]  ? Math.round((quotes.high[i]  || 0) * 100) / 100 : 0,
+          low:    quotes.low?.[i]   ? Math.round((quotes.low[i]   || 0) * 100) / 100 : 0,
+          close:  quotes.close?.[i] ? Math.round((quotes.close[i] || 0) * 100) / 100 : 0,
           volume: quotes.volume?.[i] || 0,
         })).filter(c => c.close > 0)
-        const price      = meta.regularMarketPrice || 0
-        const prevClose  = meta.chartPreviousClose  || meta.previousClose || 0
-        const change     = Math.round((price - prevClose) * 100) / 100
-        const changeRate = prevClose ? Math.round((change / prevClose * 100) * 100) / 100 : 0
-        return res.json({
-          symbol: sym, price, change, changeRate,
-          currency: meta.currency,
-          marketState: meta.marketState,
-          candles,
-        })
+        const price     = meta.regularMarketPrice || 0
+        const prevClose = meta.chartPreviousClose || meta.previousClose || 0
+        const change    = Math.round((price - prevClose) * 100) / 100
+        const changeRate = prevClose ? Math.round(change / prevClose * 10000) / 100 : 0
+        return res.json({ symbol: sym, price, change, changeRate, candles })
       }
 
       // ── 환율 차트 (frankfurter.app) ────────────────────
