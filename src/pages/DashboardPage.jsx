@@ -148,10 +148,17 @@ function ChartModal({ item, onClose }) {
   const fetchChart = useCallback(async (p) => {
     setLoading(true)
     try {
-      const isIndex = item.type === 'index'
-      const url     = isIndex
-        ? `/api/kis?type=index-chart&market=${item.market}&days=${p==='D'?60:p==='W'?200:500}`
-        : `/api/kis?type=chart&code=${item.code}&period=${p}`
+      let url = ''
+      if (item.type === 'index') {
+        url = `/api/kis?type=index-chart&market=${item.market}&days=${p==='D'?60:200}`
+      } else if (item.type === 'global') {
+        url = `/api/kis?type=global&symbol=${item.sym}`
+      } else if (item.type === 'forex') {
+        const days = p==='D'?90:p==='W'?365:1825
+        url = `/api/kis?type=forex-chart&pair=${item.pair}&days=${days}`
+      } else {
+        url = `/api/kis?type=chart&code=${item.code}&period=${p}`
+      }
       const res  = await fetch(url)
       const json = await res.json()
       setCandles(json.candles || [])
@@ -162,16 +169,21 @@ function ChartModal({ item, onClose }) {
 
   useEffect(() => { fetchChart(period) }, [period, fetchChart])
 
-  // ESC 닫기
   useEffect(() => {
     const fn = e => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', fn)
     return () => window.removeEventListener('keydown', fn)
   }, [onClose])
 
-  const PERIODS = item.type === 'index'
-    ? [{ v:'D', l:'일봉' }, { v:'W', l:'주봉' }]
-    : [{ v:'D', l:'일봉' }, { v:'W', l:'주봉' }, { v:'M', l:'월봉' }]
+  const PERIODS = (item.type === 'index' || item.type === 'global')
+    ? [{ v:'D', l:'3개월' }, { v:'W', l:'1년' }]
+    : item.type === 'forex'
+      ? [{ v:'D', l:'3개월' }, { v:'W', l:'1년' }, { v:'M', l:'5년' }]
+      : [{ v:'D', l:'일봉' }, { v:'W', l:'주봉' }, { v:'M', l:'월봉' }]
+
+  const priceDisplay = item.type === 'forex'
+    ? item.price?.toLocaleString(undefined, {maximumFractionDigits:4})
+    : item.price?.toLocaleString(undefined, {maximumFractionDigits:2})
 
   return (
     <div className="chart-modal-overlay" onClick={onClose}>
@@ -181,8 +193,8 @@ function ChartModal({ item, onClose }) {
             <span className="chart-modal-name">{item.label}</span>
             {item.code && <span className="chart-modal-code">{item.code}</span>}
             {info && (
-              <span className="chart-modal-price" style={{color: rc(info.changeRate)}}>
-                {fmt(item.price)} ({fmtR(item.changeRate)})
+              <span className="chart-modal-price" style={{color: rc(item.changeRate)}}>
+                {priceDisplay} ({fmtR(item.changeRate)})
               </span>
             )}
           </div>
@@ -209,12 +221,14 @@ function ChartModal({ item, onClose }) {
                 height={340}/>
           }
         </div>
-        {item.type !== 'index' && (
-          <div className="chart-modal-footer">
-            <span>KIS API 데이터</span>
-            {item.status === 'closed' && <span className="chart-closed-note">📅 장 마감 기준</span>}
-          </div>
-        )}
+        <div className="chart-modal-footer">
+          <span>
+            {item.type==='global' ? 'Yahoo Finance 데이터'
+            :item.type==='forex'  ? 'Frankfurter API · 환율 라인차트'
+            :'KIS API 데이터'}
+          </span>
+          {item.status==='closed' && <span className="chart-closed-note">📅 장 마감 기준</span>}
+        </div>
       </div>
     </div>
   )
@@ -309,36 +323,96 @@ function Sparkline({ values, color }) {
 }
 
 // ── 환율 카드 (스파크라인 포함) ───────────────────────
-function ForexCard({ forex }) {
+// ── 해외지수 카드 ─────────────────────────────────────
+const GLOBAL_INDICES = [
+  { sym:'SP500',  label:'S&P 500',    color:'#dc2626' },
+  { sym:'NASDAQ', label:'NASDAQ',     color:'#0d9488' },
+  { sym:'DOW',    label:'DOW',        color:'#2563eb' },
+  { sym:'US10Y',  label:'미 국채 10Y', color:'#7c3aed' },
+  { sym:'N225',   label:'닛케이 225', color:'#ea580c' },
+  { sym:'WTI',    label:'WTI 유가',   color:'#16a34a' },
+]
+
+function GlobalCard({ sym, label, color, onChartClick }) {
+  const [data,    setData]    = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`/api/kis?type=global&symbol=${sym}`)
+      .then(r => r.json())
+      .then(j => { if (!j.error) setData(j) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [sym])
+
+  const priceClr = data ? rc(data.changeRate) : color
+
+  return (
+    <div className="global-live-card"
+         style={{'--gc': color}}
+         onClick={() => data && onChartClick({
+           type: 'global', sym, label, color,
+           price: data.price, changeRate: data.changeRate,
+         })}>
+      <div className="global-card-label" style={{color}}>{label}</div>
+      {loading && <div className="global-card-loading">로딩 중...</div>}
+      {!loading && data && (
+        <>
+          <div className="global-card-price" style={{color: priceClr}}>
+            {data.price?.toLocaleString(undefined, {maximumFractionDigits:2})}
+          </div>
+          <div className="global-card-change" style={{color: priceClr}}>
+            {data.changeRate >= 0 ? '+' : ''}{data.changeRate?.toFixed(2)}%
+          </div>
+        </>
+      )}
+      {!loading && !data && (
+        <div className="global-card-link">확인 →</div>
+      )}
+    </div>
+  )
+}
+
+// ── 환율 카드 (클릭 → 차트 팝업) ─────────────────────
+const FOREX_PAIRS = [
+  { pair:'KRW', label:'USD/KRW', symbol:'₩', color:'#d97706', histKey:'krw' },
+  { pair:'JPY', label:'USD/JPY', symbol:'¥', color:'#2563eb', histKey:'jpy' },
+  { pair:'CNY', label:'USD/CNY', symbol:'¥', color:'#dc2626', histKey:'cny' },
+]
+
+function ForexCard({ forex, onChartClick }) {
   if (!forex) return null
   const hist = forex.history || {}
-  const items = [
-    { label:'USD/KRW', symbol:'₩', value: forex.usdKrw?.toLocaleString(), values: hist.krw, color:'#d97706' },
-    { label:'USD/JPY', symbol:'¥', value: forex.usdJpy, values: hist.jpy, color:'#2563eb' },
-    { label:'USD/CNY', symbol:'¥', value: forex.usdCny, values: hist.cny, color:'#dc2626' },
-  ].filter(i => i.value && i.value !== 'undefined')
 
   return (
     <div className="forex-section">
-      {items.map(item => {
-        const vals  = (item.values || []).filter(v => v > 0)
+      {FOREX_PAIRS.map(item => {
+        const value = item.pair==='KRW' ? forex.usdKrw?.toLocaleString()
+                    : item.pair==='JPY' ? forex.usdJpy
+                    : forex.usdCny
+        if (!value || value === 'undefined') return null
+        const vals  = (hist[item.histKey] || []).filter(v => v > 0)
         const first = vals[0] || 0
-        const last  = vals[vals.length - 1] || 0
+        const last  = vals[vals.length-1] || 0
         const diff  = last - first
-        const pct   = first ? ((diff / first) * 100).toFixed(2) : '0.00'
+        const pct   = first ? ((diff/first)*100).toFixed(2) : '0.00'
         const up    = diff >= 0
-        const lineColor = up ? item.color : '#94a3b8'
         return (
-          <div key={item.label} className="forex-card">
+          <div key={item.label} className="forex-card forex-card--clickable"
+               onClick={() => onChartClick({
+                 type:'forex', pair:item.pair, label:item.label,
+                 price:last, changeRate:Number(pct),
+               })}>
             <div className="forex-card-left">
               <span className="forex-label">{item.label}</span>
-              <span className="forex-value">{item.symbol}{item.value}</span>
-              <span className="forex-change" style={{color: up ? '#dc2626' : '#2563eb'}}>
-                {up ? '▲' : '▼'} {Math.abs(Number(pct))}%
+              <span className="forex-value">{item.symbol}{value}</span>
+              <span className="forex-change" style={{color: up?'#dc2626':'#2563eb'}}>
+                {up?'▲':'▼'} {Math.abs(Number(pct))}%
                 <span className="forex-period"> 7일</span>
               </span>
+              <span className="forex-chart-hint">차트 보기 →</span>
             </div>
-            {vals.length >= 2 && <Sparkline values={vals} color={lineColor} />}
+            {vals.length >= 2 && <Sparkline values={vals} color={up?item.color:'#94a3b8'}/>}
           </div>
         )
       })}
@@ -463,23 +537,12 @@ export default function DashboardPage() {
           <IndexCard data={dashData?.kosdaq} loading={loading} color="#16a34a" label="KOSDAQ" onChartClick={setChart}/>
         </div>
 
-        <ForexCard forex={dashData?.forex} />
+        <ForexCard forex={dashData?.forex} onChartClick={setChart}/>
 
-        {/* 글로벌 지표 링크 */}
+        {/* 해외 지수 실시간 */}
         <div className="global-grid" style={{marginTop:'12px'}}>
-          {[
-            {label:'S&P 500',    url:'https://finance.naver.com/world/sise.naver?symbol=SPX',  color:'#dc2626'},
-            {label:'NASDAQ',     url:'https://finance.naver.com/world/sise.naver?symbol=COMP', color:'#0d9488'},
-            {label:'DOW',        url:'https://finance.naver.com/world/sise.naver?symbol=INDU', color:'#2563eb'},
-            {label:'미 국채 10Y',url:'https://finance.naver.com/marketindex/interestDetail.naver?marketindexCd=IRR_US10Y',color:'#7c3aed'},
-            {label:'닛케이 225', url:'https://finance.naver.com/world/sise.naver?symbol=NI225',  color:'#ea580c'},
-            {label:'WTI 유가',   url:'https://finance.naver.com/marketindex/worldDailyQuote.naver?marketindexCd=OIL_CL&fdtc=2',color:'#16a34a'},
-          ].map(m=>(
-            <a key={m.label} href={m.url} target="_blank" rel="noreferrer"
-               className="macro-card" style={{'--accent':m.color}}>
-              <span className="macro-label">{m.label}</span>
-              <span className="macro-live">확인 →</span>
-            </a>
+          {GLOBAL_INDICES.map(g => (
+            <GlobalCard key={g.sym} {...g} onChartClick={setChart}/>
           ))}
         </div>
       </section>
