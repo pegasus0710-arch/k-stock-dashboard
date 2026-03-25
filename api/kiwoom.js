@@ -17,7 +17,6 @@ export default async function handler(req, res) {
   const { type, code, date, chartType, scope } = req.query
 
   try {
-    // 현재가 (ka10095)
     if (type === 'price') {
       const data = await kiwoomPost('/price', { stk_cd: code })
       const info = data.atn_stk_infr?.[0] || {}
@@ -32,44 +31,27 @@ export default async function handler(req, res) {
         open:       parseInt(info.open_pric?.replace(/[^0-9]/g, '') || 0),
       })
     }
-
-    // 계좌평가잔고 (kt00018)
     if (type === 'account') {
-      const data = await kiwoomPost('/account')
-      return res.json(data)
+      return res.json(await kiwoomPost('/account'))
     }
-
-    // 체결내역 (kt00007)
     if (type === 'trades') {
-      const data = await kiwoomPost('/trades', { ord_dt: date || '' })
-      return res.json(data)
+      return res.json(await kiwoomPost('/trades', { ord_dt: date || '' }))
     }
-
-    // 차트 (분봉/일봉/주봉/월봉/년봉)
     if (type === 'chart') {
-      const pathMap = {
-        min:   '/chart/min',
-        day:   '/chart/day',
-        week:  '/chart/week',
-        month: '/chart/month',
-        year:  '/chart/year',
-      }
+      const pathMap = { min:'/chart/min', day:'/chart/day', week:'/chart/week', month:'/chart/month', year:'/chart/year' }
       const path = pathMap[chartType]
       if (!path) return res.status(400).json({ error: 'Unknown chartType' })
       const body = { stk_cd: code }
       if (chartType === 'min') body.tic_scope = scope || '5'
-      const data = await kiwoomPost(path, body)
-      return res.json(data)
+      return res.json(await kiwoomPost(path, body))
     }
-
-    // 종목정보 (ka10100)
     if (type === 'stockinfo') {
-      const data = await kiwoomPost('/stockinfo', { stk_cd: code })
-      return res.json(data)
+      return res.json(await kiwoomPost('/stockinfo', { stk_cd: code }))
     }
-
+    if (type === 'stockbasic') {
+      return res.json(await kiwoomPost('/stockbasic', { stk_cd: code }))
+    }
     return res.status(400).json({ error: 'Unknown type' })
-
   } catch (e) {
     return res.status(500).json({ error: e.message })
   }
