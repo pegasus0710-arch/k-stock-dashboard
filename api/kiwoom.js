@@ -24,55 +24,53 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  const { type, code, period, tic, inds_cd } = req.query;
+  const { type, code, period, tic, inds_cd, min_days } = req.query;
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
 
-  // ─── 종목 현재가 (ka10001) ───────────────────────────────────────
-  // GET /api/kiwoom?type=price&code=005930
+  // ── 종목 현재가 ──────────────────────────────────────────
   if (type === "price") {
     if (!code) return res.status(400).json({ error: "code required" });
     return relay("/price", { stk_cd: code }, res);
   }
 
-  // ─── 호가 (ka10004) ─────────────────────────────────────────────
-  // GET /api/kiwoom?type=hoga&code=005930
+  // ── 호가 ─────────────────────────────────────────────────
   if (type === "hoga") {
     if (!code) return res.status(400).json({ error: "code required" });
     return relay("/hoga", { stk_cd: code }, res);
   }
 
-  // ─── 종목 차트 (ka10080/81/82/83/94) ────────────────────────────
+  // ── 종목 차트 ─────────────────────────────────────────────
   // GET /api/kiwoom?type=stock-chart&code=005930&period=day
-  // GET /api/kiwoom?type=stock-chart&code=005930&period=min&tic=5
+  // GET /api/kiwoom?type=stock-chart&code=005930&period=min&tic=5&min_days=3
   if (type === "stock-chart") {
     if (!code) return res.status(400).json({ error: "code required" });
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     return relay("/chart/stock", {
-      stk_cd: code,
-      period: period || "day",
-      tic_scope: tic || "5",
-      base_dt: today,
+      stk_cd:   code,
+      period:   period || "day",
+      tic_scope: tic   || "5",
+      base_dt:  today,
+      min_days: Number(min_days || 1),
     }, res);
   }
 
-  // ─── 업종(지수) 차트 (ka20005/06/07/08/19) ──────────────────────
+  // ── 업종(지수) 차트 ──────────────────────────────────────
   // GET /api/kiwoom?type=index-chart&inds_cd=001&period=day
-  // GET /api/kiwoom?type=index-chart&inds_cd=001&period=min&tic=5
+  // GET /api/kiwoom?type=index-chart&inds_cd=001&period=min&tic=5&min_days=3
   if (type === "index-chart") {
     const cd = inds_cd || code || "001";
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     return relay("/chart/index", {
-      inds_cd: cd,
-      period: period || "day",
-      tic_scope: tic || "5",
-      base_dt: today,
+      inds_cd:  cd,
+      period:   period || "day",
+      tic_scope: tic   || "5",
+      base_dt:  today,
+      min_days: Number(min_days || 1),
     }, res);
   }
 
-  // ─── 업종 현재가 (ka20001) ───────────────────────────────────────
-  // GET /api/kiwoom?type=index-price&inds_cd=001
+  // ── 업종 현재가 ──────────────────────────────────────────
   if (type === "index-price") {
-    const cd = inds_cd || "001";
-    const mrkt = cd.startsWith("1") ? "1" : "0"; // 1xx = KOSDAQ
+    const cd    = inds_cd || "001";
+    const mrkt  = cd.startsWith("1") ? "1" : "0";
     return relay("/index/price", { inds_cd: cd, mrkt_tp: mrkt }, res);
   }
 
