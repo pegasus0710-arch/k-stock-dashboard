@@ -42,7 +42,7 @@ export default function TradingLogPage() {
 
       if (data.return_code !== 0) throw new Error(data.return_msg || '조회 실패')
 
-      const orders = data.acnt_ord_cntr_dtl_lst || []
+      const orders = data.acnt_ord_cntr_prps_dtl || []
       const newLogs = []
 
       for (const o of orders) {
