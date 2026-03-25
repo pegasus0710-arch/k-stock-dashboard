@@ -1,24 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './NewsPage.css'
 
 const THEMES = [
-  { id:'all',     label:'전체',       keyword:'한국 증시 오늘 주요 뉴스' },
-  { id:'semi',    label:'반도체·AI',  keyword:'반도체 AI HBM SK하이닉스 삼성전자 주식 뉴스' },
-  { id:'defense', label:'방산',       keyword:'방산 한화에어로 현대로템 K방산 수출 뉴스' },
-  { id:'ship',    label:'조선',       keyword:'조선 HD현대중공업 삼성중공업 수주 뉴스' },
-  { id:'nuclear', label:'원전·전력',  keyword:'원전 두산에너빌리티 효성중공업 SMR 전력 뉴스' },
-  { id:'battery', label:'2차전지',    keyword:'2차전지 배터리 LG에너지솔루션 ESS 뉴스' },
-  { id:'bio',     label:'바이오',     keyword:'바이오 셀트리온 삼성바이오 임상 뉴스' },
-  { id:'value',   label:'밸류업·금융',keyword:'밸류업 KB금융 신한지주 배당 금융 뉴스' },
-]
-
-const DART_LINKS = [
-  { label:'오늘 전체 공시',     url:'https://dart.fss.or.kr/dsac999/mainY.do',                                 icon:'📋' },
-  { label:'주요사항 보고서',    url:'https://dart.fss.or.kr/dsab007/detailSearch.ax?reportNm=주요사항보고서',   icon:'⚠️' },
-  { label:'분기·반기·사업보고', url:'https://dart.fss.or.kr/dsab007/detailSearch.ax?reportNm=분기보고서',      icon:'📊' },
-  { label:'대량보유 보고',      url:'https://dart.fss.or.kr/dsab007/detailSearch.ax?reportNm=주식대량보유',    icon:'📦' },
-  { label:'임원 주식변동',      url:'https://dart.fss.or.kr/dsab007/detailSearch.ax?reportNm=임원주요주주',    icon:'👔' },
-  { label:'유상증자 공시',      url:'https://dart.fss.or.kr/dsab007/detailSearch.ax?reportNm=증권신고서',      icon:'💰' },
+  { id:'all',     label:'전체',        keyword:'한국 증시 오늘 주요 뉴스' },
+  { id:'semi',    label:'반도체·AI',   keyword:'반도체 AI HBM SK하이닉스 삼성전자 주식 뉴스' },
+  { id:'defense', label:'방산',        keyword:'방산 한화에어로 현대로템 K방산 수출 뉴스' },
+  { id:'ship',    label:'조선',        keyword:'조선 HD현대중공업 삼성중공업 수주 뉴스' },
+  { id:'nuclear', label:'원전·전력',   keyword:'원전 두산에너빌리티 효성중공업 SMR 전력 뉴스' },
+  { id:'battery', label:'2차전지',     keyword:'2차전지 배터리 LG에너지솔루션 ESS 뉴스' },
+  { id:'bio',     label:'바이오',      keyword:'바이오 셀트리온 삼성바이오 임상 뉴스' },
+  { id:'value',   label:'밸류업·금융', keyword:'밸류업 KB금융 신한지주 배당 금융 뉴스' },
 ]
 
 const REPORT_LINKS = [
@@ -28,9 +19,34 @@ const REPORT_LINKS = [
   { label:'채권 분석 리포트',       url:'https://finance.naver.com/research/debenture_list.naver', icon:'📑' },
 ]
 
-// ── AI + 웹검색 뉴스 요약 ──────────────────────────────
+// DART 공시 유형 색상
+const REPORT_COLORS = {
+  '사업보고서': '#2563eb', '분기보고서': '#2563eb', '반기보고서': '#2563eb',
+  '주요사항보고서': '#dc2626', '증권신고서': '#d97706',
+  '임원·주요주주특정증권등소유상황보고서': '#7c3aed',
+  '주식등의대량보유상황보고서': '#0d9488',
+}
+function getReportColor(name) {
+  for (const [key, color] of Object.entries(REPORT_COLORS)) {
+    if (name?.includes(key.slice(0, 4))) return color
+  }
+  return '#64748b'
+}
+
+function formatDate(str) {
+  if (!str || str.length < 8) return str
+  return `${str.slice(0, 4)}.${str.slice(4, 6)}.${str.slice(6, 8)}`
+}
+
+function today() { return new Date().toISOString().slice(0, 10).replace(/-/g, '') }
+function daysAgo(n) {
+  const d = new Date(); d.setDate(d.getDate() - n)
+  return d.toISOString().slice(0, 10).replace(/-/g, '')
+}
+
+// AI 뉴스 검색
 async function fetchNewsAI(apiKey, theme) {
-  const today = new Date().toLocaleDateString('ko-KR')
+  const todayStr = new Date().toLocaleDateString('ko-KR')
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -41,40 +57,21 @@ async function fetchNewsAI(apiKey, theme) {
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 800,
+      max_tokens: 900,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{
         role: 'user',
-        content: `웹 검색을 사용해서 오늘(${today}) 한국 증시 "${theme.label}" 테마의 최신 뉴스를 찾아보고, 아래 형식으로 요약해줘.
-
-검색 키워드: ${theme.keyword}
-
-## 📰 오늘의 주요 뉴스 (3~5개)
-1. [뉴스 제목] — 핵심 내용 한줄
-2. ...
-
-## 💡 투자자 관점 요약
-(이 뉴스들이 주가에 미치는 영향 2~3줄)
-
-## ⚠️ 주의 뉴스
-(리스크 관련 뉴스가 있으면 언급, 없으면 생략)
-
-반드시 웹 검색으로 실제 최신 뉴스를 찾아서 작성해줘.`,
+        content: `웹 검색을 사용해서 오늘(${todayStr}) 한국 증시 "${theme.label}" 테마의 최신 뉴스를 찾아보고, 아래 형식으로 요약해줘.\n\n검색 키워드: ${theme.keyword}\n\n## 📰 오늘의 주요 뉴스 (3~5개)\n1. [뉴스 제목] — 핵심 내용 한줄\n2. ...\n\n## 💡 투자자 관점 요약\n(이 뉴스들이 주가에 미치는 영향 2~3줄)\n\n## ⚠️ 주의 뉴스\n(리스크 관련 뉴스가 있으면 언급, 없으면 생략)\n\n반드시 웹 검색으로 실제 최신 뉴스를 찾아서 작성해줘.`,
       }],
     }),
   })
   if (!res.ok) throw new Error(`API 오류 ${res.status}`)
   const data = await res.json()
-  // 텍스트 블록만 추출
-  const text = data.content
-    .filter(b => b.type === 'text')
-    .map(b => b.text)
-    .join('\n')
+  const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
   if (!text.trim()) throw new Error('뉴스 검색 결과를 가져오지 못했어요.')
   return text
 }
 
-// ── localStorage ───────────────────────────────────────
 const STORAGE_KEY = 'kstock_news_ai'
 function loadNewsAI() {
   try {
@@ -86,10 +83,8 @@ function loadNewsAI() {
   } catch { return {} }
 }
 function saveNewsAI(data) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: new Date().toLocaleDateString('ko-KR'), data })) } catch {}
-}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: new Date().toLocaleDateString('ko-KR'), data })) } catch {} }
 
-// ── 컴포넌트 ───────────────────────────────────────────
 export default function NewsPage() {
   const [activeTheme, setAt] = useState('all')
   const [aiCache, setCache]  = useState(() => loadNewsAI())
@@ -97,7 +92,8 @@ export default function NewsPage() {
   const [aiError, setAiE]    = useState('')
   const [activeTab, setTab]  = useState('news')
 
-  const theme = THEMES.find(t => t.id === activeTheme)
+  const theme    = THEMES.find(t => t.id === activeTheme)
+  const analysis = aiCache[theme.id]
 
   const handleAI = async () => {
     if (aiLoading) return
@@ -112,8 +108,6 @@ export default function NewsPage() {
     finally { setAiL(false) }
   }
 
-  const analysis = aiCache[theme.id]
-
   return (
     <div className="page-wrap">
       <div className="page-header">
@@ -126,8 +120,13 @@ export default function NewsPage() {
 
         {/* 탭 */}
         <div className="tab-bar">
-          {[{id:'news',label:'📰 뉴스'},{id:'dart',label:'📋 DART 공시'},{id:'report',label:'📊 리포트'}].map(t=>(
-            <button key={t.id} className={`tab-btn ${activeTab===t.id?'active':''}`} onClick={()=>setTab(t.id)}>{t.label}</button>
+          {[
+            { id: 'news',   label: '📰 뉴스' },
+            { id: 'dart',   label: '📋 DART 공시' },
+            { id: 'report', label: '📊 리포트' },
+          ].map(t => (
+            <button key={t.id} className={`tab-btn ${activeTab === t.id ? 'active' : ''}`}
+              onClick={() => setTab(t.id)}>{t.label}</button>
           ))}
         </div>
 
@@ -138,16 +137,14 @@ export default function NewsPage() {
               <div className="section-title-row">
                 <span className="section-title">테마 선택</span>
                 <button className="btn-ai btn-ai--sm" onClick={handleAI} disabled={aiLoading}>
-                  {aiLoading
-                    ? <><span className="btn-spinner"/>검색 중...</>
-                    : analysis ? '↺ 다시받기' : '🔍 AI 뉴스검색'}
+                  {aiLoading ? <><span className="btn-spinner"/>검색 중...</> : analysis ? '↺ 다시받기' : '🔍 AI 뉴스검색'}
                 </button>
               </div>
               <div className="news-theme-chips">
-                {THEMES.map(t=>(
+                {THEMES.map(t => (
                   <button key={t.id}
-                    className={`news-theme-chip ${activeTheme===t.id?'active':''}`}
-                    onClick={()=>{setAt(t.id);setAiE('')}}>
+                    className={`news-theme-chip ${activeTheme === t.id ? 'active' : ''}`}
+                    onClick={() => { setAt(t.id); setAiE('') }}>
                     {t.label}
                     {aiCache[t.id] && <span className="news-cached-dot"/>}
                   </button>
@@ -157,23 +154,19 @@ export default function NewsPage() {
 
             <div className="card-section">
               <div className="section-title">{theme.label} — AI 웹검색 뉴스요약</div>
-
               {aiError && <div className="ai-error">{aiError}</div>}
-
               {aiLoading && (
                 <div className="ai-loading">
                   <div className="spinner-lg"/>
                   <p>🔍 웹에서 {theme.label} 최신 뉴스 검색 중...</p>
                 </div>
               )}
-
               {analysis && !aiLoading && (
                 <div className="ai-result">
                   <div className="news-ai-badge">🔍 웹 검색 기반 · 오늘 저장됨</div>
                   <pre>{analysis}</pre>
                 </div>
               )}
-
               {!analysis && !aiLoading && !aiError && (
                 <div className="ai-placeholder">
                   <div className="ai-placeholder-icon">🔍</div>
@@ -186,12 +179,11 @@ export default function NewsPage() {
             {/* 네이버 뉴스 바로가기 */}
             <div className="card-section">
               <div className="section-title">네이버 뉴스 직접 보기</div>
-              <div className="card-grid--sm" style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:'8px'}}>
-                {THEMES.map(t=>(
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
+                {THEMES.map(t => (
                   <a key={t.id}
                     href={`https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(t.keyword)}&sort=1`}
-                    target="_blank" rel="noreferrer"
-                    className="news-link-chip">
+                    target="_blank" rel="noreferrer" className="news-link-chip">
                     {t.label} →
                   </a>
                 ))}
@@ -201,33 +193,14 @@ export default function NewsPage() {
         )}
 
         {/* ── DART 탭 ── */}
-        {activeTab === 'dart' && (
-          <>
-            <div className="card-section">
-              <div className="section-title">DART 공시 바로가기</div>
-              <div className="card-grid">
-                {DART_LINKS.map(l=>(
-                  <a key={l.label} href={l.url} target="_blank" rel="noreferrer" className="dart-card">
-                    <span className="dart-icon">{l.icon}</span>
-                    <span className="dart-label">{l.label}</span>
-                    <span className="dart-arrow">→</span>
-                  </a>
-                ))}
-              </div>
-            </div>
-            <div className="card-section">
-              <div className="section-title">종목 공시 검색</div>
-              <NewsSearch />
-            </div>
-          </>
-        )}
+        {activeTab === 'dart' && <DartTab />}
 
         {/* ── 리포트 탭 ── */}
         {activeTab === 'report' && (
           <div className="card-section">
             <div className="section-title">증권사 리포트</div>
             <div className="card-grid">
-              {REPORT_LINKS.map(l=>(
+              {REPORT_LINKS.map(l => (
                 <a key={l.label} href={l.url} target="_blank" rel="noreferrer" className="dart-card">
                   <span className="dart-icon">{l.icon}</span>
                   <span className="dart-label">{l.label}</span>
@@ -243,17 +216,173 @@ export default function NewsPage() {
   )
 }
 
-function NewsSearch() {
-  const [q, setQ] = useState('')
-  const search = () => {
-    if (!q.trim()) return
-    window.open(`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(q)}`, '_blank')
+// ── DART 탭 컴포넌트 ──
+function DartTab() {
+  const [disclosures, setDisclosures] = useState([])
+  const [loading, setLoading]         = useState(false)
+  const [error, setError]             = useState(null)
+  const [bgn, setBgn]                 = useState(daysAgo(1))
+  const [end, setEnd]                 = useState(today())
+  const [page, setPage]               = useState(1)
+  const [total, setTotal]             = useState(0)
+  const [searchQ, setSearchQ]         = useState('')
+  const [searchMode, setSearchMode]   = useState(false)
+
+  const fetchDart = useCallback(async () => {
+    setLoading(true); setError(null)
+    try {
+      const params = new URLSearchParams({ type: 'list', bgn_de: bgn, end_de: end, page })
+      const res  = await fetch(`/api/dart?${params}`)
+      const data = await res.json()
+      if (data.status === '000') {
+        setDisclosures(data.list || [])
+        setTotal(data.total_count || 0)
+      } else if (data.status === '013') {
+        setDisclosures([])
+        setTotal(0)
+      } else {
+        throw new Error(data.message || '조회 실패')
+      }
+    } catch (e) { setError(e.message) }
+    finally { setLoading(false) }
+  }, [bgn, end, page])
+
+  useEffect(() => { fetchDart() }, [fetchDart])
+
+  const handleSearch = async () => {
+    if (!searchQ.trim()) return
+    setLoading(true); setError(null); setSearchMode(true)
+    try {
+      const params = new URLSearchParams({ type: 'corp_list', corp_name: searchQ, bgn_de: daysAgo(90), end_de: today() })
+      const res  = await fetch(`/api/dart?${params}`)
+      const data = await res.json()
+      if (data.status === '000') {
+        setDisclosures(data.list || [])
+        setTotal(data.total_count || 0)
+      } else {
+        setDisclosures([]); setTotal(0)
+      }
+    } catch (e) { setError(e.message) }
+    finally { setLoading(false) }
   }
+
+  const resetSearch = () => { setSearchMode(false); setSearchQ(''); setPage(1) }
+
   return (
-    <div className="news-search">
-      <input className="news-search-input" placeholder="회사명 또는 종목코드 입력"
-        value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&search()} />
-      <button className="btn-ai" onClick={search}>DART 검색 →</button>
-    </div>
+    <>
+      {/* 검색 바 */}
+      <div className="card-section">
+        <div className="dart-search-wrap">
+          <input
+            className="dart-search-input"
+            placeholder="종목명으로 공시 검색 (예: 삼성전자)"
+            value={searchQ}
+            onChange={e => setSearchQ(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+          />
+          <button className="btn-ai" onClick={handleSearch} disabled={loading}>검색</button>
+          {searchMode && <button className="btn-outline" onClick={resetSearch}>전체 보기</button>}
+        </div>
+
+        {/* 날짜 필터 (검색 모드 아닐 때) */}
+        {!searchMode && (
+          <div className="dart-date-bar">
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>기간</span>
+            <input type="date" className="dart-date-input"
+              value={bgn.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')}
+              onChange={e => { setBgn(e.target.value.replace(/-/g, '')); setPage(1) }} />
+            <span style={{ color: 'var(--text-dim)' }}>~</span>
+            <input type="date" className="dart-date-input"
+              value={end.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')}
+              onChange={e => { setEnd(e.target.value.replace(/-/g, '')); setPage(1) }} />
+            <button className="btn-ai btn-ai--sm" onClick={fetchDart} disabled={loading}>
+              {loading ? '조회중...' : '조회'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 공시 리스트 */}
+      <div className="card-section">
+        <div className="section-title-row">
+          <span className="section-title">
+            {searchMode ? `"${searchQ}" 공시 검색 결과` : '공시 목록'}
+          </span>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+            총 {total.toLocaleString()}건
+          </span>
+        </div>
+
+        {error && <div className="ai-error">⚠️ {error}</div>}
+
+        {loading && (
+          <div className="ai-loading"><div className="spinner-lg"/><p>공시 조회 중...</p></div>
+        )}
+
+        {!loading && disclosures.length === 0 && !error && (
+          <div className="ai-placeholder">
+            <div className="ai-placeholder-icon">📋</div>
+            <p>공시 내역이 없습니다</p>
+            <p className="sub">날짜 범위를 조정하거나 다른 종목을 검색해보세요</p>
+          </div>
+        )}
+
+        {!loading && disclosures.length > 0 && (
+          <div className="dart-list">
+            {disclosures.map((d, i) => {
+              const color = getReportColor(d.report_nm)
+              const dartUrl = `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`
+              return (
+                <a key={i} href={dartUrl} target="_blank" rel="noreferrer" className="dart-item">
+                  <div className="dart-item-left">
+                    <span className="dart-report-badge" style={{ background: color + '18', color }}>
+                      {d.report_nm?.length > 15 ? d.report_nm.slice(0, 15) + '…' : d.report_nm}
+                    </span>
+                    <div className="dart-corp-name">{d.corp_name}</div>
+                    <div className="dart-submitter">{d.flr_nm}</div>
+                  </div>
+                  <div className="dart-item-right">
+                    <span className="dart-date">{formatDate(d.rcept_dt)}</span>
+                    <span className="dart-arrow">→</span>
+                  </div>
+                </a>
+              )
+            })}
+          </div>
+        )}
+
+        {/* 페이지네이션 */}
+        {!searchMode && total > 20 && (
+          <div className="dart-pagination">
+            <button className="dart-page-btn" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← 이전</button>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              {page} / {Math.ceil(total / 20)}페이지
+            </span>
+            <button className="dart-page-btn" disabled={page >= Math.ceil(total / 20)} onClick={() => setPage(p => p + 1)}>다음 →</button>
+          </div>
+        )}
+      </div>
+
+      {/* DART 바로가기 */}
+      <div className="card-section">
+        <div className="section-title">DART 바로가기</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+          {[
+            { label: '오늘 전체 공시',     url: 'https://dart.fss.or.kr/dsac999/mainY.do',                                  icon: '📋' },
+            { label: '주요사항 보고서',    url: 'https://dart.fss.or.kr/dsab007/detailSearch.ax?reportNm=주요사항보고서',    icon: '⚠️' },
+            { label: '분기·반기·사업보고', url: 'https://dart.fss.or.kr/dsab007/detailSearch.ax?reportNm=분기보고서',       icon: '📊' },
+            { label: '대량보유 보고',      url: 'https://dart.fss.or.kr/dsab007/detailSearch.ax?reportNm=주식대량보유',     icon: '📦' },
+            { label: '임원 주식변동',      url: 'https://dart.fss.or.kr/dsab007/detailSearch.ax?reportNm=임원주요주주',     icon: '👔' },
+            { label: '유상증자 공시',      url: 'https://dart.fss.or.kr/dsab007/detailSearch.ax?reportNm=증권신고서',       icon: '💰' },
+          ].map(l => (
+            <a key={l.label} href={l.url} target="_blank" rel="noreferrer" className="dart-card">
+              <span className="dart-icon">{l.icon}</span>
+              <span className="dart-label">{l.label}</span>
+              <span className="dart-arrow">→</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </>
   )
 }
