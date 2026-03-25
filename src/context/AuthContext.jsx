@@ -50,6 +50,7 @@ export function AuthProvider({ children }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         // 이메일 화이트리스트 체크
+        console.log('로그인 이메일:', firebaseUser.email, '허용목록:', ALLOWED_EMAILS)
         if (!isAllowedEmail(firebaseUser.email)) {
           await signOut(auth)
           setUser(null)
