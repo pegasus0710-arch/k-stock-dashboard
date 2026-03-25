@@ -47,6 +47,24 @@ const ALL_THEMES = [
 
 const DEFAULT_ACTIVE = ['semi','defense','ship','nuclear','battery','bio','value']
 const THEME_DOC_KEY  = 'dashboard_theme_prefs'
+const GLOBAL_SYMS    = ['SP500','NASDAQ','DOW','US10Y','N225','WTI']
+
+// ── 캐시 헬퍼 ────────────────────────────────────────
+const CACHE_KEY = 'db_cache_v2'
+const CACHE_TTL = 60000  // 1분
+
+function readCache() {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    const { data, ts } = JSON.parse(raw)
+    if (Date.now() - ts > CACHE_TTL) return null
+    return data
+  } catch { return null }
+}
+function writeCache(data) {
+  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() })) } catch {}
+}
 
 // ── 유틸 ─────────────────────────────────────────────
 const fmt  = v => v != null ? Number(v).toLocaleString('ko-KR') : '—'
@@ -55,19 +73,15 @@ const fmtC = v => { const x = Number(v||0); return `${x>0?'+':''}${x.toLocaleStr
 const rc   = v => { const x = Number(v||0); return x>0?'#ef4444':x<0?'#3b82f6':'#64748b' }
 
 function isMarketOpen() {
-  const d = new Date(); const m = d.getHours()*60+d.getMinutes(); const w = d.getDay()
+  const d=new Date(),m=d.getHours()*60+d.getMinutes(),w=d.getDay()
   return w>=1&&w<=5&&m>=540&&m<930
 }
 function isUSMarketOpen() {
-  // 미국 동부시간 기준 9:30~16:00 → 한국시간 23:30~06:00 (서머타임 적용시 22:30~05:00)
-  const d = new Date(); const m = d.getHours()*60+d.getMinutes(); const w = d.getDay()
-  // 한국 기준 월~토 23:30~06:00 또는 일~금 22:30~05:00 (서머타임)
-  const inUS = m>=1410||m<360 // 23:30 이후 or 06:00 이전
-  return w>=1&&w<=6&&inUS
+  const d=new Date(),m=d.getHours()*60+d.getMinutes(),w=d.getDay()
+  return w>=1&&w<=6&&(m>=1410||m<360)
 }
-
 function getTodayStr() {
-  const d = new Date(); const days=['일','월','화','수','목','금','토']
+  const d=new Date(),days=['일','월','화','수','목','금','토']
   return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`
 }
 
@@ -79,16 +93,16 @@ function Sparkline({ values, color }) {
   return <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',flexShrink:0}}><polyline points={pts} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"/></svg>
 }
 
-// ── 지수 카드 ─────────────────────────────────────────
-function IndexCard({ data, loading, color, label, onChartClick }) {
-  const [spark, setSpark] = useState([])
-  useEffect(()=>{
-    if (!data?.market) return
-    fetch(`/api/kis?type=index-chart&market=${data.market}&days=20`).then(r=>r.json()).then(j=>{ if(j.candles) setSpark(j.candles.map(c=>c.close)) }).catch(()=>{})
-  },[data?.market])
+// ── 스켈레톤 ─────────────────────────────────────────
+function Skeleton({ w='100%', h=20, r=6, mb=0 }) {
+  return <div className="db-skeleton" style={{width:w,height:h,borderRadius:r,marginBottom:mb}}/>
+}
 
+// ── 지수 카드 ─────────────────────────────────────────
+function IndexCard({ data, loading, color, label, sparkData, onChartClick }) {
   const closed   = data?.status==='closed'
   const priceClr = loading||!data ? '#94a3b8' : rc(data?.changeRate)
+  const spark    = sparkData || []
 
   return (
     <div className="db-index-card" style={{'--ic':color}}
@@ -101,7 +115,12 @@ function IndexCard({ data, loading, color, label, onChartClick }) {
               ? <span className="db-closed-badge">전일 마감</span>
               : <span className="db-live-badge">● LIVE</span>)}
           </div>
-          {loading ? <div className="db-skeleton db-skeleton--price"/> : (
+          {loading ? (
+            <>
+              <Skeleton h={32} r={6} mb={6}/>
+              <Skeleton w="60%" h={16} r={4}/>
+            </>
+          ) : (
             <>
               <div className="db-index-price" style={{color:priceClr}}>{fmt(data?.price)}</div>
               <div className="db-index-change" style={{color:priceClr}}>
@@ -113,7 +132,12 @@ function IndexCard({ data, loading, color, label, onChartClick }) {
             </>
           )}
         </div>
-        {spark.length>=2&&<div className="db-spark-wrap"><Sparkline values={spark} color={data?.changeRate>=0?'#ef4444':'#3b82f6'}/><span className="db-spark-hint">차트 →</span></div>}
+        {spark.length>=2&&(
+          <div className="db-spark-wrap">
+            <Sparkline values={spark} color={data?.changeRate>=0?'#ef4444':'#3b82f6'}/>
+            <span className="db-spark-hint">차트 →</span>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -125,7 +149,12 @@ const FOREX_PAIRS = [
   {pair:'JPY',label:'USD/JPY',symbol:'¥',histKey:'jpy'},
   {pair:'CNY',label:'USD/CNY',symbol:'¥',histKey:'cny'},
 ]
-function ForexSection({ forex, onChartClick }) {
+function ForexSection({ forex, loading, onChartClick }) {
+  if (loading) return (
+    <div className="db-forex-row">
+      {FOREX_PAIRS.map((_,i)=><div key={i} className="db-forex-card"><Skeleton h={72}/></div>)}
+    </div>
+  )
   if (!forex) return null
   const hist = forex.history||{}
   return (
@@ -154,49 +183,43 @@ function ForexSection({ forex, onChartClick }) {
   )
 }
 
-// ── 해외지수 (자동 갱신) ──────────────────────────────
+// ── 해외지수 ──────────────────────────────────────────
 const GLOBAL_LIST = [
-  {sym:'SP500',label:'S&P 500',color:'#ef4444'},
-  {sym:'NASDAQ',label:'NASDAQ',color:'#0d9488'},
-  {sym:'DOW',label:'DOW',color:'#2563eb'},
-  {sym:'US10Y',label:'미 국채 10Y',color:'#7c3aed'},
-  {sym:'N225',label:'닛케이 225',color:'#ea580c'},
-  {sym:'WTI',label:'WTI 유가',color:'#16a34a'},
+  {sym:'SP500', label:'S&P 500',    color:'#ef4444'},
+  {sym:'NASDAQ',label:'NASDAQ',     color:'#0d9488'},
+  {sym:'DOW',   label:'DOW',        color:'#2563eb'},
+  {sym:'US10Y', label:'미 국채 10Y',color:'#7c3aed'},
+  {sym:'N225',  label:'닛케이 225', color:'#ea580c'},
+  {sym:'WTI',   label:'WTI 유가',   color:'#16a34a'},
 ]
-function GlobalCard({ sym, label, color, onChartClick }) {
-  const [data,setData] = useState(null)
-  const [loading,setLoading] = useState(true)
 
-  const fetch_ = useCallback(()=>{
-    fetch(`/api/kis?type=global&symbol=${sym}`).then(r=>r.json()).then(j=>{if(!j.error)setData(j)}).catch(()=>{}).finally(()=>setLoading(false))
-  },[sym])
-
-  useEffect(()=>{
-    fetch_()
-    // 미장 운영중이면 60초, 아니면 5분
-    const interval = isUSMarketOpen() ? 60000 : 300000
-    const id = setInterval(fetch_, interval)
-    return ()=>clearInterval(id)
-  },[fetch_])
-
-  const pc=data?rc(data.changeRate):'#94a3b8'
+// 해외지수는 별도 배치 fetch (KIS dashboard와 분리)
+function GlobalSection({ globalData, loading, onChartClick }) {
   return (
-    <div className="db-global-card" style={{'--gc':color}}
-      onClick={()=>data&&onChartClick({type:'global',sym,label,color,price:data.price,changeRate:data.changeRate})}>
-      <div className="db-global-label" style={{color}}>{label}</div>
-      {loading&&<div className="db-global-loading">...</div>}
-      {!loading&&data&&(
-        <>
-          <div className="db-global-price" style={{color:pc}}>{data.price?.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
-          <div className="db-global-change" style={{color:pc}}>{data.changeRate>=0?'+':''}{data.changeRate?.toFixed(2)}%</div>
-        </>
-      )}
-      {!loading&&!data&&<div className="db-global-na">—</div>}
+    <div className="db-global-grid">
+      {GLOBAL_LIST.map(g => {
+        const data = globalData?.[g.sym]
+        const pc = data ? rc(data.changeRate) : '#94a3b8'
+        return (
+          <div key={g.sym} className="db-global-card" style={{'--gc':g.color}}
+            onClick={()=>data&&onChartClick({type:'global',sym:g.sym,label:g.label,color:g.color,price:data.price,changeRate:data.changeRate})}>
+            <div className="db-global-label" style={{color:g.color}}>{g.label}</div>
+            {loading&&<div className="db-global-loading">...</div>}
+            {!loading&&data&&(
+              <>
+                <div className="db-global-price" style={{color:pc}}>{data.price?.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
+                <div className="db-global-change" style={{color:pc}}>{data.changeRate>=0?'+':''}{data.changeRate?.toFixed(2)}%</div>
+              </>
+            )}
+            {!loading&&!data&&<div className="db-global-na">—</div>}
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-// ── 바로가기 (접이식) ─────────────────────────────────
+// ── 바로가기 ──────────────────────────────────────────
 const QUICK_LINKS = [
   {label:'네이버 증권',  url:'https://finance.naver.com',                            icon:'📊'},
   {label:'KRX 시장정보', url:'https://data.krx.co.kr',                               icon:'🏛️'},
@@ -323,28 +346,30 @@ function LegacyChartModal({ item, onClose }) {
 // ── 메인 ─────────────────────────────────────────────
 export default function DashboardPage() {
   const { user } = useAuth()
-  const [dashData,   setDashData]   = useState(null)
-  const [loading,    setLoading]    = useState(true)
-  const [lastFetch,  setLastFetch]  = useState('')
-  const [chartItem,  setChartItem]  = useState(null)
-  const [activeIds,  setActiveIds]  = useState(DEFAULT_ACTIVE)
-  const [showSetting,setShowSetting]= useState(false)
-  const timerRef = useRef(null)
+  const [dashData,    setDashData]    = useState(()=>readCache())   // ← 캐시 즉시 표시
+  const [globalData,  setGlobalData]  = useState(null)
+  const [sparkData,   setSparkData]   = useState({})               // { KOSPI:[], KOSDAQ:[] }
+  const [loading,     setLoading]     = useState(!readCache())      // 캐시 있으면 false
+  const [globalLoading,setGlobalLoading]= useState(true)
+  const [lastFetch,   setLastFetch]   = useState('')
+  const [chartItem,   setChartItem]   = useState(null)
+  const [activeIds,   setActiveIds]   = useState(DEFAULT_ACTIVE)
+  const [showSetting, setShowSetting] = useState(false)
+  const timerRef     = useRef(null)
+  const globalTimer  = useRef(null)
+  const isFetching   = useRef(false)
 
-  // ── Firebase에서 테마 설정 로드 ──────────────────────
+  // ── Firebase 테마 설정 로드 ──────────────────────────
   useEffect(()=>{
     if (!user?.uid) return
     const ref = doc(db, 'user_prefs', user.uid)
     getDoc(ref).then(snap=>{
-      if (snap.exists()&&snap.data()[THEME_DOC_KEY]) {
-        setActiveIds(snap.data()[THEME_DOC_KEY])
-      }
+      if (snap.exists()&&snap.data()[THEME_DOC_KEY]) setActiveIds(snap.data()[THEME_DOC_KEY])
     }).catch(()=>{})
   },[user?.uid])
 
   const visibleThemes = ALL_THEMES.filter(t=>activeIds.includes(t.id))
 
-  // 필요한 코드 계산
   const getNeededCodes = useCallback(()=>{
     return visibleThemes.flatMap(t=>[
       ...t.etf.slice(0,1).map(e=>e.code),
@@ -352,30 +377,70 @@ export default function DashboardPage() {
     ])
   },[visibleThemes.map(t=>t.id).join(',')])
 
-  // ── 대시보드 데이터 fetch ─────────────────────────────
+  // ── 1) KIS 대시보드 + 스파크라인 병렬 fetch ──────────
   const fetchDashboard = useCallback(async ()=>{
+    if (isFetching.current) return
+    isFetching.current = true
     const codes = getNeededCodes()
-    if (!codes.length) return
+    if (!codes.length) { isFetching.current=false; return }
     try {
-      const res  = await fetch(`/api/kis?type=dashboard&codes=${codes.join(',')}`)
-      const json = await res.json()
-      if (json.error) throw new Error(json.error)
-      setDashData(json)
+      // 대시보드 데이터 + 양대지수 스파크라인 동시 요청
+      const [dashRes, kospiSpark, kosdaqSpark] = await Promise.all([
+        fetch(`/api/kis?type=dashboard&codes=${codes.join(',')}`).then(r=>r.json()),
+        fetch(`/api/kis?type=index-chart&market=J&days=20`).then(r=>r.json()).catch(()=>({})),
+        fetch(`/api/kis?type=index-chart&market=Q&days=20`).then(r=>r.json()).catch(()=>({})),
+      ])
+      if (dashRes.error) throw new Error(dashRes.error)
+      setDashData(dashRes)
+      writeCache(dashRes)
+      setSparkData({
+        KOSPI:  (kospiSpark.candles||[]).map(c=>c.close),
+        KOSDAQ: (kosdaqSpark.candles||[]).map(c=>c.close),
+      })
       const now = new Date()
       setLastFetch(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`)
-    } catch(e) { console.error(e) }
-    finally { setLoading(false) }
-  },[getNeededCodes])
+    } catch(e) { console.error('[dashboard]', e) }
+    finally { setLoading(false); isFetching.current=false }
+  }, [getNeededCodes])
 
+  // ── 2) 해외지수 배치 fetch (개별 → 한번에) ────────────
+  const fetchGlobal = useCallback(async ()=>{
+    try {
+      // 6개 병렬 → 결과를 map으로 합치기
+      const results = await Promise.allSettled(
+        GLOBAL_SYMS.map(sym =>
+          fetch(`/api/kis?type=global&symbol=${sym}`).then(r=>r.json())
+        )
+      )
+      const map = {}
+      results.forEach((r, i) => {
+        if (r.status==='fulfilled' && !r.value.error) map[GLOBAL_SYMS[i]] = r.value
+      })
+      setGlobalData(map)
+    } catch(e) { console.error('[global]', e) }
+    finally { setGlobalLoading(false) }
+  }, [])
+
+  // ── 마운트 시 초기 로딩 ──────────────────────────────
   useEffect(()=>{
+    // 두 fetch를 동시에 시작 (서로 블로킹하지 않음)
     fetchDashboard()
-    const isOpen = isMarketOpen()
-    const interval = isOpen ? 30000 : 300000
-    timerRef.current = setInterval(fetchDashboard, interval)
-    return ()=>clearInterval(timerRef.current)
-  },[fetchDashboard])
+    fetchGlobal()
 
-  // ── 테마 설정 저장 (Firebase) ─────────────────────────
+    // 자동 갱신
+    const dashInterval  = isMarketOpen() ? 30000 : 300000
+    const globalInterval = isUSMarketOpen() ? 60000 : 300000
+
+    timerRef.current    = setInterval(fetchDashboard, dashInterval)
+    globalTimer.current = setInterval(fetchGlobal,    globalInterval)
+
+    return () => {
+      clearInterval(timerRef.current)
+      clearInterval(globalTimer.current)
+    }
+  }, [fetchDashboard, fetchGlobal])
+
+  // ── 테마 설정 저장 ───────────────────────────────────
   const handleThemeChange = async (ids) => {
     setActiveIds(ids)
     if (user?.uid) {
@@ -395,7 +460,6 @@ export default function DashboardPage() {
     closed:    {label:'장 마감',     color:'#64748b',dot:false},
   }[marketStatus]||{label:'장 마감',color:'#64748b',dot:false}
 
-  // priceMap: 코드 → 가격 데이터
   const priceMap = {}
   dashData?.prices?.forEach(p=>{ if(p?.code) priceMap[p.code]=p })
 
@@ -414,7 +478,9 @@ export default function DashboardPage() {
             <div className="db-status-badge" style={{background:st.color+'18',color:st.color,borderColor:st.color+'40'}}>
               {st.dot&&<span className="db-status-dot" style={{background:st.color}}/>}{st.label}
             </div>
-            <button className="btn-outline db-refresh-btn" onClick={fetchDashboard} disabled={loading}>⟳</button>
+            <button className="btn-outline db-refresh-btn"
+              onClick={()=>{ fetchDashboard(); fetchGlobal() }}
+              disabled={loading}>⟳</button>
           </div>
         </div>
       </div>
@@ -437,13 +503,21 @@ export default function DashboardPage() {
           <span className="db-section-note">{isOpen?'KIS API · 30초 자동 갱신':'KIS API · 5분 자동 갱신'}</span>
         </div>
         <div className="db-index-grid">
-          <IndexCard data={dashData?.kospi}  loading={loading} color="#2563eb" label="KOSPI"  onChartClick={setChartItem}/>
-          <IndexCard data={dashData?.kosdaq} loading={loading} color="#16a34a" label="KOSDAQ" onChartClick={setChartItem}/>
+          <IndexCard
+            data={dashData?.kospi}  loading={loading}
+            color="#2563eb" label="KOSPI"
+            sparkData={sparkData.KOSPI}
+            onChartClick={setChartItem}
+          />
+          <IndexCard
+            data={dashData?.kosdaq} loading={loading}
+            color="#16a34a" label="KOSDAQ"
+            sparkData={sparkData.KOSDAQ}
+            onChartClick={setChartItem}
+          />
         </div>
-        <ForexSection forex={dashData?.forex} onChartClick={setChartItem}/>
-        <div className="db-global-grid">
-          {GLOBAL_LIST.map(g=><GlobalCard key={g.sym} {...g} onChartClick={setChartItem}/>)}
-        </div>
+        <ForexSection forex={dashData?.forex} loading={loading} onChartClick={setChartItem}/>
+        <GlobalSection globalData={globalData} loading={globalLoading} onChartClick={setChartItem}/>
         {isUSMarketOpen()&&<div className="db-us-live">🇺🇸 미국 시장 운영중 · 해외지수 60초 자동 갱신</div>}
       </section>
 
@@ -462,9 +536,12 @@ export default function DashboardPage() {
           <div className="db-theme-grid">
             {visibleThemes.map(t=>(
               <div key={t.id} className="db-theme-card" style={{'--tc':t.color}}>
-                <div className="db-theme-card-header"><span className="db-theme-emoji">{t.emoji}</span><span className="db-theme-label" style={{color:t.color}}>{t.label}</span></div>
-                <div className="db-skeleton" style={{height:'32px',borderRadius:'6px',marginBottom:'8px'}}/>
-                {[1,2,3].map(i=><div key={i} className="db-skeleton" style={{height:'24px',borderRadius:'4px',marginBottom:'4px'}}/>)}
+                <div className="db-theme-card-header">
+                  <span className="db-theme-emoji">{t.emoji}</span>
+                  <span className="db-theme-label" style={{color:t.color}}>{t.label}</span>
+                </div>
+                <Skeleton h={32} r={6} mb={8}/>
+                {[1,2,3].map(i=><Skeleton key={i} h={24} r={4} mb={4}/>)}
               </div>
             ))}
           </div>
@@ -479,7 +556,6 @@ export default function DashboardPage() {
                     <span className="db-theme-emoji">{t.emoji}</span>
                     <span className="db-theme-label" style={{color:t.color}}>{t.label}</span>
                   </div>
-                  {/* ETF 우선 */}
                   {topEtf&&(
                     <button className="db-etf-chip"
                       onClick={()=>setChartItem({isStock:true,code:topEtf.code,label:topEtf.name,price:ep?.price,changeRate:ep?.changeRate})}>
@@ -490,7 +566,6 @@ export default function DashboardPage() {
                         : <span className="db-etf-price" style={{color:'#94a3b8'}}>—</span>}
                     </button>
                   )}
-                  {/* 종목 */}
                   <div className="db-theme-stocks">
                     {t.stocks.map(s=>{
                       const p=priceMap[s.code]
@@ -516,10 +591,8 @@ export default function DashboardPage() {
         ✅ KIS API · {isOpen?'장중 30초':'장외 5분'} 자동 갱신 · 해외지수 {isUSMarketOpen()?'미장 운영중 60초':'5분'} 갱신
       </div>
 
-      {/* 테마 설정 */}
       {showSetting&&<ThemeSettingModal activeIds={activeIds} onChange={handleThemeChange} onClose={()=>setShowSetting(false)}/>}
 
-      {/* 차트 팝업 */}
       {chartItem&&chartItem.isStock&&<StockChartModal stock={{name:chartItem.label,code:chartItem.code}} onClose={()=>setChartItem(null)}/>}
       {chartItem&&!chartItem.isStock&&<LegacyChartModal item={chartItem} onClose={()=>setChartItem(null)}/>}
     </div>
