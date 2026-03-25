@@ -55,7 +55,6 @@
 }
 .smc-ma-btn:hover { border-color:#6366f1; color:#6366f1; }
 .smc-ma-btn.active { background:#eef2ff; border-color:#6366f1; color:#6366f1; }
-
 .smc-ma-legend { display:flex; gap:8px; align-items:center; padding-left:6px; flex-wrap:wrap; }
 
 .smc-chart-wrap { padding:8px 0 0; min-height:200px; overflow:hidden; }
@@ -83,11 +82,98 @@
 .smc-info-item:last-of-type { border-right:none; }
 .smc-info-label { font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; }
 .smc-info-value { font-size:12px; font-weight:600; color:#0f172a; margin-top:1px; font-family:monospace; }
+
+/* ── 공시 버튼 (<button>으로 변경됨) ── */
 .smc-dart-btn {
-  margin-left:auto; padding:6px 14px; border:1px solid #e2e8f0; border-radius:7px;
-  font-size:12px; background:white; color:#64748b; text-decoration:none; transition:all .1s; white-space:nowrap;
+  margin-left:auto;
+  padding:6px 14px;
+  border:1px solid #e2e8f0;
+  border-radius:7px;
+  font-size:12px;
+  font-weight:600;
+  background:white;
+  color:#64748b;
+  cursor:pointer;
+  transition:all .1s;
+  white-space:nowrap;
+  flex-shrink:0;
 }
 .smc-dart-btn:hover { background:#eff6ff; color:#2563eb; border-color:#bfdbfe; }
+
+/* ── DART 공시 팝업 오버레이 ── */
+.smc-dart-overlay {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.65);
+  display:flex; align-items:center; justify-content:center;
+  z-index:2000;
+  backdrop-filter:blur(4px);
+  padding:20px;
+}
+.smc-dart-popup {
+  background:#0f172a;
+  border:1px solid #1e293b;
+  border-radius:14px;
+  width:100%; max-width:560px; max-height:80vh;
+  display:flex; flex-direction:column;
+  overflow:hidden;
+  box-shadow:0 24px 60px rgba(0,0,0,0.6);
+}
+.smc-dart-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 20px;
+  border-bottom:1px solid #1e293b;
+  font-size:15px; font-weight:700; color:#e2e8f0;
+  flex-shrink:0;
+}
+/* 팝업 내 닫기 버튼은 다크 스타일 */
+.smc-dart-popup .smc-close {
+  background:rgba(255,255,255,0.08);
+  color:#94a3b8;
+}
+.smc-dart-popup .smc-close:hover { background:rgba(239,68,68,0.2); color:#ef4444; }
+
+.smc-dart-loading,
+.smc-dart-empty {
+  padding:40px;
+  text-align:center;
+  color:#64748b;
+  font-size:13px;
+  line-height:2;
+}
+.smc-dart-list { overflow-y:auto; flex:1; padding:8px 0; }
+.smc-dart-item {
+  display:flex; align-items:center; gap:10px;
+  width:100%; padding:11px 20px;
+  background:transparent; border:none;
+  border-bottom:1px solid #1e293b;
+  cursor:pointer; text-align:left;
+  transition:background .12s;
+}
+.smc-dart-item:hover { background:#1e293b; }
+.smc-dart-date  { font-size:11px; color:#f59e0b; font-weight:600; white-space:nowrap; flex-shrink:0; }
+.smc-dart-title { font-size:13px; color:#cbd5e1; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.smc-dart-filer { font-size:11px; color:#64748b; white-space:nowrap; flex-shrink:0; }
+
+.smc-dart-detail { padding:20px; flex:1; overflow-y:auto; }
+.smc-dart-back {
+  background:transparent; border:none;
+  color:#60a5fa; font-size:13px; cursor:pointer;
+  padding:0; margin-bottom:14px; display:block;
+}
+.smc-dart-back:hover { text-decoration:underline; }
+.smc-dart-detail-date  { font-size:12px; color:#f59e0b; font-weight:600; margin-bottom:6px; }
+.smc-dart-detail-title { font-size:16px; font-weight:700; color:#e2e8f0; margin:0 0 10px; line-height:1.4; }
+.smc-dart-detail-meta  { display:flex; gap:12px; font-size:12px; color:#64748b; margin-bottom:20px; }
+.smc-dart-link-btn {
+  display:inline-block; padding:10px 18px;
+  background:#1e3a5f; color:#60a5fa;
+  border-radius:8px; text-decoration:none;
+  font-size:14px; font-weight:600;
+  transition:background .15s;
+}
+.smc-dart-link-btn:hover { background:#1e4a7a; }
+.smc-dart-link { color:#60a5fa; font-size:13px; text-decoration:none; display:block; margin-top:8px; }
+.smc-dart-link:hover { text-decoration:underline; }
 
 @media (max-width:640px) {
   .smc-modal { max-height:96vh; border-radius:10px; }
