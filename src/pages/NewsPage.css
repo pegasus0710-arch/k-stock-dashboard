@@ -17,23 +17,31 @@
 }
 .news-link-chip:hover { background:#eff6ff; border-color:#bfdbfe; color:#2563eb; }
 
-/* DART */
-.dart-card {
-  display:flex; align-items:center; gap:12px;
-  padding:14px 16px; background:#fafafa; border:1px solid var(--border);
-  border-radius:var(--radius-md); transition:all .12s;
+/* DART 상단 바 */
+.dart-top-bar {
+  display:flex; flex-direction:column; gap:10px;
 }
-.dart-card:hover { background:#f0f4ff; border-color:#bfdbfe; transform:translateY(-1px); }
-.dart-icon  { font-size:18px; flex-shrink:0; }
-.dart-label { font-size:13px; font-weight:500; color:var(--text-primary); flex:1; }
-.dart-arrow { font-size:12px; color:var(--text-dim); flex-shrink:0; }
 
-/* DART 검색 */
-.dart-search-wrap {
-  display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px;
+/* 보유종목 칩 */
+.dart-stock-chips {
+  display:flex; align-items:center; flex-wrap:wrap; gap:6px;
 }
+.dart-chips-label {
+  font-size:11px; font-weight:700; color:var(--text-secondary);
+  text-transform:uppercase; letter-spacing:.04em; margin-right:4px; flex-shrink:0;
+}
+.dart-stock-chip {
+  padding:5px 12px; border:1.5px solid var(--border); border-radius:16px;
+  font-size:12px; font-weight:500; font-family:var(--font-kr);
+  color:var(--text-secondary); background:white; cursor:pointer; transition:all .12s;
+}
+.dart-stock-chip:hover { border-color:#2563eb; color:#2563eb; }
+.dart-stock-chip.active { background:#2563eb; color:white; border-color:#2563eb; font-weight:700; }
+
+/* 검색 */
+.dart-search-wrap { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .dart-search-input {
-  flex:1; min-width:200px; padding:9px 14px;
+  flex:1; min-width:180px; padding:8px 12px;
   border:1px solid var(--border); border-radius:var(--radius-sm);
   font-size:13px; font-family:var(--font-kr); color:var(--text-primary);
   background:white; outline:none;
@@ -41,7 +49,7 @@
 .dart-search-input:focus { border-color:#2563eb; }
 
 .btn-outline {
-  padding:8px 14px; border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:7px 13px; border:1px solid var(--border); border-radius:var(--radius-sm);
   font-size:13px; font-family:var(--font-kr); background:white;
   color:var(--text-secondary); cursor:pointer; transition:all .12s;
 }
@@ -58,9 +66,20 @@
 }
 .dart-date-input:focus { border-color:#2563eb; }
 
+/* 공시 카드 */
+.dart-card {
+  display:flex; align-items:center; gap:12px;
+  padding:14px 16px; background:#fafafa; border:1px solid var(--border);
+  border-radius:var(--radius-md); transition:all .12s;
+}
+.dart-card:hover { background:#f0f4ff; border-color:#bfdbfe; transform:translateY(-1px); }
+.dart-icon  { font-size:18px; flex-shrink:0; }
+.dart-label { font-size:13px; font-weight:500; color:var(--text-primary); flex:1; }
+.dart-arrow { font-size:12px; color:var(--text-dim); flex-shrink:0; }
+
 /* 공시 리스트 */
 .dart-list {
-  display:flex; flex-direction:column; gap:0;
+  display:flex; flex-direction:column;
   border:1px solid var(--border); border-radius:var(--radius-md); overflow:hidden;
 }
 .dart-item {
@@ -81,14 +100,12 @@
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .dart-submitter { font-size:11px; color:var(--text-dim); white-space:nowrap; }
-
 .dart-item-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .dart-date { font-size:11px; color:var(--text-secondary); font-family:var(--font-mono); white-space:nowrap; }
 
 /* 페이지네이션 */
 .dart-pagination {
-  display:flex; align-items:center; justify-content:center; gap:16px;
-  padding:12px 0 4px;
+  display:flex; align-items:center; justify-content:center; gap:16px; padding:12px 0 4px;
 }
 .dart-page-btn {
   padding:6px 14px; border:1px solid var(--border); border-radius:var(--radius-sm);
@@ -96,14 +113,4 @@
   color:var(--text-secondary); cursor:pointer; transition:all .12s;
 }
 .dart-page-btn:hover:not(:disabled) { border-color:#2563eb; color:#2563eb; }
-.dart-page-btn:disabled { opacity:0.4; cursor:not-allowed; }
-
-/* 검색 */
-.news-search { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-.news-search-input {
-  flex:1; min-width:200px; padding:9px 14px;
-  border:1px solid var(--border); border-radius:var(--radius-sm);
-  font-size:13px; font-family:var(--font-kr); color:var(--text-primary);
-  background:white; outline:none;
-}
-.news-search-input:focus { border-color:#2563eb; }
+.dart-page-btn:disabled { opacity:.4; cursor:not-allowed; }
