@@ -27,7 +27,14 @@ export default async function handler(req, res) {
         open: parseInt(info.open_pric?.replace(/[^0-9]/g, '') || 0),
       })
     }
-
+if (type === 'account') {
+  const data = await fetch(`${KIWOOM_SERVER_URL}/account`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({})
+  }).then(r => r.json())
+  return res.json(data)
+}
     return res.status(400).json({ error: 'Unknown type' })
 
   } catch (e) {
