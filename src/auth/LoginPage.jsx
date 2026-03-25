@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase'
+import { useAuth } from '../context/AuthContext'
 import './LoginPage.css'
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
+  const { denied } = useAuth()
 
-  /* 구글 로그인 */
   const loginWithGoogle = async () => {
     setLoading(true)
     setError('')
@@ -20,14 +21,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  /* 카카오 로그인 */
-  const loginWithKakao = () => {
-    const kakaoKey    = import.meta.env.VITE_KAKAO_JS_KEY
-    const redirectUri = `${window.location.origin}/auth/kakao/callback`
-    const kakaoUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${kakaoKey}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`
-    window.location.href = kakaoUrl
   }
 
   return (
@@ -63,7 +56,15 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* 에러 */}
+        {/* 접근 거부 메시지 */}
+        {denied && (
+          <div className="login-denied">
+            ⛔ 접근 권한이 없는 계정입니다.<br/>
+            허용된 계정으로 로그인해주세요.
+          </div>
+        )}
+
+        {/* 일반 에러 */}
         {error && <div className="login-error">{error}</div>}
 
         {/* 로그인 버튼 */}
@@ -81,21 +82,10 @@ export default function LoginPage() {
             </svg>
             {loading ? '로그인 중...' : 'Google로 로그인'}
           </button>
-
-          <button
-            className="login-btn kakao-btn"
-            onClick={loginWithKakao}
-            disabled={loading}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="#3C1E1E">
-              <path d="M12 3C6.48 3 2 6.48 2 10.8c0 2.76 1.68 5.19 4.2 6.6l-1.08 3.96L9.6 19.2c.78.18 1.56.3 2.4.3 5.52 0 10-3.48 10-7.8S17.52 3 12 3z"/>
-            </svg>
-            카카오로 로그인
-          </button>
         </div>
 
         <p className="login-notice">
-          로그인 시 새로운 기기는 이메일 인증이 필요해요
+          허용된 구글 계정으로만 접속 가능합니다
         </p>
       </div>
     </div>
