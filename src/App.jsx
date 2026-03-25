@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from './context/AuthContext'
 import './App.css'
 
+import LoginPage      from './auth/LoginPage'
 import DashboardPage  from './pages/DashboardPage'
 import MarketPage     from './pages/MarketPage'
 import ThemePage      from './pages/ThemePage'
@@ -38,27 +39,42 @@ function getTodayStr() {
 
 function getMarketStatus() {
   const t = new Date().getHours() * 60 + new Date().getMinutes()
-  if (t >= 540 && t < 930)  return { label: 'LIVE',     color: '#16a34a' }
+  if (t >= 540 && t < 930)  return { label: 'LIVE',      color: '#16a34a' }
   if (t >= 480 && t < 540)  return { label: '장 시작 전', color: '#d97706' }
-  if (t >= 930 && t < 1080) return { label: '시간외',   color: '#7c3aed' }
+  if (t >= 930 && t < 1080) return { label: '시간외',    color: '#7c3aed' }
   return { label: '장 마감', color: '#64748b' }
 }
 
 export default function App() {
-  // ✅ useAuth가 null 반환해도 안전하게 처리
-  const auth = useAuth()
-  const user   = auth?.user   || null
-  const logout = auth?.logout || (() => {})
-
+  const { user, authLoading, needsOtp, logout } = useAuth()
   const [activePage, setPage]     = useState('dashboard')
   const [sidebarOpen, setSidebar] = useState(false)
 
+  // 로딩 중
+  if (authLoading) {
+    return (
+      <div style={{
+        display:'flex', alignItems:'center', justifyContent:'center',
+        height:'100vh', flexDirection:'column', gap:'16px',
+        background:'#f8fafc', color:'#64748b',
+      }}>
+        <div style={{fontSize:'32px',fontWeight:800,color:'#2563eb'}}>K</div>
+        <div style={{fontSize:'14px'}}>로딩 중...</div>
+      </div>
+    )
+  }
+
+  // 미로그인 또는 OTP 필요 → 로그인 페이지
+  if (!user || needsOtp) {
+    return <LoginPage />
+  }
+
+  // 로그인 완료 → 대시보드
   const PageComp  = PAGES[activePage] || DashboardPage
   const activeNav = NAV_ITEMS.find(n => n.id === activePage)
   const market    = getMarketStatus()
-
-  const initials = user?.displayName
-    ? user.displayName.slice(0, 2).toUpperCase()
+  const initials  = user?.displayName
+    ? user.displayName.slice(0,2).toUpperCase()
     : (user?.email?.[0] || 'U').toUpperCase()
 
   const goTo = (id) => { setPage(id); setSidebar(false) }
@@ -66,9 +82,7 @@ export default function App() {
   return (
     <div className="app-layout">
 
-      {/* ── 사이드바 ── */}
       <aside className={`app-sidebar${sidebarOpen ? ' open' : ''}`}>
-
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">K</div>
           <div>
@@ -77,23 +91,19 @@ export default function App() {
           </div>
         </div>
 
-        {user && (
-          <div className="sidebar-user">
-            <div className="sidebar-avatar">{initials}</div>
-            <div style={{ minWidth: 0 }}>
-              <div className="sidebar-user-name">{user.displayName || '투자자'}</div>
-              <div className="sidebar-user-email">{user.email}</div>
-            </div>
+        <div className="sidebar-user">
+          <div className="sidebar-avatar">{initials}</div>
+          <div style={{minWidth:0}}>
+            <div className="sidebar-user-name">{user.displayName || '투자자'}</div>
+            <div className="sidebar-user-email">{user.email}</div>
           </div>
-        )}
+        </div>
 
         <nav className="sidebar-nav">
           {NAV_ITEMS.map(item => (
-            <button
-              key={item.id}
-              className={`nav-item${activePage === item.id ? ' active' : ''}`}
-              onClick={() => goTo(item.id)}
-            >
+            <button key={item.id}
+              className={`nav-item${activePage===item.id?' active':''}`}
+              onClick={()=>goTo(item.id)}>
               <span className="nav-icon">{item.icon}</span>
               <div>
                 <div className="nav-label">{item.label}</div>
@@ -105,43 +115,32 @@ export default function App() {
 
         <div className="sidebar-footer">
           <div className="sidebar-version">K-Stock v0.3</div>
-          {user && (
-            <button className="sidebar-logout" onClick={logout}>
-              🚪 로그아웃
-            </button>
-          )}
+          <button className="sidebar-logout" onClick={logout}>🚪 로그아웃</button>
         </div>
       </aside>
 
-      {/* 모바일 오버레이 */}
-      {sidebarOpen && (
-        <div className="sidebar-overlay" onClick={() => setSidebar(false)} />
-      )}
+      {sidebarOpen && <div className="sidebar-overlay" onClick={()=>setSidebar(false)}/>}
 
-      {/* ── 메인 ── */}
       <div className="app-main">
-
         <header className="app-topbar">
           <div className="topbar-left">
-            <button className="topbar-hamburger" onClick={() => setSidebar(v => !v)}>☰</button>
+            <button className="topbar-hamburger" onClick={()=>setSidebar(v=>!v)}>☰</button>
             <div className="topbar-title">
               {activeNav?.icon}&nbsp;{activeNav?.label}
               <span className="topbar-sub">{activeNav?.sub}</span>
             </div>
           </div>
           <div className="topbar-right">
-            <span className="topbar-live" style={{ color: market.color }}>
-              <span className="topbar-live-dot" style={{ background: market.color }} />
+            <span className="topbar-live" style={{color:market.color}}>
+              <span className="topbar-live-dot" style={{background:market.color}}/>
               {market.label}
             </span>
             <span className="topbar-date">{getTodayStr()}</span>
           </div>
         </header>
-
         <main className="app-content">
           <PageComp />
         </main>
-
       </div>
     </div>
   )
