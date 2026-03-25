@@ -46,7 +46,7 @@ function getMarketStatus() {
 }
 
 export default function App() {
-  const { user, authLoading, needsOtp, denied, logout } = useAuth()
+  const { user, authLoading, denied, logout } = useAuth()
   const [activePage, setPage]     = useState('dashboard')
   const [sidebarOpen, setSidebar] = useState(false)
 
@@ -64,8 +64,8 @@ export default function App() {
     )
   }
 
-  // 미로그인 또는 OTP 필요 또는 접근 거부 → 로그인 페이지
-  if (!user || needsOtp) {
+  // 미로그인 → 로그인 페이지
+  if (!user) {
     return <LoginPage denied={denied} />
   }
 
