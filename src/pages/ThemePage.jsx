@@ -103,7 +103,6 @@ const THEMES = [
   },
 ]
 
-// ✅ 웹 검색 기능 포함된 AI 분석 함수
 async function fetchThemeAI(apiKey, theme) {
   const today = new Date().toLocaleDateString('ko-KR')
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -120,31 +119,13 @@ async function fetchThemeAI(apiKey, theme) {
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{
         role: 'user',
-        content: `웹 검색을 사용해서 오늘(${today}) 기준 한국 증시 "${theme.label}" 테마의 최신 뉴스와 동향을 찾아보고 아래 형식으로 분석해줘.
-
-검색어: ${theme.keywords.slice(0,4).join(' ')} 주식 뉴스
-
-## 📌 테마 현황 한줄 요약
-## 🔑 핵심 모멘텀
-1.
-2.
-3.
-## 📈 주목 종목 & 투자포인트
-- 종목명: 이유
-- 종목명: 이유
-## ⚠️ 주요 리스크
-## 💡 지금 투자 전략
-
-반드시 웹 검색으로 최신 뉴스를 찾아서 실제 데이터 기반으로 작성해줘.`,
+        content: `웹 검색을 사용해서 오늘(${today}) 기준 한국 증시 "${theme.label}" 테마의 최신 뉴스와 동향을 찾아보고 아래 형식으로 분석해줘.\n\n검색어: ${theme.keywords.slice(0,4).join(' ')} 주식 뉴스\n\n## 📌 테마 현황 한줄 요약\n## 🔑 핵심 모멘텀\n1.\n2.\n3.\n## 📈 주목 종목 & 투자포인트\n- 종목명: 이유\n- 종목명: 이유\n## ⚠️ 주요 리스크\n## 💡 지금 투자 전략\n\n반드시 웹 검색으로 최신 뉴스를 찾아서 실제 데이터 기반으로 작성해줘.`,
       }],
     }),
   })
   if (!res.ok) throw new Error(`API 오류 ${res.status}`)
   const data = await res.json()
-  const text = data.content
-    .filter(b => b.type === 'text')
-    .map(b => b.text)
-    .join('\n')
+  const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
   if (!text.trim()) throw new Error('분석 결과를 가져오지 못했어요.')
   return text
 }
@@ -164,10 +145,11 @@ function saveThemeAI(data) {
 }
 
 export default function ThemePage() {
-  const [activeId, setActiveId] = useState(THEMES[0].id)
-  const [aiCache, setAiCache]   = useState(() => loadThemeAI())
-  const [aiLoading, setLoading] = useState(false)
-  const [aiError, setError]     = useState('')
+  const [activeId, setActiveId]     = useState(THEMES[0].id)
+  const [aiCache, setAiCache]       = useState(() => loadThemeAI())
+  const [aiLoading, setLoading]     = useState(false)
+  const [aiError, setError]         = useState('')
+  const [chartStock, setChartStock] = useState(null)
 
   const theme    = THEMES.find(t => t.id === activeId)
   const analysis = aiCache[theme.id]
@@ -186,8 +168,6 @@ export default function ThemePage() {
     } catch(e) { setError(e.message) }
     finally { setLoading(false) }
   }
-
-  const [chartStock, setChartStock] = useState(null)
 
   return (
     <div className="page-wrap">
@@ -233,9 +213,7 @@ export default function ThemePage() {
                   disabled={aiLoading}>
                   {aiLoading
                     ? <><span className="btn-spinner"/>검색 중...</>
-                    : analysis
-                      ? '↺ 다시 분석'
-                      : <><span>🔍</span> AI 분석</>}
+                    : analysis ? '↺ 다시 분석' : <><span>🔍</span> AI 분석</>}
                 </button>
               </div>
               <p className="theme-hero-desc">{theme.desc}</p>
@@ -279,14 +257,10 @@ export default function ThemePage() {
               </div>
             )}
 
-            {/* 대표 종목 */}
+            {/* 대표 종목 - 클릭 시 차트 팝업 */}
             <div className="card-section">
               <div className="section-title-row">
                 <span className="section-title">대표 종목</span>
-                <a href="https://finance.naver.com/sise/theme.naver"
-                   target="_blank" rel="noreferrer" className="section-more-link">
-                  테마 전체 →
-                </a>
               </div>
               <div className="card-grid">
                 {theme.stocks.map(s => (
@@ -315,17 +289,16 @@ export default function ThemePage() {
               <div className="section-title">관련 ETF</div>
               <div className="etf-list">
                 {theme.etf.map(e => (
-                  <a key={e.code}
-                    href={`https://finance.naver.com/item/main.naver?code=${e.code}`}
-                    target="_blank" rel="noreferrer"
-                    className="etf-card" style={{'--tc': theme.color}}>
+                  <button key={e.code}
+                    className="etf-card" style={{'--tc': theme.color}}
+                    onClick={() => setChartStock({ name: e.name, code: e.code })}>
                     <div className="etf-dot" style={{background: theme.color}}/>
                     <div>
                       <div className="etf-name">{e.name}</div>
                       <div className="etf-code">{e.code}</div>
                     </div>
                     <span className="etf-arrow">→</span>
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
@@ -362,15 +335,11 @@ export default function ThemePage() {
               </div>
             </div>
 
-            <div className="info-note">
-              <span>💡</span>
-              <span>키움 REST API 연동 후 실시간 주가·등락률·수급이 표시됩니다</span>
-            </div>
-
           </div>
         </div>
+
       </div>
-    </div>
+
       {chartStock && (
         <StockChartModal stock={chartStock} onClose={() => setChartStock(null)} />
       )}
