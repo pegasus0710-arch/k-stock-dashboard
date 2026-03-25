@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import StockChartModal from '../components/StockChartModal'
 import './ThemePage.css'
 
 const THEMES = [
@@ -186,7 +187,7 @@ export default function ThemePage() {
     finally { setLoading(false) }
   }
 
-  const openNaver = (code) => window.open(`https://finance.naver.com/item/main.naver?code=${code}`, '_blank')
+  const [chartStock, setChartStock] = useState(null)
 
   return (
     <div className="page-wrap">
@@ -291,15 +292,14 @@ export default function ThemePage() {
                 {theme.stocks.map(s => (
                   <button key={s.code} className="stock-card"
                     style={{'--sc': theme.color}}
-                    onClick={() => openNaver(s.code)}>
+                    onClick={() => setChartStock({ name: s.name, code: s.code })}>
                     <div className="stock-card-top">
                       <span className="stock-card-name">{s.name}</span>
                       <span className="stock-card-code">{s.code}</span>
                     </div>
                     <p className="stock-card-desc">{s.desc}</p>
                     <div className="stock-card-links">
-                      <span className="stock-link-chip">네이버 →</span>
-                      <span className="stock-link-chip">차트 →</span>
+                      <span className="stock-link-chip">📈 차트 보기</span>
                     </div>
                   </button>
                 ))}
@@ -370,6 +370,10 @@ export default function ThemePage() {
           </div>
         </div>
       </div>
+    </div>
+      {chartStock && (
+        <StockChartModal stock={chartStock} onClose={() => setChartStock(null)} />
+      )}
     </div>
   )
 }

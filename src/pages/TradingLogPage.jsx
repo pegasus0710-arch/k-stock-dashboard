@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import StockChartModal from '../components/StockChartModal'
 import { db } from '../firebase'
 import {
   collection, addDoc, getDocs, deleteDoc, doc, updateDoc,
@@ -76,6 +77,7 @@ export default function TradingLogPage() {
   const [aiLoading, setAiL]     = useState(false)
   const [aiResult, setAiR]      = useState('')
   const [aiError, setAiE]       = useState('')
+  const [chartStock, setChartStock] = useState(null)
 
   // Firestore 불러오기
   const loadLogs = useCallback(async () => {
@@ -428,7 +430,7 @@ export default function TradingLogPage() {
                       <div>수익률</div>
                     </div>
                     {stockPnl.map(s => (
-                      <div key={s.code} className="pnl-row">
+                      <div key={s.code} className="pnl-row" style={{cursor:'pointer'}} onClick={() => setChartStock({name: s.name, code: s.code})}>
                         <div>
                           <div className="tlt-name">{s.name}</div>
                           <div className="tlt-code">{s.code}</div>
@@ -493,6 +495,10 @@ export default function TradingLogPage() {
         )}
 
       </div>
+
+      {chartStock && (
+        <StockChartModal stock={chartStock} onClose={() => setChartStock(null)} />
+      )}
     </div>
   )
 }
