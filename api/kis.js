@@ -243,25 +243,41 @@ async function fetchIndex(market) {
 }
 
 // ── 종목 현재가 ───────────────────────────────────────
+// inquire-price (FHKST01010100) = 장중/장외 모두 가장 최근 가격 + 전일대비 반환
+// → 장중·장외 구분 없이 항상 이 API 사용 (등락률 정상)
 async function fetchPrice(code) {
-  const isOpen = marketStatus() === 'open'
-  if (isOpen) {
-    try {
-      const d = await kisGet(
-        '/uapi/domestic-stock/v1/quotations/inquire-price',
-        'FHKST01010100',
-        { FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code }
-      )
-      if (d.rt_cd === '0') {
-        const o = d.output
-        return { code, status: 'open',
-          name: o.hts_kor_isnm, price: n(o.stck_prpr),
-          change: n(o.prdy_vrss), changeRate: n(o.prdy_ctrt),
-          volume: n(o.acml_vol), per: n(o.per), pbr: n(o.pbr) }
+  const status_ = marketStatus()
+
+  // 1) inquire-price: 장중 실시간 + 장외 마감가 모두 처리
+  try {
+    const d = await kisGet(
+      '/uapi/domestic-stock/v1/quotations/inquire-price',
+      'FHKST01010100',
+      { FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code }
+    )
+    if (d.rt_cd === '0') {
+      const o    = d.output
+      const price = n(o.stck_prpr)
+      if (price > 0) {
+        return {
+          code,
+          status:     status_ === 'open' ? 'open' : 'closed',
+          name:       o.hts_kor_isnm || '',
+          price,
+          change:     n(o.prdy_vrss),       // ← 전일대비 금액 (항상 있음)
+          changeRate: n(o.prdy_ctrt),       // ← 전일대비율 (항상 있음)
+          open:       n(o.stck_oprc),
+          high:       n(o.stck_hgpr),
+          low:        n(o.stck_lwpr),
+          volume:     n(o.acml_vol),
+          per:        n(o.per),
+          pbr:        n(o.pbr),
+        }
       }
-    } catch {}
-  }
-  // 장외 → 일봉
+    }
+  } catch {}
+
+  // 2) fallback: 일봉 차트 API (prdy_ctrt 없는 경우 직접 계산)
   try {
     const today  = bizDate(0)
     const before = bizDate(-7)
@@ -272,16 +288,29 @@ async function fetchPrice(code) {
         FID_INPUT_DATE_1: before, FID_INPUT_DATE_2: today,
         FID_PERIOD_DIV_CODE: 'D', FID_ORG_ADJ_PRC: '0' }
     )
-    if (d.rt_cd === '0' && d.output2?.length > 0) {
-      const o = d.output2[0], o1 = d.output1 || {}
+    if (d.rt_cd === '0' && d.output2?.length >= 2) {
+      const o  = d.output2[0]  // 가장 최근 거래일
+      const o1 = d.output1 || {}
+      const prev = d.output2[1] // 전 거래일
+
+      const price    = n(o.stck_clpr)
+      const prevClose = n(prev.stck_clpr)
+      const change    = price - prevClose
+      const changeRate = prevClose ? Math.round(change / prevClose * 10000) / 100 : 0
       const date = o.stck_bsop_date || today
-      return { code, status: 'closed',
-        name: o1.hts_kor_isnm || '', price: n(o.stck_clpr),
-        change: n(o.prdy_vrss), changeRate: n(o.prdy_ctrt),
-        volume: n(o.acml_vol),
-        closeDate: `${date.slice(0,4)}.${date.slice(4,6)}.${date.slice(6,8)}` }
+
+      return {
+        code, status: 'closed',
+        name:       o1.hts_kor_isnm || '',
+        price,
+        change,
+        changeRate,
+        volume:     n(o.acml_vol),
+        closeDate:  `${date.slice(0,4)}.${date.slice(4,6)}.${date.slice(6,8)}`,
+      }
     }
   } catch {}
+
   return { code, status: 'closed', price: 0, change: 0, changeRate: 0 }
 }
 
@@ -418,11 +447,20 @@ export default async function handler(req, res) {
           close:  quotes.close?.[i] ? Math.round((quotes.close[i] || 0) * 100) / 100 : 0,
           volume: quotes.volume?.[i] || 0,
         })).filter(c => c.close > 0)
-        const price     = meta.regularMarketPrice || 0
-        const prevClose = meta.chartPreviousClose || meta.previousClose || 0
-        const change    = Math.round((price - prevClose) * 100) / 100
+        // 실시간 가격: 시간외(POST/PRE) > 정규장 순으로 사용
+        const regularPrice = meta.regularMarketPrice || 0
+        const postPrice    = meta.postMarketPrice    || 0
+        const prePrice     = meta.preMarketPrice     || 0
+        const prevClose    = meta.regularMarketPreviousClose || meta.chartPreviousClose || meta.previousClose || 0
+        const mktState     = meta.marketState || 'CLOSED'
+
+        let price = regularPrice
+        if (mktState === 'POST' && postPrice > 0) price = postPrice
+        if (mktState === 'PRE'  && prePrice  > 0) price = prePrice
+
+        const change     = Math.round((price - prevClose) * 100) / 100
         const changeRate = prevClose ? Math.round(change / prevClose * 10000) / 100 : 0
-        return res.json({ symbol: sym, price, change, changeRate, candles })
+        return res.json({ symbol: sym, price, change, changeRate, marketState: mktState, candles })
       }
 
       // ── 환율 차트 (frankfurter.app) ────────────────────

@@ -320,11 +320,25 @@ export default function DashboardPage() {
     } catch(e){console.error('[global]',e)} finally{setGlobalLoading(false)}
   },[])
 
+  // 동적 interval: 장 상태가 바뀌면 자동으로 간격 조정
   useEffect(()=>{
     fetchDashboard(); fetchGlobal()
-    timerRef.current=setInterval(fetchDashboard,isMarketOpen()?30000:300000)
-    globalTimer.current=setInterval(fetchGlobal,isUSMarketOpen()?60000:300000)
-    return()=>{clearInterval(timerRef.current);clearInterval(globalTimer.current)}
+
+    // 1분마다 장 상태 체크 → interval 재설정
+    const setupTimers = () => {
+      clearInterval(timerRef.current)
+      clearInterval(globalTimer.current)
+      timerRef.current    = setInterval(fetchDashboard, isMarketOpen()   ? 30000 : 300000)
+      globalTimer.current = setInterval(fetchGlobal,    isUSMarketOpen() ? 60000 : 300000)
+    }
+    setupTimers()
+    const stateCheck = setInterval(setupTimers, 60000) // 1분마다 장 상태 재확인
+
+    return()=>{
+      clearInterval(timerRef.current)
+      clearInterval(globalTimer.current)
+      clearInterval(stateCheck)
+    }
   },[fetchDashboard,fetchGlobal])
 
   const handleThemeChange=async ids=>{
