@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import StockChartModal from '../components/StockChartModal'
 import './WatchlistPage.css'
 
 const THEME_COLORS = {
@@ -30,6 +31,7 @@ export default function WatchlistPage() {
   const [form, setForm]          = useState({ name: '', code: '', theme: '기타', memo: '' })
   const [filterTheme, setFilter] = useState('전체')
   const [sortBy, setSort]        = useState('추가순')
+  const [chartStock, setChartStock] = useState(null)
 
   useEffect(() => saveWatchlist(list), [list])
 
@@ -79,7 +81,7 @@ export default function WatchlistPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">관심종목</h1>
-          <p className="page-sub">찜한 종목 모음 · 테마별 분류 · 빠른 차트 이동</p>
+          <p className="page-sub">찜한 종목 모음 · 테마별 분류 · 종목 클릭 시 차트</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="btn-ai" onClick={fetchPrices} disabled={loading}>{loading ? '⟳ 조회중' : '⟳ 새로고침'}</button>
@@ -147,7 +149,7 @@ export default function WatchlistPage() {
                 <div className="wt-col-rate">등락률</div>
                 <div className="wt-col-volume">거래량</div>
                 <div className="wt-col-theme">테마</div>
-                <div className="wt-col-actions">바로가기</div>
+                <div className="wt-col-actions">공시</div>
                 <div className="wt-col-del"></div>
               </div>
 
@@ -160,7 +162,8 @@ export default function WatchlistPage() {
                 const tc = THEME_COLORS[s.theme] || '#64748b'
 
                 return (
-                  <div key={s.id} className="wt-row">
+                  <div key={s.id} className="wt-row wt-row-clickable"
+                    onClick={() => setChartStock({ name: s.name, code: s.code })}>
                     <div className="wt-col-name">
                       <span className="wt-dot" style={{ background: tc }} />
                       <div>
@@ -181,12 +184,12 @@ export default function WatchlistPage() {
                     <div className="wt-col-theme">
                       <span className="wt-badge" style={{ background: tc + '18', color: tc }}>{s.theme}</span>
                     </div>
-                    <div className="wt-col-actions">
-                      <button className="wt-btn" onClick={() => window.open(`https://finance.naver.com/item/main.naver?code=${s.code}`, '_blank')}>정보</button>
-                      <button className="wt-btn" onClick={() => window.open(`https://finance.naver.com/item/fchart.naver?code=${s.code}`, '_blank')}>차트</button>
-                      <a className="wt-btn" href={`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(s.name)}`} target="_blank" rel="noreferrer">공시</a>
+                    <div className="wt-col-actions" onClick={e => e.stopPropagation()}>
+                      <a className="wt-btn"
+                        href={`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(s.name)}`}
+                        target="_blank" rel="noreferrer">공시</a>
                     </div>
-                    <div className="wt-col-del">
+                    <div className="wt-col-del" onClick={e => e.stopPropagation()}>
                       <button className="wt-remove" onClick={() => removeStock(s.id)}>✕</button>
                     </div>
                   </div>
@@ -196,6 +199,10 @@ export default function WatchlistPage() {
           </div>
         )}
       </div>
+
+      {chartStock && (
+        <StockChartModal stock={chartStock} onClose={() => setChartStock(null)} />
+      )}
     </div>
   )
 }

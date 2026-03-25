@@ -1,21 +1,25 @@
 const KIWOOM_SERVER_URL = process.env.KIWOOM_SERVER_URL || 'http://3.38.37.78:3001'
 
+async function kiwoomPost(path, body = {}) {
+  const res = await fetch(`${KIWOOM_SERVER_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+  return res.json()
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   if (req.method === 'OPTIONS') return res.status(200).end()
 
-  const { type, code, date } = req.query
+  const { type, code, date, chartType, scope } = req.query
 
   try {
-    // 현재가 조회 (ka10095)
+    // 현재가 (ka10095)
     if (type === 'price') {
-      const data = await fetch(`${KIWOOM_SERVER_URL}/price`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stk_cd: code })
-      }).then(r => r.json())
-
+      const data = await kiwoomPost('/price', { stk_cd: code })
       const info = data.atn_stk_infr?.[0] || {}
       return res.json({
         code,
@@ -31,21 +35,36 @@ export default async function handler(req, res) {
 
     // 계좌평가잔고 (kt00018)
     if (type === 'account') {
-      const data = await fetch(`${KIWOOM_SERVER_URL}/account`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      }).then(r => r.json())
+      const data = await kiwoomPost('/account')
       return res.json(data)
     }
 
     // 체결내역 (kt00007)
     if (type === 'trades') {
-      const data = await fetch(`${KIWOOM_SERVER_URL}/trades`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ord_dt: date || '' })
-      }).then(r => r.json())
+      const data = await kiwoomPost('/trades', { ord_dt: date || '' })
+      return res.json(data)
+    }
+
+    // 차트 (분봉/일봉/주봉/월봉/년봉)
+    if (type === 'chart') {
+      const pathMap = {
+        min:   '/chart/min',
+        day:   '/chart/day',
+        week:  '/chart/week',
+        month: '/chart/month',
+        year:  '/chart/year',
+      }
+      const path = pathMap[chartType]
+      if (!path) return res.status(400).json({ error: 'Unknown chartType' })
+      const body = { stk_cd: code }
+      if (chartType === 'min') body.tic_scope = scope || '5'
+      const data = await kiwoomPost(path, body)
+      return res.json(data)
+    }
+
+    // 종목정보 (ka10100)
+    if (type === 'stockinfo') {
+      const data = await kiwoomPost('/stockinfo', { stk_cd: code })
       return res.json(data)
     }
 

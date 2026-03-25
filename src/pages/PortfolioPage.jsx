@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import StockChartModal from '../components/StockChartModal'
 import './PortfolioPage.css'
 
 function fmt(n) { if (!n && n !== 0) return '-'; return Number(n).toLocaleString('ko-KR') }
@@ -10,12 +11,12 @@ export default function PortfolioPage() {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [chartStock, setChartStock]  = useState(null)
 
   const fetchAccount = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+    setLoading(true); setError(null)
     try {
-      const res = await fetch('/api/kiwoom?type=account')
+      const res  = await fetch('/api/kiwoom?type=account')
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       if (data.return_code !== 0) throw new Error(data.return_msg || '계좌 조회 실패')
@@ -26,8 +27,7 @@ export default function PortfolioPage() {
         totalPl:   parseNum(data.tot_evlt_pl),
         plRate:    parseFloat(data.tot_prft_rt || 0),
       })
-
-      const list = (data.acnt_evlt_remn_indv_tot || []).map(s => ({
+      setStocks((data.acnt_evlt_remn_indv_tot || []).map(s => ({
         code:     s.stk_cd?.replace(/^A/, ''),
         name:     s.stk_nm,
         qty:      parseNum(s.rmnd_qty),
@@ -38,14 +38,10 @@ export default function PortfolioPage() {
         pl:       parseNum(s.evltv_prft),
         plRate:   parseFloat(s.prft_rt || 0),
         sellable: parseNum(s.trde_able_qty),
-      }))
-      setStocks(list)
+      })))
       setLastUpdated(new Date().toLocaleTimeString('ko-KR'))
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
+    } catch (e) { setError(e.message) }
+    finally { setLoading(false) }
   }, [])
 
   useEffect(() => {
@@ -74,12 +70,8 @@ export default function PortfolioPage() {
       </div>
 
       <div className="page-body">
+        {error && <div className="card-section" style={{ color: '#ef4444', padding: '16px' }}>⚠️ {error}</div>}
 
-        {error && (
-          <div className="card-section" style={{ color: '#ef4444', padding: '16px' }}>⚠️ {error}</div>
-        )}
-
-        {/* 계좌 요약 */}
         {account && (
           <div className="pf-summary-grid">
             <div className="pf-summary-card">
@@ -106,7 +98,6 @@ export default function PortfolioPage() {
           <div className="card-section pf-empty"><div className="empty-icon">⟳</div><p>계좌 정보 조회 중...</p></div>
         )}
 
-        {/* 리스트 테이블 */}
         {stocks.length > 0 && (
           <div className="pf-table-wrap">
             <div className="pf-table">
@@ -120,7 +111,7 @@ export default function PortfolioPage() {
                 <div className="pt-col-pl">손익</div>
                 <div className="pt-col-rate">수익률</div>
                 <div className="pt-col-weight">비중</div>
-                <div className="pt-col-actions">바로가기</div>
+                <div className="pt-col-actions">공시</div>
               </div>
 
               {stocks.map(s => {
@@ -131,7 +122,8 @@ export default function PortfolioPage() {
                 const weight = totalEvlt > 0 ? (s.evltAmt / totalEvlt * 100).toFixed(1) : 0
 
                 return (
-                  <div key={s.code} className="pt-row">
+                  <div key={s.code} className="pt-row pt-row-clickable"
+                    onClick={() => setChartStock({ name: s.name, code: s.code })}>
                     <div className="pt-col-name">
                       <div className="pt-name">{s.name}</div>
                       <div className="pt-code">{s.code}</div>
@@ -147,9 +139,10 @@ export default function PortfolioPage() {
                       <div className="pt-weight-text">{weight}%</div>
                       <div className="pt-weight-bar"><div className="pt-weight-fill" style={{ width: weight + '%' }} /></div>
                     </div>
-                    <div className="pt-col-actions">
-                      <button className="pt-btn" onClick={() => window.open(`https://finance.naver.com/item/main.naver?code=${s.code}`, '_blank')}>정보</button>
-                      <button className="pt-btn" onClick={() => window.open(`https://finance.naver.com/item/fchart.naver?code=${s.code}`, '_blank')}>차트</button>
+                    <div className="pt-col-actions" onClick={e => e.stopPropagation()}>
+                      <a className="pt-btn"
+                        href={`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(s.name)}`}
+                        target="_blank" rel="noreferrer">공시</a>
                     </div>
                   </div>
                 )
@@ -162,6 +155,10 @@ export default function PortfolioPage() {
           <div className="card-section pf-empty"><div className="empty-icon">💼</div><p>보유 종목이 없습니다</p></div>
         )}
       </div>
+
+      {chartStock && (
+        <StockChartModal stock={chartStock} onClose={() => setChartStock(null)} />
+      )}
     </div>
   )
 }
