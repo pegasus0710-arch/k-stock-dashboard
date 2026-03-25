@@ -37,6 +37,18 @@ export default async function handler(req, res) {
       })
     }
 
+    // 주식기본정보 (ka10001) - PER, PBR, EPS, ROE, 시가총액, 유통주식, 외국인비중
+    if (type === 'stockbasic') {
+      const data = await kiwoomPost('/stockbasic', { stk_cd: code })
+      return res.json(data)
+    }
+
+    // 종목정보 (ka10100) - 업종, 시장
+    if (type === 'stockinfo') {
+      const data = await kiwoomPost('/stockinfo', { stk_cd: code })
+      return res.json(data)
+    }
+
     // 계좌평가잔고 (kt00018)
     if (type === 'account') {
       const data = await kiwoomPost('/account')
@@ -63,12 +75,6 @@ export default async function handler(req, res) {
       const body = { stk_cd: code }
       if (chartType === 'min') body.tic_scope = scope || '5'
       const data = await kiwoomPost(path, body)
-      return res.json(data)
-    }
-
-    // 종목정보 (ka10100)
-    if (type === 'stockinfo') {
-      const data = await kiwoomPost('/stockinfo', { stk_cd: code })
       return res.json(data)
     }
 
