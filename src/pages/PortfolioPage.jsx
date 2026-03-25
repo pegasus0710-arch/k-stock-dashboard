@@ -1,26 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import './PortfolioPage.css'
 
-const THEME_COLORS = {
-  '반도체·AI':'#2563eb','방산':'#dc2626','조선':'#0d9488',
-  '원전·전력':'#d97706','2차전지':'#16a34a','바이오':'#7c3aed','밸류업·금융':'#ea580c','기타':'#64748b',
-}
-
-function fmt(n) {
-  if (!n && n !== 0) return '-'
-  return Number(n).toLocaleString('ko-KR')
-}
-
-function parseNum(s) {
-  if (!s) return 0
-  return parseInt(String(s).replace(/[^0-9-]/g, '')) || 0
-}
+function fmt(n) { if (!n && n !== 0) return '-'; return Number(n).toLocaleString('ko-KR') }
+function parseNum(s) { if (!s) return 0; return parseInt(String(s).replace(/[^0-9-]/g, '')) || 0 }
 
 export default function PortfolioPage() {
-  const [account, setAccount] = useState(null)   // 계좌 요약
-  const [stocks, setStocks]   = useState([])      // 보유종목 리스트
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState(null)
+  const [account, setAccount]   = useState(null)
+  const [stocks, setStocks]     = useState([])
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
 
   const fetchAccount = useCallback(async () => {
@@ -29,11 +17,9 @@ export default function PortfolioPage() {
     try {
       const res = await fetch('/api/kiwoom?type=account')
       const data = await res.json()
-
       if (data.error) throw new Error(data.error)
       if (data.return_code !== 0) throw new Error(data.return_msg || '계좌 조회 실패')
 
-      // 계좌 요약
       setAccount({
         totalPur:  parseNum(data.tot_pur_amt),
         totalEvlt: parseNum(data.tot_evlt_amt),
@@ -41,18 +27,17 @@ export default function PortfolioPage() {
         plRate:    parseFloat(data.tot_prft_rt || 0),
       })
 
-      // 보유종목
       const list = (data.acnt_evlt_remn_indv_tot || []).map(s => ({
-        code:      s.stk_cd?.replace(/^A/, ''),
-        name:      s.stk_nm,
-        qty:       parseNum(s.rmnd_qty),
-        avgPrice:  parseNum(s.pur_pric),
-        curPrice:  parseNum(s.cur_prc),
-        purAmt:    parseNum(s.pur_amt),
-        evltAmt:   parseNum(s.evlt_amt),
-        pl:        parseNum(s.evltv_prft),
-        plRate:    parseFloat(s.prft_rt || 0),
-        sellable:  parseNum(s.trde_able_qty),
+        code:     s.stk_cd?.replace(/^A/, ''),
+        name:     s.stk_nm,
+        qty:      parseNum(s.rmnd_qty),
+        avgPrice: parseNum(s.pur_pric),
+        curPrice: parseNum(s.cur_prc),
+        purAmt:   parseNum(s.pur_amt),
+        evltAmt:  parseNum(s.evlt_amt),
+        pl:       parseNum(s.evltv_prft),
+        plRate:   parseFloat(s.prft_rt || 0),
+        sellable: parseNum(s.trde_able_qty),
       }))
       setStocks(list)
       setLastUpdated(new Date().toLocaleTimeString('ko-KR'))
@@ -65,7 +50,7 @@ export default function PortfolioPage() {
 
   useEffect(() => {
     fetchAccount()
-    const id = setInterval(fetchAccount, 60000) // 1분마다 갱신
+    const id = setInterval(fetchAccount, 60000)
     return () => clearInterval(id)
   }, [fetchAccount])
 
@@ -73,9 +58,8 @@ export default function PortfolioPage() {
   const totalEvlt = account?.totalEvlt || 0
   const totalPl   = account?.totalPl   || 0
   const plRate    = account?.plRate    || 0
-  const isUp      = totalPl > 0
-  const isDown    = totalPl < 0
-  const plColor   = isUp ? '#ef4444' : isDown ? '#3b82f6' : 'var(--text-2)'
+  const plColor   = totalPl > 0 ? '#ef4444' : totalPl < 0 ? '#3b82f6' : 'var(--text-2)'
+  const sign      = totalPl > 0 ? '+' : ''
 
   return (
     <div className="page-wrap">
@@ -92,104 +76,90 @@ export default function PortfolioPage() {
       <div className="page-body">
 
         {error && (
-          <div className="card-section" style={{ color: '#ef4444', padding: '16px' }}>
-            ⚠️ {error}
-          </div>
+          <div className="card-section" style={{ color: '#ef4444', padding: '16px' }}>⚠️ {error}</div>
         )}
 
         {/* 계좌 요약 */}
         {account && (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:'12px', marginBottom:'16px' }}>
-            <div className="card-section pf-summary-card">
+          <div className="pf-summary-grid">
+            <div className="pf-summary-card">
               <div className="pf-summary-label">총 매입금액</div>
               <div className="pf-summary-value">{fmt(totalPur)}원</div>
             </div>
-            <div className="card-section pf-summary-card">
+            <div className="pf-summary-card">
               <div className="pf-summary-label">총 평가금액</div>
               <div className="pf-summary-value">{fmt(totalEvlt)}원</div>
             </div>
-            <div className="card-section pf-summary-card">
+            <div className="pf-summary-card">
               <div className="pf-summary-label">평가손익</div>
-              <div className="pf-summary-value" style={{ color: plColor }}>
-                {totalPl > 0 ? '+' : ''}{fmt(totalPl)}원
-              </div>
-              <div style={{ fontSize:'13px', color: plColor }}>
-                {plRate > 0 ? '+' : ''}{Number(plRate).toFixed(2)}%
-              </div>
+              <div className="pf-summary-value" style={{ color: plColor }}>{sign}{fmt(totalPl)}원</div>
+              <div className="pf-summary-rate" style={{ color: plColor }}>{sign}{Number(plRate).toFixed(2)}%</div>
             </div>
-            <div className="card-section pf-summary-card">
+            <div className="pf-summary-card">
               <div className="pf-summary-label">보유 종목 수</div>
               <div className="pf-summary-value">{stocks.length}종목</div>
             </div>
           </div>
         )}
 
-        {/* 로딩 */}
         {loading && !account && (
-          <div className="card-section pf-empty">
-            <div className="empty-icon">⟳</div>
-            <p>계좌 정보 조회 중...</p>
-          </div>
+          <div className="card-section pf-empty"><div className="empty-icon">⟳</div><p>계좌 정보 조회 중...</p></div>
         )}
 
-        {/* 종목 리스트 */}
-        {stocks.length === 0 && !loading && !error && (
-          <div className="card-section pf-empty">
-            <div className="empty-icon">💼</div>
-            <p>보유 종목이 없습니다</p>
-          </div>
-        )}
-
+        {/* 리스트 테이블 */}
         {stocks.length > 0 && (
-          <div className="card-grid">
-            {stocks.map(s => {
-              const weight = totalEvlt > 0 ? (s.evltAmt / totalEvlt * 100).toFixed(1) : 0
-              const isUp   = s.pl > 0
-              const isDown = s.pl < 0
-              const color  = isUp ? '#ef4444' : isDown ? '#3b82f6' : 'var(--text-2)'
-              const sign   = isUp ? '+' : ''
+          <div className="pf-table-wrap">
+            <div className="pf-table">
+              <div className="pt-header">
+                <div className="pt-col-name">종목명</div>
+                <div className="pt-col-price">현재가</div>
+                <div className="pt-col-avg">평균단가</div>
+                <div className="pt-col-qty">수량</div>
+                <div className="pt-col-pur">매입금액</div>
+                <div className="pt-col-evlt">평가금액</div>
+                <div className="pt-col-pl">손익</div>
+                <div className="pt-col-rate">수익률</div>
+                <div className="pt-col-weight">비중</div>
+                <div className="pt-col-actions">바로가기</div>
+              </div>
 
-              return (
-                <div key={s.code} className="pf-card" style={{ '--sc': '#64748b' }}>
-                  <div className="pf-card-top">
-                    <span className="pf-theme-badge" style={{ background: '#64748b18', color: '#64748b' }}>
-                      {s.code}
-                    </span>
-                    <span style={{ fontSize:'12px', color: 'var(--text-3)' }}>매도가능 {fmt(s.sellable)}주</span>
-                  </div>
-                  <div className="pf-name">{s.name}</div>
+              {stocks.map(s => {
+                const isUp   = s.pl > 0
+                const isDown = s.pl < 0
+                const pc     = isUp ? '#ef4444' : isDown ? '#3b82f6' : 'var(--text-1)'
+                const sign   = isUp ? '+' : ''
+                const weight = totalEvlt > 0 ? (s.evltAmt / totalEvlt * 100).toFixed(1) : 0
 
-                  {/* 현재가 + 손익 */}
-                  <div style={{ margin:'10px 0 6px' }}>
-                    <div style={{ fontSize:'20px', fontWeight:700, color: 'var(--text-1)' }}>
-                      {fmt(s.curPrice)}원
+                return (
+                  <div key={s.code} className="pt-row">
+                    <div className="pt-col-name">
+                      <div className="pt-name">{s.name}</div>
+                      <div className="pt-code">{s.code}</div>
                     </div>
-                    <div style={{ fontSize:'13px', color, marginTop:'2px' }}>
-                      {sign}{fmt(s.pl)}원 ({sign}{Number(s.plRate).toFixed(2)}%)
+                    <div className="pt-col-price" style={{ color: pc, fontWeight: 700 }}>{fmt(s.curPrice)}원</div>
+                    <div className="pt-col-avg">{fmt(s.avgPrice)}원</div>
+                    <div className="pt-col-qty">{fmt(s.qty)}주</div>
+                    <div className="pt-col-pur">{fmt(s.purAmt)}원</div>
+                    <div className="pt-col-evlt">{fmt(s.evltAmt)}원</div>
+                    <div className="pt-col-pl" style={{ color: pc }}>{sign}{fmt(s.pl)}원</div>
+                    <div className="pt-col-rate" style={{ color: pc, fontWeight: 600 }}>{sign}{Number(s.plRate).toFixed(2)}%</div>
+                    <div className="pt-col-weight">
+                      <div className="pt-weight-text">{weight}%</div>
+                      <div className="pt-weight-bar"><div className="pt-weight-fill" style={{ width: weight + '%' }} /></div>
+                    </div>
+                    <div className="pt-col-actions">
+                      <button className="pt-btn" onClick={() => window.open(`https://finance.naver.com/item/main.naver?code=${s.code}`, '_blank')}>정보</button>
+                      <button className="pt-btn" onClick={() => window.open(`https://finance.naver.com/item/fchart.naver?code=${s.code}`, '_blank')}>차트</button>
                     </div>
                   </div>
-
-                  <div className="pf-divider" />
-                  <div className="pf-row"><span>보유수량</span><span className="pf-val">{fmt(s.qty)}주</span></div>
-                  <div className="pf-row"><span>평균단가</span><span className="pf-val">{fmt(s.avgPrice)}원</span></div>
-                  <div className="pf-row"><span>매입금액</span><span className="pf-val">{fmt(s.purAmt)}원</span></div>
-                  <div className="pf-row"><span>평가금액</span><span className="pf-val">{fmt(s.evltAmt)}원</span></div>
-                  <div className="pf-row">
-                    <span>비중</span>
-                    <span className="pf-val pf-weight">{weight}%</span>
-                  </div>
-                  <div className="pf-weight-bar">
-                    <div className="pf-weight-fill" style={{ width: weight+'%', background: '#2563eb' }} />
-                  </div>
-
-                  <div className="pf-actions" style={{ marginTop:'10px' }}>
-                    <button className="pf-action" onClick={() => window.open(`https://finance.naver.com/item/main.naver?code=${s.code}`,'_blank')}>정보 →</button>
-                    <button className="pf-action" onClick={() => window.open(`https://finance.naver.com/item/fchart.naver?code=${s.code}`,'_blank')}>차트 →</button>
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
+        )}
+
+        {stocks.length === 0 && !loading && !error && (
+          <div className="card-section pf-empty"><div className="empty-icon">💼</div><p>보유 종목이 없습니다</p></div>
         )}
       </div>
     </div>

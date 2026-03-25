@@ -18,22 +18,13 @@ const PRESET_STOCKS = [
 ]
 
 const STORAGE_KEY = 'kstock_watchlist'
-
-function loadWatchlist() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
-}
-function saveWatchlist(list) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)) } catch {}
-}
-
-function fmt(n) {
-  if (!n && n !== 0) return '-'
-  return Number(n).toLocaleString('ko-KR')
-}
+function loadWatchlist() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] } }
+function saveWatchlist(list) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)) } catch {} }
+function fmt(n) { if (!n && n !== 0) return '-'; return Number(n).toLocaleString('ko-KR') }
 
 export default function WatchlistPage() {
   const [list, setList]          = useState(() => loadWatchlist())
-  const [prices, setPrices]      = useState({})   // { code: { current, change, changeRate, volume } }
+  const [prices, setPrices]      = useState({})
   const [loading, setLoading]    = useState(false)
   const [addMode, setAddMode]    = useState(false)
   const [form, setForm]          = useState({ name: '', code: '', theme: '기타', memo: '' })
@@ -42,7 +33,6 @@ export default function WatchlistPage() {
 
   useEffect(() => saveWatchlist(list), [list])
 
-  // 주가 일괄 조회
   const fetchPrices = useCallback(async () => {
     if (list.length === 0) return
     setLoading(true)
@@ -60,7 +50,6 @@ export default function WatchlistPage() {
     setLoading(false)
   }, [list])
 
-  // 최초 + 30초마다 갱신
   useEffect(() => {
     fetchPrices()
     const id = setInterval(fetchPrices, 30000)
@@ -71,25 +60,19 @@ export default function WatchlistPage() {
 
   const addStock = () => {
     if (!form.name.trim() || !form.code.trim()) return
-    const item = { ...form, code: form.code.trim(), id: Date.now(), addedAt: new Date().toLocaleDateString('ko-KR') }
-    setList(prev => [item, ...prev])
+    setList(prev => [{ ...form, code: form.code.trim(), id: Date.now(), addedAt: new Date().toLocaleDateString('ko-KR') }, ...prev])
     setForm({ name: '', code: '', theme: '기타', memo: '' })
     setAddMode(false)
   }
-
   const addPreset = (s) => {
     if (list.find(i => i.code === s.code)) return
     setList(prev => [{ ...s, memo: '', id: Date.now(), addedAt: new Date().toLocaleDateString('ko-KR') }, ...prev])
   }
-
   const removeStock = (id) => setList(prev => prev.filter(i => i.id !== id))
 
   const filtered = list
     .filter(i => filterTheme === '전체' || i.theme === filterTheme)
     .sort((a, b) => sortBy === '이름순' ? a.name.localeCompare(b.name) : b.id - a.id)
-
-  const openNaver = (code) => window.open(`https://finance.naver.com/item/main.naver?code=${code}`, '_blank')
-  const openChart = (code) => window.open(`https://finance.naver.com/item/fchart.naver?code=${code}`, '_blank')
 
   return (
     <div className="page-wrap">
@@ -99,42 +82,31 @@ export default function WatchlistPage() {
           <p className="page-sub">찜한 종목 모음 · 테마별 분류 · 빠른 차트 이동</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn-ai" onClick={fetchPrices} disabled={loading}>
-            {loading ? '⟳ 조회중' : '⟳ 새로고침'}
-          </button>
-          <button className="btn-ai" onClick={() => setAddMode(v => !v)}>
-            {addMode ? '✕ 닫기' : '+ 종목 추가'}
-          </button>
+          <button className="btn-ai" onClick={fetchPrices} disabled={loading}>{loading ? '⟳ 조회중' : '⟳ 새로고침'}</button>
+          <button className="btn-ai" onClick={() => setAddMode(v => !v)}>{addMode ? '✕ 닫기' : '+ 종목 추가'}</button>
         </div>
       </div>
 
       <div className="page-body">
 
-        {/* 종목 추가 폼 */}
         {addMode && (
           <div className="card-section">
             <span className="section-title">종목 직접 추가</span>
             <div className="add-form">
-              <input className="add-input" placeholder="종목명" value={form.name}
-                onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
-              <input className="add-input mono" placeholder="종목코드 (예: 005930)" value={form.code}
-                onChange={e => setForm(p => ({ ...p, code: e.target.value }))} />
-              <select className="add-select" value={form.theme}
-                onChange={e => setForm(p => ({ ...p, theme: e.target.value }))}>
+              <input className="add-input" placeholder="종목명" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+              <input className="add-input mono" placeholder="종목코드 (예: 005930)" value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} />
+              <select className="add-select" value={form.theme} onChange={e => setForm(p => ({ ...p, theme: e.target.value }))}>
                 {Object.keys(THEME_COLORS).map(t => <option key={t}>{t}</option>)}
               </select>
-              <input className="add-input add-input--memo" placeholder="메모 (선택)" value={form.memo}
-                onChange={e => setForm(p => ({ ...p, memo: e.target.value }))} />
+              <input className="add-input add-input--memo" placeholder="메모 (선택)" value={form.memo} onChange={e => setForm(p => ({ ...p, memo: e.target.value }))} />
               <button className="btn-ai" onClick={addStock}>추가</button>
             </div>
             <div className="preset-section">
               <div className="preset-label">빠른 추가 — 주요 종목</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '8px' }}>
                 {PRESET_STOCKS.map(s => (
-                  <button key={s.code} className="preset-chip"
-                    style={{ '--tc': THEME_COLORS[s.theme] }}
-                    onClick={() => addPreset(s)}
-                    disabled={!!list.find(i => i.code === s.code)}>
+                  <button key={s.code} className="preset-chip" style={{ '--tc': THEME_COLORS[s.theme] }}
+                    onClick={() => addPreset(s)} disabled={!!list.find(i => i.code === s.code)}>
                     <span className="preset-dot" style={{ background: THEME_COLORS[s.theme] }} />
                     <span className="preset-name">{s.name}</span>
                     {list.find(i => i.code === s.code) && <span className="preset-added">✓</span>}
@@ -145,7 +117,6 @@ export default function WatchlistPage() {
           </div>
         )}
 
-        {/* 필터 + 정렬 */}
         <div className="watch-controls">
           <div className="theme-filter-chips">
             {themes.map(t => (
@@ -160,7 +131,6 @@ export default function WatchlistPage() {
           </select>
         </div>
 
-        {/* 종목 리스트 */}
         {filtered.length === 0 ? (
           <div className="card-section watch-empty">
             <div className="empty-icon">⭐</div>
@@ -168,60 +138,61 @@ export default function WatchlistPage() {
             <p className="sub-text">위의 "+ 종목 추가" 버튼으로 관심종목을 등록해보세요</p>
           </div>
         ) : (
-          <div className="card-grid">
-            {filtered.map(s => {
-              const p = prices[s.code]
-              const isUp = p?.change > 0
-              const isDown = p?.change < 0
-              const priceColor = isUp ? '#ef4444' : isDown ? '#3b82f6' : 'var(--text-2)'
-              const sign = isUp ? '+' : ''
+          <div className="watch-table-wrap">
+            <div className="watch-table">
+              <div className="wt-header">
+                <div className="wt-col-name">종목명</div>
+                <div className="wt-col-price">현재가</div>
+                <div className="wt-col-change">등락</div>
+                <div className="wt-col-rate">등락률</div>
+                <div className="wt-col-volume">거래량</div>
+                <div className="wt-col-theme">테마</div>
+                <div className="wt-col-actions">바로가기</div>
+                <div className="wt-col-del"></div>
+              </div>
 
-              return (
-                <div key={s.id} className="watch-card" style={{ '--sc': THEME_COLORS[s.theme] || '#64748b' }}>
-                  <div className="watch-card-top">
-                    <div>
-                      <span className="watch-theme-dot" style={{ background: THEME_COLORS[s.theme] || '#64748b' }} />
-                      <span className="watch-theme-label" style={{ color: THEME_COLORS[s.theme] || '#64748b' }}>{s.theme}</span>
-                    </div>
-                    <button className="watch-remove" onClick={() => removeStock(s.id)}>✕</button>
-                  </div>
+              {filtered.map(s => {
+                const p = prices[s.code]
+                const isUp = p?.change > 0
+                const isDown = p?.change < 0
+                const pc = isUp ? '#ef4444' : isDown ? '#3b82f6' : 'var(--text-1)'
+                const sign = isUp ? '+' : ''
+                const tc = THEME_COLORS[s.theme] || '#64748b'
 
-                  <div className="watch-name">{s.name}</div>
-                  <div className="watch-code">{s.code}</div>
-
-                  {/* 주가 영역 */}
-                  <div style={{ margin: '10px 0 6px', minHeight: '48px' }}>
-                    {p ? (
-                      <>
-                        <div style={{ fontSize: '22px', fontWeight: 700, color: priceColor, letterSpacing: '-0.5px' }}>
-                          {fmt(p.current)}원
-                        </div>
-                        <div style={{ fontSize: '13px', color: priceColor, marginTop: '2px' }}>
-                          {sign}{fmt(p.change)}원 ({sign}{Number(p.changeRate).toFixed(2)}%)
-                        </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>
-                          거래량 {fmt(p.volume)}주
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ fontSize: '13px', color: 'var(--text-3)', paddingTop: '8px' }}>
-                        {loading ? '조회중...' : '장외 시간 또는 데이터 없음'}
+                return (
+                  <div key={s.id} className="wt-row">
+                    <div className="wt-col-name">
+                      <span className="wt-dot" style={{ background: tc }} />
+                      <div>
+                        <div className="wt-name">{s.name}</div>
+                        <div className="wt-code">{s.code}</div>
                       </div>
-                    )}
+                    </div>
+                    <div className="wt-col-price" style={{ color: pc, fontWeight: 700 }}>
+                      {p ? `${fmt(p.current)}원` : <span className="wt-dash">{loading ? '...' : '-'}</span>}
+                    </div>
+                    <div className="wt-col-change" style={{ color: pc }}>
+                      {p ? `${sign}${fmt(p.change)}` : '-'}
+                    </div>
+                    <div className="wt-col-rate" style={{ color: pc, fontWeight: 600 }}>
+                      {p ? `${sign}${Number(p.changeRate).toFixed(2)}%` : '-'}
+                    </div>
+                    <div className="wt-col-volume">{p ? fmt(p.volume) : '-'}</div>
+                    <div className="wt-col-theme">
+                      <span className="wt-badge" style={{ background: tc + '18', color: tc }}>{s.theme}</span>
+                    </div>
+                    <div className="wt-col-actions">
+                      <button className="wt-btn" onClick={() => window.open(`https://finance.naver.com/item/main.naver?code=${s.code}`, '_blank')}>정보</button>
+                      <button className="wt-btn" onClick={() => window.open(`https://finance.naver.com/item/fchart.naver?code=${s.code}`, '_blank')}>차트</button>
+                      <a className="wt-btn" href={`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(s.name)}`} target="_blank" rel="noreferrer">공시</a>
+                    </div>
+                    <div className="wt-col-del">
+                      <button className="wt-remove" onClick={() => removeStock(s.id)}>✕</button>
+                    </div>
                   </div>
-
-                  {s.memo && <div className="watch-memo">{s.memo}</div>}
-                  <div className="watch-added">추가일 {s.addedAt}</div>
-                  <div className="watch-actions">
-                    <button className="watch-action-btn" onClick={() => openNaver(s.code)}>📊 정보</button>
-                    <button className="watch-action-btn" onClick={() => openChart(s.code)}>📈 차트</button>
-                    <a className="watch-action-btn"
-                      href={`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(s.name)}`}
-                      target="_blank" rel="noreferrer">📋 공시</a>
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
         )}
       </div>
