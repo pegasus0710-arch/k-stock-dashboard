@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './WatchlistPage.css'
 
 const THEME_COLORS = {
@@ -26,14 +26,46 @@ function saveWatchlist(list) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)) } catch {}
 }
 
+function fmt(n) {
+  if (!n && n !== 0) return '-'
+  return Number(n).toLocaleString('ko-KR')
+}
+
 export default function WatchlistPage() {
-  const [list, setList]           = useState(() => loadWatchlist())
-  const [addMode, setAddMode]     = useState(false)
-  const [form, setForm]           = useState({ name: '', code: '', theme: '기타', memo: '' })
-  const [filterTheme, setFilter]  = useState('전체')
-  const [sortBy, setSort]         = useState('추가순')
+  const [list, setList]          = useState(() => loadWatchlist())
+  const [prices, setPrices]      = useState({})   // { code: { current, change, changeRate, volume } }
+  const [loading, setLoading]    = useState(false)
+  const [addMode, setAddMode]    = useState(false)
+  const [form, setForm]          = useState({ name: '', code: '', theme: '기타', memo: '' })
+  const [filterTheme, setFilter] = useState('전체')
+  const [sortBy, setSort]        = useState('추가순')
 
   useEffect(() => saveWatchlist(list), [list])
+
+  // 주가 일괄 조회
+  const fetchPrices = useCallback(async () => {
+    if (list.length === 0) return
+    setLoading(true)
+    const results = {}
+    await Promise.allSettled(
+      list.map(async (s) => {
+        try {
+          const res = await fetch(`/api/kiwoom?type=price&code=${s.code}`)
+          const data = await res.json()
+          if (data.current) results[s.code] = data
+        } catch {}
+      })
+    )
+    setPrices(results)
+    setLoading(false)
+  }, [list])
+
+  // 최초 + 30초마다 갱신
+  useEffect(() => {
+    fetchPrices()
+    const id = setInterval(fetchPrices, 30000)
+    return () => clearInterval(id)
+  }, [fetchPrices])
 
   const themes = ['전체', ...Object.keys(THEME_COLORS)]
 
@@ -66,9 +98,14 @@ export default function WatchlistPage() {
           <h1 className="page-title">관심종목</h1>
           <p className="page-sub">찜한 종목 모음 · 테마별 분류 · 빠른 차트 이동</p>
         </div>
-        <button className="btn-ai" onClick={() => setAddMode(v => !v)}>
-          {addMode ? '✕ 닫기' : '+ 종목 추가'}
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn-ai" onClick={fetchPrices} disabled={loading}>
+            {loading ? '⟳ 조회중' : '⟳ 새로고침'}
+          </button>
+          <button className="btn-ai" onClick={() => setAddMode(v => !v)}>
+            {addMode ? '✕ 닫기' : '+ 종목 추가'}
+          </button>
+        </div>
       </div>
 
       <div className="page-body">
@@ -92,7 +129,7 @@ export default function WatchlistPage() {
             </div>
             <div className="preset-section">
               <div className="preset-label">빠른 추가 — 주요 종목</div>
-              <div className="card-grid--sm" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '8px' }}>
                 {PRESET_STOCKS.map(s => (
                   <button key={s.code} className="preset-chip"
                     style={{ '--tc': THEME_COLORS[s.theme] }}
@@ -132,35 +169,61 @@ export default function WatchlistPage() {
           </div>
         ) : (
           <div className="card-grid">
-            {filtered.map(s => (
-              <div key={s.id} className="watch-card" style={{ '--sc': THEME_COLORS[s.theme] || '#64748b' }}>
-                <div className="watch-card-top">
-                  <div>
-                    <span className="watch-theme-dot" style={{ background: THEME_COLORS[s.theme] || '#64748b' }} />
-                    <span className="watch-theme-label" style={{ color: THEME_COLORS[s.theme] || '#64748b' }}>{s.theme}</span>
+            {filtered.map(s => {
+              const p = prices[s.code]
+              const isUp = p?.change > 0
+              const isDown = p?.change < 0
+              const priceColor = isUp ? '#ef4444' : isDown ? '#3b82f6' : 'var(--text-2)'
+              const sign = isUp ? '+' : ''
+
+              return (
+                <div key={s.id} className="watch-card" style={{ '--sc': THEME_COLORS[s.theme] || '#64748b' }}>
+                  <div className="watch-card-top">
+                    <div>
+                      <span className="watch-theme-dot" style={{ background: THEME_COLORS[s.theme] || '#64748b' }} />
+                      <span className="watch-theme-label" style={{ color: THEME_COLORS[s.theme] || '#64748b' }}>{s.theme}</span>
+                    </div>
+                    <button className="watch-remove" onClick={() => removeStock(s.id)}>✕</button>
                   </div>
-                  <button className="watch-remove" onClick={() => removeStock(s.id)}>✕</button>
+
+                  <div className="watch-name">{s.name}</div>
+                  <div className="watch-code">{s.code}</div>
+
+                  {/* 주가 영역 */}
+                  <div style={{ margin: '10px 0 6px', minHeight: '48px' }}>
+                    {p ? (
+                      <>
+                        <div style={{ fontSize: '22px', fontWeight: 700, color: priceColor, letterSpacing: '-0.5px' }}>
+                          {fmt(p.current)}원
+                        </div>
+                        <div style={{ fontSize: '13px', color: priceColor, marginTop: '2px' }}>
+                          {sign}{fmt(p.change)}원 ({sign}{Number(p.changeRate).toFixed(2)}%)
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>
+                          거래량 {fmt(p.volume)}주
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: '13px', color: 'var(--text-3)', paddingTop: '8px' }}>
+                        {loading ? '조회중...' : '장외 시간 또는 데이터 없음'}
+                      </div>
+                    )}
+                  </div>
+
+                  {s.memo && <div className="watch-memo">{s.memo}</div>}
+                  <div className="watch-added">추가일 {s.addedAt}</div>
+                  <div className="watch-actions">
+                    <button className="watch-action-btn" onClick={() => openNaver(s.code)}>📊 정보</button>
+                    <button className="watch-action-btn" onClick={() => openChart(s.code)}>📈 차트</button>
+                    <a className="watch-action-btn"
+                      href={`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(s.name)}`}
+                      target="_blank" rel="noreferrer">📋 공시</a>
+                  </div>
                 </div>
-                <div className="watch-name">{s.name}</div>
-                <div className="watch-code">{s.code}</div>
-                {s.memo && <div className="watch-memo">{s.memo}</div>}
-                <div className="watch-added">추가일 {s.addedAt}</div>
-                <div className="watch-actions">
-                  <button className="watch-action-btn" onClick={() => openNaver(s.code)}>📊 정보</button>
-                  <button className="watch-action-btn" onClick={() => openChart(s.code)}>📈 차트</button>
-                  <a className="watch-action-btn"
-                    href={`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(s.name)}`}
-                    target="_blank" rel="noreferrer">📋 공시</a>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
-
-        <div className="info-note">
-          <span>💡</span>
-          <span>키움 REST API 연동 후 실시간 현재가·등락률·거래량이 카드에 바로 표시됩니다</span>
-        </div>
       </div>
     </div>
   )
