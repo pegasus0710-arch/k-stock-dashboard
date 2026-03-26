@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import './StockChartModal.css'
+import FinancialChart from './FinancialChart'
 
 const CLAUDE_KEY = import.meta.env.VITE_CLAUDE_API_KEY
 
@@ -576,6 +577,7 @@ export default function StockChartModal({ stock, onClose }) {
             <div className="smc-tab-switch">
               <button className={`smc-tab-sw-btn ${activeTab==='chart'?'active':''}`} onClick={()=>setActiveTab('chart')}>📈 차트</button>
               <button className={`smc-tab-sw-btn ${activeTab==='news'?'active':''}`}  onClick={()=>setActiveTab('news')}>📰 뉴스</button>
+              <button className="smc-tab-sw-btn" onClick={()=>setShowFinancial(true)}>📊 재무</button>
             </div>
             <button className="smc-close" onClick={onClose}>✕</button>
           </div>
@@ -712,6 +714,8 @@ export default function StockChartModal({ stock, onClose }) {
               <span className="smc-info-value" style={{color:item.color}}>{item.value}</span>
             </div>
           ))}
+          <button className="smc-dart-btn" style={{cursor:'pointer',border:'1px solid #e2e8f0'}}
+            onClick={()=>setShowFinancial(true)}>📊 재무제표</button>
           <a className="smc-dart-btn" href={`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(stock.name)}`} target="_blank" rel="noreferrer">📋 공시</a>
           <a className="smc-news-quick-btn" href={`https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(stock.name)}&sort=1`} target="_blank" rel="noreferrer">📰 뉴스</a>
         </div>
@@ -720,6 +724,11 @@ export default function StockChartModal({ stock, onClose }) {
         <div className="smc-resize-handle" onMouseDown={startResize} title="드래그로 크기 조절">⤡</div>
       </div>
     </div>
+
+    {/* ── 재무제표 차트 팝업 ── */}
+    {showFinancial && (
+      <FinancialChart stock={stock} onClose={()=>setShowFinancial(false)}/>
+    )}
   )
 }
 

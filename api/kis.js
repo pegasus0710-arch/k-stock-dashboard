@@ -427,6 +427,34 @@ export default async function handler(req, res) {
   const { type, code, period } = req.query
   const status = marketStatus()
 
+  // ── 토큰 상태 진단 엔드포인트 (/api/kis?type=token-status) ──
+  if (type === 'token-status') {
+    const pid = process.env.FIREBASE_PROJECT_ID
+    const key = process.env.FIREBASE_API_KEY
+    const firestoreOk = !!(pid && pid !== 'undefined' && key && key !== 'undefined')
+    const stored = firestoreOk ? await readTokenFromFirestore() : null
+    const now    = Date.now()
+    return res.json({
+      env: {
+        FIREBASE_PROJECT_ID: pid ? `${pid.slice(0,4)}...${pid.slice(-4)}` : '❌ 미등록',
+        FIREBASE_API_KEY:    key ? `${key.slice(0,4)}...${key.slice(-4)}` : '❌ 미등록',
+        KIS_APP_KEY:         process.env.KIS_APP_KEY ? '✅ 등록됨' : '❌ 미등록',
+      },
+      firestore: {
+        url:       `https://firestore.googleapis.com/v1/projects/${pid || 'MISSING'}/...`,
+        reachable: firestoreOk,
+        hasToken:  !!(stored?.token),
+        issuedAt:  stored?.issuedAt ? new Date(stored.issuedAt).toISOString() : null,
+        ageHours:  stored?.issuedAt ? Math.round((now - stored.issuedAt) / 3600000) : null,
+        expired:   stored?.issuedAt ? (now - stored.issuedAt > TTL) : true,
+      },
+      memCache: {
+        hasToken:  !!_memToken,
+        ageHours:  _memAt ? Math.round((now - _memAt) / 3600000) : null,
+      },
+    })
+  }
+
   try {
     switch (type) {
 

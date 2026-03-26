@@ -9,6 +9,7 @@ import { useStockPrices } from '../hooks/useKiwoomPrice'
 import { fmt, fmtRate, getKstStatus } from '../utils/format'
 import { ALL_THEMES } from '../constants/themes'
 import './ChartAnalysisPage.css'
+import FinancialChart from '../components/FinancialChart'
 
 const CLAUDE_KEY = import.meta.env.VITE_CLAUDE_API_KEY
 
@@ -237,6 +238,7 @@ export default function ChartAnalysisPage() {
 
   // ETF
   const [showEtf, setShowEtf] = useState(false)
+  const [showFinancial, setShowFinancial] = useState(false)
   const etfMode = isEtf(selected?.code)
 
   // 종목 기본 정보 (시가총액, EPS, 유통비율 등)
@@ -450,6 +452,7 @@ export default function ChartAnalysisPage() {
                     <button className="cap-period-btn" style={{color:'#60a5fa',borderColor:'rgba(37,99,235,0.4)'}}
                       onClick={()=>setShowEtf(true)}>🧩 구성종목</button>
                   )}
+                  <button className="cap-fullscreen-btn" onClick={()=>setShowFinancial(true)}>📊 재무제표</button>
                   <button className="cap-fullscreen-btn" onClick={()=>setShowFull(true)}>⛶ 전체화면</button>
                 </div>
               </div>
@@ -566,6 +569,11 @@ export default function ChartAnalysisPage() {
       {/* ETF 구성종목 팝업 */}
       {showEtf&&selected&&(
         <EtfHoldingsPopup code={selected.code} name={selected.name} onClose={()=>setShowEtf(false)}/>
+      )}
+
+      {/* 재무제표 차트 팝업 */}
+      {showFinancial&&selected&&(
+        <FinancialChart stock={selected} onClose={()=>setShowFinancial(false)}/>
       )}
 
       {/* 전체화면 */}
