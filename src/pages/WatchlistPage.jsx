@@ -1,9 +1,6 @@
 // src/pages/WatchlistPage.jsx
 // 관심종목 — 사용자 정의 카테고리 + 실시간 주가 + 차트/공시/뉴스/메모/주문
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useAuth } from '../context/AuthContext'
-import { db } from '../firebase'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
 import ChartModal from '../components/ChartModal'
 import { ALL_THEMES } from '../constants/themes'
 import { fmt, fmtRate, rateColor, getKstStatus } from '../utils/format'
@@ -286,8 +283,6 @@ function StockSearch({ onAdd, existing }) {
 // 메인 WatchlistPage
 // ══════════════════════════════════════════════════════
 export default function WatchlistPage() {
-  const { user } = useAuth()
-
   // 카테고리 상태
   const [cats,    setCats]    = useState(() => lsGet(LS_KEY, DEFAULT_CATS))
   const [activeCat, setActiveCat] = useState(null)  // null = 전체
