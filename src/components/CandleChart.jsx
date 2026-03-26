@@ -164,7 +164,7 @@ export default function CandleChart({
   }).filter(Boolean) : [];
 
   // 공시 날짜 매핑
-  const discMap: Record<number, any[]> = {};
+  const discMap = {};
   disclosures.forEach(d => {
     const idx = visible.findIndex(c => (c.time || "").slice(0, 8) === d.rcept_dt);
     if (idx >= 0) {
