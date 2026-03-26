@@ -130,9 +130,10 @@ function bizDate(offsetDays = 0) {
 
 // ── 지수 조회 ─────────────────────────────────────────
 async function fetchIndex(market) {
-  const isOpen = marketStatus() === 'open'
-  const mktDiv = market === 'KOSDAQ' ? 'Q' : 'U'
-  const iscd   = market === 'KOSDAQ' ? '1001' : '0001'
+  const status_ = marketStatus()
+  const isOpen  = status_ === 'open'
+  const mktDiv  = market === 'KOSDAQ' ? 'Q' : 'U'
+  const iscd    = market === 'KOSDAQ' ? '1001' : '0001'
 
   // ── 실시간 (장중) ──────────────────────────────────
   if (isOpen) {
@@ -196,7 +197,7 @@ async function fetchIndex(market) {
 
       if (price > 0) {
         return {
-          market, status: 'closed', price,
+          market, status: status_, price,
           change:     n(o.bstp_nmix_prdy_vrss || o.prdy_vrss || o.vrss),
           changeRate: n(o.bstp_nmix_prdy_ctrt  || o.prdy_ctrt || o.ctrt),
           high:       n(o.bstp_nmix_hgpr        || o.stck_hgpr || o.hgpr),
@@ -261,7 +262,7 @@ async function fetchPrice(code) {
       if (price > 0) {
         return {
           code,
-          status:     status_ === 'open' ? 'open' : 'closed',
+          status:     status_,   // open / after / premarket / closed 그대로 전달
           name:       o.hts_kor_isnm || '',
           price,
           change:     n(o.prdy_vrss),       // ← 전일대비 금액 (항상 있음)
