@@ -761,9 +761,6 @@ export default function ChartAnalysisPage() {
       {!selected&&watchlist.length===0&&recent.length===0&&(
         <div className="cap-empty"><div className="cap-empty-icon">📈</div><p>종목명 또는 코드를 검색해 차트 분석을 시작하세요</p><p className="cap-empty-sub">예: 삼성전자, SK하이닉스, 005930</p></div>
       )}
-      </div>{/* cap-main-area */}
-      </div>{/* cap-layout */}
-
       {/* ETF 구성종목 팝업 */}
       {showEtf&&selected&&(
         <EtfHoldingsPopup code={selected.code} name={selected.name} onClose={()=>setShowEtf(false)}/>
@@ -782,6 +779,8 @@ export default function ChartAnalysisPage() {
           onClose={()=>setShowFull(false)}
         />
       )}
+      </div>{/* cap-main-area */}
+      </div>{/* cap-layout */}
     </div>
   )
 }
