@@ -463,6 +463,7 @@ export default function DashboardPage() {
   const [dashData,       setDashData]       = useState(() => lsRead(LS_DASH,   getDashTTL()))
   const [globalData,     setGlobalData]     = useState(() => lsRead(LS_GLOBAL, 300000))
   const [sparkData,      setSparkData]      = useState(() => lsRead(LS_SPARK,  3600000) || {})
+  const [fetchError,     setFetchError]     = useState(false)
   const [loading,        setLoading]        = useState(() => !lsRead(LS_DASH,  getDashTTL()))
   const [globalLoading,  setGlobalLoading]  = useState(() => !lsRead(LS_GLOBAL, 300000))
   const [lastFetch,      setLastFetch]      = useState('')
@@ -593,7 +594,6 @@ export default function DashboardPage() {
     if (chartItem.type === 'index') return (
       <ChartModal isIndex inds_cd={marketToInds(chartItem.market)} name={chartItem.label} initialPeriod="day" onClose={() => setChartItem(null)}/>
     )
-    // 환율 or 해외지수 → GlobalChartModal (라인+캔들, 기간 탭)
     return (
       <GlobalChartModal
         type={chartItem.type === 'forex' ? 'forex' : 'global'}
