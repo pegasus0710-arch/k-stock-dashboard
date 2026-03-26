@@ -157,6 +157,48 @@ export default async function handler(req, res) {
     return relay('/etf/info', { stk_cd: q.code }, res)
   }
 
+
+  // ── ETF 구성종목 (Naver Finance) ─────────────────────
+  // /api/kiwoom?type=etf-holdings&code=069500
+  if (q.type === 'etf-holdings') {
+    try {
+      const code = q.code
+      // 네이버 모바일 ETF 포트폴리오 API
+      const r = await fetch(
+        `https://m.stock.naver.com/api/stock/${code}/etfHolding`,
+        { headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://m.stock.naver.com/' } }
+      )
+      if (!r.ok) throw new Error(`naver ${r.status}`)
+      const data = await r.json()
+      // 응답: { stocks: [{ stockName, itemCode, weight, holdingQuantity }] }
+      const items = (data.stocks || data.holdings || [])
+        .slice(0, 10)
+        .map(s => ({
+          name:   s.stockName || s.name,
+          code:   s.itemCode  || s.code,
+          weight: parseFloat(s.weight || s.ratio || 0),
+          qty:    s.holdingQuantity || s.qty || 0,
+        }))
+      return res.json({ holdings: items })
+    } catch (e1) {
+      // 폴백: 네이버 PC API
+      try {
+        const r2 = await fetch(
+          `https://finance.naver.com/api/sise/etfItemChart.nhn?code=${q.code}&timeframe=day`,
+          { headers: { 'User-Agent': 'Mozilla/5.0' } }
+        )
+        const d2 = await r2.json()
+        const items2 = (d2.etfItemChart?.shareWeight || []).slice(0, 10).map(s => ({
+          name: s.stockName, code: s.itemCode,
+          weight: parseFloat(s.weight||0), qty: 0,
+        }))
+        return res.json({ holdings: items2 })
+      } catch (e2) {
+        return res.json({ holdings: [], error: e1.message })
+      }
+    }
+  }
+
   // ETF 전체시세 — /api/kiwoom?type=etf-list&mngmcomp=0000
   // mngmcomp: 0000=전체, 3020=KODEX, 3191=TIGER, 3228=KINDEX, 3023=KStar
   if (q.type === 'etf-list') {
@@ -220,7 +262,7 @@ export default async function handler(req, res) {
       'supply-foreign', 'supply-investor', 'supply-institution',
       'supply-short', 'supply-strength',
       'sector-all', 'sector-stocks',
-      'etf-info', 'etf-list', 'etf-profit',
+      'etf-info', 'etf-list', 'etf-profit', 'etf-holdings',
       'account-balance', 'account-holdings', 'account-orders', 'account-returns',
     ],
   })
