@@ -1,0 +1,150 @@
+/* mobile-cards.css
+   index.css 또는 layout.css 하단에 붙여넣기
+   640px 이하에서 테이블 → 카드 변환 */
+
+/* ── 관심종목 모바일 ──────────────────────── */
+@media (max-width: 640px) {
+  /* 하단 탭바 공간 확보 */
+  .page-wrap,
+  .dashboard,
+  .market-page,
+  .cap-wrap,
+  .etf-wrap {
+    padding-bottom: 80px !important;
+  }
+
+  /* 사이드바 숨김 처리 (App.jsx에서 class 제어 필요) */
+  .sidebar-hidden .sidebar {
+    display: none !important;
+  }
+  .sidebar-hidden .main-content {
+    margin-left: 0 !important;
+  }
+
+  /* 관심종목 테이블 → 카드 */
+  .watch-table-wrap { overflow-x: unset; }
+  .watch-table      { min-width: unset; }
+
+  .wt-header { display: none; }
+
+  .wt-row {
+    display: flex !important;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    border-radius: 0;
+  }
+
+  .wt-col-name    { grid-column: unset; width: 100%; }
+  .wt-col-price   { font-size: 18px !important; }
+  .wt-col-change,
+  .wt-col-rate    { display: inline; }
+  .wt-col-volume  { font-size: 12px; color: #94a3b8; }
+  .wt-col-theme   { order: -1; }
+  .wt-col-actions,
+  .wt-col-del     { display: inline-flex; }
+
+  .wt-row-clickable .wt-col-price::before { content: '현재가 '; font-size:11px; color:#94a3b8; font-weight:400; }
+
+  /* 포트폴리오 테이블 → 카드 */
+  .portfolio-table,
+  .portfolio-row,
+  .port-header { min-width: unset !important; }
+  .port-header { display: none !important; }
+  .portfolio-row {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    padding: 14px 16px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+  }
+
+  /* 매매일지 테이블 → 카드 */
+  .log-table,
+  .log-row,
+  .log-header { min-width: unset !important; }
+  .log-header  { display: none !important; }
+  .log-row {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    padding: 12px 16px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+  }
+
+  /* 차트 분석 모바일 */
+  .cap-ctrl-bar { flex-wrap: wrap; }
+  .cap-info-bar { grid-template-columns: repeat(3, 1fr) !important; }
+
+  /* 대시보드 모바일 */
+  .db-global-grid { grid-template-columns: repeat(3, 1fr) !important; }
+  .db-theme-grid  { grid-template-columns: 1fr !important; }
+  .db-index-grid  { grid-template-columns: 1fr !important; }
+  .db-forex-row   { grid-template-columns: 1fr !important; }
+  .dash-header-row { flex-direction: column; gap: 10px; }
+
+  /* ETF 모바일 */
+  .etf-theme-layout { grid-template-columns: 1fr !important; }
+  .etf-theme-right  { position: static !important; }
+}
+
+/* ── 차트 모달 모바일 전체화면 ──────────────── */
+@media (max-width: 640px) {
+  .chart-modal-overlay {
+    padding: 0 !important;
+    align-items: stretch !important;
+  }
+
+  .chart-modal,
+  .stock-chart-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+
+  .chart-modal-header,
+  .scm-header {
+    padding: 12px 14px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .chart-modal-body,
+  .scm-body {
+    padding: 8px !important;
+  }
+
+  .chart-period-tabs {
+    gap: 3px !important;
+  }
+
+  .chart-period-btn {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* ── 모바일: 사이드바 숨기고 하단 탭바 표시 ─── */
+@media (max-width: 640px) {
+  .app-sidebar--desktop {
+    display: none !important;
+  }
+  .app-main {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+  .app-layout {
+    grid-template-columns: 1fr !important;
+  }
+  /* 탑바 햄버거 버튼 모바일에서 숨김 (탭바로 대체) */
+  .topbar-hamburger {
+    display: none;
+  }
+  /* 탑바 날짜 숨김 (공간 확보) */
+  .topbar-date {
+    display: none;
+  }
+}

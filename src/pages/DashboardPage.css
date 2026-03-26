@@ -885,3 +885,69 @@
   .db-global-grid { grid-template-columns: repeat(3, 1fr); }
   .dash-section { padding: 14px; }
 }
+
+/* ── AI 브리핑 카드 ───────────────────────────────────── */
+.db-briefing-section { gap: 12px; }
+
+.db-briefing-badge {
+  font-size: 10px; font-weight: 600;
+  padding: 2px 6px; border-radius: 6px;
+  background: #dcfce7; color: #16a34a;
+  margin-left: 8px; border: 1px solid #bbf7d0;
+}
+
+.db-briefing-toggle {
+  padding: 4px 10px; background: none;
+  border: 1px solid #e2e8f0; border-radius: 8px;
+  font-size: 12px; color: #64748b; cursor: pointer;
+  font-family: var(--font-kr, sans-serif);
+}
+.db-briefing-toggle:hover { background: #f8fafc; }
+
+.db-briefing-btn { font-size: 12px !important; padding: 5px 12px !important; }
+
+.db-briefing-error {
+  padding: 10px 14px; background: #fef2f2;
+  border: 1px solid #fecaca; border-radius: 8px;
+  font-size: 13px; color: #dc2626;
+}
+
+.db-briefing-loading {
+  display: flex; align-items: center; gap: 10px;
+  padding: 20px; color: #64748b; font-size: 13px;
+}
+
+.db-briefing-spinner {
+  width: 20px; height: 20px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.db-briefing-content {
+  background: #f8faff; border: 1px solid #dbeafe;
+  border-radius: 10px; padding: 16px 18px;
+}
+
+.db-briefing-text {
+  white-space: pre-wrap;
+  font-family: var(--font-kr, sans-serif);
+  font-size: 13px; line-height: 1.9; color: #0f172a;
+}
+
+.db-briefing-meta {
+  font-size: 11px; color: #94a3b8;
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.db-briefing-placeholder {
+  padding: 16px; text-align: center;
+  color: #94a3b8; font-size: 13px;
+  background: #f8fafc; border-radius: 8px;
+  border: 1px dashed #e2e8f0;
+}

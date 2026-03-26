@@ -12,6 +12,7 @@ import './DashboardPage.css'
 const THEME_DOC_KEY = 'dashboard_theme_prefs'
 const GLOBAL_SYMS   = ['SP500', 'NASDAQ', 'DOW', 'US10Y', 'N225', 'WTI']
 const LS_DASH       = 'db_cache_v3'
+const LS_BRIEFING   = 'db_briefing_v1'
 const LS_GLOBAL     = 'db_global_v3'
 const LS_SPARK      = 'db_spark_v3'
 
@@ -371,6 +372,89 @@ function LegacyChartModal({ item, onClose }) {
   )
 }
 
+
+// ── AI 브리핑 카드 ────────────────────────────────────
+function AiBriefingCard() {
+  const [briefing,    setBriefing]    = useState(() => {
+    try {
+      const raw = localStorage.getItem(LS_BRIEFING)
+      if (!raw) return null
+      const { data, date } = JSON.parse(raw)
+      const today = new Date().toISOString().slice(0,10)
+      return date === today ? data : null
+    } catch { return null }
+  })
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
+  const [open,    setOpen]    = useState(!!briefing)
+
+  const run = async () => {
+    const key = import.meta.env.VITE_CLAUDE_API_KEY
+    if (!key) { setError('Claude API 키 미설정'); return }
+    setLoading(true); setError('')
+    try {
+      const today = new Date().toLocaleDateString('ko-KR')
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001', max_tokens: 800,
+          tools: [{ type:'web_search_20250305', name:'web_search' }],
+          messages: [{ role:'user', content:
+            `오늘(${today}) 한국 주식시장 AI 브리핑을 작성해줘. 웹 검색으로 최신 뉴스를 찾아서 작성해.
+
+## 📊 오늘의 시장 요약
+## 🔑 핵심 이슈 (3가지)
+## 🌏 글로벌 변수
+## 🎯 오늘 주목할 섹터
+## ⚠️ 리스크 요인
+
+간결하게 핵심만 작성해줘.` }],
+        }),
+      })
+      const data = await res.json()
+      const text = data.content?.filter(b => b.type==='text').map(b => b.text).join('\n') || ''
+      if (!text) throw new Error('응답 없음')
+      setBriefing(text); setOpen(true)
+      const today2 = new Date().toISOString().slice(0,10)
+      localStorage.setItem(LS_BRIEFING, JSON.stringify({ data:text, date:today2 }))
+    } catch(e) { setError(e.message) }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <section className="dash-section db-briefing-section">
+      <div className="db-section-header">
+        <span className="db-section-label">🤖 AI 시장 브리핑<span className="db-briefing-badge">web_search</span></span>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          {briefing && <button className="db-briefing-toggle" onClick={() => setOpen(v=>!v)}>{open?'▲ 접기':'▼ 펼치기'}</button>}
+          <button className="btn-outline db-briefing-btn" onClick={run} disabled={loading}>
+            {loading ? '⟳ 검색 중...' : briefing ? '↺ 다시 분석' : '🔍 오늘 브리핑 생성'}
+          </button>
+        </div>
+      </div>
+      {error && <div className="db-briefing-error">⚠️ {error}</div>}
+      {loading && (
+        <div className="db-briefing-loading">
+          <div className="db-briefing-spinner"/>
+          <span>웹에서 오늘 시장 정보 검색 중...</span>
+        </div>
+      )}
+      {briefing && open && !loading && (
+        <div className="db-briefing-content">
+          <pre className="db-briefing-text">{briefing}</pre>
+          <div className="db-briefing-meta">오늘({new Date().toLocaleDateString('ko-KR')}) 자동 저장 · 내일 새로 생성</div>
+        </div>
+      )}
+      {!briefing && !loading && !error && (
+        <div className="db-briefing-placeholder">
+          🔍 버튼을 눌러 오늘 시장 브리핑을 생성하세요 · 하루 1회 자동 저장
+        </div>
+      )}
+    </section>
+  )
+}
+
 // ── 메인 ─────────────────────────────────────────────
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -645,6 +729,8 @@ export default function DashboardPage() {
           </div>
         )}
       </section>
+
+      <AiBriefingCard/>
 
       <div className="dash-footer-note">
         ✅ KIS API · {isOpen ? '장중 30초' : isAfter ? '시간외 2분' : '장외 5분'} 자동 갱신

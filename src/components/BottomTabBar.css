@@ -1,0 +1,55 @@
+/* BottomTabBar.css */
+.bottom-tab-bar {
+  display: none; /* 데스크톱에서는 숨김 */
+}
+
+@media (max-width: 640px) {
+  .bottom-tab-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 60px;
+    background: white;
+    border-top: 1px solid #e2e8f0;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
+    z-index: 200;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .btb-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px 4px;
+    transition: color 0.15s;
+    color: #94a3b8;
+    font-family: var(--font-kr, sans-serif);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btb-item.active {
+    color: #2563eb;
+  }
+
+  .btb-icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .btb-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+
+  .btb-item.active .btb-icon {
+    transform: scale(1.1);
+    transition: transform 0.15s;
+  }
+}

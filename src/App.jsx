@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from './context/AuthContext'
 import './App.css'
+import './mobile-cards.css'
 
 import LoginPage           from './auth/LoginPage'
 import DashboardPage       from './pages/DashboardPage'
@@ -12,6 +13,8 @@ import TradingLogPage      from './pages/TradingLogPage'
 import NewsPage            from './pages/NewsPage'
 import ChartAnalysisPage   from './pages/ChartAnalysisPage'
 import ETFPage             from './pages/ETFPage'
+
+import BottomTabBar from './components/BottomTabBar'
 
 const NAV_ITEMS = [
   { id: 'dashboard',  label: '대시보드',   sub: '시장 전체 현황', icon: '📊' },
@@ -83,7 +86,7 @@ export default function App() {
   return (
     <div className="app-layout">
 
-      <aside className={`app-sidebar${sidebarOpen ? ' open' : ''}`}>
+      <aside className={`app-sidebar${sidebarOpen ? ' open' : ''} app-sidebar--desktop`}>
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">K</div>
           <div>
@@ -143,6 +146,9 @@ export default function App() {
           <PageComp />
         </main>
       </div>
+
+      {/* 모바일 하단 탭바 */}
+      <BottomTabBar page={activePage} onNavigate={goTo}/>
     </div>
   )
 }
