@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useStockPrices } from '../hooks/useKiwoomPrice'
 import { fmt, fmtRate, fmtShort, rateColor, getKstStatus } from '../utils/format'
 import { ALL_THEMES } from '../constants/themes'
-import StockChartModal from '../components/StockChartModal'
 import './ChartAnalysisPage.css'
 
 const CLAUDE_KEY = import.meta.env.VITE_CLAUDE_API_KEY
@@ -15,12 +14,19 @@ const STOCK_LIST = [...new Map(
   ]).map(s => [s.code, s])
 ).values()]
 
-const LS_RECENT    = 'cap_recent_v1'
-const LS_WATCHLIST = 'cap_watch_v1'
+const LS_RECENT    = 'cap_recent_v2'
+const LS_WATCHLIST = 'cap_watch_v2'
+const LS_DRAWINGS  = 'cap_drawings_v1'
 function lsGet(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} }
 
-// ── 이동평균 계산 ─────────────────────────────
+const MA_SETTINGS = [
+  { p:5,   color:'#f59e0b', label:'MA5'   },
+  { p:20,  color:'#10b981', label:'MA20'  },
+  { p:60,  color:'#3b82f6', label:'MA60'  },
+  { p:120, color:'#ef4444', label:'MA120' },
+]
+
 function calcMA(data, p) {
   return data.map((_, i) => {
     if (i < p - 1) return null
@@ -28,79 +34,105 @@ function calcMA(data, p) {
   })
 }
 
-const MA_SETTINGS = [
-  { p: 5,   color: '#f59e0b' },
-  { p: 20,  color: '#10b981' },
-  { p: 60,  color: '#3b82f6' },
-  { p: 120, color: '#ef4444' },
+function filterByRange(candles, months) {
+  if (!months) return candles
+  const cutoff = new Date()
+  cutoff.setMonth(cutoff.getMonth() - months)
+  const cutStr = cutoff.toISOString().slice(0, 10).replace(/-/g, '')
+  return candles.filter(c => (c.time || '').slice(0, 8) >= cutStr)
+}
+
+const PERIODS = [
+  { key:'min',   label:'분봉' },
+  { key:'day',   label:'일봉' },
+  { key:'week',  label:'주봉' },
+  { key:'month', label:'월봉' },
+  { key:'year',  label:'년봉' },
+]
+const MIN_SCOPES = ['1','3','5','10','15','30','60']
+const MIN_DAYS_OPTS = [{ label:'1일', days:1 }, { label:'3일', days:3 }, { label:'5일', days:5 }]
+const RANGE_OPTS = [
+  { label:'1개월', months:1  },
+  { label:'3개월', months:3  },
+  { label:'6개월', months:6  },
+  { label:'1년',   months:12 },
+  { label:'3년',   months:36 },
+  { label:'전체',  months:0  },
+]
+const DRAW_TOOLS = [
+  { id:'none',   label:'🖱️ 선택',    tip:'이동/선택 모드' },
+  { id:'hline',  label:'━ 수평선',   tip:'수평 지지/저항선 그리기' },
+  { id:'trend',  label:'↗ 추세선',   tip:'추세선 그리기' },
+  { id:'fib',    label:'🔢 피보나치', tip:'피보나치 되돌림' },
+  { id:'text',   label:'📝 메모',    tip:'텍스트 메모 추가' },
 ]
 
-// ── 인라인 캔들차트 ───────────────────────────
-function InlineChart({ code, name, period, minTic, minDays, showMA }) {
-  const [candles, setCandles]   = useState([])
-  const [loading, setLoading]   = useState(false)
-  const [tooltip, setTooltip]   = useState(null)
+// ══════════════════════════════════════════════
+// 차트 렌더러 (공유)
+// ══════════════════════════════════════════════
+function ChartRenderer({ candles, showMA, enabledMA, drawings, onSvgClick, onSvgMouseMove, isFullscreen }) {
   const svgRef = useRef(null)
-
-  const load = useCallback(async () => {
-    if (!code) return
-    setLoading(true)
-    try {
-      const url = `/api/kiwoom?type=stock-chart&code=${code}&period=${period}` +
-        (period === 'min' ? `&tic=${minTic}&min_days=${minDays}` : '')
-      const data = await fetch(url).then(r => r.json())
-      setCandles(data.candles || [])
-    } catch {}
-    finally { setLoading(false) }
-  }, [code, period, minTic, minDays])
-
-  useEffect(() => { load() }, [load])
+  const [tooltip, setTooltip] = useState(null)
 
   const n = candles.length
-  if (loading) return <div className="cap-chart-loading"><div className="cap-spinner"/>차트 불러오는 중...</div>
-  if (!n)      return <div className="cap-chart-empty">데이터 없음</div>
+  if (!n) return <div className="cap-chart-empty">데이터 없음</div>
 
-  // SVG 레이아웃
-  const W = 900, H = 440
-  const PAD = { top: 16, right: 60, bottom: 36, left: 72 }
-  const PRICE_H = 300, VOL_GAP = 8, VOL_H = 56
-  const chartW = W - PAD.left - PAD.right
+  const W = isFullscreen ? 1400 : 900
+  const H = isFullscreen ? 600  : 440
+  const PAD = { top:16, right:60, bottom:36, left:76 }
+  const PRICE_H = isFullscreen ? 440 : 300
+  const VOL_GAP = 8, VOL_H = isFullscreen ? 80 : 56
+  const chartW  = W - PAD.left - PAD.right
 
-  const prices  = candles.flatMap(c => [c.high, c.low]).filter(Boolean)
-  const maxP    = Math.max(...prices), minP = Math.min(...prices)
-  const pad5    = (maxP - minP) * 0.05 || 1
-  const yMax    = maxP + pad5, yMin = minP - pad5, yRng = yMax - yMin
+  const prices = candles.flatMap(c => [c.high, c.low]).filter(Boolean)
+  const maxP   = Math.max(...prices), minP = Math.min(...prices)
+  const pad5   = (maxP - minP) * 0.05 || 1
+  const yMax   = maxP + pad5, yMin = minP - pad5, yRng = yMax - yMin
 
-  const toY  = v => PAD.top + PRICE_H - ((v - yMin) / yRng) * PRICE_H
-  const barW = Math.max(2, Math.floor(chartW / n * 0.7))
-  const bx   = i => PAD.left + (i + 0.5) * (chartW / n)
+  const toY   = v  => PAD.top + PRICE_H - ((v - yMin) / yRng) * PRICE_H
+  const fromY = y  => yMin + (PAD.top + PRICE_H - y) / PRICE_H * yRng
+  const barW  = Math.max(2, Math.floor(chartW / n * 0.7))
+  const bx    = i  => PAD.left + (i + 0.5) * (chartW / n)
+  const fromX = x  => Math.round((x - PAD.left) / (chartW / n) - 0.5)
 
   const maxVol = Math.max(...candles.map(c => c.volume || 0), 1)
   const volTop = PAD.top + PRICE_H + VOL_GAP
   const toVolY = v => volTop + VOL_H - (v / maxVol) * VOL_H
 
-  const yTicks  = Array.from({ length: 5 }, (_, i) => yMin + (yRng / 4) * i)
-  const xStep   = Math.max(1, Math.ceil(n / 8))
-  const maLines = showMA ? MA_SETTINGS.map(({ p, color }) => {
+  const yTicks = Array.from({ length:6 }, (_, i) => yMin + (yRng / 5) * i)
+  const xStep  = Math.max(1, Math.ceil(n / 8))
+
+  const maLines = showMA ? MA_SETTINGS.filter(m => enabledMA.has(m.p)).map(({ p, color }) => {
     const vals = calcMA(candles, p)
     const pts  = vals.map((v, i) => v ? `${bx(i)},${toY(v)}` : null).filter(Boolean)
     return pts.length >= 2 ? { p, color, pts: pts.join(' ') } : null
   }).filter(Boolean) : []
 
-  function onMouseMove(e) {
+  function handleMouseMove(e) {
     if (!svgRef.current) return
     const rect = svgRef.current.getBoundingClientRect()
-    const mx   = (e.clientX - rect.left) / (rect.width / W)
+    const mx   = (e.clientX - rect.left) * (W / rect.width)
     const idx  = Math.round((mx - PAD.left) / (chartW / n) - 0.5)
     if (idx < 0 || idx >= n) { setTooltip(null); return }
     setTooltip({ idx, x: bx(idx) })
+    onSvgMouseMove && onSvgMouseMove({ x: mx, y: (e.clientY - rect.top) * (H / rect.height), idx, price: fromY((e.clientY - rect.top) * (H / rect.height)) })
+  }
+
+  function handleClick(e) {
+    if (!svgRef.current || !onSvgClick) return
+    const rect = svgRef.current.getBoundingClientRect()
+    const x    = (e.clientX - rect.left) * (W / rect.width)
+    const y    = (e.clientY - rect.top)  * (H / rect.height)
+    const idx  = fromX(x)
+    onSvgClick({ x, y, idx, price: fromY(y), bx, toY, PAD, chartW, n })
   }
 
   const td = tooltip ? candles[tooltip.idx] : null
 
   return (
-    <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="cap-svg"
-      onMouseMove={onMouseMove} onMouseLeave={() => setTooltip(null)}>
+    <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`}
+      className="cap-svg" style={{ cursor: onSvgClick ? 'crosshair' : 'default' }}
+      onMouseMove={handleMouseMove} onMouseLeave={() => setTooltip(null)} onClick={handleClick}>
 
       {/* Y 그리드 */}
       {yTicks.map((v, i) => (
@@ -119,7 +151,7 @@ function InlineChart({ code, name, period, minTic, minDays, showMA }) {
       <line x1={PAD.left} x2={W - PAD.right} y1={volTop} y2={volTop} stroke="#f1f5f9"/>
       <text x={PAD.left - 5} y={volTop + 10} textAnchor="end" fontSize="9" fill="#94a3b8">거래량</text>
 
-      {/* 캔들 + 거래량 */}
+      {/* 캔들 */}
       {candles.map((c, i) => {
         const up  = c.close >= c.open
         const col = up ? '#ef4444' : '#3b82f6'
@@ -130,99 +162,302 @@ function InlineChart({ code, name, period, minTic, minDays, showMA }) {
         return (
           <g key={i}>
             <line x1={x} x2={x} y1={toY(c.high)} y2={toY(c.low)} stroke={col} strokeWidth="1"/>
-            <rect x={x - barW / 2} y={bTop} width={barW} height={bH} fill={col} opacity={tooltip?.idx === i ? 1 : 0.85}/>
-            <rect x={x - barW / 2} y={toVolY(c.volume)} width={barW} height={vh} fill={col} opacity="0.45"/>
+            <rect x={x - barW/2} y={bTop} width={barW} height={bH} fill={col} opacity={tooltip?.idx === i ? 1 : 0.85}/>
+            <rect x={x - barW/2} y={toVolY(c.volume)} width={barW} height={vh} fill={col} opacity="0.4"/>
           </g>
         )
       })}
 
-      {/* MA 선 */}
-      {maLines.map(ma => (
-        <polyline key={ma.p} points={ma.pts} fill="none" stroke={ma.color} strokeWidth="1.2" opacity="0.9"/>
-      ))}
+      {/* MA */}
+      {maLines.map(ma => <polyline key={ma.p} points={ma.pts} fill="none" stroke={ma.color} strokeWidth="1.2" opacity="0.9"/>)}
+
+      {/* 드로잉 */}
+      {drawings.map((d, i) => {
+        if (d.type === 'hline') {
+          const y = toY(d.price)
+          if (y < PAD.top || y > PAD.top + PRICE_H) return null
+          return <g key={i}>
+            <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} stroke={d.color || '#f59e0b'} strokeWidth="1.5" strokeDasharray="6,3"/>
+            <text x={W - PAD.right + 4} y={y + 4} fontSize="10" fill={d.color || '#f59e0b'}>{Math.round(d.price).toLocaleString()}</text>
+          </g>
+        }
+        if (d.type === 'trend' && d.x1 !== undefined && d.x2 !== undefined) {
+          return <line key={i} x1={d.x1} y1={d.y1} x2={d.x2} y2={d.y2} stroke="#8b5cf6" strokeWidth="1.5" markerEnd="url(#arr)"/>
+        }
+        if (d.type === 'fib' && d.x1 !== undefined && d.x2 !== undefined) {
+          const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
+          const range  = d.price2 - d.price1
+          return <g key={i}>
+            {levels.map((l, li) => {
+              const price = d.price2 - range * l
+              const y     = toY(price)
+              const colors = ['#ef4444','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ec4899','#64748b']
+              if (y < PAD.top || y > PAD.top + PRICE_H) return null
+              return <g key={li}>
+                <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} stroke={colors[li]} strokeWidth="1" strokeDasharray="4,4" opacity="0.7"/>
+                <text x={W - PAD.right + 4} y={y + 4} fontSize="9" fill={colors[li]}>{(l * 100).toFixed(1)}%</text>
+              </g>
+            })}
+          </g>
+        }
+        if (d.type === 'text') {
+          const x = d.bxVal ?? PAD.left + 50
+          const y = toY(d.price)
+          if (y < PAD.top || y > PAD.top + PRICE_H) return null
+          return <g key={i}>
+            <rect x={x - 2} y={y - 13} width={d.text.length * 7 + 8} height={16} fill="white" stroke="#e2e8f0" rx="3" opacity="0.9"/>
+            <text x={x + 2} y={y} fontSize="11" fill="#334155">{d.text}</text>
+          </g>
+        }
+        return null
+      })}
 
       {/* 크로스헤어 + 툴팁 */}
       {td && (
         <>
-          <line x1={tooltip.x} x2={tooltip.x} y1={PAD.top} y2={volTop + VOL_H} stroke="#94a3b8" strokeDasharray="3,3" strokeWidth="1"/>
-          <rect x={tooltip.x > W / 2 ? tooltip.x - 145 : tooltip.x + 8} y={PAD.top + 4} width={138} height={102} fill="white" stroke="#e2e8f0" rx="6" opacity="0.97"/>
-          {[['시가', td.open], ['고가', td.high], ['저가', td.low], ['종가', td.close], ['거래량', td.volume]].map(([lbl, val], j) => {
-            const tx = tooltip.x > W / 2 ? tooltip.x - 140 : tooltip.x + 12
-            const col = j === 1 ? '#ef4444' : j === 2 ? '#3b82f6' : j === 3 ? rateColor(td.close - td.open) : '#334155'
-            return (
-              <g key={j}>
-                <text x={tx} y={PAD.top + 20 + j * 16} fontSize="11" fill="#94a3b8">{lbl}</text>
-                <text x={tx + 130} y={PAD.top + 20 + j * 16} textAnchor="end" fontSize="11" fill={col} fontWeight={j === 3 ? '700' : '400'}>
-                  {j === 4 ? Number(val).toLocaleString() : Math.round(val).toLocaleString()}
-                </text>
-              </g>
-            )
-          })}
-          <text x={tooltip.x > W / 2 ? tooltip.x - 140 : tooltip.x + 12} y={PAD.top + 12} fontSize="10" fill="#475569">{td.label}</text>
+          <line x1={tooltip.x} x2={tooltip.x} y1={PAD.top} y2={volTop + VOL_H} stroke="#cbd5e1" strokeDasharray="3,3" strokeWidth="1"/>
+          {(() => {
+            const tx = tooltip.x > W / 2 ? tooltip.x - 150 : tooltip.x + 10
+            const rows = [['시가',td.open],['고가',td.high],['저가',td.low],['종가',td.close],['거래량',td.volume]]
+            return <>
+              <rect x={tx} y={PAD.top + 4} width={140} height={108} fill="white" stroke="#e2e8f0" rx="6" opacity="0.97" filter="drop-shadow(0 2px 6px rgba(0,0,0,.08))"/>
+              <text x={tx + 8} y={PAD.top + 17} fontSize="10" fill="#475569" fontWeight="600">{td.label}</text>
+              {rows.map(([lbl, val], j) => {
+                const col = j===1?'#ef4444':j===2?'#3b82f6':j===3?rateColor(td.close-td.open):'#334155'
+                return <g key={j}>
+                  <text x={tx + 8}   y={PAD.top + 31 + j*15} fontSize="10" fill="#94a3b8">{lbl}</text>
+                  <text x={tx + 134} y={PAD.top + 31 + j*15} textAnchor="end" fontSize="10" fill={col} fontWeight={j===3?'700':'400'}>
+                    {j===4?Number(val).toLocaleString():Math.round(val).toLocaleString()}
+                  </text>
+                </g>
+              })}
+            </>
+          })()}
         </>
       )}
+
+      {/* 화살표 마커 */}
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="#8b5cf6" strokeWidth="1.5"/>
+        </marker>
+      </defs>
     </svg>
   )
 }
 
-// ── AI 분석 ───────────────────────────────────
+// ══════════════════════════════════════════════
+// 전체화면 차트
+// ══════════════════════════════════════════════
+function FullscreenChart({ stock, onClose }) {
+  const [candles,    setCandles]    = useState([])
+  const [allCandles, setAllCandles] = useState([])
+  const [loading,    setLoading]    = useState(false)
+  const [period,     setPeriod]     = useState('day')
+  const [minTic,     setMinTic]     = useState('5')
+  const [minDays,    setMinDays]    = useState(1)
+  const [range,      setRange]      = useState(3)
+  const [enabledMA,  setEnabledMA]  = useState(new Set([5, 20, 60, 120]))
+  const [showMA,     setShowMA]     = useState(true)
+  const [drawTool,   setDrawTool]   = useState('none')
+  const [drawings,   setDrawings]   = useState(() => lsGet(`${LS_DRAWINGS}_${stock.code}`, []))
+  const [drawState,  setDrawState]  = useState(null) // 드로잉 진행 상태
+  const [textInput,  setTextInput]  = useState(null)
+
+  useEffect(() => { const fn = e => e.key==='Escape'&&onClose(); window.addEventListener('keydown',fn); return()=>window.removeEventListener('keydown',fn) }, [onClose])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const url = `/api/kiwoom?type=stock-chart&code=${stock.code}&period=${period}` +
+        (period==='min' ? `&tic=${minTic}&min_days=${minDays}` : '')
+      const data = await fetch(url).then(r => r.json())
+      setAllCandles(data.candles || [])
+    } catch {}
+    finally { setLoading(false) }
+  }, [stock.code, period, minTic, minDays])
+
+  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    setCandles(period==='min' ? allCandles : filterByRange(allCandles, range))
+  }, [allCandles, range, period])
+
+  const saveDrawings = (next) => { setDrawings(next); lsSet(`${LS_DRAWINGS}_${stock.code}`, next) }
+
+  function handleSvgClick({ x, y, idx, price, bx, toY, PAD, chartW, n }) {
+    if (drawTool === 'none') return
+    if (drawTool === 'hline') {
+      saveDrawings([...drawings, { type:'hline', price }])
+    } else if (drawTool === 'trend' || drawTool === 'fib') {
+      if (!drawState) {
+        setDrawState({ x1:x, y1:y, price1:price })
+      } else {
+        if (drawTool === 'trend') {
+          saveDrawings([...drawings, { type:'trend', x1:drawState.x1, y1:drawState.y1, x2:x, y2:y }])
+        } else {
+          saveDrawings([...drawings, { type:'fib', x1:drawState.x1, y1:drawState.y1, x2:x, y2:y, price1:drawState.price1, price2:price }])
+        }
+        setDrawState(null)
+      }
+    } else if (drawTool === 'text') {
+      setTextInput({ x, y, price, bxVal: x })
+    }
+  }
+
+  const toggleMA = p => setEnabledMA(prev => { const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
+
+  return (
+    <div className="cap-fullscreen-overlay">
+      {/* 상단 툴바 */}
+      <div className="cap-fs-toolbar">
+        <div className="cap-fs-title">{stock.name} <span className="cap-fs-code">{stock.code}</span></div>
+
+        {/* 기간 */}
+        <div className="cap-fs-group">
+          {PERIODS.map(p => <button key={p.key} className={`cap-fs-btn ${period===p.key?'active':''}`} onClick={() => setPeriod(p.key)}>{p.label}</button>)}
+        </div>
+
+        {/* 분봉 옵션 */}
+        {period==='min' && <>
+          <div className="cap-fs-sep"/>
+          <div className="cap-fs-group">
+            {MIN_SCOPES.map(s => <button key={s} className={`cap-fs-btn ${minTic===s?'active':''}`} onClick={() => setMinTic(s)}>{s}분</button>)}
+          </div>
+          <div className="cap-fs-sep"/>
+          <div className="cap-fs-group">
+            {MIN_DAYS_OPTS.map(d => <button key={d.days} className={`cap-fs-btn ${minDays===d.days?'active':''}`} onClick={() => setMinDays(d.days)}>{d.label}</button>)}
+          </div>
+        </>}
+
+        {/* 범위 */}
+        {period!=='min' && <>
+          <div className="cap-fs-sep"/>
+          <div className="cap-fs-group">
+            {RANGE_OPTS.map(r => <button key={r.months} className={`cap-fs-btn ${range===r.months?'active':''}`} onClick={() => setRange(r.months)}>{r.label}</button>)}
+          </div>
+        </>}
+
+        <div className="cap-fs-sep"/>
+
+        {/* MA */}
+        <div className="cap-fs-group">
+          <button className={`cap-fs-btn ${showMA?'active':''}`} onClick={() => setShowMA(v=>!v)}>MA</button>
+          {showMA && MA_SETTINGS.map(m => (
+            <button key={m.p} className={`cap-fs-btn cap-fs-ma ${enabledMA.has(m.p)?'active':''}`}
+              style={enabledMA.has(m.p)?{color:m.color,borderColor:m.color}:{}}
+              onClick={() => toggleMA(m.p)}>{m.label}</button>
+          ))}
+        </div>
+
+        <div className="cap-fs-sep"/>
+
+        {/* 드로잉 툴 */}
+        <div className="cap-fs-group">
+          {DRAW_TOOLS.map(t => (
+            <button key={t.id} className={`cap-fs-btn ${drawTool===t.id?'active':''}`}
+              title={t.tip} onClick={() => { setDrawTool(t.id); setDrawState(null) }}>{t.label}</button>
+          ))}
+          {drawings.length > 0 && (
+            <button className="cap-fs-btn cap-fs-del" title="모든 드로잉 삭제" onClick={() => { saveDrawings([]); setDrawState(null) }}>🗑 초기화</button>
+          )}
+        </div>
+
+        <div style={{marginLeft:'auto', display:'flex', gap:6}}>
+          {drawState && <div className="cap-fs-hint">{drawTool==='trend'?'2번째 점 클릭':drawTool==='fib'?'끝점 클릭':''}</div>}
+          <button className="cap-fs-close" onClick={onClose}>✕ 닫기</button>
+        </div>
+      </div>
+
+      {/* 차트 영역 */}
+      <div className="cap-fs-body">
+        {loading && <div className="cap-fs-loading"><div className="cap-spinner"/>불러오는 중...</div>}
+        {!loading && (
+          <ChartRenderer
+            candles={candles}
+            showMA={showMA}
+            enabledMA={enabledMA}
+            drawings={drawings}
+            onSvgClick={handleSvgClick}
+            isFullscreen={true}
+          />
+        )}
+      </div>
+
+      {/* 텍스트 입력 팝업 */}
+      {textInput && (
+        <div className="cap-text-popup" style={{ left: Math.min(textInput.x + 20, window.innerWidth - 220), top: 60 }}>
+          <input autoFocus className="cap-text-input" placeholder="메모 입력 후 Enter"
+            onKeyDown={e => {
+              if (e.key === 'Enter' && e.target.value.trim()) {
+                saveDrawings([...drawings, { type:'text', price:textInput.price, bxVal:textInput.bxVal, text:e.target.value.trim() }])
+                setTextInput(null); setDrawTool('none')
+              }
+              if (e.key === 'Escape') { setTextInput(null) }
+            }}/>
+          <button className="cap-text-cancel" onClick={() => setTextInput(null)}>✕</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════
+// AI 분석
+// ══════════════════════════════════════════════
 async function runAI(stock, period, price) {
   const today = new Date().toLocaleDateString('ko-KR')
   const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':CLAUDE_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 1000,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      messages: [{ role: 'user', content:
-        `오늘(${today}) ${stock.name}(${stock.code}) 주식 분석해줘.
-현재가: ${fmt(price?.price)}원, 등락률: ${fmtRate(price?.changeRate)}, 차트기간: ${period}
-
-## 📌 종목 현황
-## 📈 기술적 분석
-## 🔑 핵심 뉴스·모멘텀
-## 🎯 지지·저항 레벨
-## ⚠️ 리스크 요인
-## 💡 투자 의견` }],
+      model:'claude-haiku-4-5-20251001', max_tokens:1000,
+      tools:[{type:'web_search_20250305',name:'web_search'}],
+      messages:[{role:'user',content:`오늘(${today}) ${stock.name}(${stock.code}) 분석.\n현재가:${fmt(price?.price)}원, 등락률:${fmtRate(price?.changeRate)}, 기간:${period}\n\n## 📌 종목 현황\n## 📈 기술적 분석\n## 🔑 핵심 뉴스\n## 🎯 지지·저항 레벨\n## ⚠️ 리스크\n## 💡 투자 의견`}],
     }),
   })
   if (!res.ok) throw new Error(`API 오류 ${res.status}`)
   const data = await res.json()
-  return data.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
+  return data.content.filter(b=>b.type==='text').map(b=>b.text).join('\n')
 }
 
-const PERIODS    = [{ key:'min', label:'분봉' }, { key:'day', label:'일봉' }, { key:'week', label:'주봉' }, { key:'month', label:'월봉' }, { key:'year', label:'년봉' }]
-const MIN_SCOPES = ['1', '3', '5', '10', '15', '30', '60']
-const MIN_DAYS   = [{ label:'1일', days:1 }, { label:'3일', days:3 }, { label:'5일', days:5 }]
-const SUPPLY_TABS = [{ id:'chart', label:'📈 차트' }, { id:'supply', label:'💰 수급' }, { id:'ai', label:'🤖 AI 분석' }]
-
-// ── 메인 ─────────────────────────────────────
+// ══════════════════════════════════════════════
+// 메인
+// ══════════════════════════════════════════════
 export default function ChartAnalysisPage() {
-  const [query,        setQuery]        = useState('')
-  const [results,      setResults]      = useState([])
-  const [showDrop,     setShowDrop]     = useState(false)
-  const [selected,     setSelected]     = useState(null)
-  const [recent,       setRecent]       = useState(() => lsGet(LS_RECENT, []))
-  const [watchlist,    setWatchlist]    = useState(() => lsGet(LS_WATCHLIST, []))
-  const [period,       setPeriod]       = useState('day')
-  const [minTic,       setMinTic]       = useState('5')
-  const [minDays,      setMinDays]      = useState(1)
-  const [showMA,       setShowMA]       = useState(true)
-  const [activeTab,    setActiveTab]    = useState('chart')
-  const [fullChart,    setFullChart]    = useState(false)
+  const [query,       setQuery]       = useState('')
+  const [results,     setResults]     = useState([])
+  const [showDrop,    setShowDrop]    = useState(false)
+  const [selected,    setSelected]    = useState(null)
+  const [recent,      setRecent]      = useState(() => lsGet(LS_RECENT, []))
+  const [watchlist,   setWatchlist]   = useState(() => lsGet(LS_WATCHLIST, []))
+  const [period,      setPeriod]      = useState('day')
+  const [minTic,      setMinTic]      = useState('5')
+  const [minDays,     setMinDays]     = useState(1)
+  const [range,       setRange]       = useState(3)
+  const [enabledMA,   setEnabledMA]   = useState(new Set([5, 20, 60, 120]))
+  const [showMA,      setShowMA]      = useState(true)
+  const [activeTab,   setActiveTab]   = useState('chart')
+  const [showFull,    setShowFull]    = useState(false)
+  const [allCandles,  setAllCandles]  = useState([])
+  const [chartLoading,setChartLoading]= useState(false)
   // 수급
-  const [foreignData,  setForeignData]  = useState(null)
-  const [shortData,    setShortData]    = useState(null)
-  const [strengthData, setStrengthData] = useState(null)
-  const [supplyLoading,setSupplyLoading]= useState(false)
+  const [foreignData, setForeignData] = useState(null)
+  const [shortData,   setShortData]   = useState(null)
+  const [strData,     setStrData]     = useState(null)
+  const [supplyLoading,setSupplyLoading] = useState(false)
   // AI
-  const [aiResult,     setAiResult]     = useState('')
-  const [aiLoading,    setAiLoading]    = useState(false)
-  const [aiError,      setAiError]      = useState('')
-  // 가격
+  const [aiResult,    setAiResult]    = useState('')
+  const [aiLoading,   setAiLoading]   = useState(false)
+  const [aiError,     setAiError]     = useState('')
+
   const codes = selected ? [selected.code] : []
-  const { prices } = useStockPrices(codes, getKstStatus() === 'open' ? 30000 : 300000)
+  const { prices } = useStockPrices(codes, getKstStatus()==='open'?30000:300000)
   const price = selected ? prices[selected.code] : null
+
+  // 인라인 차트용 필터
+  const candles = useMemo(() =>
+    period === 'min' ? allCandles : filterByRange(allCandles, range)
+  , [allCandles, range, period])
 
   // 검색
   const search = q => {
@@ -236,9 +471,25 @@ export default function ChartAnalysisPage() {
   const select = stock => {
     setSelected(stock); setQuery(stock.name); setShowDrop(false)
     setAiResult(''); setAiError(''); setForeignData(null)
+    setAllCandles([])
     const next = [stock, ...recent.filter(r => r.code !== stock.code)].slice(0, 8)
     setRecent(next); lsSet(LS_RECENT, next)
   }
+
+  // 차트 로드
+  const loadChart = useCallback(async () => {
+    if (!selected) return
+    setChartLoading(true)
+    try {
+      const url = `/api/kiwoom?type=stock-chart&code=${selected.code}&period=${period}` +
+        (period==='min' ? `&tic=${minTic}&min_days=${minDays}` : '')
+      const data = await fetch(url).then(r => r.json())
+      setAllCandles(data.candles || [])
+    } catch {}
+    finally { setChartLoading(false) }
+  }, [selected, period, minTic, minDays])
+
+  useEffect(() => { if (selected) loadChart() }, [loadChart])
 
   const toggleWatch = () => {
     if (!selected) return
@@ -247,28 +498,26 @@ export default function ChartAnalysisPage() {
     setWatchlist(next); lsSet(LS_WATCHLIST, next)
   }
   const isWatched = selected && watchlist.find(w => w.code === selected.code)
+  const toggleMA = p => setEnabledMA(prev => { const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
 
-  // 수급 로드
+  // 수급
   const loadSupply = useCallback(async () => {
     if (!selected) return
     setSupplyLoading(true)
     try {
       const [f, sh, st] = await Promise.all([
-        fetch(`/api/kiwoom?type=supply-foreign&code=${selected.code}`).then(r => r.json()),
-        fetch(`/api/kiwoom?type=supply-short&code=${selected.code}&days=30`).then(r => r.json()),
-        fetch(`/api/kiwoom?type=supply-strength&code=${selected.code}`).then(r => r.json()),
+        fetch(`/api/kiwoom?type=supply-foreign&code=${selected.code}`).then(r=>r.json()),
+        fetch(`/api/kiwoom?type=supply-short&code=${selected.code}&days=30`).then(r=>r.json()),
+        fetch(`/api/kiwoom?type=supply-strength&code=${selected.code}`).then(r=>r.json()),
       ])
-      setForeignData(f.data?.slice(0, 20) || [])
-      setShortData(sh.data?.slice(0, 20)  || [])
-      setStrengthData(st.data?.slice(0, 20) || [])
+      setForeignData(f.data?.slice(0,20)||[]); setShortData(sh.data?.slice(0,20)||[]); setStrData(st.data?.slice(0,20)||[])
     } catch {}
     finally { setSupplyLoading(false) }
   }, [selected])
-
-  useEffect(() => { if (activeTab === 'supply' && selected && !foreignData) loadSupply() }, [activeTab, selected])
+  useEffect(() => { if (activeTab==='supply'&&selected&&!foreignData) loadSupply() }, [activeTab, selected])
 
   const doAI = async () => {
-    if (!selected || !CLAUDE_KEY) return
+    if (!selected||!CLAUDE_KEY) return
     setAiLoading(true); setAiError('')
     try { setAiResult(await runAI(selected, period, price)) }
     catch (e) { setAiError(e.message) }
@@ -277,6 +526,8 @@ export default function ChartAnalysisPage() {
 
   const pc   = price ? rateColor(price.changeRate) : '#94a3b8'
   const sign = price?.changeRate > 0 ? '+' : ''
+
+  const TABS = [{ id:'chart', label:'📈 차트' }, { id:'supply', label:'💰 수급' }, { id:'ai', label:'🤖 AI 분석' }]
 
   return (
     <div className="cap-wrap">
@@ -291,7 +542,7 @@ export default function ChartAnalysisPage() {
           <input className="cap-search-input" placeholder="종목명 또는 코드 검색 (예: 삼성전자, 005930)"
             value={query} onChange={e => search(e.target.value)}
             onFocus={() => query && setShowDrop(true)}
-            onKeyDown={e => e.key === 'Escape' && setShowDrop(false)}/>
+            onKeyDown={e => e.key==='Escape'&&setShowDrop(false)}/>
           {query && <button className="cap-clear" onClick={() => { setQuery(''); setResults([]); setShowDrop(false) }}>✕</button>}
           {showDrop && results.length > 0 && (
             <div className="cap-dropdown">
@@ -327,13 +578,13 @@ export default function ChartAnalysisPage() {
               <span className="cap-stock-code">{selected.code}</span>
               <span className="cap-stock-theme">{selected.theme}</span>
               {price?.price > 0 && <>
-                <span className="cap-price" style={{ color: pc }}>{fmt(price.price)}원</span>
-                <span className="cap-change" style={{ color: pc }}>{sign}{price.changeRate?.toFixed(2)}%</span>
+                <span className="cap-price" style={{color:pc}}>{fmt(price.price)}원</span>
+                <span className="cap-change" style={{color:pc}}>{sign}{price.changeRate?.toFixed(2)}%</span>
               </>}
             </div>
             <div className="cap-stock-right">
-              <button className={`cap-btn-watch ${isWatched ? 'active' : ''}`} onClick={toggleWatch}>
-                {isWatched ? '⭐' : '☆'} {isWatched ? '해제' : '즐겨찾기'}
+              <button className={`cap-btn-watch ${isWatched?'active':''}`} onClick={toggleWatch}>
+                {isWatched?'⭐':'☆'} {isWatched?'해제':'즐겨찾기'}
               </button>
               <button className="cap-btn-close" onClick={() => { setSelected(null); setQuery('') }}>✕</button>
             </div>
@@ -341,7 +592,7 @@ export default function ChartAnalysisPage() {
 
           {/* 탭 */}
           <div className="cap-tabs">
-            {SUPPLY_TABS.map(t => <button key={t.id} className={`cap-tab ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)}>{t.label}</button>)}
+            {TABS.map(t => <button key={t.id} className={`cap-tab ${activeTab===t.id?'active':''}`} onClick={() => setActiveTab(t.id)}>{t.label}</button>)}
           </div>
 
           {/* ── 차트 탭 ── */}
@@ -351,23 +602,41 @@ export default function ChartAnalysisPage() {
               <div className="cap-ctrl-bar">
                 {/* 기간 */}
                 <div className="cap-period-group">
-                  {PERIODS.map(p => <button key={p.key} className={`cap-period-btn ${period === p.key ? 'active' : ''}`} onClick={() => setPeriod(p.key)}>{p.label}</button>)}
+                  {PERIODS.map(p => <button key={p.key} className={`cap-period-btn ${period===p.key?'active':''}`} onClick={() => setPeriod(p.key)}>{p.label}</button>)}
                 </div>
-                {period === 'min' && <>
+
+                {/* 분봉 옵션 */}
+                {period==='min' && <>
                   <div className="cap-sep"/>
                   <div className="cap-period-group">
-                    {MIN_SCOPES.map(s => <button key={s} className={`cap-period-btn ${minTic === s ? 'active' : ''}`} onClick={() => setMinTic(s)}>{s}분</button>)}
+                    {MIN_SCOPES.map(s => <button key={s} className={`cap-period-btn ${minTic===s?'active':''}`} onClick={() => setMinTic(s)}>{s}분</button>)}
                   </div>
                   <div className="cap-sep"/>
                   <div className="cap-period-group">
-                    {MIN_DAYS.map(d => <button key={d.days} className={`cap-period-btn ${minDays === d.days ? 'active' : ''}`} onClick={() => setMinDays(d.days)}>{d.label}</button>)}
+                    {MIN_DAYS_OPTS.map(d => <button key={d.days} className={`cap-period-btn ${minDays===d.days?'active':''}`} onClick={() => setMinDays(d.days)}>{d.label}</button>)}
                   </div>
                 </>}
+
+                {/* 범위 */}
+                {period!=='min' && <>
+                  <div className="cap-sep"/>
+                  <div className="cap-period-group">
+                    {RANGE_OPTS.map(r => <button key={r.months} className={`cap-period-btn ${range===r.months?'active':''}`} onClick={() => setRange(r.months)}>{r.label}</button>)}
+                  </div>
+                </>}
+
                 <div className="cap-sep"/>
-                <button className={`cap-ma-btn ${showMA ? 'active' : ''}`} onClick={() => setShowMA(v => !v)}>MA</button>
-                {showMA && <div className="cap-ma-legend">{MA_SETTINGS.map(m => <span key={m.p} style={{ color: m.color, fontSize: 11 }}>MA{m.p}</span>)}</div>}
-                <div style={{ marginLeft: 'auto' }}>
-                  <button className="cap-fullscreen-btn" onClick={() => setFullChart(true)}>⛶ 전체화면</button>
+
+                {/* MA */}
+                <button className={`cap-ma-btn ${showMA?'active':''}`} onClick={() => setShowMA(v=>!v)}>MA</button>
+                {showMA && MA_SETTINGS.map(m => (
+                  <button key={m.p} className={`cap-ma-chip ${enabledMA.has(m.p)?'active':''}`}
+                    style={enabledMA.has(m.p)?{color:m.color,borderColor:m.color,background:m.color+'18'}:{}}
+                    onClick={() => toggleMA(m.p)}>{m.label}</button>
+                ))}
+
+                <div style={{marginLeft:'auto'}}>
+                  <button className="cap-fullscreen-btn" onClick={() => setShowFull(true)}>⛶ 전체화면</button>
                 </div>
               </div>
 
@@ -375,16 +644,16 @@ export default function ChartAnalysisPage() {
               {price?.price > 0 && (
                 <div className="cap-info-bar">
                   {[
-                    ['현재가', `${fmt(price.price)}원`, pc],
+                    ['현재가', `${fmt(price.price)}원`,             pc],
                     ['등락률', `${sign}${price.changeRate?.toFixed(2)}%`, pc],
-                    ['거래량', `${fmtShort(price.volume)}주`, null],
-                    ['PER',   price.per ? `${Number(price.per).toFixed(1)}배` : '-', null],
-                    ['PBR',   price.pbr ? `${Number(price.pbr).toFixed(2)}배` : '-', null],
+                    ['거래량', `${fmtShort(price.volume)}주`,       null],
+                    ['PER',    price.per ? `${Number(price.per).toFixed(1)}배` : '-', null],
+                    ['PBR',    price.pbr ? `${Number(price.pbr).toFixed(2)}배` : '-', null],
                     ['외국인', price.forExhRt ? `${price.forExhRt}%` : '-', null],
                   ].map(([label, val, color]) => (
                     <div key={label} className="cap-info-item">
                       <div className="cap-info-label">{label}</div>
-                      <div className="cap-info-val" style={{ color: color || '#0f172a' }}>{val}</div>
+                      <div className="cap-info-val" style={{color:color||'#0f172a'}}>{val}</div>
                     </div>
                   ))}
                 </div>
@@ -392,10 +661,12 @@ export default function ChartAnalysisPage() {
 
               {/* 인라인 차트 */}
               <div className="cap-chart-area">
-                <InlineChart code={selected.code} name={selected.name} period={period} minTic={minTic} minDays={minDays} showMA={showMA}/>
+                {chartLoading
+                  ? <div className="cap-chart-loading"><div className="cap-spinner"/>차트 불러오는 중...</div>
+                  : <ChartRenderer candles={candles} showMA={showMA} enabledMA={enabledMA} drawings={[]} isFullscreen={false}/>}
               </div>
 
-              {/* DART 링크 */}
+              {/* 링크 */}
               <div className="cap-links-row">
                 <a href={`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(selected.name)}`} target="_blank" rel="noreferrer" className="cap-ext-link">📋 DART 공시 →</a>
                 <a href={`https://finance.naver.com/item/main.naver?code=${selected.code}`} target="_blank" rel="noreferrer" className="cap-ext-link">📊 네이버 증권 →</a>
@@ -408,32 +679,25 @@ export default function ChartAnalysisPage() {
             <div className="cap-supply-section">
               {supplyLoading && <div className="cap-loading"><div className="cap-spinner"/>수급 데이터 불러오는 중...</div>}
               {!supplyLoading && !foreignData && <button className="cap-btn-primary" onClick={loadSupply}>📡 수급 데이터 불러오기</button>}
-              {!supplyLoading && foreignData && (<>
-                {[
-                  { title:'🌐 외국인 보유 추이', data: foreignData, cols: ['일자','종가','변동수량','보유비중'], vals: r => [r.dt?.slice(4,8).replace(/(\d{2})(\d{2})/, '$1/$2'), fmt(r.close_pric), `${Number(r.chg_qty) > 0 ? '+' : ''}${fmt(r.chg_qty)}`, `${r.wght}%`], colors: (r, ci) => ci===2 ? (Number(r.chg_qty)>0?'#ef4444':'#3b82f6') : '#334155' },
-                  { title:'📉 공매도 추이 (30일)', data: shortData, cols: ['일자','종가','공매도량','매매비중'], vals: r => [r.dt?.slice(4,8).replace(/(\d{2})(\d{2})/, '$1/$2'), fmt(r.close_pric), fmt(r.shrts_qty), `${r.trde_wght?.toFixed(2)}%`], colors: (r, ci) => ci===2?'#7c3aed':'#334155' },
-                  { title:'⚡ 체결강도 추이', data: strengthData, cols: ['일자','등락률','체결강도','5일','20일'], vals: r => [r.dt?.slice(4,8).replace(/(\d{2})(\d{2})/, '$1/$2'), `${r.flu_rt?.toFixed(2)}%`, r.cntr_str?.toFixed(1), r.cntr_str_5?.toFixed(1), r.cntr_str_20?.toFixed(1)], colors: (r, ci) => { if(ci===1) return rateColor(r.flu_rt); if(ci===2) return r.cntr_str>100?'#ef4444':'#3b82f6'; return '#334155' } },
-                ].map(({ title, data, cols, vals, colors }) => (
-                  <div key={title} className="cap-supply-card">
-                    <div className="cap-supply-title">{title}</div>
-                    {!data?.length ? <div className="cap-supply-empty">데이터 없음</div> : (
-                      <div className="cap-supply-table">
-                        <div className="cap-supply-th" style={{ gridTemplateColumns: `repeat(${cols.length}, 1fr)` }}>
-                          {cols.map(c => <div key={c}>{c}</div>)}
+              {!supplyLoading && foreignData && (
+                <>
+                  {[
+                    { title:'🌐 외국인 보유 추이', data:foreignData, cols:['일자','종가','변동수량','보유비중'], vals:r=>[r.dt?.slice(4,8).replace(/(\d{2})(\d{2})/,'$1/$2'),fmt(r.close_pric),`${Number(r.chg_qty)>0?'+':''}${fmt(r.chg_qty)}`,`${r.wght}%`], colors:(r,ci)=>ci===2?(Number(r.chg_qty)>0?'#ef4444':'#3b82f6'):'#334155' },
+                    { title:'📉 공매도 추이', data:shortData, cols:['일자','종가','공매도량','매매비중'], vals:r=>[r.dt?.slice(4,8).replace(/(\d{2})(\d{2})/,'$1/$2'),fmt(r.close_pric),fmt(r.shrts_qty),`${r.trde_wght?.toFixed(2)}%`], colors:(r,ci)=>ci===2?'#7c3aed':'#334155' },
+                    { title:'⚡ 체결강도', data:strData, cols:['일자','등락률','체결강도','5일','20일'], vals:r=>[r.dt?.slice(4,8).replace(/(\d{2})(\d{2})/,'$1/$2'),`${r.flu_rt?.toFixed(2)}%`,r.cntr_str?.toFixed(1),r.cntr_str_5?.toFixed(1),r.cntr_str_20?.toFixed(1)], colors:(r,ci)=>{if(ci===1)return rateColor(r.flu_rt);if(ci===2)return r.cntr_str>100?'#ef4444':'#3b82f6';return'#334155'} },
+                  ].map(({ title, data, cols, vals, colors }) => (
+                    <div key={title} className="cap-supply-card">
+                      <div className="cap-supply-title">{title}</div>
+                      {!data?.length ? <div className="cap-supply-empty">데이터 없음</div> : (
+                        <div className="cap-supply-table">
+                          <div className="cap-supply-th" style={{gridTemplateColumns:`repeat(${cols.length},1fr)`}}>{cols.map(c=><div key={c}>{c}</div>)}</div>
+                          {data.map((r,i)=>{const row=vals(r);return<div key={i} className="cap-supply-tr" style={{gridTemplateColumns:`repeat(${cols.length},1fr)`}}>{row.map((v,ci)=><div key={ci} style={{color:colors(r,ci)}}>{v}</div>)}</div>})}
                         </div>
-                        {data.map((r, i) => {
-                          const row = vals(r)
-                          return (
-                            <div key={i} className="cap-supply-tr" style={{ gridTemplateColumns: `repeat(${cols.length}, 1fr)` }}>
-                              {row.map((v, ci) => <div key={ci} style={{ color: colors(r, ci) }}>{v}</div>)}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </>)}
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           )}
 
@@ -443,45 +707,28 @@ export default function ChartAnalysisPage() {
               <div className="cap-ai-header">
                 <div>🤖 <strong>{selected.name}</strong> 웹 검색 기반 AI 분석</div>
                 <div className="cap-ai-controls">
-                  {PERIODS.map(p => <button key={p.key} className={`cap-period-btn ${period === p.key ? 'active' : ''}`} onClick={() => setPeriod(p.key)}>{p.label}</button>)}
-                  <button className="cap-btn-primary" onClick={doAI} disabled={aiLoading || !CLAUDE_KEY}>
-                    {aiLoading ? '⟳ 분석 중...' : aiResult ? '↺ 다시 분석' : '🔍 AI 분석 시작'}
+                  {PERIODS.map(p => <button key={p.key} className={`cap-period-btn ${period===p.key?'active':''}`} onClick={() => setPeriod(p.key)}>{p.label}</button>)}
+                  <button className="cap-btn-primary" onClick={doAI} disabled={aiLoading||!CLAUDE_KEY}>
+                    {aiLoading?'⟳ 분석 중...':aiResult?'↺ 다시 분석':'🔍 AI 분석 시작'}
                   </button>
                 </div>
               </div>
-              {!CLAUDE_KEY && <div className="cap-ai-warn">⚠️ VITE_CLAUDE_API_KEY 미설정</div>}
-              {aiError && <div className="cap-ai-error">⚠️ {aiError}</div>}
-              {aiLoading && <div className="cap-loading"><div className="cap-spinner"/>{selected.name} 분석 중...</div>}
-              {aiResult && !aiLoading && (
-                <div className="cap-ai-result">
-                  <div className="cap-ai-badge">🔍 웹 검색 기반 · {new Date().toLocaleTimeString('ko-KR')}</div>
-                  <pre className="cap-ai-text">{aiResult}</pre>
-                </div>
-              )}
-              {!aiResult && !aiLoading && !aiError && (
-                <div className="cap-ai-placeholder">
-                  <p><strong>AI 분석 시작</strong> 버튼을 눌러보세요</p>
-                  <p className="cap-ai-sub">웹 검색 + 기술적 분석을 종합해드립니다</p>
-                </div>
-              )}
+              {!CLAUDE_KEY&&<div className="cap-ai-warn">⚠️ VITE_CLAUDE_API_KEY 미설정</div>}
+              {aiError&&<div className="cap-ai-error">⚠️ {aiError}</div>}
+              {aiLoading&&<div className="cap-loading"><div className="cap-spinner"/>{selected.name} 분석 중...</div>}
+              {aiResult&&!aiLoading&&<div className="cap-ai-result"><div className="cap-ai-badge">🔍 웹 검색 기반 · {new Date().toLocaleTimeString('ko-KR')}</div><pre className="cap-ai-text">{aiResult}</pre></div>}
+              {!aiResult&&!aiLoading&&!aiError&&<div className="cap-ai-placeholder"><p><strong>AI 분석 시작</strong> 버튼을 눌러보세요</p><p className="cap-ai-sub">웹 검색 + 기술적 분석 종합</p></div>}
             </div>
           )}
         </div>
       )}
 
-      {/* 빈 화면 */}
-      {!selected && watchlist.length === 0 && recent.length === 0 && (
-        <div className="cap-empty">
-          <div className="cap-empty-icon">📈</div>
-          <p>종목명 또는 코드를 검색해 차트 분석을 시작하세요</p>
-          <p className="cap-empty-sub">예: 삼성전자, SK하이닉스, 005930</p>
-        </div>
+      {!selected && watchlist.length===0 && recent.length===0 && (
+        <div className="cap-empty"><div className="cap-empty-icon">📈</div><p>종목명 또는 코드를 검색해 차트 분석을 시작하세요</p><p className="cap-empty-sub">예: 삼성전자, SK하이닉스, 005930</p></div>
       )}
 
-      {/* 전체화면 차트 모달 */}
-      {fullChart && selected && (
-        <StockChartModal stock={{ name: selected.name, code: selected.code }} onClose={() => setFullChart(false)}/>
-      )}
+      {/* 전체화면 차트 */}
+      {showFull && selected && <FullscreenChart stock={selected} onClose={() => setShowFull(false)}/>}
     </div>
   )
 }
