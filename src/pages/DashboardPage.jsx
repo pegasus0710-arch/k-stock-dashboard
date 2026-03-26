@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc, collection, onSnapshot, orderBy, query, limit } from 'firebase/firestore'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import StockChartModal from '../components/StockChartModal'
 import ChartModal from '../components/ChartModal'
+import GlobalChartModal from '../components/GlobalChartModal'
 import { ALL_THEMES, DEFAULT_ACTIVE_IDS } from '../constants/themes'
 import { fmt, fmtRate, fmtChange, rateColor, getTodayStr, getNowTime, getKstStatus, isMarketOpen, isUSMarketOpen, getDashTTL } from '../utils/format'
 import './DashboardPage.css'
@@ -375,89 +375,6 @@ function LegacyChartModal({ item, onClose }) {
 
 
 // ── AI 브리핑 카드 ────────────────────────────────────
-
-// ── 메모 위젯 (대시보드용) ────────────────────────────
-function MemoWidget() {
-  const { user }    = useAuth()
-  const navigate    = useNavigate()
-  const [memos, setMemos] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!user) return
-    const col = collection(db, 'users', user.uid, 'memos')
-    const q   = query(col, orderBy('updatedAt', 'desc'), limit(4))
-    const unsub = onSnapshot(q, snap => {
-      setMemos(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      setLoading(false)
-    }, () => setLoading(false))
-    return () => unsub()
-  }, [user])
-
-  const pinnedMemos  = memos.filter(m => m.pinned)
-  const recentMemos  = memos.filter(m => !m.pinned).slice(0, pinnedMemos.length > 0 ? 2 : 3)
-  const displayMemos = [...pinnedMemos.slice(0,2), ...recentMemos]
-
-  return (
-    <section className="dash-section">
-      <div className="db-section-header">
-        <span className="db-section-label">📝 메모장</span>
-        <button className="btn-outline db-memo-more-btn" onClick={() => navigate('/memo')}>
-          전체 보기 →
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="db-memo-loading">
-          <div className="db-memo-spinner"/>메모 불러오는 중...
-        </div>
-      ) : memos.length === 0 ? (
-        <div className="db-memo-empty" onClick={() => navigate('/memo')}>
-          <span className="db-memo-empty-icon">📝</span>
-          <div>
-            <p className="db-memo-empty-title">아직 작성된 메모가 없어요</p>
-            <p className="db-memo-empty-sub">투자 아이디어·종목 분석을 메모장에 기록해보세요</p>
-          </div>
-          <span className="db-memo-empty-arrow">→</span>
-        </div>
-      ) : (
-        <div className="db-memo-grid">
-          {displayMemos.map(memo => {
-            const lines   = (memo.content || '').split('\n').filter(Boolean)
-            const preview = lines.slice(0, 2).join(' · ')
-            const date    = memo.updatedAt?.toDate?.()?.toLocaleDateString('ko-KR', { month:'short', day:'numeric' }) || ''
-            return (
-              <div key={memo.id} className="db-memo-card"
-                style={{ background: memo.bgColor || '#1e293b', borderColor: memo.pinned ? '#f59e0b' : '#334155' }}
-                onClick={() => navigate('/memo')}>
-                {memo.pinned && <span className="db-memo-pin">📌</span>}
-                {memo.tags?.length > 0 && (
-                  <div className="db-memo-tags">
-                    {memo.tags.slice(0, 2).map(t => (
-                      <span key={t} className="db-memo-tag">{t}</span>
-                    ))}
-                  </div>
-                )}
-                <p className="db-memo-title" style={{ color: memo.titleColor || '#f1f5f9' }}>
-                  {memo.title || '제목 없음'}
-                </p>
-                <p className="db-memo-preview" style={{ color: memo.textColor || '#94a3b8', fontSize: Math.min(memo.fontSize || 13, 14) + 'px' }}>
-                  {preview || '내용 없음'}
-                </p>
-                <span className="db-memo-date">{date}</span>
-              </div>
-            )
-          })}
-          <div className="db-memo-card db-memo-new" onClick={() => navigate('/memo')}>
-            <span className="db-memo-new-icon">✏️</span>
-            <span className="db-memo-new-label">새 메모 작성</span>
-          </div>
-        </div>
-      )}
-    </section>
-  )
-}
-
 function AiBriefingCard() {
   const [briefing,    setBriefing]    = useState(() => {
     try {
@@ -676,7 +593,17 @@ export default function DashboardPage() {
     if (chartItem.type === 'index') return (
       <ChartModal isIndex inds_cd={marketToInds(chartItem.market)} name={chartItem.label} initialPeriod="day" onClose={() => setChartItem(null)}/>
     )
-    return <LegacyChartModal item={chartItem} onClose={() => setChartItem(null)}/>
+    // 환율 or 해외지수 → GlobalChartModal (라인+캔들, 기간 탭)
+    return (
+      <GlobalChartModal
+        type={chartItem.type === 'forex' ? 'forex' : 'global'}
+        symbol={chartItem.type === 'forex' ? chartItem.pair : chartItem.sym}
+        name={chartItem.label}
+        currentPrice={chartItem.price}
+        changeRate={chartItem.changeRate}
+        onClose={() => setChartItem(null)}
+      />
+    )
   }
 
   return (
@@ -814,7 +741,6 @@ export default function DashboardPage() {
         )}
       </section>
 
-      <MemoWidget/>
       <AiBriefingCard/>
 
       <div className="dash-footer-note">
