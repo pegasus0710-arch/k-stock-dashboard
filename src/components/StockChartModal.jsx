@@ -392,11 +392,12 @@ export default function StockChartModal({ stock, onClose }) {
   const [basicInfo,  setBasicInfo] = useState(null)
   const [stockInfo,  setStockInfo] = useState(null)
   const [activeTab,  setActiveTab] = useState('chart')
-  const [showSupply, setShowSupply]= useState(false)  // ← 기본 OFF
-  const [supplyData, setSupplyData]= useState(null)
+  const [showSupply,    setShowSupply]    = useState(false)  // ← 기본 OFF
+  const [supplyData,    setSupplyData]    = useState(null)
   const [supplyLoading, setSupplyLoading] = useState(false)
+  const [showFinancial, setShowFinancial] = useState(false) // 재무제표 팝업
   // 드로잉
-  const [drawings,   setDrawings]  = useState(()=>stock?.code?lsGet(`smc_draw_${stock.code}`):[])
+  const [drawings,   setDrawings]  = useState(()=>stock?.code?lsGet(`smc_draw_${stock.code}`,[]):[])
   const [drawTool,   setDrawTool]  = useState('none')
   const [drawState,  setDrawState] = useState(null)
   const [textInput,  setTextInput] = useState(null)
