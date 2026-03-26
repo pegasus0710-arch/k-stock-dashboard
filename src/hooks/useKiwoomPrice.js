@@ -90,7 +90,7 @@ export function normalizePrice(json) {
   if (!json || json.error) return null
   return {
     // 현재가
-    price:      Number(json.cur_prc  || 0),
+    price:      Math.abs(Number(json.cur_prc  || 0)),  // 키움: 부호 포함 반환 → abs
     // 전일대비 금액 (부호 포함)
     change:     Number(json.pred_pre || 0),
     // 등락률
@@ -98,8 +98,8 @@ export function normalizePrice(json) {
     // 거래량
     volume:     Number(json.trde_qty || 0),
     // 시가·고가·저가
-    open:       Number(json.open_pric || 0),
-    high:       Number(json.high_pric || 0),
+    open:       Math.abs(Number(json.open_pric || 0)),
+    high:       Math.abs(Number(json.high_pric || 0)),
     low:        Number(json.low_pric  || 0),
     // 재무 지표
     per:        Number(json.per  || 0),

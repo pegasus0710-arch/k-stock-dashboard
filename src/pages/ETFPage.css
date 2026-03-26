@@ -1,243 +1,110 @@
 /* ETFPage.css */
-.etf-wrap {
-  width:100%; min-height:100%; box-sizing:border-box;
-  padding:20px 24px 40px; display:flex; flex-direction:column; gap:16px;
-}
-@media(max-width:640px){ .etf-wrap{ padding:14px 12px 80px; } }
+.etf-wrap{width:100%;min-height:100%;box-sizing:border-box;padding:20px 24px 40px;display:flex;flex-direction:column;gap:16px;font-family:var(--font-kr,sans-serif)}
+@media(max-width:640px){.etf-wrap{padding:14px 12px 80px}}
 
-/* ── 탭 ─────────────────────────────────── */
-.etf-tabs-row{ display:flex; gap:6px; flex-wrap:wrap; }
-.etf-tab{
-  padding:8px 18px; border:1.5px solid #e2e8f0; border-radius:20px;
-  background:white; font-size:13px; font-weight:500; color:#64748b;
-  cursor:pointer; font-family:var(--font-kr,sans-serif); transition:all .12s;
-}
-.etf-tab:hover{ border-color:#2563eb; color:#2563eb; }
-.etf-tab.active{ background:#2563eb; border-color:#2563eb; color:white; font-weight:700; }
+.etf-tabs-row{display:flex;gap:6px;flex-wrap:wrap}
+.etf-tab{padding:8px 18px;border:1.5px solid #e2e8f0;border-radius:20px;background:white;font-size:13px;font-weight:500;color:#64748b;cursor:pointer;font-family:var(--font-kr,sans-serif);transition:all .12s}
+.etf-tab:hover{border-color:#2563eb;color:#2563eb}
+.etf-tab.active{background:#2563eb;border-color:#2563eb;color:white;font-weight:700}
 
-/* ── 섹션 ───────────────────────────────── */
-.etf-section{
-  background:white; border:1px solid #e2e8f0; border-radius:16px;
-  padding:20px; display:flex; flex-direction:column; gap:14px;
-  box-shadow:0 2px 8px rgba(0,0,0,.04);
-}
+/* ── 테마 2열 레이아웃 ─────────────────── */
+.etf-theme-layout{display:grid;grid-template-columns:360px 1fr;gap:16px;align-items:start}
+@media(max-width:900px){.etf-theme-layout{grid-template-columns:1fr}}
 
-/* ── 필터 ───────────────────────────────── */
-.etf-filter-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.etf-company-chips{ display:flex; gap:5px; flex-wrap:wrap; flex:1; }
-.etf-chip{
-  padding:5px 12px; border:1.5px solid #e2e8f0; border-radius:16px;
-  background:white; font-size:12px; color:#64748b;
-  cursor:pointer; font-family:var(--font-kr,sans-serif); transition:all .12s; white-space:nowrap;
-}
-.etf-chip:hover{ border-color:#2563eb; color:#2563eb; }
-.etf-chip.active{ background:#2563eb; border-color:#2563eb; color:white; font-weight:700; }
+.etf-theme-left{display:flex;flex-direction:column;gap:12px}
+.etf-theme-filter{display:flex;gap:5px;flex-wrap:wrap}
+.etf-chip{padding:5px 12px;border:1.5px solid #e2e8f0;border-radius:16px;background:white;font-size:12px;color:#64748b;cursor:pointer;font-family:var(--font-kr,sans-serif);transition:all .12s;white-space:nowrap}
+.etf-chip:hover{border-color:#2563eb;color:#2563eb}
+.etf-chip.active{background:#2563eb;border-color:#2563eb;color:white;font-weight:700}
 
-.etf-search-wrap{ display:flex; gap:6px; }
-.etf-search-input{
-  padding:7px 12px; border:1px solid #e2e8f0; border-radius:8px;
-  font-size:13px; font-family:var(--font-kr,sans-serif); outline:none; min-width:160px;
-}
-.etf-search-input:focus{ border-color:#2563eb; }
-.etf-refresh-btn{
-  padding:7px 12px; border:1px solid #e2e8f0; border-radius:8px;
-  background:white; font-size:12px; cursor:pointer; color:#475569;
-  font-family:var(--font-kr,sans-serif); transition:all .1s; white-space:nowrap;
-}
-.etf-refresh-btn:hover{ border-color:#2563eb; color:#2563eb; }
-.etf-refresh-btn:disabled{ opacity:.5; cursor:not-allowed; }
+.etf-theme-list{display:flex;flex-direction:column;gap:8px;max-height:70vh;overflow-y:auto}
+.etf-theme-card{border:1.5px solid #e2e8f0;border-left:4px solid var(--tc,#2563eb);border-radius:12px;padding:12px 14px;background:white;display:flex;flex-direction:column;gap:6px}
+.etf-theme-header{display:flex;align-items:center;gap:7px;margin-bottom:2px}
+.etf-theme-emoji{font-size:15px}
+.etf-theme-label{font-size:13px;font-weight:700}
 
-/* ── 전체 ETF 테이블 ────────────────────── */
-.etf-table-wrap{ overflow-x:auto; }
-.etf-count{ font-size:11px; color:#94a3b8; margin-bottom:8px; }
-.etf-table{ min-width:600px; }
-.etf-th{
-  display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;
-  padding:8px 14px; background:#f8fafc; border-radius:8px;
-  font-size:10px; font-weight:700; color:#94a3b8;
-  text-transform:uppercase; letter-spacing:.04em; gap:8px; margin-bottom:4px;
-}
-.etf-th .sortable{ cursor:pointer; }
-.etf-th .sortable:hover{ color:#475569; }
-.etf-row{
-  display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;
-  padding:10px 14px; border-bottom:1px solid #f1f5f9;
-  align-items:center; gap:8px; cursor:pointer; transition:background .1s;
-}
-.etf-row:hover{ background:#f8faff; }
-.etf-row:last-child{ border-bottom:none; }
-.etf-row-nm{ font-size:13px; font-weight:600; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.etf-row-cd{ font-size:10px; color:#94a3b8; font-family:monospace; }
-.etf-row-price,.etf-row-change,.etf-row-nav,.etf-row-gap,.etf-row-vol{
-  font-size:12px; font-family:monospace; text-align:right;
-}
+/* ETF 버튼 */
+.etf-etf-btn{display:flex;align-items:center;gap:8px;padding:9px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-family:var(--font-kr,sans-serif);transition:all .12s;width:100%;text-align:left}
+.etf-etf-btn:hover{background:color-mix(in srgb,var(--tc,#2563eb) 6%,white);border-color:color-mix(in srgb,var(--tc,#2563eb) 30%,transparent)}
+.etf-etf-btn.active{background:color-mix(in srgb,var(--tc,#2563eb) 10%,white);border-color:var(--tc,#2563eb)}
+.etf-etf-name{font-size:12px;font-weight:600;color:#334155;flex:1}
+.etf-etf-price{font-size:12px;font-weight:700;flex-shrink:0}
+.etf-etf-rate{font-size:10px;margin-left:3px}
+.etf-etf-code{font-size:11px;color:#94a3b8;font-family:monospace}
+.etf-expand-icon{font-size:9px;color:#94a3b8;flex-shrink:0}
 
-/* ── 에러 박스 ──────────────────────────── */
-.etf-error-box{
-  padding:20px; background:#fffbeb; border:1px solid #fde68a;
-  border-radius:10px; display:flex; flex-direction:column; gap:8px; color:#92400e; font-size:13px;
-}
-.etf-error-sub{ font-size:12px; color:#b45309; }
-.etf-naver-link{
-  display:inline-block; padding:8px 16px; background:#2563eb; color:white;
-  border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; width:fit-content;
-}
+/* ── 오른쪽 패널 ───────────────────────── */
+.etf-theme-right{position:sticky;top:16px}
+.etf-right-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:60px 24px;background:white;border:1px solid #e2e8f0;border-radius:16px;color:#94a3b8;font-size:13px;text-align:center;min-height:300px}
+.etf-right-empty-icon{font-size:40px;opacity:.4}
+.etf-detail-panel{background:white;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.04);display:flex;flex-direction:column;gap:0}
 
-/* ── 테마별 ─────────────────────────────── */
-.etf-theme-filter{ display:flex; gap:5px; flex-wrap:wrap; }
-.etf-theme-notice{
-  font-size:12px; color:#64748b; padding:10px 14px;
-  background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px;
-}
-.etf-theme-grid{
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px;
-}
-@media(max-width:640px){ .etf-theme-grid{ grid-template-columns:1fr; } }
+.etf-detail-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid #f1f5f9;flex-wrap:wrap}
+.etf-detail-name{font-size:17px;font-weight:800;color:#0f172a}
+.etf-detail-code{font-size:12px;color:#94a3b8;font-family:monospace;margin-top:2px}
+.etf-detail-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.etf-detail-price{font-size:16px;font-weight:700;display:flex;align-items:baseline;gap:6px}
+.etf-detail-rate{font-size:13px;font-weight:600}
+.etf-btn-chart{padding:6px 12px;background:#0d9488;color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-kr,sans-serif);transition:opacity .1s}
+.etf-btn-chart:hover{opacity:.85}
 
-/* ── 테마 카드 ──────────────────────────── */
-.etf-theme-card{
-  border:1.5px solid #e2e8f0; border-left:4px solid var(--tc,#2563eb);
-  border-radius:12px; padding:14px 16px;
-  display:flex; flex-direction:column; gap:8px;
-}
-.etf-theme-header{ display:flex; align-items:center; gap:7px; margin-bottom:2px; }
-.etf-theme-emoji { font-size:16px; }
-.etf-theme-label { font-size:14px; font-weight:700; }
+/* 구성종목 */
+.etf-stocks-section{padding:14px 18px;border-bottom:1px solid #f1f5f9}
+.etf-stocks-title{font-size:12px;font-weight:700;color:#0f172a;margin-bottom:8px}
+.etf-stocks-list{display:flex;flex-direction:column;gap:4px}
+.etf-stock-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-family:var(--font-kr,sans-serif);transition:background .1s;width:100%;text-align:left}
+.etf-stock-item:hover{background:#eff6ff;border-color:#bfdbfe}
+.etf-stock-name{font-size:13px;font-weight:600;color:#0f172a;flex:1}
+.etf-stock-price{font-size:13px;font-weight:700;font-family:monospace;flex-shrink:0}
+.etf-stock-rate{font-size:11px;font-family:monospace;flex-shrink:0;min-width:50px;text-align:right}
+.etf-stock-code{font-size:11px;color:#94a3b8;font-family:monospace}
+.etf-stock-arrow{font-size:11px;color:#cbd5e1;flex-shrink:0}
 
-.etf-theme-etf-wrap{ display:flex; flex-direction:column; }
+/* AI */
+.etf-ai-section{padding:14px 18px;border-bottom:1px solid #f1f5f9}
+.etf-ai-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.etf-ai-title{font-size:13px;font-weight:700;color:#0f172a}
+.etf-ai-btn{padding:6px 12px;background:#2563eb;color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-kr,sans-serif);transition:opacity .1s}
+.etf-ai-btn:hover{opacity:.85}
+.etf-ai-btn:disabled{opacity:.5;cursor:not-allowed}
+.etf-ai-warn{padding:8px 12px;background:#fffbeb;color:#92400e;font-size:12px;border-radius:6px;margin-bottom:8px}
+.etf-ai-error{padding:8px 12px;background:#fef2f2;color:#dc2626;font-size:12px;border-radius:6px;margin-bottom:8px}
+.etf-ai-loading{display:flex;align-items:center;gap:8px;padding:16px 0;color:#64748b;font-size:13px}
+.etf-spinner{width:18px;height:18px;border:2px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.etf-ai-result{background:#f8faff;border:1px solid #dbeafe;border-radius:8px;padding:12px}
+.etf-ai-badge{font-size:11px;color:#16a34a;font-weight:600;margin-bottom:8px}
+.etf-ai-text{white-space:pre-wrap;font-family:var(--font-kr,sans-serif);font-size:13px;line-height:1.9;color:#0f172a}
+.etf-ai-placeholder{padding:16px 0;text-align:center;color:#94a3b8;font-size:13px}
 
-/* ETF 행 버튼 */
-.etf-theme-item{
-  display:flex; align-items:center; gap:8px;
-  padding:9px 10px; background:#f8fafc; border:1px solid #e2e8f0;
-  border-radius:8px; cursor:pointer; font-family:var(--font-kr,sans-serif);
-  transition:all .12s; width:100%; text-align:left; margin-bottom:4px;
-}
-.etf-theme-item:hover,
-.etf-theme-item.open{
-  background:color-mix(in srgb,var(--tc,#2563eb) 6%,white);
-  border-color:color-mix(in srgb,var(--tc,#2563eb) 30%,transparent);
-}
-.etf-theme-item-name{ font-size:12px; font-weight:600; color:#334155; flex:1; }
-.etf-theme-item-code{ font-size:11px; color:#94a3b8; font-family:monospace; }
-.etf-theme-item-price{ font-size:12px; font-weight:700; text-align:right; flex-shrink:0; }
-.etf-theme-item-rate{ font-size:10px; margin-left:3px; }
-.etf-theme-expand{ font-size:9px; color:#94a3b8; flex-shrink:0; }
+/* 외부 링크 */
+.etf-ext-links{display:flex;gap:8px;flex-wrap:wrap;padding:14px 18px}
+.etf-ext-link{padding:7px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#475569;text-decoration:none;transition:all .12s}
+.etf-ext-link:hover{background:#eff6ff;border-color:#bfdbfe;color:#2563eb}
 
-/* ── 구성종목 펼치기 ────────────────────── */
-.etf-stocks-expanded{
-  background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px;
-  padding:10px 12px; margin-bottom:6px;
-  display:flex; flex-direction:column; gap:4px;
-}
-.etf-stocks-label{ font-size:11px; font-weight:700; color:#0369a1; margin-bottom:6px; }
-.etf-stock-row{
-  display:flex; align-items:center; gap:8px; padding:6px 8px;
-  background:white; border:1px solid #e0f2fe; border-radius:6px;
-  cursor:pointer; font-family:var(--font-kr,sans-serif); transition:background .1s;
-  width:100%; text-align:left;
-}
-.etf-stock-row:hover{ background:#eff6ff; }
-.etf-stock-name { font-size:12px; font-weight:600; color:#0f172a; flex:1; }
-.etf-stock-price{ font-size:12px; font-weight:700; font-family:monospace; flex-shrink:0; }
-.etf-stock-rate { font-size:11px; font-family:monospace; flex-shrink:0; min-width:54px; text-align:right; }
-.etf-stock-code { font-size:11px; color:#94a3b8; font-family:monospace; }
-.etf-stocks-actions{ display:flex; gap:6px; margin-top:6px; }
-.etf-chart-btn, .etf-analyze-btn{
-  flex:1; padding:7px 10px; border-radius:8px;
-  font-size:12px; font-weight:600; cursor:pointer;
-  font-family:var(--font-kr,sans-serif); transition:opacity .1s;
-}
-.etf-chart-btn{
-  background:#0d9488; color:white; border:none;
-}
-.etf-analyze-btn{
-  background:#2563eb; color:white; border:none;
-}
-.etf-chart-btn:hover, .etf-analyze-btn:hover{ opacity:.85; }
-
-/* ── 분석 탭 ────────────────────────────── */
-.etf-analysis-wrap{ display:flex; flex-direction:column; gap:16px; }
-.etf-analysis-header{
-  display:flex; align-items:flex-start; justify-content:space-between;
-  gap:12px; flex-wrap:wrap; padding-bottom:16px; border-bottom:1px solid #f1f5f9;
-}
-.etf-analysis-name{ font-size:20px; font-weight:800; color:#0f172a; }
-.etf-analysis-code{ font-size:12px; color:#94a3b8; font-family:monospace; margin-top:2px; }
-.etf-analysis-idx { font-size:12px; color:#64748b; margin-top:4px; }
-.etf-analysis-actions{ display:flex; align-items:center; gap:8px; }
-.etf-analysis-price{ font-size:18px; font-weight:700; display:flex; align-items:baseline; gap:8px; }
-.etf-analysis-change{ font-size:13px; font-weight:600; }
-.etf-btn-chart{
-  padding:7px 14px; background:#0d9488; color:white; border:none;
-  border-radius:8px; font-size:12px; font-weight:600; cursor:pointer;
-  font-family:var(--font-kr,sans-serif); transition:opacity .1s;
-}
-.etf-btn-chart:hover{ opacity:.85; }
-.etf-btn-clear{
-  padding:6px 10px; background:none; border:1px solid #e2e8f0;
-  border-radius:8px; cursor:pointer; color:#94a3b8; font-size:14px; transition:all .1s;
-}
-.etf-btn-clear:hover{ background:#fef2f2; color:#dc2626; }
-
-/* ── 구성종목 분석 탭 ───────────────────── */
-.etf-comp-section{
-  border:1px solid #e2e8f0; border-radius:10px; overflow:hidden;
-}
-.etf-comp-title{
-  padding:12px 16px; background:#f8fafc;
-  font-size:13px; font-weight:700; color:#0f172a;
-  border-bottom:1px solid #e2e8f0;
-}
-.etf-comp-grid{
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:0;
-}
-.etf-comp-item{
-  display:flex; align-items:center; gap:8px; padding:10px 14px;
-  border-bottom:1px solid #f1f5f9; border-right:1px solid #f1f5f9;
-  cursor:pointer; font-family:var(--font-kr,sans-serif); transition:background .1s;
-  background:white; text-align:left;
-}
-.etf-comp-item:hover{ background:#f8faff; }
-.etf-comp-name { font-size:13px; font-weight:600; color:#0f172a; flex:1; }
-.etf-comp-price{ font-size:12px; font-weight:700; font-family:monospace; }
-.etf-comp-rate { font-size:11px; font-family:monospace; }
-.etf-comp-code { font-size:11px; color:#94a3b8; font-family:monospace; }
-
-/* ── AI ─────────────────────────────────── */
-.etf-ai-section{ border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
-.etf-ai-header{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:12px 16px; background:#f8fafc; border-bottom:1px solid #e2e8f0;
-}
-.etf-ai-title{ font-size:13px; font-weight:700; color:#0f172a; }
-.etf-ai-btn{
-  padding:6px 14px; background:#2563eb; color:white; border:none;
-  border-radius:8px; font-size:12px; font-weight:600; cursor:pointer;
-  font-family:var(--font-kr,sans-serif); transition:opacity .1s;
-}
-.etf-ai-btn:hover{ opacity:.85; }
-.etf-ai-btn:disabled{ opacity:.5; cursor:not-allowed; }
-.etf-ai-warn    { padding:10px 16px; background:#fffbeb; color:#92400e; font-size:13px; }
-.etf-ai-error   { padding:10px 16px; background:#fef2f2; color:#dc2626; font-size:13px; }
-.etf-ai-loading { display:flex; align-items:center; gap:10px; padding:20px 16px; color:#64748b; font-size:13px; }
-.etf-spinner    { width:20px; height:20px; border:2px solid #e2e8f0; border-top-color:#2563eb; border-radius:50%; animation:spin .8s linear infinite; }
-@keyframes spin{ to{ transform:rotate(360deg); } }
-.etf-ai-result  { padding:16px; }
-.etf-ai-badge   { font-size:11px; color:#16a34a; font-weight:600; margin-bottom:10px; }
-.etf-ai-text    { white-space:pre-wrap; font-family:var(--font-kr,sans-serif); font-size:13px; line-height:1.9; color:#0f172a; }
-.etf-ai-placeholder{ padding:24px 16px; text-align:center; color:#94a3b8; font-size:13px; }
-
-/* ── 기타 ───────────────────────────────── */
-.etf-ext-links{ display:flex; gap:8px; flex-wrap:wrap; }
-.etf-ext-link{
-  padding:8px 14px; background:#f8fafc; border:1px solid #e2e8f0;
-  border-radius:8px; font-size:13px; color:#475569; text-decoration:none; transition:all .12s;
-}
-.etf-ext-link:hover{ background:#eff6ff; border-color:#bfdbfe; color:#2563eb; }
-.etf-loading { padding:32px; text-align:center; color:#94a3b8; font-size:13px; }
-.etf-empty   { padding:32px; text-align:center; color:#94a3b8; font-size:13px; }
-.etf-select-guide{
-  text-align:center; padding:48px; color:#64748b;
-  display:flex; flex-direction:column; align-items:center; gap:16px; font-size:14px;
-}
+/* ── 전체 ETF 탭 ─────────────────────────── */
+.etf-section{background:white;border:1px solid #e2e8f0;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.etf-filter-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.etf-company-chips{display:flex;gap:5px;flex-wrap:wrap;flex:1}
+.etf-search-wrap{display:flex;gap:6px}
+.etf-search-input{padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:var(--font-kr,sans-serif);outline:none;min-width:160px}
+.etf-search-input:focus{border-color:#2563eb}
+.etf-refresh-btn{padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;background:white;font-size:12px;cursor:pointer;color:#475569;font-family:var(--font-kr,sans-serif);transition:all .1s;white-space:nowrap}
+.etf-refresh-btn:hover{border-color:#2563eb;color:#2563eb}
+.etf-refresh-btn:disabled{opacity:.5;cursor:not-allowed}
+.etf-table-wrap{overflow-x:auto}
+.etf-count{font-size:11px;color:#94a3b8;margin-bottom:8px}
+.etf-table{min-width:600px}
+.etf-th{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;padding:8px 14px;background:#f8fafc;border-radius:8px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;gap:8px;margin-bottom:4px}
+.etf-th .sortable{cursor:pointer}
+.etf-th .sortable:hover{color:#475569}
+.etf-row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;padding:10px 14px;border-bottom:1px solid #f1f5f9;align-items:center;gap:8px;cursor:pointer;transition:background .1s}
+.etf-row:hover{background:#f8faff}
+.etf-row:last-child{border-bottom:none}
+.etf-row-nm{font-size:13px;font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.etf-row-cd{font-size:10px;color:#94a3b8;font-family:monospace}
+.etf-row-price,.etf-row-change,.etf-row-nav,.etf-row-gap,.etf-row-vol{font-size:12px;font-family:monospace;text-align:right}
+.etf-error-box{padding:16px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;display:flex;flex-direction:column;gap:8px;color:#92400e;font-size:13px}
+.etf-naver-link{display:inline-block;padding:8px 16px;background:#2563eb;color:white;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;width:fit-content}
+.etf-loading{padding:32px;text-align:center;color:#94a3b8;font-size:13px}
+.etf-empty{padding:32px;text-align:center;color:#94a3b8;font-size:13px}
