@@ -1,0 +1,230 @@
+/* GlobalChartModal.css */
+
+.gcm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 16px;
+}
+
+.gcm-modal {
+  background: #0f172a;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 900px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 헤더 ── */
+.gcm-header {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gcm-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.gcm-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+.gcm-price {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+.gcm-rate {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gcm-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* 기간 탭 */
+.gcm-range-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 3px;
+}
+.gcm-range-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.gcm-range-btn:hover { background: rgba(255,255,255,0.07); color: #e2e8f0; }
+.gcm-range-btn.active {
+  background: #3b82f6;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* 차트 타입 탭 */
+.gcm-type-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 3px;
+}
+.gcm-type-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.gcm-type-btn:hover { background: rgba(255,255,255,0.07); color: #e2e8f0; }
+.gcm-type-btn.active {
+  background: rgba(99,102,241,0.3);
+  color: #a5b4fc;
+  font-weight: 700;
+  border: 1px solid rgba(99,102,241,0.4);
+}
+
+.gcm-close {
+  margin-left: auto;
+  background: rgba(255,255,255,0.06);
+  border: none;
+  color: #94a3b8;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.gcm-close:hover { background: rgba(255,255,255,0.12); color: #e2e8f0; }
+
+/* ── 차트 본문 ── */
+.gcm-body {
+  padding: 16px 20px;
+  min-height: 340px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gcm-loading, .gcm-error, .gcm-no-data {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #64748b;
+  font-size: 14px;
+}
+.gcm-error { color: #f87171; }
+.gcm-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255,255,255,0.1);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: gcm-spin 0.8s linear infinite;
+}
+@keyframes gcm-spin { to { transform: rotate(360deg); } }
+
+/* ── SVG 래퍼 ── */
+.gcm-svg-wrap {
+  position: relative;
+  width: 100%;
+}
+.gcm-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+/* 툴팁 */
+.gcm-tooltip {
+  position: absolute;
+  top: 24px;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #e2e8f0;
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.gcm-tt-date {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.gcm-tooltip div { line-height: 1.6; }
+
+/* MA 범례 */
+.gcm-ma-legend {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* ── 푸터 ── */
+.gcm-footer {
+  padding: 8px 20px 12px;
+  font-size: 11px;
+  color: #475569;
+  text-align: right;
+}
+
+/* ── 모바일 ── */
+@media (max-width: 640px) {
+  .gcm-modal { border-radius: 12px; max-height: 90dvh; }
+  .gcm-header { padding: 14px 14px 10px; }
+  .gcm-name  { font-size: 15px; }
+  .gcm-price { font-size: 17px; }
+  .gcm-controls { gap: 8px; }
+  .gcm-range-btn { padding: 4px 8px; font-size: 12px; }
+  .gcm-body { padding: 10px 12px; min-height: 260px; }
+}

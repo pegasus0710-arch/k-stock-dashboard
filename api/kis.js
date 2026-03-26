@@ -426,8 +426,8 @@ export default async function handler(req, res) {
           'WTI':    'CL%3DF',
         }
         const sym      = req.query.symbol || 'SP500'
-        const range    = req.query.range  || '3mo' // 3mo, 6mo, 1y, 2y
-        const interval = range === '1y' ? '1wk' : range === '6mo' ? '1d' : '1d'
+        const range    = req.query.range  || '3mo' // 1mo, 3mo, 6mo, 1y, 2y, 5y
+        const interval = (range === '5y' || range === '2y') ? '1mo' : range === '1y' ? '1wk' : '1d'
         const yahooSym = SYMBOLS[sym] || SYMBOLS['SP500']
         const yRes = await fetch(
           `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${interval}&range=${range}`,
@@ -466,28 +466,45 @@ export default async function handler(req, res) {
 
       // ── 환율 차트 (frankfurter.app) ────────────────────
       case 'forex-chart': {
-        const pair = req.query.pair || 'KRW' // USD/KRW = pair=KRW
-        const days = Number(req.query.days || 90)
-        const to   = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10)
-        const from2 = new Date(Date.now() + 9*60*60*1000 - days*24*60*60*1000).toISOString().slice(0,10)
+        // Yahoo Finance 기반 환율 OHLC (KRW=X, JPY=X, CNY=X)
+        const FOREX_SYMBOLS = {
+          'KRW': 'KRW=X',
+          'JPY': 'JPY=X',
+          'CNY': 'CNY=X',
+          'EUR': 'EUR=X',
+          'GBP': 'GBP=X',
+        }
+        const pair     = req.query.pair  || 'KRW'
+        const range    = req.query.range || '3mo' // 1mo, 3mo, 6mo, 1y, 2y, 5y
+        const interval = (range === '5y' || range === '2y') ? '1mo'
+                       : range === '1y' ? '1wk'
+                       : '1d'
+        const yahooSym = FOREX_SYMBOLS[pair] || 'KRW=X'
         const fRes = await fetch(
-          `https://api.frankfurter.app/${from2}..${to}?from=USD&to=${pair}`
+          `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${interval}&range=${range}`,
+          { headers: { 'User-Agent': 'Mozilla/5.0' } }
         )
-        if (!fRes.ok) throw new Error(`환율 API 오류: ${fRes.status}`)
-        const fData = await fRes.json()
-        const dates   = Object.keys(fData.rates || {}).sort()
-        const candles = dates.map(date => {
-          const v = fData.rates[date]?.[pair] || 0
-          return { date: date.replace(/-/g,''), open:v, high:v, low:v, close:v, volume:0 }
-        }).filter(c => c.close > 0)
-        const first = candles[0]?.close || 0
-        const last  = candles[candles.length-1]?.close || 0
-        return res.json({
-          pair, base:'USD', candles,
-          price:      last,
-          change:     Math.round((last-first)*10000)/10000,
-          changeRate: first ? Math.round((last-first)/first*100*100)/100 : 0,
-        })
+        if (!fRes.ok) throw new Error(`Yahoo 환율 오류: ${fRes.status}`)
+        const fData   = await fRes.json()
+        const result  = fData.chart?.result?.[0]
+        if (!result) throw new Error('환율 데이터 없음')
+        const meta       = result.meta
+        const timestamps = result.timestamp || []
+        const quotes     = result.indicators?.quote?.[0] || {}
+        const r4 = v => Math.round((v||0) * 10000) / 10000
+        const candles = timestamps.map((ts, i) => ({
+          date:   new Date(ts * 1000).toISOString().slice(0,10).replace(/-/g,''),
+          open:   r4(quotes.open?.[i]),
+          high:   r4(quotes.high?.[i]),
+          low:    r4(quotes.low?.[i]),
+          close:  r4(quotes.close?.[i]),
+          volume: quotes.volume?.[i] || 0,
+        })).filter(c => c.close > 0)
+        const price    = r4(meta.regularMarketPrice)
+        const prevClose= r4(meta.regularMarketPreviousClose || meta.chartPreviousClose)
+        const change   = r4(price - prevClose)
+        const changeRate = prevClose ? Math.round(change / prevClose * 100 * 100) / 100 : 0
+        return res.json({ pair, candles, price, change, changeRate })
       }
 
       case 'price': {

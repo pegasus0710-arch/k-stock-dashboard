@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import StockChartModal from '../components/StockChartModal'
 import ChartModal from '../components/ChartModal'
+import GlobalChartModal from '../components/GlobalChartModal'
 import { ALL_THEMES, DEFAULT_ACTIVE_IDS } from '../constants/themes'
 import { fmt, fmtRate, fmtChange, rateColor, getTodayStr, getNowTime, getKstStatus, isMarketOpen, isUSMarketOpen, getDashTTL } from '../utils/format'
 import './DashboardPage.css'
@@ -592,7 +593,17 @@ export default function DashboardPage() {
     if (chartItem.type === 'index') return (
       <ChartModal isIndex inds_cd={marketToInds(chartItem.market)} name={chartItem.label} initialPeriod="day" onClose={() => setChartItem(null)}/>
     )
-    return <LegacyChartModal item={chartItem} onClose={() => setChartItem(null)}/>
+    // 환율 or 해외지수 → GlobalChartModal (캔들+라인, 기간 탭)
+    return (
+      <GlobalChartModal
+        type={chartItem.type === 'forex' ? 'forex' : 'global'}
+        symbol={chartItem.type === 'forex' ? chartItem.pair : chartItem.sym}
+        name={chartItem.label}
+        currentPrice={chartItem.price}
+        changeRate={chartItem.changeRate}
+        onClose={() => setChartItem(null)}
+      />
+    )
   }
 
   return (
