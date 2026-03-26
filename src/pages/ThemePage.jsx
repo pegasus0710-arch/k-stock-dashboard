@@ -157,7 +157,13 @@ export default function ThemePage() {
   const [aiError, setError]         = useState('')
   const [chartStock, setChartStock] = useState(null)
 
+  // 현재 테마 종목 코드 → 실시간 가격
   const theme    = THEMES.find(t => t.id === activeId)
+  const allCodes = useMemo(() => [
+    ...theme.etf.map(e => e.code),
+    ...theme.stocks.map(s => s.code),
+  ], [theme.id])
+  const { prices } = useStockPrices(allCodes)
   const analysis = aiCache[theme.id]
 
   const handleTheme = (id) => { setActiveId(id); setError('') }
@@ -269,20 +275,31 @@ export default function ThemePage() {
                 <span className="section-title">대표 종목</span>
               </div>
               <div className="card-grid">
-                {theme.stocks.map(s => (
-                  <button key={s.code} className="stock-card"
-                    style={{'--sc': theme.color}}
-                    onClick={() => setChartStock({ name: s.name, code: s.code })}>
-                    <div className="stock-card-top">
-                      <span className="stock-card-name">{s.name}</span>
-                      <span className="stock-card-code">{s.code}</span>
-                    </div>
-                    <p className="stock-card-desc">{s.desc}</p>
-                    <div className="stock-card-links">
-                      <span className="stock-link-chip">📈 차트 보기</span>
-                    </div>
-                  </button>
-                ))}
+                {theme.stocks.map(s => {
+                  const p  = prices[s.code]
+                  const pc = p ? rateColor(p.changeRate) : '#94a3b8'
+                  const sign = p?.changeRate > 0 ? '+' : ''
+                  return (
+                    <button key={s.code} className="stock-card"
+                      style={{'--sc': theme.color}}
+                      onClick={() => setChartStock({ name: s.name, code: s.code })}>
+                      <div className="stock-card-top">
+                        <span className="stock-card-name">{s.name}</span>
+                        <span className="stock-card-code">{s.code}</span>
+                      </div>
+                      <p className="stock-card-desc">{s.desc}</p>
+                      {p?.price > 0
+                        ? <div className="stock-card-price" style={{color: pc}}>
+                            {fmt(p.price)}원
+                            <span className="stock-card-rate"> {sign}{p.changeRate?.toFixed(2)}%</span>
+                          </div>
+                        : <div className="stock-card-price" style={{color:'#94a3b8'}}>—</div>}
+                      <div className="stock-card-links">
+                        <span className="stock-link-chip">📈 차트 보기</span>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
@@ -294,18 +311,27 @@ export default function ThemePage() {
             <div className="card-section">
               <div className="section-title">관련 ETF</div>
               <div className="etf-list">
-                {theme.etf.map(e => (
-                  <button key={e.code}
-                    className="etf-card" style={{'--tc': theme.color}}
-                    onClick={() => setChartStock({ name: e.name, code: e.code })}>
-                    <div className="etf-dot" style={{background: theme.color}}/>
-                    <div>
-                      <div className="etf-name">{e.name}</div>
-                      <div className="etf-code">{e.code}</div>
-                    </div>
-                    <span className="etf-arrow">→</span>
-                  </button>
-                ))}
+                {theme.etf.map(e => {
+                  const p  = prices[e.code]
+                  const pc = p ? rateColor(p.changeRate) : '#94a3b8'
+                  const sign = p?.changeRate > 0 ? '+' : ''
+                  return (
+                    <button key={e.code}
+                      className="etf-card" style={{'--tc': theme.color}}
+                      onClick={() => setChartStock({ name: e.name, code: e.code })}>
+                      <div className="etf-dot" style={{background: theme.color}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div className="etf-name">{e.name}</div>
+                        {p?.price > 0
+                          ? <div style={{fontSize:'12px',fontWeight:700,color:pc,marginTop:2}}>
+                              {fmt(p.price)}원 <span style={{fontSize:'10px'}}>{sign}{p.changeRate?.toFixed(2)}%</span>
+                            </div>
+                          : <div className="etf-code">{e.code}</div>}
+                      </div>
+                      <span className="etf-arrow">→</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 

@@ -6,22 +6,19 @@ import './mobile-cards.css'
 import LoginPage           from './auth/LoginPage'
 import DashboardPage       from './pages/DashboardPage'
 import MarketPage          from './pages/MarketPage'
-import ThemePage           from './pages/ThemePage'
 import WatchlistPage       from './pages/WatchlistPage'
 import PortfolioPage       from './pages/PortfolioPage'
 import TradingLogPage      from './pages/TradingLogPage'
 import NewsPage            from './pages/NewsPage'
 import ChartAnalysisPage   from './pages/ChartAnalysisPage'
 import ETFPage             from './pages/ETFPage'
-
-import BottomTabBar from './components/BottomTabBar'
+import BottomTabBar        from './components/BottomTabBar'
 
 const NAV_ITEMS = [
   { id: 'dashboard',  label: '대시보드',   sub: '시장 전체 현황', icon: '📊' },
   { id: 'chart',      label: '차트 분석',  sub: '종목 검색·차트', icon: '📈' },
   { id: 'market',     label: '시장·업종',  sub: '지수·수급·업종', icon: '🏛️' },
   { id: 'etf',        label: 'ETF',        sub: 'ETF 시세·분석',  icon: '📦' },
-  { id: 'theme',      label: '테마',        sub: '7대 테마 분석',  icon: '🎯' },
   { id: 'watchlist',  label: '관심종목',   sub: '찜한 종목 모음', icon: '⭐' },
   { id: 'portfolio',  label: '포트폴리오', sub: '보유종목·손익',  icon: '💼' },
   { id: 'tradinglog', label: '매매일지',   sub: '자동생성 일지',  icon: '📓' },
@@ -33,7 +30,6 @@ const PAGES = {
   chart:      ChartAnalysisPage,
   market:     MarketPage,
   etf:        ETFPage,
-  theme:      ThemePage,
   watchlist:  WatchlistPage,
   portfolio:  PortfolioPage,
   tradinglog: TradingLogPage,
@@ -118,7 +114,7 @@ export default function App() {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="sidebar-version">K-Stock v0.4</div>
+          <div className="sidebar-version">K-Stock v0.5</div>
           <button className="sidebar-logout" onClick={logout}>🚪 로그아웃</button>
         </div>
       </aside>
@@ -147,7 +143,6 @@ export default function App() {
         </main>
       </div>
 
-      {/* 모바일 하단 탭바 */}
       <BottomTabBar page={activePage} onNavigate={goTo}/>
     </div>
   )

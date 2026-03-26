@@ -24,6 +24,32 @@ const THEME_ETFS = ALL_THEMES.map(t => ({
   stocks: t.stocks.map(s => ({ ...s })),
 }))
 
+// ── ETF 자산군 카테고리 ──────────────────────
+const CATEGORIES = [
+  { id:'all',      label:'전체'       },
+  { id:'domestic', label:'국내주식'   },
+  { id:'overseas', label:'해외주식'   },
+  { id:'bond',     label:'채권'       },
+  { id:'leverage', label:'레버리지'   },
+  { id:'inverse',  label:'인버스'     },
+  { id:'dividend', label:'배당'       },
+  { id:'sector',   label:'섹터·테마'  },
+  { id:'commodity',label:'원자재·금'  },
+]
+
+function getCategory(etf) {
+  const nm = (etf.stk_nm || '').toLowerCase()
+  const cl = (etf.stk_cls || '').toLowerCase()
+  if (nm.includes('인버스') || nm.includes('inverse') || nm.includes('-1x') || nm.includes('bear')) return 'inverse'
+  if (nm.includes('레버리지') || nm.includes('2x') || nm.includes('3x') || nm.includes('bull')) return 'leverage'
+  if (nm.includes('배당') || nm.includes('dividend') || nm.includes('월배당')) return 'dividend'
+  if (nm.includes('미국') || nm.includes('중국') || nm.includes('일본') || nm.includes('글로벌') || nm.includes('nasdaq') || nm.includes('s&p') || nm.includes('sp500') || nm.includes('해외') || nm.includes('선진') || nm.includes('신흥')) return 'overseas'
+  if (nm.includes('국채') || nm.includes('회사채') || nm.includes('채권') || nm.includes('bond') || nm.includes('tdf') || nm.includes('단기')) return 'bond'
+  if (nm.includes('금') || nm.includes('원유') || nm.includes('wti') || nm.includes('원자재') || nm.includes('구리') || nm.includes('은 ') || nm.includes('실버')) return 'commodity'
+  if (nm.includes('반도체') || nm.includes('2차전지') || nm.includes('바이오') || nm.includes('방산') || nm.includes('조선') || nm.includes('원전') || nm.includes('it') || nm.includes('ai') || nm.includes('전기차') || nm.includes('수소') || nm.includes('게임') || nm.includes('핀테크') || nm.includes('클라우드') || nm.includes('메타') || nm.includes('소비') || nm.includes('헬스') || nm.includes('건설') || nm.includes('금융') || nm.includes('은행') || nm.includes('보험') || nm.includes('자동차') || nm.includes('화학') || nm.includes('철강') || nm.includes('유통') || nm.includes('통신') || cl.includes('sector')) return 'sector'
+  return 'domestic'
+}
+
 // 코드 → 테마 맵
 const ETF_TO_THEME = {}
 THEME_ETFS.forEach(t => t.etfs.forEach(e => { ETF_TO_THEME[e.code] = t }))
@@ -74,6 +100,7 @@ export default function ETFPage() {
   const [sortBy,      setSortBy]      = useState('volume')
   const [sortDir,     setSortDir]     = useState('desc')
   const [themeFilter, setThemeFilter] = useState('전체')
+  const [category,    setCategory]    = useState('all')
   // 선택된 ETF (테마탭에서)
   const [selEtf,      setSelEtf]      = useState(null)   // { code, name }
   const [chartStock,  setChartStock]  = useState(null)
@@ -103,6 +130,7 @@ export default function ETFPage() {
 
   const filtered = etfList
     .filter(e => !searchQuery || e.stk_nm.includes(searchQuery) || e.stk_cd.includes(searchQuery))
+    .filter(e => category === 'all' || getCategory(e) === category)
     .sort((a, b) => {
       const d = sortDir === 'desc' ? -1 : 1
       if (sortBy === 'volume') return (a.trde_qty - b.trde_qty) * d
@@ -278,6 +306,22 @@ export default function ETFPage() {
             </div>
           </div>
 
+          {/* 자산군 카테고리 탭 */}
+          <div className="etf-category-bar">
+            {CATEGORIES.map(c => (
+              <button key={c.id}
+                className={`etf-category-btn ${category === c.id ? 'active' : ''}`}
+                onClick={() => setCategory(c.id)}>
+                {c.label}
+                {category === c.id && etfList.length > 0 && (
+                  <span className="etf-category-cnt">
+                    {c.id === 'all' ? etfList.length : etfList.filter(e => getCategory(e) === c.id).length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
           {etfLoading && <div className="etf-loading">⟳ ETF 시세 불러오는 중...</div>}
           {etfError && (
             <div className="etf-error-box">
@@ -287,7 +331,7 @@ export default function ETFPage() {
           )}
           {!etfLoading && !etfError && filtered.length > 0 && (
             <div className="etf-table-wrap">
-              <div className="etf-count">{filtered.length}개 ETF</div>
+              <div className="etf-count">{filtered.length}개 ETF {category !== "all" ? `(${CATEGORIES.find(c=>c.id===category)?.label})` : ""}</div>
               <div className="etf-table">
                 <div className="etf-th">
                   <div>종목명</div><div>현재가</div>

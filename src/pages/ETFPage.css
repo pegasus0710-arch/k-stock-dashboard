@@ -108,3 +108,32 @@
 .etf-naver-link{display:inline-block;padding:8px 16px;background:#2563eb;color:white;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;width:fit-content}
 .etf-loading{padding:32px;text-align:center;color:#94a3b8;font-size:13px}
 .etf-empty{padding:32px;text-align:center;color:#94a3b8;font-size:13px}
+
+/* ── 자산군 카테고리 바 ─────────────────────── */
+.etf-category-bar {
+  display: flex; gap: 5px; flex-wrap: wrap;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.etf-category-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 13px; border: 1.5px solid #e2e8f0;
+  border-radius: 16px; background: white;
+  font-size: 12px; font-weight: 500; color: #64748b;
+  cursor: pointer; font-family: var(--font-kr, sans-serif);
+  transition: all .12s; white-space: nowrap;
+}
+.etf-category-btn:hover { border-color: #2563eb; color: #2563eb; }
+.etf-category-btn.active {
+  background: #1e40af; border-color: #1e40af;
+  color: white; font-weight: 700;
+}
+.etf-category-cnt {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  background: rgba(255,255,255,0.25); border-radius: 9px;
+  font-size: 10px; font-weight: 700;
+}
+.etf-category-btn:not(.active) .etf-category-cnt {
+  background: #e2e8f0; color: #64748b;
+}

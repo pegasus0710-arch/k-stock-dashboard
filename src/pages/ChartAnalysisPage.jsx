@@ -438,6 +438,10 @@ export default function ChartAnalysisPage() {
   const [showMA,      setShowMA]      = useState(true)
   const [activeTab,   setActiveTab]   = useState('chart')
   const [showFull,    setShowFull]    = useState(false)
+  const [drawings,    setDrawings]    = useState([])      // 인라인 드로잉
+  const [drawTool,    setDrawTool]    = useState('none')  // 인라인 드로잉 툴
+  const [drawState,   setDrawState]   = useState(null)    // 드로잉 진행 중
+  const [textInput,   setTextInput]   = useState(null)
   const [allCandles,  setAllCandles]  = useState([])
   const [chartLoading,setChartLoading]= useState(false)
   // 수급
@@ -524,6 +528,40 @@ export default function ChartAnalysisPage() {
     finally { setAiLoading(false) }
   }
 
+  // 드로잉 저장
+  const saveDrawings = (next) => {
+    setDrawings(next)
+    if (selected) lsSet(`${LS_DRAWINGS}_${selected.code}`, next)
+  }
+
+  // 종목 선택 시 드로잉 불러오기
+  const selectWithDrawings = (stock) => {
+    select(stock)
+    setDrawings(lsGet(`${LS_DRAWINGS}_${stock.code}`, []))
+    setDrawTool('none'); setDrawState(null)
+  }
+
+  // SVG 클릭 핸들러 (인라인)
+  function handleInlineSvgClick({ x, y, idx, price: clickPrice, bx, toY }) {
+    if (drawTool === 'none') return
+    if (drawTool === 'hline') {
+      saveDrawings([...drawings, { type:'hline', price:clickPrice }])
+    } else if (drawTool === 'trend' || drawTool === 'fib') {
+      if (!drawState) {
+        setDrawState({ x1:x, y1:y, price1:clickPrice })
+      } else {
+        if (drawTool === 'trend') {
+          saveDrawings([...drawings, { type:'trend', x1:drawState.x1, y1:drawState.y1, x2:x, y2:y }])
+        } else {
+          saveDrawings([...drawings, { type:'fib', x1:drawState.x1, y1:drawState.y1, x2:x, y2:y, price1:drawState.price1, price2:clickPrice }])
+        }
+        setDrawState(null)
+      }
+    } else if (drawTool === 'text') {
+      setTextInput({ x, y, price: clickPrice })
+    }
+  }
+
   const pc   = price ? rateColor(price.changeRate) : '#94a3b8'
   const sign = price?.changeRate > 0 ? '+' : ''
 
@@ -558,12 +596,12 @@ export default function ChartAnalysisPage() {
         </div>
         {!selected && recent.length > 0 && (
           <div className="cap-chips-row"><span className="cap-chip-label">최근</span>
-            {recent.map(r => <button key={r.code} className="cap-chip" onClick={() => select(r)}>{r.name}</button>)}
+            {recent.map(r => <button key={r.code} className="cap-chip" onClick={() => selectWithDrawings(r)}>{r.name}</button>)}
           </div>
         )}
         {!selected && watchlist.length > 0 && (
           <div className="cap-chips-row"><span className="cap-chip-label">⭐ 즐겨찾기</span>
-            {watchlist.map(w => <button key={w.code} className="cap-chip cap-chip-star" onClick={() => select(w)}>{w.name}</button>)}
+            {watchlist.map(w => <button key={w.code} className="cap-chip cap-chip-star" onClick={() => selectWithDrawings(w)}>{w.name}</button>)}
           </div>
         )}
       </div>
@@ -659,12 +697,57 @@ export default function ChartAnalysisPage() {
                 </div>
               )}
 
+              {/* 드로잉 툴바 */}
+              <div className="cap-draw-bar">
+                {[
+                  { id:'none',  label:'🖱️ 선택'  },
+                  { id:'hline', label:'━ 수평선' },
+                  { id:'trend', label:'↗ 추세선' },
+                  { id:'fib',   label:'🔢 피보나치' },
+                  { id:'text',  label:'📝 메모'  },
+                ].map(t => (
+                  <button key={t.id}
+                    className={`cap-draw-btn ${drawTool === t.id ? 'active' : ''}`}
+                    title={t.label}
+                    onClick={() => { setDrawTool(t.id); setDrawState(null) }}>
+                    {t.label}
+                  </button>
+                ))}
+                {drawings.length > 0 && (
+                  <button className="cap-draw-btn cap-draw-del"
+                    onClick={() => { saveDrawings([]); setDrawState(null) }}
+                    title="드로잉 초기화">
+                    🗑 초기화
+                  </button>
+                )}
+                {drawState && (
+                  <span className="cap-draw-hint">
+                    {drawTool === 'trend' ? '2번째 점 클릭' : drawTool === 'fib' ? '끝점 클릭' : ''}
+                  </span>
+                )}
+              </div>
+
               {/* 인라인 차트 */}
-              <div className="cap-chart-area">
+              <div className="cap-chart-area" style={{cursor: drawTool !== 'none' ? 'crosshair' : 'default'}}>
                 {chartLoading
                   ? <div className="cap-chart-loading"><div className="cap-spinner"/>차트 불러오는 중...</div>
-                  : <ChartRenderer candles={candles} showMA={showMA} enabledMA={enabledMA} drawings={[]} isFullscreen={false}/>}
+                  : <ChartRenderer candles={candles} showMA={showMA} enabledMA={enabledMA} drawings={drawings} onSvgClick={handleInlineSvgClick} isFullscreen={false}/>}
               </div>
+
+              {/* 텍스트 메모 입력 */}
+              {textInput && (
+                <div className="cap-text-popup-inline">
+                  <input autoFocus className="cap-text-input" placeholder="메모 입력 후 Enter"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && e.target.value.trim()) {
+                        saveDrawings([...drawings, { type:'text', price:textInput.price, bxVal:textInput.x, text:e.target.value.trim() }])
+                        setTextInput(null); setDrawTool('none')
+                      }
+                      if (e.key === 'Escape') setTextInput(null)
+                    }}/>
+                  <button className="cap-text-cancel" onClick={() => setTextInput(null)}>✕</button>
+                </div>
+              )}
 
               {/* 링크 */}
               <div className="cap-links-row">
