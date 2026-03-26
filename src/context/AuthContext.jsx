@@ -18,7 +18,7 @@ export function AuthProvider({ children }) {
     let unsubAuth = null
     let done = false
 
-    const startAuthListener = () => {
+    const startListener = () => {
       if (done) return
       unsubAuth = onAuthStateChanged(auth, (u) => {
         if (u) {
@@ -34,22 +34,21 @@ export function AuthProvider({ children }) {
           setUser(null)
         }
         setLoading(false)
-        sessionStorage.removeItem('pendingRedirect')
       })
     }
 
-    // redirect 복귀 처리: finally로 항상 리스너 시작 보장
+    // getRedirectResult 완료 후 리스너 시작 (race condition 방지)
     getRedirectResult(auth)
       .then((result) => {
         if (result?.user) {
-          console.log('[Auth] redirect 성공:', result.user.email)
+          console.log('[Auth] redirect 로그인 성공:', result.user.email)
         }
       })
       .catch((err) => {
-        console.warn('[Auth] getRedirectResult 에러:', err?.code)
+        console.warn('[Auth] redirect 처리 에러 (무시 가능):', err?.code)
       })
       .finally(() => {
-        startAuthListener()
+        startListener()
       })
 
     return () => {

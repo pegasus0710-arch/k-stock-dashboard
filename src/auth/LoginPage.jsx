@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth'
+import { signInWithPopup, signInWithRedirect } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase'
 import { useAuth } from '../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
 import './LoginPage.css'
 
 const IS_LOCAL = window.location.hostname === 'localhost' ||
@@ -10,32 +11,26 @@ const IS_LOCAL = window.location.hostname === 'localhost' ||
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
-  const { denied } = useAuth()
+  const { user, denied } = useAuth()
+  const navigate = useNavigate()
 
-  // redirect 복귀 시 로딩 상태 표시
+  // ✅ 핵심: 이미 로그인된 상태면 대시보드로 이동
   useEffect(() => {
-    // URL에 redirect 파라미터가 있으면 로그인 처리 중
-    if (window.location.href.includes('__/auth/handler') ||
-        sessionStorage.getItem('pendingRedirect') === 'true') {
-      setLoading(true)
+    if (user) {
+      navigate('/dashboard', { replace: true })
     }
-  }, [])
+  }, [user])
 
   const loginWithGoogle = async () => {
     setLoading(true)
     setError('')
     try {
       if (IS_LOCAL) {
-        // 로컬: 팝업 방식
         await signInWithPopup(auth, googleProvider)
       } else {
-        // Vercel: redirect 방식 (COOP 충돌 없음)
-        sessionStorage.setItem('pendingRedirect', 'true')
         await signInWithRedirect(auth, googleProvider)
-        // redirect이므로 여기서 실행이 끊김 (페이지 이동)
       }
     } catch (e) {
-      sessionStorage.removeItem('pendingRedirect')
       const ignoreCodes = ['auth/popup-closed-by-user', 'auth/cancelled-popup-request']
       if (!ignoreCodes.includes(e.code)) {
         setError(`로그인 오류 (${e.code})`)
@@ -77,7 +72,7 @@ export default function LoginPage() {
             disabled={loading}
           >
             {loading ? (
-              <span className="login-spinner" />
+              <span className="login-spinner"/>
             ) : (
               <svg width="20" height="20" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

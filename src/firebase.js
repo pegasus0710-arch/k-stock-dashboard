@@ -18,7 +18,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 
-// getAuth 기본 사용 + browserLocalPersistence 명시 설정
 export const auth = getAuth(app)
 setPersistence(auth, browserLocalPersistence).catch(console.error)
 
