@@ -234,11 +234,12 @@ export default function FinancialChart({ stock, onClose }) {
     try {
       // 1. 종목코드 → DART 기업코드 변환
       const corpRes = await fetch(
-        `https://opendart.fss.or.kr/api/company.json?crtfc_key=${DART_KEY}&stock_code=${stock.code}`
-      )
+        `https://opendart.fss.or.kr/api/company.json?crtfc_key=${DART_KEY}&stock_code=${stock.code}`,
+        { mode: 'cors' }
+      ).catch(()=>{ throw new Error('DART API 접근 실패 (CORS). Vercel 프록시 설정이 필요합니다. 현재 브라우저에서 DART 직접 호출이 차단됩니다.') })
       const corpData = await corpRes.json()
-      if (corpData.status !== '000' || !corpData.corp_code) {
-        throw new Error(`기업코드 조회 실패: ${corpData.message || stock.code}`)
+      if (!corpData || corpData.status !== '000' || !corpData.corp_code) {
+        throw new Error(`DART 기업코드 없음: ${corpData?.message || '미등록 종목'} (${stock.code})`)
       }
       const corpCode = corpData.corp_code
 

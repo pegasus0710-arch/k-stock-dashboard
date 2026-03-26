@@ -161,3 +161,109 @@
 .cap-empty{text-align:center;padding:64px 24px;color:#64748b}
 .cap-empty-icon{font-size:48px;margin-bottom:12px;opacity:.35}
 .cap-empty-sub{font-size:12px;color:#475569;margin-top:6px}
+
+/* ── 차트분석 페이지 관심종목 패널 + 수급 팝업 추가 ── */
+
+/* 전체 레이아웃 */
+.cap-layout {
+  display: flex; gap: 0; flex: 1; min-height: 0;
+  position: relative;
+}
+.cap-main-area { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.cap-wl-toggle-btn {
+  padding: 5px 12px; background: rgba(251,191,36,.1); border: 1px solid rgba(251,191,36,.3);
+  border-radius: 8px; color: #fbbf24; font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: inherit; white-space: nowrap; transition: all .12s;
+}
+.cap-wl-toggle-btn:hover { background: rgba(251,191,36,.2); }
+
+/* 관심종목 사이드 패널 */
+.cap-wl-side {
+  width: 0; overflow: hidden; transition: width .2s; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  background: #0f172a; border-right: 1px solid #1e293b;
+}
+.cap-wl-side.open { width: 200px; }
+.cap-wl-side-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-bottom: 1px solid #1e293b; flex-shrink: 0;
+}
+.cap-wl-side-title { font-size: 12px; font-weight: 700; color: #94a3b8; }
+.cap-wl-side-close {
+  background: none; border: none; color: #64748b; cursor: pointer; font-size: 13px;
+  width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+}
+.cap-wl-side-close:hover { background: rgba(239,68,68,.15); color: #f87171; }
+.cap-wl-cat-select {
+  margin: 8px; padding: 6px 8px; background: #111827; border: 1px solid #334155;
+  border-radius: 8px; color: #e2e8f0; font-size: 12px; outline: none;
+  font-family: inherit; width: calc(100% - 16px); box-sizing: border-box;
+}
+.cap-wl-stock-list { flex: 1; overflow-y: auto; scrollbar-width: thin; }
+.cap-wl-empty { padding: 20px 12px; font-size: 12px; color: #475569; text-align: center; }
+.cap-wl-stock-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: none; border: none; border-bottom: 1px solid #1e293b;
+  cursor: pointer; font-family: inherit; width: 100%; text-align: left; transition: background .1s;
+}
+.cap-wl-stock-item:hover { background: rgba(255,255,255,.05); }
+.cap-wl-stock-item.active { background: rgba(37,99,235,.15); border-left: 2px solid #2563eb; }
+.cap-wl-item-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cap-wl-item-name { font-size: 12px; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95px; }
+.cap-wl-item-code { font-size: 10px; color: #64748b; font-family: monospace; }
+.cap-wl-item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; flex-shrink: 0; }
+.cap-wl-item-right span { font-size: 11px; font-weight: 600; font-family: monospace; white-space: nowrap; }
+.cap-wl-item-rate { font-size: 10px !important; }
+
+/* 수급 팝업 */
+.cap-supply-popup-overlay {
+  position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.cap-supply-popup {
+  background: #0f172a; border: 1px solid #334155; border-radius: 14px;
+  width: 100%; max-width: 800px; max-height: 80vh; overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0,0,0,.7);
+}
+.cap-supply-popup-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid #1e293b; font-size: 14px; font-weight: 700; color: #f1f5f9;
+}
+.cap-supply-popup-close {
+  background: none; border: 1px solid #334155; border-radius: 8px;
+  color: #64748b; width: 28px; height: 28px; cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cap-supply-popup-close:hover { background: rgba(239,68,68,.15); color: #f87171; }
+
+/* 공시/뉴스/종목정보 팝업 */
+.cap-info-popup {
+  position: absolute; top: 100%; right: 0; z-index: 300; margin-top: 4px;
+  background: #111827; border: 1px solid #334155; border-radius: 10px;
+  min-width: 200px; box-shadow: 0 8px 32px rgba(0,0,0,.6); overflow: hidden;
+}
+.cap-info-popup-title {
+  padding: 8px 12px; font-size: 11px; font-weight: 700; color: #64748b;
+  background: #0f172a; border-bottom: 1px solid #1e293b; text-transform: uppercase; letter-spacing: .04em;
+}
+.cap-info-popup-item {
+  display: block; padding: 9px 14px; font-size: 13px; color: #94a3b8;
+  text-decoration: none; border-bottom: 1px solid #1e293b; transition: background .1s;
+}
+.cap-info-popup-item:last-child { border-bottom: none; }
+.cap-info-popup-item:hover { background: rgba(255,255,255,.05); color: #f1f5f9; }
+.cap-stockinfo-popup { min-width: 240px; }
+.cap-stockinfo-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 14px; border-bottom: 1px solid #1e293b; gap: 12px;
+}
+.cap-stockinfo-row:last-child { border-bottom: none; }
+.cap-stockinfo-key { font-size: 11px; color: #64748b; white-space: nowrap; }
+.cap-stockinfo-val { font-size: 12px; font-weight: 700; color: #e2e8f0; font-family: monospace; white-space: nowrap; }
+
+/* fullscreen-btn 활성화 */
+.cap-fullscreen-btn.active {
+  background: rgba(37,99,235,.15) !important;
+  border-color: #2563eb !important;
+  color: #60a5fa !important;
+}
