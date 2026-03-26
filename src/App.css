@@ -630,3 +630,310 @@ hr, [class*="-divider"], [class*="-separator"] {
 .smc-news-item:hover { background: rgba(255,255,255,.03) !important; }
 .smc-news-item-title { color: #e2e8f0 !important; }
 .smc-news-popup { background: #0f172a !important; }
+
+
+/* ═══════════════════════════════════════════════════
+   전역 라이트 테마 → 다크 강제 변환 (최우선)
+   모든 white/라이트 배경을 다크로 덮어씌움
+   ═══════════════════════════════════════════════════ */
+
+/* ── 모든 라이트 배경 패턴 강제 다크화 ── */
+
+/* 카드/섹션 계열 */
+[class*="-card"],
+[class*="-panel"],
+[class*="-section"]:not(.db-section),
+[class*="-body"]:not(.smc-chart-wrap),
+[class*="-content"]:not(.app-content),
+[class*="-box"]:not(.cap-search-box) {
+  background-color: #111827 !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+/* 빈 상태 empty */
+[class*="-empty"] {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #64748b !important;
+}
+
+/* 헤더/타이틀 */
+[class*="-header"]:not(.smc-header):not(.fc-header):not(.top-header):not(.cap-stock-header):not(.cap-fs-toolbar) {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+/* 행/아이템 */
+[class*="-row"]:not(.db-forex-row):not(.db-index-row):not(.cap-ctrl-bar):not(.smc-ctrl-row1):not(.smc-ctrl-row2) {
+  border-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+[class*="-row"]:hover {
+  background: rgba(255,255,255,.04) !important;
+}
+
+/* 테이블 헤더 */
+[class*="-th"],
+[class*="-thead"],
+[class*="-table-header"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #64748b !important;
+}
+
+/* 탭 버튼 */
+[class*="-tab"]:not(.smc-tab):not(.cap-tab):not(.fc-tab):not(.bottom-tab) {
+  background: transparent !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+[class*="-tab"].active:not(.bottom-tab),
+[class*="-tab-active"] {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: white !important;
+}
+
+/* 버튼 */
+[class*="-btn"]:not(.smc-close):not(.fc-close-btn):not(.cap-fs-close) {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+[class*="-btn"]:hover {
+  border-color: #2563eb !important;
+  color: #60a5fa !important;
+}
+[class*="-btn"].primary,
+[class*="-btn-primary"],
+[class*="btn-primary"] {
+  background: #2563eb !important;
+  color: white !important;
+  border-color: #2563eb !important;
+}
+
+/* 입력 */
+[class*="-input"]:not(.smc-text-input):not(.cap-text-input) {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+/* 뱃지/칩 */
+[class*="-badge"]:not(.db-live-badge):not(.db-after-badge):not(.db-pre-badge):not(.db-etf-badge) {
+  background: #1e293b !important;
+  color: #94a3b8 !important;
+}
+[class*="-chip"] {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+[class*="-chip"].active {
+  background: rgba(37,99,235,.15) !important;
+  border-color: #2563eb !important;
+  color: #60a5fa !important;
+}
+
+/* 이름/라벨 */
+[class*="-name"] { color: #e2e8f0 !important; }
+[class*="-label"]:not(.smc-info-label):not(.cap-info-label):not(.fc-summary-label) { color: #94a3b8 !important; }
+[class*="-title"]:not(.page-title):not(.smc-news-title) { color: #f1f5f9 !important; }
+[class*="-price"] { color: #f1f5f9 !important; }
+[class*="-code"] { color: #64748b !important; }
+[class*="-meta"] { color: #64748b !important; }
+[class*="-sub"]:not(.page-sub) { color: #94a3b8 !important; }
+
+/* 래퍼/컨테이너 */
+[class*="-wrap"]:not(.smc-chart-wrap):not(.db-spark-wrap):not(.cap-search-box) {
+  background: #0a0f1a !important;
+}
+
+/* 로딩 */
+[class*="-loading"] { color: #64748b !important; background: transparent !important; }
+
+/* 구분선 */
+[class*="-divider"],
+[class*="-separator"] {
+  background: #1e293b !important;
+  border-color: #1e293b !important;
+}
+
+/* ── 관심종목(wl-) 특화 ── */
+.wl-empty {
+  background: #0f172a !important;
+  border: 1px solid #1e293b !important;
+  color: #64748b !important;
+}
+.wl-empty p, .wl-empty span { color: #64748b !important; }
+
+/* ── ETF(ep-/etf-) 특화 ── */
+.ep-placeholder,
+[class*="etf-placeholder"] {
+  background: #0f172a !important;
+  color: #64748b !important;
+}
+
+/* ── 포트폴리오(pp-) 특화 ── */
+.pp-summary-card {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+}
+.pp-summary-label { color: #64748b !important; font-size: 11px !important; }
+.pp-summary-val { color: #f1f5f9 !important; font-weight: 700 !important; }
+.pp-table-row:hover { background: rgba(255,255,255,.04) !important; }
+.pp-stock-name { color: #e2e8f0 !important; }
+
+/* ── 뉴스(np-/news-) 특화 ── */
+[class*="news-card"],
+[class*="news-item"],
+[class*="np-card"],
+[class*="np-item"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+[class*="news-title"],
+[class*="np-title"] { color: #f1f5f9 !important; }
+[class*="news-body"],
+[class*="np-body"],
+[class*="news-content"] { background: #0f172a !important; border-color: #1e293b !important; }
+
+/* ── 시장(mp-/mkt-) 특화 ── */
+.mp-index-card,
+[class*="mkt-card"],
+[class*="market-card"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+.mp-index-card:hover,
+[class*="mkt-card"]:hover { border-color: #334155 !important; }
+
+/* ── card-section 공통 (ThemePage 등) ── */
+.card-section {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+.card-section:hover { border-color: #334155 !important; }
+
+/* ── layout-main-aside ── */
+.layout-main-aside { background: transparent !important; }
+
+/* ── page-body ── */
+.page-body {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+/* ── 모달/오버레이 ── */
+.overlay, [class*="-overlay"]:not(.smc-overlay):not(.fc-overlay):not(.cap-fullscreen-overlay) {
+  background: rgba(0,0,0,.72) !important;
+}
+
+/* ── 드롭다운 ── */
+[class*="-dropdown"],
+[class*="-menu"] {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6) !important;
+}
+[class*="-menu-item"]:hover,
+[class*="-dropdown-item"]:hover {
+  background: rgba(255,255,255,.05) !important;
+}
+
+/* ── 표 전체 ── */
+table { background: transparent !important; }
+thead tr { background: #111827 !important; }
+th { background: #111827 !important; color: #64748b !important; border-color: #1e293b !important; }
+td { color: #94a3b8 !important; border-color: #1e293b !important; }
+tbody tr:hover { background: rgba(255,255,255,.04) !important; }
+
+/* ═══════════════════════════════════
+   페이지별 추가 구체 수정
+   ═══════════════════════════════════ */
+
+/* 포트폴리오 - 텍스트 가시성 */
+.pp-stock-name, [class*="pp-name"] { color: #f1f5f9 !important; font-weight: 600 !important; }
+.pp-stock-code, [class*="pp-code"] { color: #64748b !important; }
+.pp-buy-price, .pp-cur-price, [class*="pp-price"] { color: #e2e8f0 !important; }
+.pp-profit.plus  { color: #ef4444 !important; }
+.pp-profit.minus { color: #3b82f6 !important; }
+.pp-bar { background: #334155 !important; }
+.pp-bar-fill { background: #2563eb !important; }
+
+/* 관심종목 빈 상태 */
+.wl-empty-icon, [class*="wl-empty"] svg { opacity: 0.3 !important; }
+[class*="wl-empty"] p { color: #64748b !important; }
+
+/* ETF 오른쪽 패널 */
+[class*="ep-right"],
+[class*="ep-detail"],
+[class*="etf-detail"],
+[class*="ep-holdings"] {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+[class*="etf-holdings-row"]:hover { background: rgba(255,255,255,.04) !important; }
+
+/* 뉴스 페이지 */
+[class*="news-section"],
+[class*="np-section"],
+[class*="news-wrap"],
+[class*="np-wrap"] {
+  background: #0a0f1a !important;
+}
+[class*="news-ai"],
+[class*="np-ai"] {
+  background: rgba(37,99,235,.06) !important;
+  border-color: rgba(37,99,235,.2) !important;
+  color: #94a3b8 !important;
+}
+[class*="news-link"],
+[class*="np-link"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #60a5fa !important;
+}
+[class*="news-link"]:hover { background: rgba(37,99,235,.1) !important; }
+
+/* 시장 - 주요지수 카드 텍스트 */
+[class*="mp-index-name"],
+[class*="mp-index-label"],
+[class*="mkt-index-name"] { color: #64748b !important; }
+[class*="mp-index-price"],
+[class*="mkt-index-price"] { color: #f1f5f9 !important; font-weight: 800 !important; }
+
+/* 시장 전체 흐름 카드 */
+[class*="mp-flow"],
+[class*="market-flow"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+/* 빠른 통계 */
+[class*="mp-stat"],
+[class*="market-stat"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+
+/* 매매일지 날짜 입력 */
+input[type="date"] {
+  background: #0f172a !important;
+  border: 1px solid #334155 !important;
+  color: #f1f5f9 !important;
+  padding: 6px 10px !important;
+  border-radius: 8px !important;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) !important;
+}
