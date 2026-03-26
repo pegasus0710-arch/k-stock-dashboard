@@ -1,58 +1,27 @@
-/* ChartModal.css */
-
+/* ChartModal.css — 다크 테마 */
 .cm-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(6px);
-  padding: 20px;
-  animation: cm-fade-in 0.15s ease;
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.72);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; backdrop-filter: blur(3px);
 }
-
-@keyframes cm-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
 .cm-modal {
-  position: relative;
-  width: 100%;
-  max-width: 960px;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7);
-  animation: cm-slide-up 0.2s ease;
+  position: relative; width: 100%; max-width: 920px;
+  background: #0f172a; border-radius: 16px;
+  max-height: 92vh; overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  border: 1px solid #1e293b;
 }
-
-@keyframes cm-slide-up {
-  from { transform: translateY(20px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
-}
-
 .cm-close {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 10;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid #333;
-  color: #bbb;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  font-size: 15px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
+  position: absolute; top: 12px; right: 12px; z-index: 10;
+  width: 30px; height: 30px; border: 1px solid #334155;
+  background: #1e293b; color: #94a3b8;
+  border-radius: 8px; font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .12s;
 }
-
-.cm-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+.cm-close:hover { background: rgba(239,68,68,.2); color: #f87171; border-color: rgba(239,68,68,.4); }
+@media (max-width: 640px) {
+  .cm-overlay { padding: 0; align-items: flex-end; }
+  .cm-modal { border-radius: 16px 16px 0 0; max-height: 95dvh; }
 }

@@ -589,7 +589,8 @@ export default function DashboardPage() {
   const renderChartModal = () => {
     if (!chartItem) return null
     if (chartItem.isStock) return (
-      <StockChartModal stock={{ name: chartItem.label, code: chartItem.code }} onClose={() => setChartItem(null)}/>
+      // ChartModal + CandleChart 사용 (안정적으로 동작)
+      <ChartModal code={chartItem.code} name={chartItem.label} initialPeriod="day" onClose={() => setChartItem(null)}/>
     )
     if (chartItem.type === 'index') return (
       <ChartModal isIndex inds_cd={marketToInds(chartItem.market)} name={chartItem.label} initialPeriod="day" onClose={() => setChartItem(null)}/>
