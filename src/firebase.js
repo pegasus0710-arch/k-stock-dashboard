@@ -1,9 +1,9 @@
 import { initializeApp } from 'firebase/app'
 import {
-  initializeAuth,
+  getAuth,
   GoogleAuthProvider,
-  indexedDBLocalPersistence,
-  browserPopupRedirectResolver,
+  setPersistence,
+  browserLocalPersistence,
 } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
@@ -18,11 +18,9 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 
-// initializeAuth: COOP window.closed 버그 우회
-export const auth = initializeAuth(app, {
-  persistence: indexedDBLocalPersistence,
-  popupRedirectResolver: browserPopupRedirectResolver,
-})
+// getAuth 기본 사용 + browserLocalPersistence 명시 설정
+export const auth = getAuth(app)
+setPersistence(auth, browserLocalPersistence).catch(console.error)
 
 export const db = getFirestore(app)
 

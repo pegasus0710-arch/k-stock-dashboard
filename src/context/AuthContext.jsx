@@ -16,26 +16,10 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let unsubAuth = null
-    let cancelled = false
+    let done = false
 
-    const init = async () => {
-      // ① redirect 결과를 먼저 await으로 처리 완료 후 구독 시작
-      //    (이걸 안 하면 onAuthStateChanged가 null로 먼저 fired → 로그인 루프)
-      try {
-        const result = await getRedirectResult(auth)
-        if (result?.user) {
-          console.log('[Auth] redirect 로그인 성공:', result.user.email)
-        }
-      } catch (err) {
-        // redirect 에러는 무시 (첫 방문 시 result=null 정상)
-        if (err.code !== 'auth/null-user') {
-          console.warn('[Auth] redirect 처리:', err.code)
-        }
-      }
-
-      if (cancelled) return
-
-      // ② redirect 결과 처리 완료 후 auth 상태 구독
+    const startAuthListener = () => {
+      if (done) return
       unsubAuth = onAuthStateChanged(auth, (u) => {
         if (u) {
           if (ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(u.email)) {
@@ -50,13 +34,26 @@ export function AuthProvider({ children }) {
           setUser(null)
         }
         setLoading(false)
+        sessionStorage.removeItem('pendingRedirect')
       })
     }
 
-    init()
+    // redirect 복귀 처리: finally로 항상 리스너 시작 보장
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          console.log('[Auth] redirect 성공:', result.user.email)
+        }
+      })
+      .catch((err) => {
+        console.warn('[Auth] getRedirectResult 에러:', err?.code)
+      })
+      .finally(() => {
+        startAuthListener()
+      })
 
     return () => {
-      cancelled = true
+      done = true
       if (unsubAuth) unsubAuth()
     }
   }, [])
