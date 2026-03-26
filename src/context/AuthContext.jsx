@@ -15,36 +15,50 @@ export function AuthProvider({ children }) {
   const [denied,  setDenied]  = useState(false)
 
   useEffect(() => {
-    // 1. redirect 로그인 결과 먼저 처리
-    getRedirectResult(auth)
-      .then(result => {
-        // result가 있으면 onAuthStateChanged가 자동으로 처리
+    let unsubAuth = null
+    let cancelled = false
+
+    const init = async () => {
+      // ① redirect 결과를 먼저 await으로 처리 완료 후 구독 시작
+      //    (이걸 안 하면 onAuthStateChanged가 null로 먼저 fired → 로그인 루프)
+      try {
+        const result = await getRedirectResult(auth)
         if (result?.user) {
-          console.log('redirect 로그인 성공:', result.user.email)
+          console.log('[Auth] redirect 로그인 성공:', result.user.email)
         }
-      })
-      .catch(err => {
-        console.error('redirect 결과 처리 에러:', err)
-      })
-
-    // 2. 인증 상태 감지
-    const unsub = onAuthStateChanged(auth, (u) => {
-      if (u) {
-        if (ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(u.email)) {
-          setDenied(true)
-          setUser(null)
-          signOut(auth)
-        } else {
-          setDenied(false)
-          setUser(u)
+      } catch (err) {
+        // redirect 에러는 무시 (첫 방문 시 result=null 정상)
+        if (err.code !== 'auth/null-user') {
+          console.warn('[Auth] redirect 처리:', err.code)
         }
-      } else {
-        setUser(null)
       }
-      setLoading(false)
-    })
 
-    return () => unsub()
+      if (cancelled) return
+
+      // ② redirect 결과 처리 완료 후 auth 상태 구독
+      unsubAuth = onAuthStateChanged(auth, (u) => {
+        if (u) {
+          if (ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(u.email)) {
+            setDenied(true)
+            setUser(null)
+            signOut(auth)
+          } else {
+            setDenied(false)
+            setUser(u)
+          }
+        } else {
+          setUser(null)
+        }
+        setLoading(false)
+      })
+    }
+
+    init()
+
+    return () => {
+      cancelled = true
+      if (unsubAuth) unsubAuth()
+    }
   }, [])
 
   const logout = async () => {
