@@ -2,18 +2,22 @@ import { useState } from 'react'
 import { useAuth } from './context/AuthContext'
 import './App.css'
 
-import LoginPage      from './auth/LoginPage'
-import DashboardPage  from './pages/DashboardPage'
-import MarketPage     from './pages/MarketPage'
-import ThemePage      from './pages/ThemePage'
-import WatchlistPage  from './pages/WatchlistPage'
-import PortfolioPage  from './pages/PortfolioPage'
-import TradingLogPage from './pages/TradingLogPage'
-import NewsPage       from './pages/NewsPage'
+import LoginPage           from './auth/LoginPage'
+import DashboardPage       from './pages/DashboardPage'
+import MarketPage          from './pages/MarketPage'
+import ThemePage           from './pages/ThemePage'
+import WatchlistPage       from './pages/WatchlistPage'
+import PortfolioPage       from './pages/PortfolioPage'
+import TradingLogPage      from './pages/TradingLogPage'
+import NewsPage            from './pages/NewsPage'
+import ChartAnalysisPage   from './pages/ChartAnalysisPage'
+import ETFPage             from './pages/ETFPage'
 
 const NAV_ITEMS = [
   { id: 'dashboard',  label: '대시보드',   sub: '시장 전체 현황', icon: '📊' },
-  { id: 'market',     label: '시장·업종',  sub: '지수·수급·업종', icon: '📈' },
+  { id: 'chart',      label: '차트 분석',  sub: '종목 검색·차트', icon: '📈' },
+  { id: 'market',     label: '시장·업종',  sub: '지수·수급·업종', icon: '🏛️' },
+  { id: 'etf',        label: 'ETF',        sub: 'ETF 시세·분석',  icon: '📦' },
   { id: 'theme',      label: '테마',        sub: '7대 테마 분석',  icon: '🎯' },
   { id: 'watchlist',  label: '관심종목',   sub: '찜한 종목 모음', icon: '⭐' },
   { id: 'portfolio',  label: '포트폴리오', sub: '보유종목·손익',  icon: '💼' },
@@ -23,7 +27,9 @@ const NAV_ITEMS = [
 
 const PAGES = {
   dashboard:  DashboardPage,
+  chart:      ChartAnalysisPage,
   market:     MarketPage,
+  etf:        ETFPage,
   theme:      ThemePage,
   watchlist:  WatchlistPage,
   portfolio:  PortfolioPage,
@@ -39,9 +45,9 @@ function getTodayStr() {
 
 function getMarketStatus() {
   const t = new Date().getHours() * 60 + new Date().getMinutes()
-  if (t >= 540 && t < 930)  return { label: 'LIVE',       color: '#16a34a' }
-  if (t >= 480 && t < 540)  return { label: '장 시작 전', color: '#d97706' }
-  if (t >= 930 && t < 1080) return { label: '시간외',     color: '#7c3aed' }
+  if (t >= 540 && t < 930)  return { label: '정규장 운영중', color: '#16a34a' }
+  if (t >= 480 && t < 540)  return { label: '장 시작 전',   color: '#d97706' }
+  if (t >= 930 && t < 1080) return { label: '시간외',        color: '#7c3aed' }
   return { label: '장 마감', color: '#64748b' }
 }
 
@@ -50,7 +56,6 @@ export default function App() {
   const [activePage, setPage]     = useState('dashboard')
   const [sidebarOpen, setSidebar] = useState(false)
 
-  // 로딩 중
   if (authLoading) {
     return (
       <div style={{
@@ -64,12 +69,8 @@ export default function App() {
     )
   }
 
-  // 미로그인 → 로그인 페이지
-  if (!user) {
-    return <LoginPage denied={denied} />
-  }
+  if (!user) return <LoginPage denied={denied} />
 
-  // 로그인 완료 → 대시보드
   const PageComp  = PAGES[activePage] || DashboardPage
   const activeNav = NAV_ITEMS.find(n => n.id === activePage)
   const market    = getMarketStatus()
@@ -114,7 +115,7 @@ export default function App() {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="sidebar-version">K-Stock v0.3</div>
+          <div className="sidebar-version">K-Stock v0.4</div>
           <button className="sidebar-logout" onClick={logout}>🚪 로그아웃</button>
         </div>
       </aside>
