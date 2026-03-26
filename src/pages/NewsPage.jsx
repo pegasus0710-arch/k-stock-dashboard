@@ -208,17 +208,17 @@ function DartTab() {
   const [end, setEnd]                         = useState(today())
   const [page, setPage]                       = useState(1)
   const [total, setTotal]                     = useState(0)
-  const [mode, setMode]                       = useState('portfolio') // portfolio | search | all
+  const [mode, setMode]                       = useState('all') // portfolio | search | all
 
   // 보유종목 불러오기
   useEffect(() => {
     const fetchPortfolio = async () => {
       try {
-        const res  = await fetch('/api/kiwoom?type=account')
+        const res  = await fetch('/api/kiwoom?type=account-holdings')
         const data = await res.json()
-        if (data.return_code === 0) {
-          const stocks = (data.acnt_evlt_remn_indv_tot || []).map(s => ({
-            code: s.stk_cd?.replace(/^A/, ''),
+        if (!data.error) {
+          const stocks = (data.holdings || []).map(s => ({
+            code: s.stk_cd,
             name: s.stk_nm,
           }))
           setPortfolioStocks(stocks)

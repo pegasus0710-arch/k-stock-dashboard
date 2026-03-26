@@ -4,40 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- 기본 메타 -->
+    <!-- ── 기본 ── -->
     <title>K-Stock Dashboard</title>
-    <meta name="description" content="한국 주식 테마별 실시간 대시보드 — 반도체·방산·조선·원전·2차전지·바이오·밸류업" />
-    <meta name="theme-color" content="#2563eb" />
+    <meta name="description" content="개인 투자자를 위한 실시간 주식 대시보드">
 
-    <!-- 파비콘 -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png" />
+    <!-- ── PWA ── -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2563eb">
 
-    <!-- PWA -->
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- ── 모바일 ── -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="K-Stock">
 
-    <!-- iOS -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="K-Stock" />
-    <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
-    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
+    <!-- ── 아이콘 ── -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="apple-touch-icon" href="/icon.svg">
 
-    <!-- Android -->
-    <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />
-    <meta name="msapplication-TileColor" content="#2563eb" />
-
-    <!-- OG -->
-    <meta property="og:title" content="K-Stock Dashboard" />
-    <meta property="og:description" content="한국 주식 테마별 실시간 대시보드" />
-    <meta property="og:type" content="website" />
-
-    <!-- 폰트 -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- ── OG ── -->
+    <meta property="og:title" content="K-Stock Dashboard">
+    <meta property="og:description" content="실시간 주식 대시보드">
+    <meta property="og:type" content="website">
   </head>
   <body>
     <div id="root"></div>
