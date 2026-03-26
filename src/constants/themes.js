@@ -25,8 +25,9 @@ export const ALL_THEMES = [
     desc:'K-방산 수출 확대 및 유럽·중동 수주 산업',
     keywords:['K-방산','수출수주','유럽재무장','FA-50','K2전차','K9자주포'],
     etf:[
-      {name:'KODEX K-방산', code:'459580', cap:5000},
-      {name:'TIGER 방산',   code:'453810', cap:3000},
+      // ✅ 수정: 459580(KODEX CD금리→오류), 453810(인도Nifty50→오류)
+      {name:'KODEX K방산TOP10', code:'0080G0', cap:5000},
+      {name:'TIGER K방산&우주', code:'463250', cap:3000},
     ],
     stocks:[
       {name:'한화에어로스페이스', code:'012450', desc:'K9·레드백 수출 선도'},
@@ -49,7 +50,8 @@ export const ALL_THEMES = [
       {name:'HD현대중공업', code:'329180', desc:'조선 글로벌 1위 수주'},
       {name:'삼성중공업',   code:'010140', desc:'LNG선·FLNG 특화'},
       {name:'한화오션',     code:'042660', desc:'특수선·잠수함 기술'},
-      {name:'HD현대미포',   code:'010620', desc:'중형 LPG·PC선 전문'},
+      // ✅ 수정: 010620 HD현대미포(2025.12 상장폐지) → 443060 HD현대마린솔루션
+      {name:'HD현대마린솔루션', code:'443060', desc:'선박 서비스·솔루션 1위'},
       {name:'HD현대',       code:'267250', desc:'조선 지주사'},
       {name:'동성화인텍',   code:'033500', desc:'선박 단열재 1위'},
     ],
@@ -145,7 +147,8 @@ export const ALL_THEMES = [
       {name:'기아',     code:'000270', desc:'EV6·EV9 수출 성장'},
       {name:'현대모비스',code:'012330', desc:'전동화 부품 핵심'},
       {name:'HL만도',   code:'204320', desc:'ADAS·전동화 부품'},
-      {name:'에스엘',   code:'000920', desc:'램프·자동차 부품'},
+      // ✅ 수정: 000920(삼아알미늄→오류) → 005850 에스엘(자동차 램프·부품)
+      {name:'에스엘',   code:'005850', desc:'자동차 램프·전동화 부품'},
     ],
   },
   {

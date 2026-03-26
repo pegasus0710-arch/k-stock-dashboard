@@ -1,12 +1,11 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import StockChartModal from '../components/StockChartModal'
-import { ALL_THEMES } from '../constants/themes'
-import { fmt, fmtRate, rateColor as rc } from '../utils/format'
+import { fmt, fmtRate, rateColor } from '../utils/format'
+import { useStockPrices } from '../hooks/useKiwoomPrice'
 import './ThemePage.css'
 
 // ThemePage는 ALL_THEMES에 없는 추가 상세정보(desc, keywords)를 포함한 자체 THEMES 사용
 // 향후 constants/themes.js에 desc/keywords 필드 추가 후 통합 예정
-
 
 const THEMES = [
   {
@@ -27,7 +26,8 @@ const THEMES = [
     id:'defense', label:'방산', color:'#dc2626', emoji:'🛡️',
     desc:'K-방산 수출 확대 및 유럽·중동 수주 산업',
     keywords:['K-방산','수출수주','유럽재무장','FA-50','K2전차','K9자주포'],
-    etf:[{name:'KODEX K-방산',code:'459580'},{name:'TIGER 방산',code:'453810'}],
+    // ✅ 수정: 459580(CD금리ETF→오류), 453810(인도Nifty50→오류)
+    etf:[{name:'KODEX K방산TOP10',code:'0080G0'},{name:'TIGER K방산&우주',code:'463250'}],
     stocks:[
       {name:'한화에어로스페이스',code:'012450',desc:'K9·레드백 수출 선도'},
       {name:'현대로템',code:'064350',desc:'K2전차 폴란드 수출'},
@@ -46,7 +46,8 @@ const THEMES = [
       {name:'HD현대중공업',code:'329180',desc:'조선 글로벌 1위 수주'},
       {name:'삼성중공업',code:'010140',desc:'LNG선·FLNG 특화'},
       {name:'한화오션',code:'042660',desc:'특수선·잠수함 기술'},
-      {name:'HD현대미포',code:'010620',desc:'중형 LPG·PC선 전문'},
+      // ✅ 수정: 010620 HD현대미포(2025.12 상장폐지) → 443060 HD현대마린솔루션
+      {name:'HD현대마린솔루션',code:'443060',desc:'선박 서비스·솔루션 1위'},
       {name:'HD현대',code:'267250',desc:'조선 지주사'},
       {name:'동성화인텍',code:'033500',desc:'선박 단열재 1위'},
     ],
@@ -60,7 +61,7 @@ const THEMES = [
       {name:'두산에너빌리티',code:'034020',desc:'원전 주기기 핵심 공급'},
       {name:'효성중공업',code:'298040',desc:'변압기·GIS 수주 급증'},
       {name:'일진전기',code:'103590',desc:'변압기 AI 인프라 수혜'},
-      {name:'한전기술',code:'051600',desc:'원전 설계 전문기업'},
+      {name:'한전기술',code:'052690',desc:'원전 설계 전문기업'},
       {name:'LS Electric',code:'010120',desc:'전력기기 종합 1위'},
       {name:'비에이치아이',code:'083650',desc:'원전 보조기기 공급'},
     ],
@@ -157,7 +158,6 @@ export default function ThemePage() {
   const [aiError, setError]         = useState('')
   const [chartStock, setChartStock] = useState(null)
 
-  // 현재 테마 종목 코드 → 실시간 가격
   const theme    = THEMES.find(t => t.id === activeId)
   const allCodes = useMemo(() => [
     ...theme.etf.map(e => e.code),
@@ -269,7 +269,7 @@ export default function ThemePage() {
               </div>
             )}
 
-            {/* 대표 종목 - 클릭 시 차트 팝업 */}
+            {/* 대표 종목 */}
             <div className="card-section">
               <div className="section-title-row">
                 <span className="section-title">대표 종목</span>
