@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════
-   DashboardPage.css — 전체 완성본
+   DashboardPage.css — 완성본 (메모 위젯 포함)
    ═══════════════════════════════════════════ */
 
 /* ── 레이아웃 ─────────────────────────────── */
@@ -598,7 +598,7 @@
   color: #0369a1;
 }
 
-.db-ql-icon { font-size: 14px; flex-shrink: 0; }
+.db-ql-icon  { font-size: 14px; flex-shrink: 0; }
 .db-ql-label { flex: 1; font-weight: 500; }
 .db-ql-arrow-sm { font-size: 11px; color: #cbd5e1; }
 
@@ -886,20 +886,28 @@
   .dash-section { padding: 14px; }
 }
 
-/* ── AI 브리핑 카드 ───────────────────────────────────── */
+/* ── AI 브리핑 카드 ──────────────────────── */
 .db-briefing-section { gap: 12px; }
 
 .db-briefing-badge {
-  font-size: 10px; font-weight: 600;
-  padding: 2px 6px; border-radius: 6px;
-  background: #dcfce7; color: #16a34a;
-  margin-left: 8px; border: 1px solid #bbf7d0;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #dcfce7;
+  color: #16a34a;
+  margin-left: 8px;
+  border: 1px solid #bbf7d0;
 }
 
 .db-briefing-toggle {
-  padding: 4px 10px; background: none;
-  border: 1px solid #e2e8f0; border-radius: 8px;
-  font-size: 12px; color: #64748b; cursor: pointer;
+  padding: 4px 10px;
+  background: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #64748b;
+  cursor: pointer;
   font-family: var(--font-kr, sans-serif);
 }
 .db-briefing-toggle:hover { background: #f8fafc; }
@@ -907,18 +915,26 @@
 .db-briefing-btn { font-size: 12px !important; padding: 5px 12px !important; }
 
 .db-briefing-error {
-  padding: 10px 14px; background: #fef2f2;
-  border: 1px solid #fecaca; border-radius: 8px;
-  font-size: 13px; color: #dc2626;
+  padding: 10px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #dc2626;
 }
 
 .db-briefing-loading {
-  display: flex; align-items: center; gap: 10px;
-  padding: 20px; color: #64748b; font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  color: #64748b;
+  font-size: 13px;
 }
 
 .db-briefing-spinner {
-  width: 20px; height: 20px;
+  width: 20px;
+  height: 20px;
   border: 2px solid #e2e8f0;
   border-top-color: #2563eb;
   border-radius: 50%;
@@ -926,28 +942,256 @@
   flex-shrink: 0;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
-
 .db-briefing-content {
-  background: #f8faff; border: 1px solid #dbeafe;
-  border-radius: 10px; padding: 16px 18px;
+  background: #f8faff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  padding: 16px 18px;
 }
 
 .db-briefing-text {
   white-space: pre-wrap;
   font-family: var(--font-kr, sans-serif);
-  font-size: 13px; line-height: 1.9; color: #0f172a;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #0f172a;
 }
 
 .db-briefing-meta {
-  font-size: 11px; color: #94a3b8;
-  margin-top: 10px; padding-top: 10px;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid #e2e8f0;
 }
 
 .db-briefing-placeholder {
-  padding: 16px; text-align: center;
-  color: #94a3b8; font-size: 13px;
-  background: #f8fafc; border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+  background: #f8fafc;
+  border-radius: 8px;
   border: 1px dashed #e2e8f0;
+}
+
+/* ════════════════════════════════════════════
+   📝 메모 위젯 (대시보드)
+   ════════════════════════════════════════════ */
+
+/* 전체 보기 버튼 */
+.db-memo-more-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+
+/* 로딩 */
+.db-memo-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 14px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.db-memo-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* 빈 상태 */
+.db-memo-empty {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 18px;
+  background: #f8fafc;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+  color: inherit;
+}
+
+.db-memo-empty:hover {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.db-memo-empty-icon {
+  font-size: 28px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.db-memo-empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  margin: 0 0 4px;
+}
+
+.db-memo-empty-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.db-memo-empty-arrow {
+  margin-left: auto;
+  color: #94a3b8;
+  font-size: 16px;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.db-memo-empty:hover .db-memo-empty-arrow {
+  transform: translateX(4px);
+  color: #3b82f6;
+}
+
+/* 메모 그리드 */
+.db-memo-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+@media (max-width: 640px) {
+  .db-memo-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* 메모 카드 */
+.db-memo-card {
+  position: relative;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 96px;
+  background: white;
+  overflow: hidden;
+}
+
+.db-memo-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* 고정 핀 */
+.db-memo-pin {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* 태그 */
+.db-memo-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.db-memo-tag {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  white-space: nowrap;
+}
+
+/* 제목 */
+.db-memo-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  padding-right: 16px; /* 핀 아이콘 공간 */
+  color: #0f172a;
+}
+
+/* 미리보기 */
+.db-memo-preview {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #64748b;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin: 0;
+  flex: 1;
+}
+
+/* 날짜 */
+.db-memo-date {
+  font-size: 9px;
+  color: #94a3b8;
+  margin-top: auto;
+  padding-top: 4px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* 새 메모 작성 카드 */
+.db-memo-new {
+  background: transparent !important;
+  border: 1.5px dashed #cbd5e1 !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-direction: column;
+  min-height: 96px;
+  color: #94a3b8;
+}
+
+.db-memo-new:hover {
+  border-color: #3b82f6 !important;
+  background: #eff6ff !important;
+  color: #3b82f6;
+}
+
+.db-memo-new:hover .db-memo-new-icon,
+.db-memo-new:hover .db-memo-new-label {
+  color: #3b82f6;
+}
+
+.db-memo-new-icon {
+  font-size: 20px;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.db-memo-new-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+/* 다크 배경 메모 카드 날짜 구분선 조정 */
+.db-memo-card[style*="background:#1e"] .db-memo-date,
+.db-memo-card[style*="background:#0f"] .db-memo-date,
+.db-memo-card[style*="background:#29"] .db-memo-date,
+.db-memo-card[style*="background:#1c"] .db-memo-date {
+  border-top-color: rgba(255, 255, 255, 0.08);
 }
