@@ -25,10 +25,12 @@ function fmtNum(v, digits = 2) {
     maximumFractionDigits: digits,
   })
 }
-function fmtDate(d) {
+function fmtDate(d, range) {
   // d = "20250101"
   if (!d || d.length < 8) return d
-  return `${d.slice(4,6)}/${d.slice(6,8)}`
+  if (range === '5y' || range === '2y') return d.slice(0, 4)         // 연도: "2024"
+  if (range === '1y')                   return d.slice(4, 6) + '월'  // 월: "03월"
+  return `${d.slice(4,6)}/${d.slice(6,8)}`                           // 일: "03/15"
 }
 function fmtDateLong(d) {
   if (!d || d.length < 8) return d
@@ -69,8 +71,27 @@ function CandleSvg({ candles, chartType, range }) {
   // Y축 눈금 5개
   const ticks = Array.from({ length: 5 }, (_, i) => yMin + (yRange * i) / 4)
 
-  // X축 날짜 레이블 (최대 6개)
+  // X축 날짜 레이블 — range에 따라 중복 없이 생성
   const xLabels = (() => {
+    if (range === '5y' || range === '2y') {
+      // 연도가 바뀌는 첫 데이터만 추출
+      const seen = new Set()
+      return data.filter(c => {
+        const yr = c.date?.slice(0, 4)
+        if (!yr || seen.has(yr)) return false
+        seen.add(yr); return true
+      })
+    }
+    if (range === '1y') {
+      // 월이 바뀌는 첫 데이터만 추출
+      const seen = new Set()
+      return data.filter(c => {
+        const mo = c.date?.slice(0, 6)
+        if (!mo || seen.has(mo)) return false
+        seen.add(mo); return true
+      })
+    }
+    // 1mo / 3mo / 6mo — 최대 6개 균등 분배
     const step = Math.max(1, Math.floor(data.length / 6))
     return data.filter((_, i) => i % step === 0 || i === data.length - 1)
   })()
@@ -130,7 +151,7 @@ function CandleSvg({ candles, chartType, range }) {
           const x = PAD.left + (idx2 / (data.length - 1)) * chartW
           return (
             <text key={i} x={x} y={H - 6} fontSize="10" fill="#6b7280" textAnchor="middle">
-              {fmtDate(c.date)}
+              {fmtDate(c.date, range)}
             </text>
           )
         })}
