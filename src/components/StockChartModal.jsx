@@ -557,6 +557,7 @@ export default function StockChartModal({ stock, onClose }) {
   const chartTotalH = showSupply ? CHART_H+VOL_H+160 : CHART_H+VOL_H
 
   return (
+    <>
     <div className="smc-overlay" onClick={e=>{ if(e.target===e.currentTarget) onClose() }}>
       <div className="smc-modal" ref={modalRef}
         style={{ width:modalSize.w||undefined, height:modalSize.h||undefined }}>
@@ -729,6 +730,7 @@ export default function StockChartModal({ stock, onClose }) {
     {showFinancial && (
       <FinancialChart stock={stock} onClose={()=>setShowFinancial(false)}/>
     )}
+    </>
   )
 }
 
