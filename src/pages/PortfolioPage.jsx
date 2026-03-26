@@ -1,7 +1,55 @@
 import { useState, useEffect, useCallback } from 'react'
+import { db } from '../firebase'
+import { useAuth } from '../context/AuthContext'
+import { doc, getDoc, setDoc, collection, getDocs, orderBy, query, limit } from 'firebase/firestore'
 import StockChartModal from '../components/StockChartModal'
 import { fmt, fmtRate, rateColor } from '../utils/format'
 import './PortfolioPage.css'
+
+// ── Firestore 수익률 히스토리 키 ─────────────────
+const FS_RETURNS = 'portfolio_returns'  // Firestore collection
+const LS_LAST_SAVE = 'pf_last_save_date'
+
+function todayStr8() { return new Date().toISOString().slice(0,10).replace(/-/g,'') }
+
+// Firestore에 오늘 수익률 저장 (하루 1회)
+async function saveTodayReturn(uid, returnData, holdings) {
+  if (!uid) return
+  try {
+    const today = todayStr8()
+    const lastSave = localStorage.getItem(LS_LAST_SAVE)
+    if (lastSave === today) return  // 이미 오늘 저장됨
+    
+    const docRef = doc(db, 'users', uid, FS_RETURNS, today)
+    await setDoc(docRef, {
+      date:        today,
+      prft_rt:     Number(returnData.prft_rt)    || 0,   // 수익률
+      evltv_prft:  Number(returnData.evltv_prft) || 0,   // 평가손익
+      tot_evlt_amt:Number(returnData.tot_evlt_amt|| holdings?.tot_evlt_amt || 0),
+      tot_pur_amt: Number(returnData.tot_pur_amt || holdings?.tot_pur_amt  || 0),
+      invt_bsamt:  Number(returnData.invt_bsamt) || 0,
+      savedAt:     new Date().toISOString(),
+    })
+    localStorage.setItem(LS_LAST_SAVE, today)
+    console.log('[Portfolio] 수익률 저장 완료:', today)
+  } catch (e) {
+    console.error('[Portfolio] 수익률 저장 실패:', e)
+  }
+}
+
+// Firestore에서 수익률 히스토리 불러오기
+async function loadReturnHistory(uid, days = 90) {
+  if (!uid) return []
+  try {
+    const colRef = collection(db, 'users', uid, FS_RETURNS)
+    const q      = query(colRef, orderBy('date', 'asc'), limit(days))
+    const snap   = await getDocs(q)
+    return snap.docs.map(d => d.data())
+  } catch (e) {
+    console.error('[Portfolio] 히스토리 로드 실패:', e)
+    return []
+  }
+}
 
 // ── 유틸 ─────────────────────────────────────
 function abs(n) { return Math.abs(Number(n) || 0) }
@@ -68,56 +116,82 @@ function PieChart({ holdings }) {
 
 // ── SVG 수익률 라인차트 ──────────────────────
 function ReturnChart({ data }) {
-  if (!data?.length) return <div className="pf-chart-empty">수익률 데이터 없음</div>
-  const W = 600, H = 160
-  const PAD = { top:16, right:16, bottom:28, left:52 }
+  if (!data?.length) return (
+    <div className="pf-chart-empty">
+      <p>📅 일별 수익률 데이터가 아직 없습니다</p>
+      <p style={{fontSize:'12px',color:'#94a3b8',marginTop:6}}>계좌 조회 후 자동 저장됩니다 (하루 1회)</p>
+    </div>
+  )
+
+  const W = 700, H = 200
+  const PAD = { top:20, right:20, bottom:36, left:60 }
   const cW  = W - PAD.left - PAD.right
   const cH  = H - PAD.top  - PAD.bottom
 
-  const vals   = data.map(d => d.prft_rt || 0)
-  const maxV   = Math.max(...vals,  1)
-  const minV   = Math.min(...vals, -1)
-  const range  = maxV - minV || 1
-  const toY    = v => PAD.top + cH - ((v - minV) / range) * cH
-  const toX    = i => PAD.left + (i / (data.length - 1 || 1)) * cW
-  const pts    = data.map((d, i) => `${toX(i)},${toY(d.prft_rt||0)}`).join(' ')
-  const isUp   = (vals[vals.length-1] || 0) >= 0
-  const lc     = isUp ? '#ef4444' : '#3b82f6'
-  const yTicks = [minV, (minV+maxV)/2, maxV]
-  const step   = Math.max(1, Math.floor(data.length / 6))
+  const vals  = data.map(d => Number(d.prft_rt) || 0)
+  const maxV  = Math.max(...vals,  0.5)
+  const minV  = Math.min(...vals, -0.5)
+  const range = maxV - minV || 1
+  const toY   = v => PAD.top + cH - ((v - minV) / range) * cH
+  const toX   = i => PAD.left + (i / Math.max(data.length - 1, 1)) * cW
+  const pts   = data.map((d, i) => `${toX(i).toFixed(1)},${toY(Number(d.prft_rt)||0).toFixed(1)}`).join(' ')
+  const isUp  = vals[vals.length-1] >= 0
+  const lc    = isUp ? '#ef4444' : '#3b82f6'
+  const step  = Math.max(1, Math.ceil(data.length / 8))
+  const yTicks = Array.from({length:5}, (_, i) => minV + (range / 4) * i)
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="pf-return-svg">
-      {yTicks.map((v, i) => (
-        <g key={i}>
-          <line x1={PAD.left} x2={W-PAD.right} y1={toY(v)} y2={toY(v)} stroke="#f1f5f9" strokeWidth="1"/>
-          <text x={PAD.left-4} y={toY(v)+4} textAnchor="end" fontSize="10" fill="#94a3b8">{v.toFixed(1)}%</text>
-        </g>
-      ))}
-      <line x1={PAD.left} x2={W-PAD.right} y1={toY(0)} y2={toY(0)} stroke="#e2e8f0" strokeWidth="1.5" strokeDasharray="4,4"/>
-      {data.filter((_,i) => i % step === 0).map((d, i) => (
-        <text key={i} x={toX(data.indexOf(d))} y={H-8} textAnchor="middle" fontSize="9" fill="#94a3b8">
-          {String(d.to_dt||'').slice(4,8).replace(/(\d{2})(\d{2})/, '$1/$2')}
-        </text>
-      ))}
-      <defs>
-        <linearGradient id="pf-grad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={lc} stopOpacity="0.2"/>
-          <stop offset="100%" stopColor={lc} stopOpacity="0"/>
-        </linearGradient>
-      </defs>
-      <polygon points={`${PAD.left},${H-PAD.bottom} ${pts} ${W-PAD.right},${H-PAD.bottom}`} fill="url(#pf-grad)"/>
-      <polyline points={pts} fill="none" stroke={lc} strokeWidth="1.8"/>
-    </svg>
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="pf-return-svg">
+        {yTicks.map((v, i) => (
+          <g key={i}>
+            <line x1={PAD.left} x2={W-PAD.right} y1={toY(v)} y2={toY(v)} stroke="#f1f5f9" strokeWidth="1"/>
+            <text x={PAD.left-6} y={toY(v)+4} textAnchor="end" fontSize="10" fill="#94a3b8">{v.toFixed(1)}%</text>
+          </g>
+        ))}
+        {/* 0% 기준선 */}
+        {minV < 0 && maxV > 0 && (
+          <line x1={PAD.left} x2={W-PAD.right} y1={toY(0)} y2={toY(0)} stroke="#e2e8f0" strokeWidth="1.5" strokeDasharray="4,4"/>
+        )}
+        {/* X축 날짜 */}
+        {data.filter((_,i) => i % step === 0).map((d, i) => {
+          const idx = data.indexOf(d)
+          return (
+            <text key={i} x={toX(idx)} y={H-8} textAnchor="middle" fontSize="9" fill="#94a3b8">
+              {String(d.date||'').slice(4,8).replace(/(\d{2})(\d{2})/,'$1/$2')}
+            </text>
+          )
+        })}
+        <defs>
+          <linearGradient id="pf-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={lc} stopOpacity="0.25"/>
+            <stop offset="100%" stopColor={lc} stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        <polygon points={`${PAD.left},${toY(minV)} ${pts} ${W-PAD.right},${toY(minV)}`} fill="url(#pf-grad)"/>
+        <polyline points={pts} fill="none" stroke={lc} strokeWidth="2"/>
+        {/* 마지막 포인트 강조 */}
+        {data.length > 0 && (
+          <circle cx={toX(data.length-1)} cy={toY(vals[vals.length-1])} r="4" fill={lc} stroke="white" strokeWidth="2"/>
+        )}
+      </svg>
+      {/* 데이터 개수 표시 */}
+      <div style={{fontSize:'11px',color:'#94a3b8',textAlign:'right',marginTop:4}}>
+        {data.length}일 데이터 · 최근 저장: {String(data[data.length-1]?.date||'').replace(/(\d{4})(\d{2})(\d{2})/,'$1-$2-$3')}
+      </div>
+    </div>
   )
 }
 
 // ══════════════════════════════════════════════
 export default function PortfolioPage() {
+  const { user } = useAuth()
   const [holdings,    setHoldings]    = useState(null)
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState('')
   const [returnData,  setReturnData]  = useState(null)
+  const [history,     setHistory]     = useState([])       // 일별 Firestore 히스토리
+  const [histLoading, setHistLoading] = useState(false)
   const [retLoading,  setRetLoading]  = useState(false)
   const [retPeriod,   setRetPeriod]   = useState('3m')
   const [activeTab,   setActiveTab]   = useState('holdings')  // holdings | chart | returns
@@ -137,7 +211,7 @@ export default function PortfolioPage() {
     finally { setLoading(false) }
   }, [])
 
-  // 수익률 히스토리 로드
+  // 수익률 API 조회 + Firestore 저장
   const loadReturns = useCallback(async (period = retPeriod) => {
     setRetLoading(true)
     try {
@@ -145,20 +219,39 @@ export default function PortfolioPage() {
       const to   = new Date()
       const fr   = new Date(Date.now() - days * 86400000)
       const fmt8 = d => d.toISOString().slice(0,10).replace(/-/g,'')
-      // 매주 데이터 포인트 생성 (API 1회 호출 = 기간 전체 요약)
       const res  = await fetch(`/api/kiwoom?type=account-returns&fr_dt=${fmt8(fr)}&to_dt=${fmt8(to)}`)
       const data = await res.json()
       if (data.error) throw new Error(data.error)
-      // 단일 기간 요약 데이터 → 단순 표시
       setReturnData([data])
+      // 오늘 수익률 Firestore 자동 저장
+      if (user?.uid) {
+        await saveTodayReturn(user.uid, { ...data, tot_evlt_amt: h?.tot_evlt_amt, tot_pur_amt: h?.tot_pur_amt }, h)
+      }
     } catch (e) { console.error(e) }
     finally { setRetLoading(false) }
-  }, [retPeriod])
+  }, [retPeriod, user?.uid])
+
+  // Firestore 일별 히스토리 로드
+  const loadHistory = useCallback(async () => {
+    if (!user?.uid) return
+    setHistLoading(true)
+    try {
+      const days = { '1m':30, '3m':90, '6m':180, '1y':365 }[retPeriod] || 90
+      const hist = await loadReturnHistory(user.uid, days)
+      setHistory(hist)
+    } catch (e) { console.error(e) }
+    finally { setHistLoading(false) }
+  }, [user?.uid, retPeriod])
 
   useEffect(() => { loadHoldings() }, [])
-  useEffect(() => { if (activeTab === 'returns') loadReturns(retPeriod) }, [activeTab, retPeriod])
+  useEffect(() => {
+    if (activeTab === 'returns') {
+      loadReturns(retPeriod)
+      loadHistory()
+    }
+  }, [activeTab, retPeriod])
 
-  const h = holdings
+  const h = holdings  // eslint-disable-line
   const sorted = [...(h?.holdings || [])].sort((a, b) => {
     const d = sortDir === 'desc' ? -1 : 1
     return (abs(a[sortBy]) - abs(b[sortBy])) * d * -1
@@ -324,7 +417,7 @@ export default function PortfolioPage() {
                   ))}
                 </div>
                 <div className="pf-return-notice">
-                  💡 키움 API (kt00016)는 기간 전체 수익률 요약을 제공합니다. 일별 추이는 매일 조회 후 Firestore에 저장하는 방식으로 구현 예정입니다.
+                  💡 계좌 조회 시 오늘 수익률이 자동 저장됩니다. 매일 조회하면 일별 추이 차트가 쌓입니다.
                 </div>
               </div>
             )
@@ -332,6 +425,22 @@ export default function PortfolioPage() {
           {!retLoading && !returnData && (
             <button className="pf-btn-primary" onClick={() => loadReturns(retPeriod)}>📡 수익률 조회</button>
           )}
+
+          {/* 일별 수익률 차트 — Firestore 히스토리 */}
+          <div className="pf-hist-section">
+            <div className="pf-hist-header">
+              <span className="pf-hist-title">📈 일별 수익률 추이</span>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <span style={{fontSize:'11px',color:'#94a3b8'}}>{history.length}일 기록됨</span>
+                <button className="pf-period-btn" onClick={loadHistory} disabled={histLoading} style={{fontSize:'11px',padding:'3px 10px'}}>
+                  {histLoading ? '⟳' : '↺'}
+                </button>
+              </div>
+            </div>
+            {histLoading
+              ? <div className="pf-loading">히스토리 불러오는 중...</div>
+              : <ReturnChart data={history}/>}
+          </div>
         </div>
       )}
 
