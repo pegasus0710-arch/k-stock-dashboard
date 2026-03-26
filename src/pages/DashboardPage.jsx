@@ -41,7 +41,6 @@ function isMarketOpen()   { return getKstStatus()==='open' }
 function isUSMarketOpen() { const d=new Date(),m=d.getHours()*60+d.getMinutes(),w=d.getDay(); return w>=1&&w<=6&&(m>=1410||m<360) }
 function getTodayStr()    { const d=new Date(),days=['일','월','화','수','목','금','토']; return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})` }
 function marketToInds(m)  { if(m==='J'||m==='KOSPI') return '001'; if(m==='Q'||m==='KOSDAQ') return '101'; return '001' }
-function getDashTTL()     { const s=getKstStatus(); if(s==='open') return 30000; if(s==='after') return 120000; return 600000 }
 
 // ── 서브 컴포넌트 ─────────────────────────────────────
 function Sparkline({ values, color }) {
