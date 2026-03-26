@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { signInWithPopup } from 'firebase/auth'
+import { signInWithRedirect } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase'
 import { useAuth } from '../context/AuthContext'
 import './LoginPage.css'
@@ -9,28 +9,19 @@ export default function LoginPage() {
   const [error,   setError]   = useState('')
   const { denied } = useAuth()
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = () => {
     setLoading(true)
     setError('')
-    try {
-      await signInWithPopup(auth, googleProvider)
-    } catch (e) {
-      console.error('Login error:', e.code, e.message)
-      if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
-        // 팝업 닫음 - 에러 표시 안함
-      } else if (e.code === 'auth/popup-blocked') {
-        setError('팝업이 차단됐습니다. 브라우저에서 팝업 허용 후 다시 시도해주세요.')
-      } else {
-        setError(`로그인 오류 (${e.code}): 다시 시도해주세요.`)
-      }
+    // redirect 방식: 팝업 없이 현재 탭에서 Google로 이동
+    signInWithRedirect(auth, googleProvider).catch(e => {
+      setError('로그인 오류: ' + (e.code || e.message))
       setLoading(false)
-    }
+    })
   }
 
   return (
     <div className="login-page">
       <div className="login-card">
-
         <div className="login-logo">
           <div className="login-logo-mark">K</div>
           <div>
@@ -51,7 +42,6 @@ export default function LoginPage() {
             ⛔ 접근 권한이 없는 계정입니다.<br/>허용된 계정으로 로그인해주세요.
           </div>
         )}
-
         {error && <div className="login-error">{error}</div>}
 
         <div className="login-btns">
@@ -62,9 +52,15 @@ export default function LoginPage() {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            {loading ? '로그인 중...' : 'Google로 로그인'}
+            {loading ? 'Google로 이동 중...' : 'Google로 로그인'}
           </button>
         </div>
+
+        {loading && (
+          <p style={{textAlign:'center',fontSize:'12px',color:'#64748b',margin:'0'}}>
+            잠시 후 Google 로그인 페이지로 이동합니다...
+          </p>
+        )}
 
         <p className="login-notice">허용된 구글 계정으로만 접속 가능합니다</p>
       </div>

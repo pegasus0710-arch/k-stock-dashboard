@@ -1,8 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { onAuthStateChanged, signOut } from 'firebase/auth'
+import { onAuthStateChanged, signOut, getRedirectResult } from 'firebase/auth'
 import { auth } from '../firebase'
 
-// ✅ 허용된 이메일 목록 — 본인 이메일 확인
 const ALLOWED_EMAILS = [
   'pegasus0710@gmail.com',
 ]
@@ -16,10 +15,12 @@ export function AuthProvider({ children }) {
   const [denied,  setDenied]  = useState(false)
 
   useEffect(() => {
+    // redirect 로그인 결과 처리 (signInWithRedirect 후 복귀 시)
+    getRedirectResult(auth).catch(() => {})
+
     const unsub = onAuthStateChanged(auth, (u) => {
       if (u) {
         if (ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(u.email)) {
-          // 허용되지 않은 계정 → 즉시 로그아웃
           setDenied(true)
           setUser(null)
           signOut(auth)
