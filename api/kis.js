@@ -1,9 +1,15 @@
 // api/kis.js — KIS API 프록시
 // 토큰을 Firebase Firestore에 저장해서 인스턴스 간 공유
 // → 새 접속마다 토큰 재발급 방지, 하루 1회만 발급
+//
+// ⚠️  필수 Vercel 환경변수 (서버용, VITE_ 없이 따로 등록):
+//   FIREBASE_PROJECT_ID  = Firebase 프로젝트 ID
+//   FIREBASE_API_KEY     = Firebase API 키
+//   KIS_APP_KEY          = KIS 앱키
+//   KIS_APP_SECRET       = KIS 시크릿
 
 const KIS_BASE    = 'https://openapi.koreainvestment.com:9443'
-const FIRESTORE   = `https://firestore.googleapis.com/v1/projects/${process.env.VITE_FIREBASE_PROJECT_ID}/databases/(default)/documents`
+const FIRESTORE   = `https://firestore.googleapis.com/v1/projects/${process.env.FIREBASE_PROJECT_ID}/databases/(default)/documents`
 const TOKEN_DOC   = `${FIRESTORE}/kis_token/main`
 
 // ── 인스턴스 메모리 캐시 (Firestore 호출 최소화) ────────
@@ -12,7 +18,7 @@ let _memToken = null, _memAt = 0
 // ── Firestore에서 토큰 읽기 ──────────────────────────
 async function readTokenFromFirestore() {
   try {
-    const res = await fetch(`${TOKEN_DOC}?key=${process.env.VITE_FIREBASE_API_KEY}`)
+    const res = await fetch(`${TOKEN_DOC}?key=${process.env.FIREBASE_API_KEY}`)
     if (!res.ok) return null
     const doc = await res.json()
     const fields = doc.fields || {}
@@ -26,7 +32,7 @@ async function readTokenFromFirestore() {
 // ── Firestore에 토큰 저장 ────────────────────────────
 async function saveTokenToFirestore(token, issuedAt) {
   try {
-    await fetch(`${TOKEN_DOC}?key=${process.env.VITE_FIREBASE_API_KEY}`, {
+    await fetch(`${TOKEN_DOC}?key=${process.env.FIREBASE_API_KEY}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -88,11 +94,22 @@ async function getToken() {
   return token
 }
 
+// ── fetch with timeout ──────────────────────────────
+async function fetchWithTimeout(url, opts={}, ms=8000) {
+  const ctrl = new AbortController()
+  const id = setTimeout(() => ctrl.abort(), ms)
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal })
+  } finally {
+    clearTimeout(id)
+  }
+}
+
 async function kisGet(path, trId, params) {
   const token = await getToken()
   const url   = new URL(`${KIS_BASE}${path}`)
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithTimeout(url.toString(), {
     headers: {
       'Content-Type': 'application/json',
       'authorization': `Bearer ${token}`,
@@ -429,79 +446,38 @@ export default async function handler(req, res) {
         const range    = req.query.range  || '3mo' // 1mo, 3mo, 6mo, 1y, 2y, 5y
         const interval = (range === '5y' || range === '2y') ? '1mo' : range === '1y' ? '1wk' : '1d'
         const yahooSym = SYMBOLS[sym] || SYMBOLS['SP500']
-        const headers  = { 'User-Agent': 'Mozilla/5.0' }
-
-        // ── 차트 데이터 (요청된 range) ────────────────────
         const yRes = await fetch(
           `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${interval}&range=${range}`,
-          { headers }
+          { headers: { 'User-Agent': 'Mozilla/5.0' } }
         )
         if (!yRes.ok) throw new Error(`Yahoo Finance 오류: ${yRes.status}`)
-        const yData  = await yRes.json()
+        const yData = await yRes.json()
         const result = yData.chart?.result?.[0]
         if (!result) throw new Error('데이터 없음')
         const meta       = result.meta
         const timestamps = result.timestamp || []
         const quotes     = result.indicators?.quote?.[0] || {}
-        const r2 = v => v ? Math.round((v || 0) * 100) / 100 : 0
         const candles = timestamps.map((ts, i) => ({
           date:   new Date(ts * 1000).toISOString().slice(0,10).replace(/-/g,''),
-          open:   r2(quotes.open?.[i]),
-          high:   r2(quotes.high?.[i]),
-          low:    r2(quotes.low?.[i]),
-          close:  r2(quotes.close?.[i]),
+          open:   quotes.open?.[i]  ? Math.round((quotes.open[i]  || 0) * 100) / 100 : 0,
+          high:   quotes.high?.[i]  ? Math.round((quotes.high[i]  || 0) * 100) / 100 : 0,
+          low:    quotes.low?.[i]   ? Math.round((quotes.low[i]   || 0) * 100) / 100 : 0,
+          close:  quotes.close?.[i] ? Math.round((quotes.close[i] || 0) * 100) / 100 : 0,
           volume: quotes.volume?.[i] || 0,
         })).filter(c => c.close > 0)
+        // 실시간 가격: 시간외(POST/PRE) > 정규장 순으로 사용
+        const regularPrice = meta.regularMarketPrice || 0
+        const postPrice    = meta.postMarketPrice    || 0
+        const prePrice     = meta.preMarketPrice     || 0
+        const prevClose    = meta.regularMarketPreviousClose || meta.chartPreviousClose || meta.previousClose || 0
+        const mktState     = meta.marketState || 'CLOSED'
 
-        // ── 일간 등락률: 5d/1d 별도 호출로 정확한 전일 종가 확보 ──
-        // meta.regularMarketPreviousClose가 정확하면 그대로 사용
-        // WTI 선물 등은 chartPreviousClose(range 시작점)가 폴백으로 잘못 사용되어
-        // +65% 같은 누적 등락률이 표시되는 버그 → 5d 데이터로 재계산
-        let price, change, changeRate, mktState
-        try {
-          const r5Res = await fetch(
-            `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=1d&range=5d`,
-            { headers }
-          )
-          const r5Data   = await r5Res.json()
-          const r5Result = r5Data.chart?.result?.[0]
-          const r5Meta   = r5Result?.meta || {}
-          const r5Quotes = r5Result?.indicators?.quote?.[0] || {}
-          const r5Closes = (r5Result?.timestamp || []).map((_, i) => r5Quotes.close?.[i] || 0).filter(v => v > 0)
+        let price = regularPrice
+        if (mktState === 'POST' && postPrice > 0) price = postPrice
+        if (mktState === 'PRE'  && prePrice  > 0) price = prePrice
 
-          // 실시간 가격: POST > PRE > 정규장
-          const regularPrice = r5Meta.regularMarketPrice || 0
-          const postPrice    = r5Meta.postMarketPrice    || 0
-          const prePrice     = r5Meta.preMarketPrice     || 0
-          mktState = r5Meta.marketState || 'CLOSED'
-
-          price = regularPrice
-          if (mktState === 'POST' && postPrice > 0) price = postPrice
-          if (mktState === 'PRE'  && prePrice  > 0) price = prePrice
-
-          // 전일 종가: 5d 캔들의 마지막 종가 (오늘 포함이면 끝에서 2번째)
-          // → 캔들 배열의 마지막이 오늘이면 price ≈ 마지막 close → 전전일이 prevClose
-          // meta.regularMarketPreviousClose 가 가장 신뢰할 수 있는 값
-          let prevClose = r5Meta.regularMarketPreviousClose || 0
-
-          // prevClose가 0이거나 price와의 차이가 20% 이상 → 5d 캔들로 재계산
-          if (!prevClose || Math.abs((price - prevClose) / (prevClose || price)) > 0.20) {
-            // 마지막에서 두 번째 유효 종가를 전일 종가로 사용
-            prevClose = r5Closes.length >= 2 ? r5Closes[r5Closes.length - 2] : (r5Closes[0] || 0)
-          }
-
-          change     = prevClose ? Math.round((price - prevClose) * 100) / 100 : 0
-          changeRate = prevClose ? Math.round(change / prevClose * 10000) / 100 : 0
-        } catch {
-          // 5d 호출 실패 시 원래 meta 값 사용 (단, chartPreviousClose 폴백 제거)
-          const regularPrice = meta.regularMarketPrice || 0
-          mktState = meta.marketState || 'CLOSED'
-          price    = regularPrice
-          const prevClose = meta.regularMarketPreviousClose || 0
-          change     = prevClose ? Math.round((price - prevClose) * 100) / 100 : 0
-          changeRate = prevClose ? Math.round(change / prevClose * 10000) / 100 : 0
-        }
-
+        const change     = Math.round((price - prevClose) * 100) / 100
+        const changeRate = prevClose ? Math.round(change / prevClose * 10000) / 100 : 0
         return res.json({ symbol: sym, price, change, changeRate, marketState: mktState, candles })
       }
 
@@ -542,9 +518,8 @@ export default async function handler(req, res) {
           volume: quotes.volume?.[i] || 0,
         })).filter(c => c.close > 0)
         const price    = r4(meta.regularMarketPrice)
-        // chartPreviousClose는 range 시작점이므로 폴백으로 사용 금지 (누적 등락률 버그)
-        const prevClose= r4(meta.regularMarketPreviousClose || 0)
-        const change   = prevClose ? r4(price - prevClose) : 0
+        const prevClose= r4(meta.regularMarketPreviousClose || meta.chartPreviousClose)
+        const change   = r4(price - prevClose)
         const changeRate = prevClose ? Math.round(change / prevClose * 100 * 100) / 100 : 0
         return res.json({ pair, candles, price, change, changeRate })
       }

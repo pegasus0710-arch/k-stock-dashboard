@@ -4,7 +4,6 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import StockChartModal from '../components/StockChartModal'
 import ChartModal from '../components/ChartModal'
-import GlobalChartModal from '../components/GlobalChartModal'
 import { ALL_THEMES, DEFAULT_ACTIVE_IDS } from '../constants/themes'
 import { fmt, fmtRate, fmtChange, rateColor, getTodayStr, getNowTime, getKstStatus, isMarketOpen, isUSMarketOpen, getDashTTL } from '../utils/format'
 import './DashboardPage.css'
@@ -461,6 +460,7 @@ export default function DashboardPage() {
   const { user } = useAuth()
 
   const [dashData,       setDashData]       = useState(() => lsRead(LS_DASH,   getDashTTL()))
+  const [fetchError,     setFetchError]     = useState(false)
   const [globalData,     setGlobalData]     = useState(() => lsRead(LS_GLOBAL, 300000))
   const [sparkData,      setSparkData]      = useState(() => lsRead(LS_SPARK,  3600000) || {})
   const [loading,        setLoading]        = useState(() => !lsRead(LS_DASH,  getDashTTL()))
@@ -511,7 +511,10 @@ export default function DashboardPage() {
       setDashData(res)
       lsWrite(LS_DASH, res)
       setLastFetch(getNowTime())
-    } catch (e) { console.error('[dashboard]', e) }
+    } catch (e) {
+      console.error('[dashboard]', e)
+      setFetchError(true)
+    }
     finally { setLoading(false); isFetching.current = false }
   }, [getNeededCodes])
 
@@ -544,23 +547,29 @@ export default function DashboardPage() {
     finally { setGlobalLoading(false) }
   }, [])
 
-  // Firebase 준비 완료 후 fetch 시작
+  // 글로벌/스파크는 즉시 시작 (Firebase 대기 불필요)
+  useEffect(() => {
+    fetchGlobal(true)
+    fetchSpark()
+    globalTimer.current = setInterval(() => fetchGlobal(true), isUSMarketOpen() ? 60000 : 300000)
+    return () => clearInterval(globalTimer.current)
+  }, [fetchGlobal, fetchSpark])
+
+  // 대시보드는 activeIdsReady 후 시작
   useEffect(() => {
     if (!activeIdsReady) return
-    fetchDashboard(true); fetchGlobal(true); fetchSpark()
-    const setupTimers = () => {
-      clearInterval(timerRef.current); clearInterval(globalTimer.current)
-      timerRef.current    = setInterval(() => fetchDashboard(true), isMarketOpen() ? 30000 : 300000)
-      globalTimer.current = setInterval(() => fetchGlobal(true),    isUSMarketOpen() ? 60000 : 300000)
+    fetchDashboard(true)
+    const setupTimer = () => {
+      clearInterval(timerRef.current)
+      timerRef.current = setInterval(() => fetchDashboard(true), isMarketOpen() ? 30000 : 300000)
     }
-    setupTimers()
-    stateCheck.current = setInterval(setupTimers, 60000)
+    setupTimer()
+    stateCheck.current = setInterval(setupTimer, 60000)
     return () => {
       clearInterval(timerRef.current)
-      clearInterval(globalTimer.current)
       clearInterval(stateCheck.current)
     }
-  }, [activeIdsReady, fetchDashboard, fetchGlobal, fetchSpark])
+  }, [activeIdsReady, fetchDashboard])
 
   const handleThemeChange = async ids => {
     setActiveIds(ids)
@@ -593,17 +602,7 @@ export default function DashboardPage() {
     if (chartItem.type === 'index') return (
       <ChartModal isIndex inds_cd={marketToInds(chartItem.market)} name={chartItem.label} initialPeriod="day" onClose={() => setChartItem(null)}/>
     )
-    // 환율 or 해외지수 → GlobalChartModal (라인+캔들, 기간 탭)
-    return (
-      <GlobalChartModal
-        type={chartItem.type === 'forex' ? 'forex' : 'global'}
-        symbol={chartItem.type === 'forex' ? chartItem.pair : chartItem.sym}
-        name={chartItem.label}
-        currentPrice={chartItem.price}
-        changeRate={chartItem.changeRate}
-        onClose={() => setChartItem(null)}
-      />
-    )
+    return <LegacyChartModal item={chartItem} onClose={() => setChartItem(null)}/>
   }
 
   return (
@@ -640,6 +639,18 @@ export default function DashboardPage() {
       {isAfter && (
         <div className="db-after-banner">
           ⏱ 시간외 단일가 거래 중 (15:30~18:00) · 시간외 거래 종목은 실시간 가격 표시
+        </div>
+      )}
+      {fetchError && !loading && (
+        <div className="db-fetch-error">
+          ⚠️ 데이터 로드 실패 (KIS API 응답 없음)
+          <button className="db-fetch-retry-btn" onClick={() => {
+            setFetchError(false)
+            localStorage.removeItem(LS_DASH)
+            fetchDashboard(true)
+          }}>
+            ↺ 재시도
+          </button>
         </div>
       )}
 

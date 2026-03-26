@@ -1195,3 +1195,17 @@
 .db-memo-card[style*="background:#1c"] .db-memo-date {
   border-top-color: rgba(255, 255, 255, 0.08);
 }
+
+/* ── 데이터 로드 에러 배너 ──────────────────────── */
+.db-fetch-error {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: #fff5f5; border: 1px solid #fecaca;
+  border-radius: 8px; font-size: 13px; color: #b91c1c; gap: 12px;
+}
+.db-fetch-retry-btn {
+  padding: 5px 12px; background: #ef4444; color: white;
+  border: none; border-radius: 6px; font-size: 12px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; font-family: var(--font-kr, sans-serif);
+  transition: background .12s;
+}
+.db-fetch-retry-btn:hover { background: #dc2626; }
