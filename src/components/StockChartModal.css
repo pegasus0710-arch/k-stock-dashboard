@@ -152,7 +152,7 @@
 }
 .smc-info-item:last-of-type { border-right:none; }
 .smc-info-label { font-size:10px; color:#475569; text-transform:uppercase; }
-.smc-info-value { font-size:12px; font-weight:600; color:#e2e8f0; margin-top:1px; font-family:monospace; }
+.smc-info-value { font-size:12px; font-weight:600; color:#e2e8f0 !important; margin-top:1px; font-family:monospace; }
 
 /* ── 뉴스/공시 공통 패널 ── */
 .smc-news-panel, .smc-dart-panel {

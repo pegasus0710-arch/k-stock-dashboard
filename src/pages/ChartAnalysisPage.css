@@ -67,8 +67,8 @@
 .cap-info-bar{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
 @media(max-width:768px){.cap-info-bar{grid-template-columns:repeat(3,1fr)}}
 .cap-info-item{padding:8px 10px;background:#0a0f1a;border:1px solid #1e293b;border-radius:8px;text-align:center}
-.cap-info-label{font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
-.cap-info-val{font-size:14px;font-weight:700}
+.cap-info-label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.cap-info-val{font-size:14px;font-weight:700;color:#e2e8f0}
 
 /* 인라인 차트 */
 .cap-chart-area{border:1px solid #1e293b;border-radius:10px;overflow:hidden;background:#0f172a;min-height:280px}
@@ -209,7 +209,7 @@
 .cap-supply-charts { display:flex; flex-direction:column; gap:0; }
 .cap-supply-sub-row { border-bottom:1px solid #1e293b; }
 .cap-supply-sub-row:last-child { border-bottom:none; }
-.cap-supply-sub-svg { width:100%; height:auto; display:block; }
+.cap-supply-sub-svg { width:100%; height:110px; display:block; }
 
 /* ── 마크다운 AI 결과 ─────────────────────── */
 .cap-md-body { font-family:var(--font-kr,sans-serif); }

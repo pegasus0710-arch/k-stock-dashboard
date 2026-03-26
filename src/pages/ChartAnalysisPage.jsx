@@ -27,7 +27,7 @@ function SupplyMiniBarChart({ title, data, color }) {
   if (!data?.length) return null
   const vals = data.map(d => d.value)
   const maxAbs = Math.max(...vals.map(Math.abs), 1)
-  const W = 900, H = 64, PAD = { l:80, r:12, t:6, b:16 }
+  const W = 900, H = 110, PAD = { l:80, r:12, t:8, b:18 }
   const cW = W - PAD.l - PAD.r, cH = H - PAD.t - PAD.b
   const bw = Math.max(2, Math.floor(cW / data.length * 0.65))
   const bx = i => PAD.l + (i + 0.5) * (cW / data.length)
@@ -45,8 +45,18 @@ function SupplyMiniBarChart({ title, data, color }) {
             width={bw} height={Math.max(1, barH)}
             fill={v >= 0 ? '#22c55e' : '#ef4444'} opacity="0.75"/>
         })}
+        {/* 외국인 누계 라인 */}
+        {(() => {
+          let cumSum = 0
+          const cumVals = data.map(d => { cumSum += (d.value||0); return cumSum })
+          const cumMax = Math.max(...cumVals.map(Math.abs), 1)
+          const cumPy = v => PAD.t + cH/2 - (v / cumMax) * (cH/2 - 2)
+          const cumPts = cumVals.map((v, i) => `${bx(i)},${cumPy(v)}`).join(' ')
+          return <polyline points={cumPts} fill="none" stroke="#f59e0b" strokeWidth="1.2" opacity="0.7"/>
+        })()}
         {data[0] && <text x={PAD.l} y={H - 2} fontSize="8" fill="#475569" textAnchor="middle">{(data[0].date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>}
         {data[data.length-1] && <text x={PAD.l+cW} y={H - 2} fontSize="8" fill="#475569" textAnchor="middle">{(data[data.length-1].date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>}
+        <text x={PAD.l - 5} y={PAD.t + cH - 4} fontSize="8" fill="#f59e0b" textAnchor="end">누계▶</text>
       </svg>
     </div>
   )
@@ -57,7 +67,7 @@ function SupplyMiniLineChart({ title, data, color, baseline }) {
   const vals = data.map(d => d.value)
   const maxV = Math.max(...vals, 1), minV = Math.min(...vals, 0)
   const range = (maxV - minV) || 1
-  const W = 900, H = 64, PAD = { l:80, r:12, t:6, b:16 }
+  const W = 900, H = 110, PAD = { l:80, r:12, t:8, b:18 }
   const cW = W - PAD.l - PAD.r, cH = H - PAD.t - PAD.b
   const px = i => PAD.l + (i / (data.length - 1 || 1)) * cW
   const py = v => PAD.t + cH - ((v - minV) / range) * cH
@@ -110,7 +120,7 @@ function filterByRange(candles, months) {
   const cutoff = new Date()
   cutoff.setMonth(cutoff.getMonth() - months)
   const cutStr = cutoff.toISOString().slice(0, 10).replace(/-/g, '')
-  return candles.filter(c => (c.time || '').slice(0, 8) >= cutStr)
+  return candles.filter(c => (c.time || c.date || '').slice(0, 8) >= cutStr)
 }
 
 const PERIODS = [
@@ -136,6 +146,8 @@ const DRAW_TOOLS = [
   { id:'trend',  label:'↗ 추세선',   tip:'추세선 그리기' },
   { id:'fib',    label:'🔢 피보나치', tip:'피보나치 되돌림' },
   { id:'text',   label:'📝 메모',    tip:'텍스트 메모 추가' },
+  { id:'split3', label:'⅓ 3분할',   tip:'가격 3분할선' },
+  { id:'split4', label:'¼ 4분할',   tip:'가격 4분할선' },
 ]
 
 // ══════════════════════════════════════════════
@@ -183,10 +195,13 @@ function ChartRenderer({ candles, showMA, enabledMA, drawings, onSvgClick, onSvg
     if (!svgRef.current) return
     const rect = svgRef.current.getBoundingClientRect()
     const mx   = (e.clientX - rect.left) * (W / rect.width)
+    const my   = (e.clientY - rect.top)  * (H / rect.height)
     const idx  = Math.round((mx - PAD.left) / (chartW / n) - 0.5)
     if (idx < 0 || idx >= n) { setTooltip(null); return }
-    setTooltip({ idx, x: bx(idx) })
-    onSvgMouseMove && onSvgMouseMove({ x: mx, y: (e.clientY - rect.top) * (H / rect.height), idx, price: fromY((e.clientY - rect.top) * (H / rect.height)) })
+    const mouseY = my
+    const mousePrice = fromY(my)
+    setTooltip({ idx, x: bx(idx), mouseY, mousePrice })
+    onSvgMouseMove && onSvgMouseMove({ x: mx, y: my, idx, price: mousePrice })
   }
 
   function handleClick(e) {
@@ -287,6 +302,13 @@ function ChartRenderer({ candles, showMA, enabledMA, drawings, onSvgClick, onSvg
       {td && (
         <>
           <line x1={tooltip.x} x2={tooltip.x} y1={PAD.top} y2={volTop + VOL_H} stroke="rgba(255,255,255,0.3)" strokeDasharray="3,3" strokeWidth="1"/>
+          {/* 가로 크로스헤어 */}
+          {tooltip.mouseY && <line x1={PAD.left} x2={W - PAD.right} y1={tooltip.mouseY} y2={tooltip.mouseY} stroke="rgba(255,255,255,0.2)" strokeDasharray="3,3" strokeWidth="0.8"/>}
+          {/* Y축 가격 레이블 */}
+          {tooltip.mouseY && <g>
+            <rect x={W - PAD.right} y={tooltip.mouseY - 8} width={PAD.right - 2} height={16} fill="#1e293b" rx="3"/>
+            <text x={W - PAD.right + 4} y={tooltip.mouseY + 4} fontSize="9" fill="#e2e8f0">{Math.round(tooltip.mousePrice||0).toLocaleString()}</text>
+          </g>}
           {(() => {
             const tx = tooltip.x > W / 2 ? tooltip.x - 150 : tooltip.x + 10
             const rows = [['시가',td.open],['고가',td.high],['저가',td.low],['종가',td.close],['거래량',td.volume]]
@@ -337,14 +359,36 @@ function FullscreenChart({ stock, onClose }) {
 
   useEffect(() => { const fn = e => e.key==='Escape'&&onClose(); window.addEventListener('keydown',fn); return()=>window.removeEventListener('keydown',fn) }, [onClose])
 
+  const FS_DATA_KEY = {
+    min:'stk_min_pole_chart_qry', day:'stk_dt_pole_chart_qry',
+    week:'stk_stk_pole_chart_qry', month:'stk_mth_pole_chart_qry', year:'stk_yr_pole_chart_qry',
+  }
+  function fsParseN(s) { return parseInt(String(s||'').replace(/[^0-9-]/g,''))||0 }
+  function fsFmtLabel(s, pd) {
+    const d = String(s||'')
+    if (pd==='min') return d.length>=4?d.slice(0,2)+':'+d.slice(2,4):d
+    if (d.length===8) return d.slice(4,6)+'/'+d.slice(6,8)
+    return d
+  }
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const url = `/api/kiwoom?type=stock-chart&code=${stock.code}&period=${period}` +
         (period==='min' ? `&tic=${minTic}&min_days=${minDays}` : '')
       const data = await fetch(url).then(r => r.json())
-      setAllCandles(data.candles || [])
-    } catch {}
+      if (data.error) throw new Error(data.error)
+      const items = data.candles || data[FS_DATA_KEY[period]] || []
+      const isDataKey = !data.candles && !!data[FS_DATA_KEY[period]]
+      const raw = items.map(c => {
+        const dateStr = String(c.date||c.dt||c.cntr_tm||c.time||'')
+        return { time:dateStr, date:dateStr, label:fsFmtLabel(dateStr,period),
+          open:Math.abs(fsParseN(c.open??c.open_pric??0)), high:Math.abs(fsParseN(c.high??c.high_pric??0)),
+          low:Math.abs(fsParseN(c.low??c.low_pric??0)), close:Math.abs(fsParseN(c.close??c.cur_prc??0)),
+          volume:fsParseN(c.volume??c.trde_qty??0) }
+      }).filter(c => c.close > 0)
+      if (isDataKey) raw.reverse()
+      setAllCandles(raw)
+    } catch(e) { console.warn('fs 차트 로드 실패:', e) }
     finally { setLoading(false) }
   }, [stock.code, period, minTic, minDays])
 
@@ -359,6 +403,23 @@ function FullscreenChart({ stock, onClose }) {
     if (drawTool === 'none') return
     if (drawTool === 'hline') {
       saveDrawings([...drawings, { type:'hline', price }])
+    } else if (drawTool === 'split3') {
+      const prices = candles.map(c => c.close).filter(Boolean)
+      if (!prices.length) return
+      const lo = Math.min(...prices), hi = Math.max(...prices), r = hi - lo
+      saveDrawings([...drawings,
+        { type:'hline', price: lo + r/3,   color:'#06b6d4' },
+        { type:'hline', price: lo + r*2/3, color:'#06b6d4' },
+      ]); setDrawTool('none')
+    } else if (drawTool === 'split4') {
+      const prices = candles.map(c => c.close).filter(Boolean)
+      if (!prices.length) return
+      const lo = Math.min(...prices), hi = Math.max(...prices), r = hi - lo
+      saveDrawings([...drawings,
+        { type:'hline', price: lo + r*0.25, color:'#f472b6' },
+        { type:'hline', price: lo + r*0.50, color:'#f472b6' },
+        { type:'hline', price: lo + r*0.75, color:'#f472b6' },
+      ]); setDrawTool('none')
     } else if (drawTool === 'trend' || drawTool === 'fib') {
       if (!drawState) {
         setDrawState({ x1:x, y1:y, price1:price })
@@ -509,7 +570,7 @@ export default function ChartAnalysisPage() {
   const [showMA,      setShowMA]      = useState(true)
   const [activeTab,   setActiveTab]   = useState('chart')
   const [showFull,    setShowFull]    = useState(false)
-  const [showSupply,  setShowSupply]  = useState(false)
+  const [showSupply,  setShowSupply]  = useState(true)
   const [drawings,    setDrawings]    = useState([])      // 인라인 드로잉
   const [drawTool,    setDrawTool]    = useState('none')  // 인라인 드로잉 툴
   const [drawState,   setDrawState]   = useState(null)    // 드로잉 진행 중
@@ -550,6 +611,37 @@ export default function ChartAnalysisPage() {
     setAllCandles([])
     const next = [stock, ...recent.filter(r => r.code !== stock.code)].slice(0, 8)
     setRecent(next); lsSet(LS_RECENT, next)
+    // 수급 자동 로드
+    setTimeout(() => loadSupply(), 100)
+  }
+
+  const DATA_KEY_MAP = {
+    min:'stk_min_pole_chart_qry', day:'stk_dt_pole_chart_qry',
+    week:'stk_stk_pole_chart_qry', month:'stk_mth_pole_chart_qry', year:'stk_yr_pole_chart_qry',
+  }
+  function parseN(s) { return parseInt(String(s||'').replace(/[^0-9-]/g,''))||0 }
+  function fmtLabel(dateStr, pd) {
+    const s = String(dateStr||'')
+    if (pd==='min') return s.length>=4?s.slice(0,2)+':'+s.slice(2,4):s
+    if (s.length===8) return s.slice(4,6)+'/'+s.slice(6,8)
+    return s
+  }
+  function normalizeCandles(items, pd, isDataKey) {
+    const raw = items.map(c => {
+      const dateStr = String(c.date||c.dt||c.cntr_tm||c.time||'')
+      return {
+        time:      dateStr,
+        date:      dateStr,
+        label:     fmtLabel(dateStr, pd),
+        open:      Math.abs(parseN(c.open   ?? c.open_pric  ?? 0)),
+        high:      Math.abs(parseN(c.high   ?? c.high_pric  ?? 0)),
+        low:       Math.abs(parseN(c.low    ?? c.low_pric   ?? 0)),
+        close:     Math.abs(parseN(c.close  ?? c.cur_prc    ?? 0)),
+        volume:    parseN(c.volume ?? c.trde_qty ?? 0),
+      }
+    }).filter(c => c.close > 0)
+    if (isDataKey) raw.reverse()
+    return raw
   }
 
   // 차트 로드
@@ -560,8 +652,11 @@ export default function ChartAnalysisPage() {
       const url = `/api/kiwoom?type=stock-chart&code=${selected.code}&period=${period}` +
         (period==='min' ? `&tic=${minTic}&min_days=${minDays}` : '')
       const data = await fetch(url).then(r => r.json())
-      setAllCandles(data.candles || [])
-    } catch {}
+      if (data.error) throw new Error(data.error)
+      const items = data.candles || data[DATA_KEY_MAP[period]] || []
+      const isDataKey = !data.candles && !!data[DATA_KEY_MAP[period]]
+      setAllCandles(normalizeCandles(items, period, isDataKey))
+    } catch(e) { console.warn('차트 로드 실패:', e) }
     finally { setChartLoading(false) }
   }, [selected, period, minTic, minDays])
 
@@ -618,6 +713,23 @@ export default function ChartAnalysisPage() {
     if (drawTool === 'none') return
     if (drawTool === 'hline') {
       saveDrawings([...drawings, { type:'hline', price:clickPrice }])
+    } else if (drawTool === 'split3') {
+      const prices = candles.map(c => c.close).filter(Boolean)
+      if (!prices.length) return
+      const lo = Math.min(...prices), hi = Math.max(...prices), r = hi - lo
+      saveDrawings([...drawings,
+        { type:'hline', price: lo + r/3,   color:'#06b6d4' },
+        { type:'hline', price: lo + r*2/3, color:'#06b6d4' },
+      ]); setDrawTool('none')
+    } else if (drawTool === 'split4') {
+      const prices = candles.map(c => c.close).filter(Boolean)
+      if (!prices.length) return
+      const lo = Math.min(...prices), hi = Math.max(...prices), r = hi - lo
+      saveDrawings([...drawings,
+        { type:'hline', price: lo + r*0.25, color:'#f472b6' },
+        { type:'hline', price: lo + r*0.50, color:'#f472b6' },
+        { type:'hline', price: lo + r*0.75, color:'#f472b6' },
+      ]); setDrawTool('none')
     } else if (drawTool === 'trend' || drawTool === 'fib') {
       if (!drawState) {
         setDrawState({ x1:x, y1:y, price1:clickPrice })
@@ -747,7 +859,7 @@ export default function ChartAnalysisPage() {
 
                 <div style={{marginLeft:'auto', display:'flex', gap:6}}>
                   <button className={`cap-period-btn ${showSupply?'active':''}`}
-                    onClick={() => { setShowSupply(v=>!v); if (!foreignData && !showSupply) loadSupply() }}>
+                    onClick={() => { const next=!showSupply; setShowSupply(next); if (next && !foreignData) loadSupply() }}>
                     📊 수급
                   </button>
                   <button className="cap-fullscreen-btn" onClick={() => setShowFull(true)}>⛶ 전체화면</button>
@@ -776,11 +888,13 @@ export default function ChartAnalysisPage() {
               {/* 드로잉 툴바 */}
               <div className="cap-draw-bar">
                 {[
-                  { id:'none',  label:'🖱️ 선택'  },
-                  { id:'hline', label:'━ 수평선' },
-                  { id:'trend', label:'↗ 추세선' },
-                  { id:'fib',   label:'🔢 피보나치' },
-                  { id:'text',  label:'📝 메모'  },
+                  { id:'none',   label:'🖱️ 선택'    },
+                  { id:'hline',  label:'━ 수평선'   },
+                  { id:'trend',  label:'↗ 추세선'   },
+                  { id:'fib',    label:'🔢 피보나치' },
+                  { id:'text',   label:'📝 메모'    },
+                  { id:'split3', label:'⅓ 3분할'   },
+                  { id:'split4', label:'¼ 4분할'   },
                 ].map(t => (
                   <button key={t.id}
                     className={`cap-draw-btn ${drawTool === t.id ? 'active' : ''}`}

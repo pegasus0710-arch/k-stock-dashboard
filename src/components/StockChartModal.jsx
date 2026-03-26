@@ -609,14 +609,14 @@ function CandleChart({
         })}
 
         {/* 십자선 (가로+세로) */}
-        {tooltip && td && (
+        {tooltip && td && tooltip.svgY >= PAD.top && tooltip.svgY <= PAD.top+H && (
           <>
             <line x1={bx(tooltip.idx)} y1={PAD.top}
               x2={bx(tooltip.idx)} y2={PAD.top+H}
-              stroke="#64748b" strokeWidth={0.8} strokeDasharray="4,2"/>
+              stroke="rgba(255,255,255,0.3)" strokeWidth={0.8} strokeDasharray="4,2"/>
             <line x1={PAD.left} y1={tooltip.svgY}
               x2={PAD.left+W}   y2={tooltip.svgY}
-              stroke="#64748b" strokeWidth={0.8} strokeDasharray="4,2"/>
+              stroke="rgba(255,255,255,0.25)" strokeWidth={0.8} strokeDasharray="4,2"/>
             {/* 가격 레이블 (오른쪽) */}
             <rect x={PAD.left+W} y={tooltip.svgY-8} width={76} height={16}
               fill="#1e293b" rx={3}/>
@@ -953,7 +953,7 @@ export default function StockChartModal({ stock, onClose }) {
   const [textOverlay, setTextOverlay] = useState(null) // {x, y, price, idx}
 
   // 수급
-  const [showSupply,   setShowSupply]   = useState(false)
+  const [showSupply,   setShowSupply]   = useState(true)
   const [supplyData,   setSupplyData]   = useState(null)
   const [supplyLoading,setSupplyLoading]= useState(false)
 
@@ -1067,7 +1067,7 @@ export default function StockChartModal({ stock, onClose }) {
 
   useEffect(() => { fetchChart() }, [fetchChart])
   useEffect(() => { fetchInfos() }, [fetchInfos])
-  useEffect(() => { if (showSupply && !supplyData) fetchSupply() }, [showSupply, supplyData, fetchSupply])
+  useEffect(() => { if (showSupply && !supplyData && stock?.code) fetchSupply() }, [showSupply, supplyData, fetchSupply, stock?.code])
 
   // ── 드로잉 저장 ──
   const saveDrawings = (next) => {
