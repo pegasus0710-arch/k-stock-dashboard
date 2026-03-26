@@ -1,57 +1,55 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
+import { useNavigate } from 'react-router-dom'
 import { auth } from '../firebase'
 
+// 허용된 이메일 목록 (본인 이메일로 교체)
+const ALLOWED_EMAILS = [
+  'pegasus0710@gmail.com',
+  // 추가 허용 이메일은 여기에
+]
+
 const AuthContext = createContext(null)
-
-// 허용 이메일 화이트리스트 (Vercel 환경변수)
-// VITE_ALLOWED_EMAILS=email1@gmail.com,email2@gmail.com
-const ALLOWED_EMAILS = (import.meta.env.VITE_ALLOWED_EMAILS || '')
-  .split(',')
-  .map(e => e.trim().toLowerCase())
-  .filter(Boolean)
-
-function isAllowed(email) {
-  if (ALLOWED_EMAILS.length === 0) return false
-  return ALLOWED_EMAILS.includes((email || '').toLowerCase())
-}
+export const useAuth = () => useContext(AuthContext)
 
 export function AuthProvider({ children }) {
-  const [user,        setUser]        = useState(null)
-  const [authLoading, setAuthLoading] = useState(true)
-  const [denied,      setDenied]      = useState(false)
+  const [user,    setUser]    = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [denied,  setDenied]  = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        if (!isAllowed(firebaseUser.email)) {
-          // 허용 안 된 이메일 → 즉시 로그아웃
-          await signOut(auth)
-          setUser(null)
+    const unsub = onAuthStateChanged(auth, (u) => {
+      if (u) {
+        // 허용 목록 체크
+        if (ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(u.email)) {
           setDenied(true)
+          setUser(null)
+          signOut(auth)
+          navigate('/login', { replace: true })
         } else {
-          setUser(firebaseUser)
           setDenied(false)
+          setUser(u)
+          navigate('/dashboard', { replace: true })
         }
       } else {
         setUser(null)
+        setDenied(false)
       }
-      setAuthLoading(false)
+      setLoading(false)
     })
-    return unsubscribe
+    return () => unsub()
   }, [])
 
   const logout = async () => {
     await signOut(auth)
     setUser(null)
-    setDenied(false)
+    navigate('/login', { replace: true })
   }
 
   return (
-    <AuthContext.Provider value={{ user, authLoading, denied, logout }}>
+    <AuthContext.Provider value={{ user, loading, denied, logout }}>
       {children}
     </AuthContext.Provider>
   )
 }
-
-export const useAuth = () => useContext(AuthContext)
