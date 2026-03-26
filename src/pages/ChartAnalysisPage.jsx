@@ -4,6 +4,77 @@ import { fmt, fmtRate, fmtShort, rateColor, getKstStatus } from '../utils/format
 import { ALL_THEMES } from '../constants/themes'
 import './ChartAnalysisPage.css'
 
+// ── 마크다운 렌더러 ────────────────────────────
+function MarkdownView({ text }) {
+  if (!text) return null
+  const inlineBold = (t) => t.split(/\*\*(.*?)\*\*/g).map((p, i) => i % 2 === 1 ? <strong key={i}>{p}</strong> : p)
+  return (
+    <div className="cap-md-body">
+      {text.split('\n').map((line, i) => {
+        if (line.startsWith('### ')) return <h4 key={i} className="cap-md-h3">{inlineBold(line.slice(4))}</h4>
+        if (line.startsWith('## '))  return <h3 key={i} className="cap-md-h2">{inlineBold(line.slice(3))}</h3>
+        if (line.startsWith('# '))   return <h2 key={i} className="cap-md-h1">{inlineBold(line.slice(2))}</h2>
+        if (/^[-*] /.test(line))     return <li key={i} className="cap-md-li">{inlineBold(line.slice(2))}</li>
+        if (!line.trim())             return <div key={i} className="cap-md-br"/>
+        return <p key={i} className="cap-md-p">{inlineBold(line)}</p>
+      })}
+    </div>
+  )
+}
+
+// ── 수급 미니 차트 ─────────────────────────────
+function SupplyMiniBarChart({ title, data, color }) {
+  if (!data?.length) return null
+  const vals = data.map(d => d.value)
+  const maxAbs = Math.max(...vals.map(Math.abs), 1)
+  const W = 900, H = 64, PAD = { l:80, r:12, t:6, b:16 }
+  const cW = W - PAD.l - PAD.r, cH = H - PAD.t - PAD.b
+  const bw = Math.max(2, Math.floor(cW / data.length * 0.65))
+  const bx = i => PAD.l + (i + 0.5) * (cW / data.length)
+  const midY = PAD.t + cH / 2
+  return (
+    <div className="cap-supply-sub-row">
+      <svg viewBox={`0 0 ${W} ${H}`} className="cap-supply-sub-svg">
+        <text x={PAD.l - 5} y={PAD.t + 10} fontSize="9" fill="#64748b" textAnchor="end">{title}</text>
+        <line x1={PAD.l} x2={PAD.l + cW} y1={midY} y2={midY} stroke="rgba(255,255,255,0.1)" strokeWidth="0.5"/>
+        {data.map((d, i) => {
+          const v = d.value || 0
+          const barH = Math.abs(v / maxAbs) * (cH / 2 - 2)
+          return <rect key={i} x={bx(i) - bw/2}
+            y={v >= 0 ? midY - barH : midY}
+            width={bw} height={Math.max(1, barH)}
+            fill={v >= 0 ? '#22c55e' : '#ef4444'} opacity="0.75"/>
+        })}
+        {data[0] && <text x={PAD.l} y={H - 2} fontSize="8" fill="#475569" textAnchor="middle">{(data[0].date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>}
+        {data[data.length-1] && <text x={PAD.l+cW} y={H - 2} fontSize="8" fill="#475569" textAnchor="middle">{(data[data.length-1].date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>}
+      </svg>
+    </div>
+  )
+}
+
+function SupplyMiniLineChart({ title, data, color, baseline }) {
+  if (!data?.length) return null
+  const vals = data.map(d => d.value)
+  const maxV = Math.max(...vals, 1), minV = Math.min(...vals, 0)
+  const range = (maxV - minV) || 1
+  const W = 900, H = 64, PAD = { l:80, r:12, t:6, b:16 }
+  const cW = W - PAD.l - PAD.r, cH = H - PAD.t - PAD.b
+  const px = i => PAD.l + (i / (data.length - 1 || 1)) * cW
+  const py = v => PAD.t + cH - ((v - minV) / range) * cH
+  const pts = data.map((d, i) => `${px(i)},${py(d.value||0)}`).join(' ')
+  return (
+    <div className="cap-supply-sub-row">
+      <svg viewBox={`0 0 ${W} ${H}`} className="cap-supply-sub-svg">
+        <text x={PAD.l - 5} y={PAD.t + 10} fontSize="9" fill="#64748b" textAnchor="end">{title}</text>
+        {baseline !== undefined && <line x1={PAD.l} x2={PAD.l+cW} y1={py(baseline)} y2={py(baseline)} stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" strokeDasharray="3,3"/>}
+        <polyline points={pts} fill="none" stroke={color} strokeWidth="1.3" opacity="0.85"/>
+        {data[0] && <text x={PAD.l} y={H - 2} fontSize="8" fill="#475569" textAnchor="middle">{(data[0].date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>}
+        {data[data.length-1] && <text x={PAD.l+cW} y={H - 2} fontSize="8" fill="#475569" textAnchor="middle">{(data[data.length-1].date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>}
+      </svg>
+    </div>
+  )
+}
+
 const CLAUDE_KEY = import.meta.env.VITE_CLAUDE_API_KEY
 
 // ── 검색 풀 ──────────────────────────────────
@@ -131,14 +202,14 @@ function ChartRenderer({ candles, showMA, enabledMA, drawings, onSvgClick, onSvg
 
   return (
     <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`}
-      className="cap-svg" style={{ cursor: onSvgClick ? 'crosshair' : 'default' }}
+      className="cap-svg" style={{ cursor: onSvgClick ? 'crosshair' : 'default', background:'#0f172a', borderRadius:'8px' }}
       onMouseMove={handleMouseMove} onMouseLeave={() => setTooltip(null)} onClick={handleClick}>
 
       {/* Y 그리드 */}
       {yTicks.map((v, i) => (
         <g key={i}>
-          <line x1={PAD.left} x2={W - PAD.right} y1={toY(v)} y2={toY(v)} stroke="#f1f5f9" strokeWidth="1"/>
-          <text x={PAD.left - 5} y={toY(v) + 4} textAnchor="end" fontSize="10" fill="#94a3b8">{Math.round(v).toLocaleString()}</text>
+          <line x1={PAD.left} x2={W - PAD.right} y1={toY(v)} y2={toY(v)} stroke="rgba(255,255,255,0.06)" strokeWidth="0.5"/>
+          <text x={PAD.left - 5} y={toY(v) + 4} textAnchor="end" fontSize="10" fill="#64748b">{Math.round(v).toLocaleString()}</text>
         </g>
       ))}
 
@@ -148,7 +219,7 @@ function ChartRenderer({ candles, showMA, enabledMA, drawings, onSvgClick, onSvg
       ))}
 
       {/* 거래량 구분선 */}
-      <line x1={PAD.left} x2={W - PAD.right} y1={volTop} y2={volTop} stroke="#f1f5f9"/>
+      <line x1={PAD.left} x2={W - PAD.right} y1={volTop} y2={volTop} stroke="rgba(255,255,255,0.08)" strokeWidth="0.5"/>
       <text x={PAD.left - 5} y={volTop + 10} textAnchor="end" fontSize="9" fill="#94a3b8">거래량</text>
 
       {/* 캔들 */}
@@ -205,8 +276,8 @@ function ChartRenderer({ candles, showMA, enabledMA, drawings, onSvgClick, onSvg
           const y = toY(d.price)
           if (y < PAD.top || y > PAD.top + PRICE_H) return null
           return <g key={i}>
-            <rect x={x - 2} y={y - 13} width={d.text.length * 7 + 8} height={16} fill="white" stroke="#e2e8f0" rx="3" opacity="0.9"/>
-            <text x={x + 2} y={y} fontSize="11" fill="#334155">{d.text}</text>
+            <rect x={x - 2} y={y - 13} width={d.text.length * 7 + 8} height={16} fill="rgba(30,41,59,0.9)" stroke="#475569" rx="3" opacity="0.9"/>
+            <text x={x + 2} y={y} fontSize="11" fill="#e2e8f0">{d.text}</text>
           </g>
         }
         return null
@@ -215,17 +286,17 @@ function ChartRenderer({ candles, showMA, enabledMA, drawings, onSvgClick, onSvg
       {/* 크로스헤어 + 툴팁 */}
       {td && (
         <>
-          <line x1={tooltip.x} x2={tooltip.x} y1={PAD.top} y2={volTop + VOL_H} stroke="#cbd5e1" strokeDasharray="3,3" strokeWidth="1"/>
+          <line x1={tooltip.x} x2={tooltip.x} y1={PAD.top} y2={volTop + VOL_H} stroke="rgba(255,255,255,0.3)" strokeDasharray="3,3" strokeWidth="1"/>
           {(() => {
             const tx = tooltip.x > W / 2 ? tooltip.x - 150 : tooltip.x + 10
             const rows = [['시가',td.open],['고가',td.high],['저가',td.low],['종가',td.close],['거래량',td.volume]]
             return <>
-              <rect x={tx} y={PAD.top + 4} width={140} height={108} fill="white" stroke="#e2e8f0" rx="6" opacity="0.97" filter="drop-shadow(0 2px 6px rgba(0,0,0,.08))"/>
-              <text x={tx + 8} y={PAD.top + 17} fontSize="10" fill="#475569" fontWeight="600">{td.label}</text>
+              <rect x={tx} y={PAD.top + 4} width={140} height={108} fill="#1e293b" stroke="#334155" rx="6" opacity="0.97"/>
+              <text x={tx + 8} y={PAD.top + 17} fontSize="10" fill="#94a3b8" fontWeight="600">{td.label}</text>
               {rows.map(([lbl, val], j) => {
-                const col = j===1?'#ef4444':j===2?'#3b82f6':j===3?rateColor(td.close-td.open):'#334155'
+                const col = j===1?'#ef4444':j===2?'#3b82f6':j===3?rateColor(td.close-td.open):'#94a3b8'
                 return <g key={j}>
-                  <text x={tx + 8}   y={PAD.top + 31 + j*15} fontSize="10" fill="#94a3b8">{lbl}</text>
+                  <text x={tx + 8}   y={PAD.top + 31 + j*15} fontSize="10" fill="#64748b">{lbl}</text>
                   <text x={tx + 134} y={PAD.top + 31 + j*15} textAnchor="end" fontSize="10" fill={col} fontWeight={j===3?'700':'400'}>
                     {j===4?Number(val).toLocaleString():Math.round(val).toLocaleString()}
                   </text>
@@ -438,6 +509,7 @@ export default function ChartAnalysisPage() {
   const [showMA,      setShowMA]      = useState(true)
   const [activeTab,   setActiveTab]   = useState('chart')
   const [showFull,    setShowFull]    = useState(false)
+  const [showSupply,  setShowSupply]  = useState(false)
   const [drawings,    setDrawings]    = useState([])      // 인라인 드로잉
   const [drawTool,    setDrawTool]    = useState('none')  // 인라인 드로잉 툴
   const [drawState,   setDrawState]   = useState(null)    // 드로잉 진행 중
@@ -565,7 +637,7 @@ export default function ChartAnalysisPage() {
   const pc   = price ? rateColor(price.changeRate) : '#94a3b8'
   const sign = price?.changeRate > 0 ? '+' : ''
 
-  const TABS = [{ id:'chart', label:'📈 차트' }, { id:'supply', label:'💰 수급' }, { id:'ai', label:'🤖 AI 분석' }]
+  const TABS = [{ id:'chart', label:'📈 차트' }, { id:'ai', label:'🤖 AI 분석' }]
 
   return (
     <div className="cap-wrap">
@@ -673,7 +745,11 @@ export default function ChartAnalysisPage() {
                     onClick={() => toggleMA(m.p)}>{m.label}</button>
                 ))}
 
-                <div style={{marginLeft:'auto'}}>
+                <div style={{marginLeft:'auto', display:'flex', gap:6}}>
+                  <button className={`cap-period-btn ${showSupply?'active':''}`}
+                    onClick={() => { setShowSupply(v=>!v); if (!foreignData && !showSupply) loadSupply() }}>
+                    📊 수급
+                  </button>
                   <button className="cap-fullscreen-btn" onClick={() => setShowFull(true)}>⛶ 전체화면</button>
                 </div>
               </div>
@@ -749,6 +825,21 @@ export default function ChartAnalysisPage() {
                 </div>
               )}
 
+              {/* 수급 서브차트 */}
+              {showSupply && (
+                <div className="cap-supply-sub">
+                  {supplyLoading && <div className="cap-chart-loading"><div className="cap-spinner"/>수급 데이터 로딩 중...</div>}
+                  {!supplyLoading && !foreignData && <div style={{padding:'12px',textAlign:'center'}}><button className="cap-btn-primary" onClick={loadSupply}>📡 수급 데이터 불러오기</button></div>}
+                  {!supplyLoading && foreignData && (
+                    <div className="cap-supply-charts">
+                      <SupplyMiniBarChart title="🌐 외국인 순매수" data={(foreignData||[]).map(r=>({date:r.dt,value:Number(r.chg_qty||0)}))} color="#3b82f6"/>
+                      <SupplyMiniLineChart title="📉 공매도 비중%" data={(shortData||[]).map(r=>({date:r.dt,value:parseFloat(r.trde_wght||0)}))} color="#ef4444"/>
+                      <SupplyMiniLineChart title="⚡ 체결강도" data={(strData||[]).map(r=>({date:r.dt,value:parseFloat(r.cntr_str||50)-50}))} color="#10b981" baseline={0}/>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 링크 */}
               <div className="cap-links-row">
                 <a href={`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(selected.name)}`} target="_blank" rel="noreferrer" className="cap-ext-link">📋 DART 공시 →</a>
@@ -757,32 +848,7 @@ export default function ChartAnalysisPage() {
             </div>
           )}
 
-          {/* ── 수급 탭 ── */}
-          {activeTab === 'supply' && (
-            <div className="cap-supply-section">
-              {supplyLoading && <div className="cap-loading"><div className="cap-spinner"/>수급 데이터 불러오는 중...</div>}
-              {!supplyLoading && !foreignData && <button className="cap-btn-primary" onClick={loadSupply}>📡 수급 데이터 불러오기</button>}
-              {!supplyLoading && foreignData && (
-                <>
-                  {[
-                    { title:'🌐 외국인 보유 추이', data:foreignData, cols:['일자','종가','변동수량','보유비중'], vals:r=>[r.dt?.slice(4,8).replace(/(\d{2})(\d{2})/,'$1/$2'),fmt(r.close_pric),`${Number(r.chg_qty)>0?'+':''}${fmt(r.chg_qty)}`,`${r.wght}%`], colors:(r,ci)=>ci===2?(Number(r.chg_qty)>0?'#ef4444':'#3b82f6'):'#334155' },
-                    { title:'📉 공매도 추이', data:shortData, cols:['일자','종가','공매도량','매매비중'], vals:r=>[r.dt?.slice(4,8).replace(/(\d{2})(\d{2})/,'$1/$2'),fmt(r.close_pric),fmt(r.shrts_qty),`${r.trde_wght?.toFixed(2)}%`], colors:(r,ci)=>ci===2?'#7c3aed':'#334155' },
-                    { title:'⚡ 체결강도', data:strData, cols:['일자','등락률','체결강도','5일','20일'], vals:r=>[r.dt?.slice(4,8).replace(/(\d{2})(\d{2})/,'$1/$2'),`${r.flu_rt?.toFixed(2)}%`,r.cntr_str?.toFixed(1),r.cntr_str_5?.toFixed(1),r.cntr_str_20?.toFixed(1)], colors:(r,ci)=>{if(ci===1)return rateColor(r.flu_rt);if(ci===2)return r.cntr_str>100?'#ef4444':'#3b82f6';return'#334155'} },
-                  ].map(({ title, data, cols, vals, colors }) => (
-                    <div key={title} className="cap-supply-card">
-                      <div className="cap-supply-title">{title}</div>
-                      {!data?.length ? <div className="cap-supply-empty">데이터 없음</div> : (
-                        <div className="cap-supply-table">
-                          <div className="cap-supply-th" style={{gridTemplateColumns:`repeat(${cols.length},1fr)`}}>{cols.map(c=><div key={c}>{c}</div>)}</div>
-                          {data.map((r,i)=>{const row=vals(r);return<div key={i} className="cap-supply-tr" style={{gridTemplateColumns:`repeat(${cols.length},1fr)`}}>{row.map((v,ci)=><div key={ci} style={{color:colors(r,ci)}}>{v}</div>)}</div>})}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-          )}
+          {/* 수급은 차트 탭 하단 서브차트로 통합 */}
 
           {/* ── AI 탭 ── */}
           {activeTab === 'ai' && (
@@ -799,7 +865,7 @@ export default function ChartAnalysisPage() {
               {!CLAUDE_KEY&&<div className="cap-ai-warn">⚠️ VITE_CLAUDE_API_KEY 미설정</div>}
               {aiError&&<div className="cap-ai-error">⚠️ {aiError}</div>}
               {aiLoading&&<div className="cap-loading"><div className="cap-spinner"/>{selected.name} 분석 중...</div>}
-              {aiResult&&!aiLoading&&<div className="cap-ai-result"><div className="cap-ai-badge">🔍 웹 검색 기반 · {new Date().toLocaleTimeString('ko-KR')}</div><pre className="cap-ai-text">{aiResult}</pre></div>}
+              {aiResult&&!aiLoading&&<div className="cap-ai-result"><div className="cap-ai-badge">🔍 웹 검색 기반 · {new Date().toLocaleTimeString('ko-KR')}</div><MarkdownView text={aiResult}/></div>}
               {!aiResult&&!aiLoading&&!aiError&&<div className="cap-ai-placeholder"><p><strong>AI 분석 시작</strong> 버튼을 눌러보세요</p><p className="cap-ai-sub">웹 검색 + 기술적 분석 종합</p></div>}
             </div>
           )}
