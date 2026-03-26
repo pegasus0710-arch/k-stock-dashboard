@@ -176,6 +176,43 @@ export default async function handler(req, res) {
     }, res)
   }
 
+
+  // ══════════════════════════════════════════════════
+  // Phase 5 — 계좌 API
+  // ══════════════════════════════════════════════════
+
+  // 체결잔고 (예수금 + 보유종목 요약)
+  // /api/kiwoom?type=account-balance
+  if (q.type === 'account-balance') {
+    return relay('/account/balance', {}, res)
+  }
+
+  // 계좌평가잔고 (보유종목 상세)
+  // /api/kiwoom?type=account-holdings
+  if (q.type === 'account-holdings') {
+    return relay('/account/holdings', {}, res)
+  }
+
+  // 주문체결내역 (오늘 or 특정일)
+  // /api/kiwoom?type=account-orders&date=20250326&sell_tp=0
+  if (q.type === 'account-orders') {
+    return relay('/account/orders', {
+      ord_dt:  q.date   || '',
+      sell_tp: q.sell_tp || '0',
+      qry_tp:  q.qry_tp  || '4',
+      stk_cd:  q.code   || '',
+    }, res)
+  }
+
+  // 일별 수익률
+  // /api/kiwoom?type=account-returns&fr_dt=20250101&to_dt=20250326
+  if (q.type === 'account-returns') {
+    return relay('/account/returns', {
+      fr_dt: q.fr_dt || '',
+      to_dt: q.to_dt || '',
+    }, res)
+  }
+
   return res.status(400).json({
     error: 'Invalid type',
     valid: [
@@ -184,6 +221,7 @@ export default async function handler(req, res) {
       'supply-short', 'supply-strength',
       'sector-all', 'sector-stocks',
       'etf-info', 'etf-list', 'etf-profit',
+      'account-balance', 'account-holdings', 'account-orders', 'account-returns',
     ],
   })
 }

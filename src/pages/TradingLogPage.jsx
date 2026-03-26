@@ -1,504 +1,398 @@
 import { useState, useEffect, useCallback } from 'react'
-import StockChartModal from '../components/StockChartModal'
 import { db } from '../firebase'
-import {
-  collection, addDoc, getDocs, deleteDoc, doc, updateDoc,
-  query, orderBy, where, Timestamp
-} from 'firebase/firestore'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts'
+import { useAuth } from '../context/AuthContext'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { fmt, rateColor } from '../utils/format'
 import './TradingLogPage.css'
 
-function fmt(n) { if (!n && n !== 0) return '-'; return Number(n).toLocaleString('ko-KR') }
-function parseNum(s) { if (!s) return 0; return parseInt(String(s).replace(/[^0-9-]/g, '')) || 0 }
-function toDateStr(d) { return d.toISOString().slice(0, 10) }
-function getOffset(days) { const d = new Date(); d.setDate(d.getDate() + days); return toDateStr(d) }
+const LS_KEY  = 'kstock_tradelog_v2'
+const CLAUDE_KEY = import.meta.env.VITE_CLAUDE_API_KEY
 
-const EMOTIONS = ['😊 긍정', '😐 보통', '😰 불안', '😤 조급', '🧊 냉정']
-const COLL = 'trading_logs'
+function lsGet(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} }
 
-// ── Firebase CRUD ──
-async function saveTrade(trade) {
-  return addDoc(collection(db, COLL), { ...trade, createdAt: Timestamp.now() })
-}
-async function fetchTrades() {
-  const q = query(collection(db, COLL), orderBy('date', 'desc'))
-  const snap = await getDocs(q)
-  return snap.docs.map(d => ({ ...d.data(), _id: d.id }))
-}
-async function removeTrade(id) {
-  await deleteDoc(doc(db, COLL, id))
-}
-async function patchTrade(id, data) {
-  await updateDoc(doc(db, COLL, id), data)
+function todayStr() { return new Date().toISOString().slice(0,10).replace(/-/g,'') }
+function formatDate(s) {
+  if (!s) return '-'
+  const str = String(s)
+  if (str.length === 8) return `${str.slice(0,4)}-${str.slice(4,6)}-${str.slice(6,8)}`
+  return str
 }
 
-// ── 손익 계산 (FIFO 매칭) ──
-function calcPnL(logs) {
-  const byCode = {}
-  const result = []
-
-  const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date))
-
-  for (const t of sorted) {
-    if (!byCode[t.code]) byCode[t.code] = []
-    if (t.type === '매수') {
-      byCode[t.code].push({ qty: t.qty, price: t.price, date: t.date })
-    } else if (t.type === '매도') {
-      let remainQty = t.qty
-      let totalCost = 0
-      while (remainQty > 0 && byCode[t.code]?.length > 0) {
-        const buy = byCode[t.code][0]
-        const matchQty = Math.min(remainQty, buy.qty)
-        totalCost += matchQty * buy.price
-        remainQty -= matchQty
-        buy.qty -= matchQty
-        if (buy.qty === 0) byCode[t.code].shift()
-      }
-      const revenue = t.qty * t.price
-      const pl = revenue - totalCost
-      result.push({ code: t.code, name: t.name, date: t.date, qty: t.qty, sellPrice: t.price, pl, plRate: totalCost > 0 ? pl / totalCost * 100 : 0 })
-    }
-  }
-  return result
+// AI 매매 분석
+async function analyzeOrders(orders) {
+  if (!CLAUDE_KEY || !orders.length) return ''
+  const summary = orders.slice(0, 20).map(o =>
+    `${o.stk_nm}(${o.stk_cd}) ${o.io_tp_nm} ${o.cntr_qty}주 @${fmt(o.cntr_uv)}원 (${o.ord_tm})`
+  ).join('\n')
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':CLAUDE_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body: JSON.stringify({
+      model:'claude-haiku-4-5-20251001', max_tokens:600,
+      tools:[{type:'web_search_20250305',name:'web_search'}],
+      messages:[{role:'user',content:
+        `오늘 매매 내역을 분석해줘:\n\n${summary}\n\n## 📊 매매 패턴 분석\n## 🎯 주요 매매 의도\n## ⚠️ 리스크 포인트\n## 💡 개선 제안\n\n웹 검색으로 오늘 시장 상황과 연계해서 분석해줘.`}],
+    }),
+  })
+  const data = await res.json()
+  return data.content?.filter(b => b.type==='text').map(b => b.text).join('\n') || ''
 }
 
 export default function TradingLogPage() {
-  const [tab, setTab]           = useState('거래내역')
-  const [logs, setLogs]         = useState([])
-  const [loading, setLoading]   = useState(false)
-  const [importing, setImp]     = useState(false)
-  const [importMsg, setImMsg]   = useState('')
-  const [filterType, setFt]     = useState('전체')
-  const [startDate, setStart]   = useState(getOffset(-30))
-  const [endDate, setEnd]       = useState(toDateStr(new Date()))
-  const [importStart, setIS]    = useState(toDateStr(new Date()))
-  const [importEnd, setIE]      = useState(toDateStr(new Date()))
-  const [editId, setEditId]     = useState(null)
-  const [aiLoading, setAiL]     = useState(false)
-  const [aiResult, setAiR]      = useState('')
-  const [aiError, setAiE]       = useState('')
-  const [chartStock, setChartStock] = useState(null)
+  const { user } = useAuth()
+  const [logs,        setLogs]        = useState(() => lsGet(LS_KEY, []))
+  const [autoOrders,  setAutoOrders]  = useState(null)   // 오늘 체결내역
+  const [autoLoading, setAutoLoading] = useState(false)
+  const [autoError,   setAutoError]   = useState('')
+  const [selDate,     setSelDate]     = useState(todayStr())
+  const [activeTab,   setActiveTab]   = useState('auto')  // auto | manual | ai
+  const [showForm,    setShowForm]    = useState(false)
+  const [form,        setForm]        = useState({ date:'', code:'', name:'', trde_tp:'매수', qty:0, price:0, memo:'' })
+  const [aiResult,    setAiResult]    = useState('')
+  const [aiLoading,   setAiLoading]   = useState(false)
+  const [aiError,     setAiError]     = useState('')
+  const [filter,      setFilter]      = useState('전체')  // 전체|매수|매도
 
-  // Firestore 불러오기
-  const loadLogs = useCallback(async () => {
-    setLoading(true)
+  useEffect(() => lsSet(LS_KEY, logs), [logs])
+
+  // 체결내역 자동 조회
+  const loadOrders = useCallback(async (date = selDate) => {
+    setAutoLoading(true); setAutoError('')
     try {
-      const data = await fetchTrades()
-      setLogs(data)
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setLoading(false)
+      const url = date === todayStr()
+        ? '/api/kiwoom?type=account-orders'
+        : `/api/kiwoom?type=account-orders&date=${date}`
+      const res  = await fetch(url)
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setAutoOrders(data)
+    } catch (e) { setAutoError(e.message); setAutoOrders(null) }
+    finally { setAutoLoading(false) }
+  }, [selDate])
+
+  // 체결내역 → 매매일지로 저장
+  const importToLog = (order) => {
+    const existing = logs.find(l => l.ord_no === order.ord_no)
+    if (existing) return
+    const entry = {
+      id:       Date.now(),
+      ord_no:   order.ord_no,
+      date:     selDate,
+      code:     order.stk_cd,
+      name:     order.stk_nm,
+      trde_tp:  order.io_tp_nm?.includes('매도') ? '매도' : '매수',
+      qty:      order.cntr_qty,
+      price:    order.cntr_uv,
+      amt:      order.cntr_amt,
+      ord_tm:   order.ord_tm,
+      memo:     '',
+      source:   'auto',
     }
-  }, [])
+    setLogs(prev => [entry, ...prev])
+  }
 
-  useEffect(() => { loadLogs() }, [loadLogs])
+  const importAll = () => {
+    autoOrders?.orders?.forEach(o => importToLog(o))
+  }
 
-  // 키움 체결내역 불러오기
-  const importFromKiwoom = async () => {
-    setImp(true); setImMsg('')
+  // 수동 추가
+  const addManual = () => {
+    if (!form.name || !form.qty || !form.price) return
+    setLogs(prev => [{
+      id:     Date.now(),
+      date:   form.date || todayStr(),
+      code:   form.code,
+      name:   form.name,
+      trde_tp:form.trde_tp,
+      qty:    Number(form.qty),
+      price:  Number(form.price),
+      amt:    Number(form.qty) * Number(form.price),
+      memo:   form.memo,
+      source: 'manual',
+    }, ...prev])
+    setForm({ date:'', code:'', name:'', trde_tp:'매수', qty:0, price:0, memo:'' })
+    setShowForm(false)
+  }
+
+  const removeLog = id => setLogs(prev => prev.filter(l => l.id !== id))
+
+  const doAI = async () => {
+    if (!autoOrders?.orders?.length && !logs.length) return
+    setAiLoading(true); setAiError('')
     try {
-      // 날짜 범위 순회 (하루씩)
-      const start = new Date(importStart)
-      const end   = new Date(importEnd)
-      let newCount = 0
-
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const dateStr = toDateStr(d).replace(/-/g, '')
-        const res  = await fetch(`/api/kiwoom?type=trades&date=${dateStr}`)
-        const data = await res.json()
-
-        if (data.return_code !== 0) continue
-
-        const orders = data.acnt_ord_cntr_prps_dtl || []
-        for (const o of orders) {
-          const cntrQty = parseNum(o.cntr_qty)
-          if (cntrQty === 0) continue
-
-          const isBuy  = o.sell_tp === '2' || o.sell_tp_nm?.includes('매수')
-          const isSell = o.sell_tp === '1' || o.sell_tp_nm?.includes('매도')
-          if (!isBuy && !isSell) continue
-
-          const importId = `${o.ord_no}_${dateStr}`
-          if (logs.find(l => l.importId === importId)) continue
-
-          const trade = {
-            importId,
-            date:    toDateStr(d),
-            type:    isBuy ? '매수' : '매도',
-            name:    o.stk_nm || '',
-            code:    o.stk_cd?.replace(/^A/, '') || '',
-            qty:     cntrQty,
-            price:   parseNum(o.cntr_pric),
-            amount:  cntrQty * parseNum(o.cntr_pric),
-            reason:  '',
-            emotion: '😐 보통',
-            lesson:  '',
-            auto:    true,
-          }
-          await saveTrade(trade)
-          newCount++
-        }
-      }
-
-      setImMsg(newCount > 0 ? `✅ ${newCount}건 저장됐습니다.` : '새로운 체결 내역이 없습니다.')
-      await loadLogs()
-    } catch (e) {
-      setImMsg('⚠️ ' + e.message)
-    } finally {
-      setImp(false)
-    }
+      const orders = autoOrders?.orders?.length ? autoOrders.orders : logs.slice(0, 20).map(l => ({
+        stk_nm: l.name, stk_cd: l.code,
+        io_tp_nm: l.trde_tp, cntr_qty: l.qty, cntr_uv: l.price, ord_tm: l.date,
+      }))
+      setAiResult(await analyzeOrders(orders))
+    } catch (e) { setAiError(e.message) }
+    finally { setAiLoading(false) }
   }
 
-  const handleDelete = async (id) => {
-    await removeTrade(id)
-    setLogs(p => p.filter(l => l._id !== id))
-  }
-
-  const handlePatch = async (id, field, value) => {
-    setLogs(p => p.map(l => l._id === id ? { ...l, [field]: value } : l))
-    await patchTrade(id, { [field]: value })
-  }
-
-  // 필터
-  const filtered = logs.filter(l => {
-    if (filterType !== '전체' && l.type !== filterType) return false
-    if (l.date < startDate || l.date > endDate) return false
-    return true
-  })
+  const filteredLogs = logs.filter(l => filter === '전체' || l.trde_tp === filter)
+  const todayLogs    = filteredLogs.filter(l => l.date === todayStr())
+  const pastLogs     = filteredLogs.filter(l => l.date !== todayStr())
 
   // 통계
-  const totalBuy    = logs.filter(l => l.type === '매수').reduce((s, l) => s + l.amount, 0)
-  const totalSell   = logs.filter(l => l.type === '매도').reduce((s, l) => s + l.amount, 0)
-  const pnlList     = calcPnL(logs)
-  const totalPl     = pnlList.reduce((s, t) => s + t.pl, 0)
-  const winCount    = pnlList.filter(t => t.pl > 0).length
-  const loseCount   = pnlList.filter(t => t.pl < 0).length
-  const winRate     = pnlList.length > 0 ? (winCount / pnlList.length * 100).toFixed(1) : 0
+  const buyTotal  = logs.filter(l => l.trde_tp === '매수').reduce((s, l) => s + l.amt, 0)
+  const sellTotal = logs.filter(l => l.trde_tp === '매도').reduce((s, l) => s + l.amt, 0)
 
-  // 종목별 손익 (차트용)
-  const byCode = {}
-  for (const t of pnlList) {
-    if (!byCode[t.code]) byCode[t.code] = { name: t.name, code: t.code, pl: 0, count: 0 }
-    byCode[t.code].pl += t.pl
-    byCode[t.code].count++
-  }
-  const stockPnl = Object.values(byCode).sort((a, b) => b.pl - a.pl)
-
-  // 일별 누적 손익 (차트용)
-  const dailyPnl = []
-  const dailyMap = {}
-  for (const t of pnlList) {
-    if (!dailyMap[t.date]) dailyMap[t.date] = 0
-    dailyMap[t.date] += t.pl
-  }
-  let cumPl = 0
-  for (const date of Object.keys(dailyMap).sort()) {
-    cumPl += dailyMap[date]
-    dailyPnl.push({ date: date.slice(5), pl: Math.round(cumPl) })
-  }
-
-  // AI 리뷰
-  const handleAI = async () => {
-    if (logs.length === 0) return
-    setAiL(true); setAiR(''); setAiE('')
-    try {
-      const key = import.meta.env.VITE_CLAUDE_API_KEY
-      if (!key) throw new Error('Claude API 키가 없어요.')
-      const todayStr = new Date().toLocaleDateString('ko-KR')
-      const recentLogs = filtered.slice(0, 20).map(l =>
-        `${l.date} ${l.type} ${l.name}(${l.code}) ${l.qty}주 @${fmt(l.price)}원 | 이유:${l.reason || '없음'} | 심리:${l.emotion}`
-      ).join('\n')
-      const pnlSummary = stockPnl.map(s => `${s.name}: ${s.pl > 0 ? '+' : ''}${fmt(Math.round(s.pl))}원 (${s.count}회)`).join(', ')
-
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1200,
-          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-          messages: [{ role: 'user', content:
-            `아래는 나의 최근 주식 매매 내역과 손익 분석이에요. 웹 검색으로 오늘(${todayStr}) 시장 상황도 참고해서 분석해줘.\n\n## 매매 내역\n${recentLogs}\n\n## 종목별 손익\n${pnlSummary}\n\n## 전체 통계\n- 총 거래: ${logs.length}건\n- 승률: ${winRate}% (${winCount}승 ${loseCount}패)\n- 누적 손익: ${fmt(Math.round(totalPl))}원\n\n아래 형식으로 분석해줘:\n\n## 📊 매매 패턴 분석\n## ✅ 잘한 점\n## ⚠️ 개선이 필요한 점\n## 💡 오늘 시장 상황 기반 다음 전략 제안\n\n구체적이고 실용적으로 작성해줘.`
-          }]
-        })
-      })
-      if (!res.ok) throw new Error(`API 오류 ${res.status}`)
-      const data = await res.json()
-      const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
-      setAiR(text || '분석 결과를 가져오지 못했어요.')
-    } catch (e) { setAiE(e.message) }
-    finally { setAiL(false) }
-  }
-
-  const plColor = totalPl > 0 ? '#ef4444' : totalPl < 0 ? '#3b82f6' : 'var(--text-2)'
-  const plSign  = totalPl > 0 ? '+' : ''
+  const TABS = [
+    { id:'auto',   label:'📡 체결내역 자동 임포트' },
+    { id:'manual', label:'📝 수동 기록'           },
+    { id:'ai',     label:'🤖 AI 매매 분석'        },
+  ]
 
   return (
-    <div className="page-wrap">
+    <div className="tl-wrap">
       <div className="page-header">
         <div>
           <h1 className="page-title">매매일지</h1>
-          <p className="page-sub">키움 자동 연동 · Firebase 저장 · 손익 분석 · AI 리뷰</p>
+          <p className="page-sub">체결내역 자동 가져오기 · 수동 기록 · AI 패턴 분석</p>
         </div>
       </div>
 
-      <div className="page-body">
-
-        {/* 탭 */}
-        <div className="tlog-tabs">
-          {['거래내역', '손익분석', 'AI 리뷰'].map(t => (
-            <button key={t} className={`tlog-tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{t}</button>
-          ))}
+      {/* 통계 바 */}
+      {logs.length > 0 && (
+        <div className="tl-stats">
+          <div className="tl-stat"><div className="tl-stat-label">전체 기록</div><div className="tl-stat-val">{logs.length}건</div></div>
+          <div className="tl-stat"><div className="tl-stat-label">총 매수금액</div><div className="tl-stat-val" style={{color:'#ef4444'}}>{fmt(buyTotal)}원</div></div>
+          <div className="tl-stat"><div className="tl-stat-label">총 매도금액</div><div className="tl-stat-val" style={{color:'#3b82f6'}}>{fmt(sellTotal)}원</div></div>
+          <div className="tl-stat"><div className="tl-stat-label">순매수</div><div className="tl-stat-val" style={{color:rateColor(buyTotal-sellTotal)}}>{fmt(buyTotal-sellTotal)}원</div></div>
         </div>
+      )}
 
-        {/* ── 거래내역 탭 ── */}
-        {tab === '거래내역' && (
-          <>
-            {/* 키움 불러오기 */}
-            <div className="card-section">
-              <span className="section-title">키움 체결내역 불러오기</span>
-              <div className="tlog-import-bar">
-                <input type="date" className="add-input" value={importStart} onChange={e => setIS(e.target.value)} />
-                <span style={{ color: 'var(--text-3)', flexShrink: 0 }}>~</span>
-                <input type="date" className="add-input" value={importEnd} onChange={e => setIE(e.target.value)} />
-                <button className="btn-ai" style={{ background: '#0d9488', flexShrink: 0 }} onClick={importFromKiwoom} disabled={importing}>
-                  {importing ? '⟳ 불러오는중...' : '⬇ 불러오기'}
-                </button>
+      {/* 탭 */}
+      <div className="tl-tabs">
+        {TABS.map(t => <button key={t.id} className={`tl-tab ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)}>{t.label}</button>)}
+      </div>
+
+      {/* ── 자동 임포트 탭 ── */}
+      {activeTab === 'auto' && (
+        <div className="tl-section">
+          <div className="tl-auto-ctrl">
+            <div className="tl-date-wrap">
+              <label className="tl-date-label">조회 날짜</label>
+              <input type="date" className="tl-date-input"
+                value={`${selDate.slice(0,4)}-${selDate.slice(4,6)}-${selDate.slice(6,8)}`}
+                onChange={e => setSelDate(e.target.value.replace(/-/g,''))}/>
+            </div>
+            <button className="tl-btn-primary" onClick={() => loadOrders(selDate)} disabled={autoLoading}>
+              {autoLoading ? '⟳ 조회중...' : '📡 체결내역 불러오기'}
+            </button>
+            {autoOrders?.orders?.length > 0 && (
+              <button className="tl-btn-import" onClick={importAll}>
+                ⬇️ 전체 일지에 저장 ({autoOrders.orders.length}건)
+              </button>
+            )}
+          </div>
+
+          {autoError && (
+            <div className="tl-error">
+              ⚠️ {autoError}
+              <div className="tl-error-sub">키움 계좌 API는 장중(9:00~15:30)에만 정상 동작합니다. EC2 서버 상태를 확인해주세요.</div>
+            </div>
+          )}
+
+          {autoLoading && <div className="tl-loading">체결내역 불러오는 중...</div>}
+
+          {!autoLoading && autoOrders && (
+            <>
+              <div className="tl-auto-summary">
+                📋 {formatDate(selDate)} 체결 내역 — <strong>{autoOrders.count}건</strong>
               </div>
-              {importMsg && (
-                <div className={`tlog-msg ${importMsg.startsWith('✅') ? 'success' : 'warn'}`}>{importMsg}</div>
+              {autoOrders.orders?.length === 0 ? (
+                <div className="tl-empty">해당 날짜의 체결 내역이 없습니다</div>
+              ) : (
+                <div className="tl-auto-table">
+                  <div className="tl-auto-th">
+                    <div>종목명</div><div>구분</div><div>체결수량</div><div>체결단가</div><div>체결금액</div><div>시간</div><div>저장</div>
+                  </div>
+                  {autoOrders.orders.map((o, i) => {
+                    const isBuy    = o.io_tp_nm?.includes('매수')
+                    const imported = !!logs.find(l => l.ord_no === o.ord_no)
+                    return (
+                      <div key={i} className="tl-auto-row">
+                        <div>
+                          <div className="tl-stock-nm">{o.stk_nm}</div>
+                          <div className="tl-stock-cd">{o.stk_cd}</div>
+                        </div>
+                        <div>
+                          <span className={`tl-type-badge ${isBuy ? 'buy' : 'sell'}`}>{o.io_tp_nm || (isBuy ? '매수' : '매도')}</span>
+                        </div>
+                        <div className="tl-mono">{fmt(o.cntr_qty)}주</div>
+                        <div className="tl-mono">{fmt(o.cntr_uv)}원</div>
+                        <div className="tl-mono">{fmt(o.cntr_amt)}원</div>
+                        <div className="tl-mono" style={{fontSize:'11px'}}>{o.ord_tm}</div>
+                        <div>
+                          {imported
+                            ? <span className="tl-imported">✓ 저장됨</span>
+                            : <button className="tl-import-btn" onClick={() => importToLog(o)}>⬇ 저장</button>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               )}
+            </>
+          )}
+
+          {!autoLoading && !autoOrders && !autoError && (
+            <div className="tl-guide">
+              <div className="tl-guide-icon">📡</div>
+              <p><strong>체결내역 자동 가져오기</strong></p>
+              <p className="tl-guide-sub">키움 계좌 API(kt00007)로 오늘 체결된 주문을 자동으로 불러옵니다.<br/>불러온 내역을 일지에 저장하면 수동 기록 탭에서 확인할 수 있습니다.</p>
+              <button className="tl-btn-primary" onClick={() => loadOrders(selDate)}>📡 오늘 체결내역 불러오기</button>
             </div>
+          )}
+        </div>
+      )}
 
-            {/* 필터 */}
-            <div className="tlog-filter-bar">
-              <div className="tlog-filter-group">
-                {['전체', '매수', '매도'].map(t => (
-                  <button key={t} className={`filter-chip ${filterType === t ? 'active' : ''}`} onClick={() => setFt(t)}>{t}</button>
-                ))}
-              </div>
-              <div className="tlog-filter-group">
-                <input type="date" className="add-input" style={{ flex: 'none', width: '130px' }} value={startDate} onChange={e => setStart(e.target.value)} />
-                <span style={{ color: 'var(--text-3)' }}>~</span>
-                <input type="date" className="add-input" style={{ flex: 'none', width: '130px' }} value={endDate} onChange={e => setEnd(e.target.value)} />
-              </div>
-            </div>
-
-            {/* 요약 */}
-            {logs.length > 0 && (
-              <div className="tlog-stats">
-                {[
-                  { label: '총 매수금액', value: fmt(totalBuy) + '원', color: '#dc2626' },
-                  { label: '총 매도금액', value: fmt(totalSell) + '원', color: '#16a34a' },
-                  { label: '총 거래건수', value: logs.length + '건', color: '#2563eb' },
-                  { label: '누적 손익', value: plSign + fmt(Math.round(totalPl)) + '원', color: plColor },
-                ].map(s => (
-                  <div key={s.label} className="card-section tlog-stat">
-                    <div className="tlog-stat-label">{s.label}</div>
-                    <div className="tlog-stat-value" style={{ color: s.color }}>{s.value}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* 거래 리스트 */}
-            {loading ? (
-              <div className="card-section pf-empty"><div className="empty-icon">⟳</div><p>불러오는 중...</p></div>
-            ) : filtered.length === 0 ? (
-              <div className="card-section pf-empty">
-                <div className="empty-icon">📓</div>
-                <p>거래 내역이 없어요</p>
-                <p className="sub-text">위에서 키움 체결내역을 불러오세요</p>
-              </div>
-            ) : (
-              <div className="tlog-table-wrap">
-                <div className="tlog-table">
-                  <div className="tlt-header">
-                    <div className="tlt-col-date">날짜</div>
-                    <div className="tlt-col-type">구분</div>
-                    <div className="tlt-col-name">종목명</div>
-                    <div className="tlt-col-qty">수량</div>
-                    <div className="tlt-col-price">체결가</div>
-                    <div className="tlt-col-total">거래금액</div>
-                    <div className="tlt-col-reason">매매 이유</div>
-                    <div className="tlt-col-emotion">심리</div>
-                    <div className="tlt-col-lesson">교훈</div>
-                    <div className="tlt-col-del"></div>
-                  </div>
-                  {filtered.map(l => (
-                    <div key={l._id} className="tlt-row">
-                      <div className="tlt-col-date">{l.date}</div>
-                      <div className="tlt-col-type">
-                        <span className={`tlog-badge tlog-badge-${l.type === '매수' ? 'buy' : 'sell'}`}>{l.type}</span>
-                        {l.auto && <span className="tlog-auto-badge">자동</span>}
-                      </div>
-                      <div className="tlt-col-name">
-                        <div className="tlt-name">{l.name}</div>
-                        <div className="tlt-code">{l.code}</div>
-                      </div>
-                      <div className="tlt-col-qty">{fmt(l.qty)}주</div>
-                      <div className="tlt-col-price">{fmt(l.price)}원</div>
-                      <div className="tlt-col-total tlt-total">{fmt(l.qty * l.price)}원</div>
-                      <div className="tlt-col-reason">
-                        <input className="tlt-input" placeholder="이유..." value={l.reason || ''}
-                          onChange={e => handlePatch(l._id, 'reason', e.target.value)} />
-                      </div>
-                      <div className="tlt-col-emotion">
-                        <select className="tlt-select" value={l.emotion || '😐 보통'}
-                          onChange={e => handlePatch(l._id, 'emotion', e.target.value)}>
-                          {EMOTIONS.map(e => <option key={e}>{e}</option>)}
-                        </select>
-                      </div>
-                      <div className="tlt-col-lesson">
-                        <input className="tlt-input" placeholder="교훈..." value={l.lesson || ''}
-                          onChange={e => handlePatch(l._id, 'lesson', e.target.value)} />
-                      </div>
-                      <div className="tlt-col-del">
-                        <button className="tlt-remove" onClick={() => handleDelete(l._id)}>✕</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ── 손익분석 탭 ── */}
-        {tab === '손익분석' && (
-          <>
-            {/* 요약 카드 */}
-            <div className="tlog-stats">
-              {[
-                { label: '누적 손익', value: plSign + fmt(Math.round(totalPl)) + '원', color: plColor },
-                { label: '승률', value: winRate + '%', color: '#7c3aed' },
-                { label: '수익 거래', value: winCount + '건', color: '#16a34a' },
-                { label: '손실 거래', value: loseCount + '건', color: '#dc2626' },
-              ].map(s => (
-                <div key={s.label} className="card-section tlog-stat">
-                  <div className="tlog-stat-label">{s.label}</div>
-                  <div className="tlog-stat-value" style={{ color: s.color }}>{s.value}</div>
-                </div>
+      {/* ── 수동 기록 탭 ── */}
+      {activeTab === 'manual' && (
+        <div className="tl-section">
+          <div className="tl-manual-header">
+            <div className="tl-filter-group">
+              {['전체','매수','매도'].map(f => (
+                <button key={f} className={`tl-filter-btn ${filter === f ? 'active' : ''}`}
+                  onClick={() => setFilter(f)}>{f}</button>
               ))}
             </div>
+            <button className="tl-btn-primary" onClick={() => setShowForm(v => !v)}>
+              {showForm ? '✕ 닫기' : '+ 직접 추가'}
+            </button>
+          </div>
 
-            {/* 누적 손익 차트 */}
-            {dailyPnl.length > 1 && (
-              <div className="card-section">
-                <span className="section-title">누적 손익 추이</span>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={dailyPnl}>
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={v => fmt(v)} width={80} />
-                    <Tooltip formatter={v => fmt(v) + '원'} />
-                    <Line type="monotone" dataKey="pl" stroke="#2563eb" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            {/* 종목별 손익 차트 */}
-            {stockPnl.length > 0 && (
-              <div className="card-section">
-                <span className="section-title">종목별 손익</span>
-                <ResponsiveContainer width="100%" height={Math.max(160, stockPnl.length * 40)}>
-                  <BarChart data={stockPnl} layout="vertical">
-                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => fmt(v)} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={100} />
-                    <Tooltip formatter={v => fmt(Math.round(v)) + '원'} />
-                    <Bar dataKey="pl" radius={[0, 4, 4, 0]}>
-                      {stockPnl.map((s, i) => (
-                        <Cell key={i} fill={s.pl >= 0 ? '#ef4444' : '#3b82f6'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            {/* 종목별 손익 테이블 */}
-            {stockPnl.length > 0 && (
-              <div className="card-section">
-                <span className="section-title">종목별 상세</span>
-                <div className="pnl-table-wrap">
-                  <div className="pnl-table">
-                    <div className="pnl-header">
-                      <div>종목명</div>
-                      <div>거래횟수</div>
-                      <div>손익</div>
-                      <div>수익률</div>
-                    </div>
-                    {stockPnl.map(s => (
-                      <div key={s.code} className="pnl-row" style={{cursor:'pointer'}} onClick={() => setChartStock({name: s.name, code: s.code})}>
-                        <div>
-                          <div className="tlt-name">{s.name}</div>
-                          <div className="tlt-code">{s.code}</div>
-                        </div>
-                        <div>{s.count}회</div>
-                        <div style={{ color: s.pl >= 0 ? '#ef4444' : '#3b82f6', fontWeight: 700 }}>
-                          {s.pl >= 0 ? '+' : ''}{fmt(Math.round(s.pl))}원
-                        </div>
-                        <div style={{ color: s.pl >= 0 ? '#ef4444' : '#3b82f6' }}>
-                          {s.pl >= 0 ? '+' : ''}{Number(s.plRate).toFixed(2)}%
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+          {showForm && (
+            <div className="tl-form">
+              <div className="tl-form-row">
+                <div className="tl-form-group">
+                  <label>날짜</label>
+                  <input type="date" className="tl-input" value={form.date ? `${form.date.slice(0,4)}-${form.date.slice(4,6)}-${form.date.slice(6,8)}` : ''}
+                    onChange={e => setForm(p => ({...p, date: e.target.value.replace(/-/g,'')}))}/>
+                </div>
+                <div className="tl-form-group">
+                  <label>종목코드</label>
+                  <input className="tl-input mono" placeholder="005930" value={form.code}
+                    onChange={e => setForm(p => ({...p, code: e.target.value}))}/>
+                </div>
+                <div className="tl-form-group">
+                  <label>종목명</label>
+                  <input className="tl-input" placeholder="삼성전자" value={form.name}
+                    onChange={e => setForm(p => ({...p, name: e.target.value}))}/>
+                </div>
+                <div className="tl-form-group">
+                  <label>매매구분</label>
+                  <select className="tl-input" value={form.trde_tp} onChange={e => setForm(p => ({...p, trde_tp: e.target.value}))}>
+                    <option>매수</option><option>매도</option>
+                  </select>
+                </div>
+                <div className="tl-form-group">
+                  <label>수량</label>
+                  <input type="number" className="tl-input mono" placeholder="0" value={form.qty || ''}
+                    onChange={e => setForm(p => ({...p, qty: e.target.value}))}/>
+                </div>
+                <div className="tl-form-group">
+                  <label>단가</label>
+                  <input type="number" className="tl-input mono" placeholder="0" value={form.price || ''}
+                    onChange={e => setForm(p => ({...p, price: e.target.value}))}/>
+                </div>
+                <div className="tl-form-group tl-form-group--memo">
+                  <label>메모</label>
+                  <input className="tl-input" placeholder="매매 이유, 전략 등" value={form.memo}
+                    onChange={e => setForm(p => ({...p, memo: e.target.value}))}/>
                 </div>
               </div>
-            )}
-
-            {pnlList.length === 0 && (
-              <div className="card-section pf-empty">
-                <div className="empty-icon">📊</div>
-                <p>분석할 데이터가 없어요</p>
-                <p className="sub-text">매수/매도 거래가 모두 있어야 손익이 계산됩니다</p>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ── AI 리뷰 탭 ── */}
-        {tab === 'AI 리뷰' && (
-          <>
-            <div className="card-section">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <span className="section-title">🔍 AI 매매 패턴 분석</span>
-                <button className="btn-ai" style={{ background: '#7c3aed' }} onClick={handleAI} disabled={aiLoading || logs.length === 0}>
-                  {aiLoading ? '🔍 분석중...' : '분석 시작'}
-                </button>
-              </div>
-              <p style={{ fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.6 }}>
-                전체 매매 내역 + 종목별 손익 + 오늘 시장 상황(웹 검색)을 종합해서 패턴을 분석하고 다음 전략을 제안합니다.
-              </p>
+              {form.qty && form.price && (
+                <div className="tl-form-preview">
+                  예상 금액: <strong>{fmt(Number(form.qty) * Number(form.price))}원</strong>
+                </div>
+              )}
+              <button className="tl-btn-primary" onClick={addManual}>추가</button>
             </div>
+          )}
 
-            {aiError && (
-              <div className="card-section">
-                <div className="ai-error">⚠️ {aiError}</div>
-              </div>
-            )}
-            {aiResult && (
-              <div className="card-section">
-                <div className="ai-result"><pre>{aiResult}</pre></div>
-              </div>
-            )}
-            {!aiResult && !aiError && !aiLoading && (
-              <div className="card-section pf-empty">
-                <div className="empty-icon">🤖</div>
-                <p>위 "분석 시작" 버튼을 눌러주세요</p>
-                <p className="sub-text">매매 기록이 많을수록 정확한 분석이 됩니다</p>
-              </div>
-            )}
-          </>
-        )}
-
-      </div>
-
-      {chartStock && (
-        <StockChartModal stock={chartStock} onClose={() => setChartStock(null)} />
+          {filteredLogs.length === 0 ? (
+            <div className="tl-empty">
+              {logs.length === 0 ? '아직 기록된 매매일지가 없습니다' : '해당 조건의 기록이 없습니다'}
+            </div>
+          ) : (
+            <>
+              {todayLogs.length > 0 && (
+                <div className="tl-log-group">
+                  <div className="tl-log-group-label">📅 오늘</div>
+                  <LogTable logs={todayLogs} onDelete={removeLog}/>
+                </div>
+              )}
+              {pastLogs.length > 0 && (
+                <div className="tl-log-group">
+                  <div className="tl-log-group-label">📂 이전 기록</div>
+                  <LogTable logs={pastLogs} onDelete={removeLog}/>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       )}
+
+      {/* ── AI 분석 탭 ── */}
+      {activeTab === 'ai' && (
+        <div className="tl-section">
+          <div className="tl-ai-header">
+            <div>🤖 오늘 매매 패턴을 AI가 분석합니다</div>
+            <button className="tl-btn-primary" onClick={doAI} disabled={aiLoading || !CLAUDE_KEY}>
+              {aiLoading ? '⟳ 분석 중...' : aiResult ? '↺ 다시 분석' : '🔍 AI 분석 시작'}
+            </button>
+          </div>
+          {!CLAUDE_KEY && <div className="tl-ai-warn">⚠️ Claude API 키 미설정</div>}
+          {aiError    && <div className="tl-ai-error">⚠️ {aiError}</div>}
+          {aiLoading  && <div className="tl-loading">웹 검색 + 매매 패턴 분석 중...</div>}
+          {aiResult && !aiLoading && (
+            <div className="tl-ai-result">
+              <div className="tl-ai-badge">🔍 웹 검색 기반 · {new Date().toLocaleTimeString('ko-KR')}</div>
+              <pre className="tl-ai-text">{aiResult}</pre>
+            </div>
+          )}
+          {!aiResult && !aiLoading && !aiError && (
+            <div className="tl-guide">
+              <div className="tl-guide-icon">🤖</div>
+              <p>자동 임포트 또는 수동 기록 후 AI 분석을 실행하세요</p>
+              <p className="tl-guide-sub">웹 검색으로 오늘 시장 상황과 연계해 매매 패턴을 분석해드립니다</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 로그 테이블 서브 컴포넌트
+function LogTable({ logs, onDelete }) {
+  return (
+    <div className="tl-log-table">
+      <div className="tl-log-th">
+        <div>날짜</div><div>종목명</div><div>구분</div><div>수량</div><div>단가</div><div>금액</div><div>출처</div><div>메모</div><div></div>
+      </div>
+      {logs.map(l => {
+        const isBuy = l.trde_tp === '매수'
+        return (
+          <div key={l.id} className="tl-log-row">
+            <div className="tl-mono" style={{fontSize:'11px'}}>{formatDate(l.date)}</div>
+            <div>
+              <div className="tl-stock-nm">{l.name}</div>
+              <div className="tl-stock-cd">{l.code}</div>
+            </div>
+            <div><span className={`tl-type-badge ${isBuy ? 'buy' : 'sell'}`}>{l.trde_tp}</span></div>
+            <div className="tl-mono">{fmt(l.qty)}주</div>
+            <div className="tl-mono">{fmt(l.price)}원</div>
+            <div className="tl-mono" style={{color: isBuy ? '#ef4444' : '#3b82f6', fontWeight:600}}>{fmt(l.amt)}원</div>
+            <div><span className={`tl-src-badge ${l.source}`}>{l.source === 'auto' ? '자동' : '수동'}</span></div>
+            <div className="tl-log-memo">{l.memo || '—'}</div>
+            <div><button className="tl-del-btn" onClick={() => onDelete(l.id)}>✕</button></div>
+          </div>
+        )
+      })}
     </div>
   )
 }
