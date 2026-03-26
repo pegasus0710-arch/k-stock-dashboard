@@ -1,6 +1,43 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import './StockChartModal.css'
 
+// ── 간단 마크다운 렌더러 ────────────────────────────
+function renderMarkdown(text) {
+  if (!text) return []
+  return text.split('\n').map((line, i) => {
+    // ## 제목
+    if (line.startsWith('### ')) return { type:'h3', text: line.slice(4), key:i }
+    if (line.startsWith('## '))  return { type:'h2', text: line.slice(3), key:i }
+    if (line.startsWith('# '))   return { type:'h1', text: line.slice(2), key:i }
+    // - 목록
+    if (/^[-*] /.test(line))     return { type:'li', text: line.slice(2), key:i }
+    // 빈 줄
+    if (!line.trim())             return { type:'br', text:'', key:i }
+    // 일반 텍스트 (** 볼드 처리)
+    return { type:'p', text: line, key:i }
+  })
+}
+function MarkdownView({ text, className }) {
+  const nodes = renderMarkdown(text)
+  return (
+    <div className={className}>
+      {nodes.map(n => {
+        // **텍스트** 볼드 인라인 파싱
+        const inlineBold = (t) => {
+          const parts = t.split(/\*\*(.*?)\*\*/g)
+          return parts.map((p, i) => i % 2 === 1 ? <strong key={i}>{p}</strong> : p)
+        }
+        if (n.type === 'h1') return <h3 key={n.key} className="smc-md-h1">{inlineBold(n.text)}</h3>
+        if (n.type === 'h2') return <h3 key={n.key} className="smc-md-h2">{inlineBold(n.text)}</h3>
+        if (n.type === 'h3') return <h4 key={n.key} className="smc-md-h3">{inlineBold(n.text)}</h4>
+        if (n.type === 'li') return <li  key={n.key} className="smc-md-li">{inlineBold(n.text)}</li>
+        if (n.type === 'br') return <div key={n.key} className="smc-md-br"/>
+        return <p key={n.key} className="smc-md-p">{inlineBold(n.text)}</p>
+      })}
+    </div>
+  )
+}
+
 const CLAUDE_KEY = import.meta.env.VITE_CLAUDE_API_KEY
 const DART_KEY   = import.meta.env.VITE_DART_API_KEY
 
@@ -74,21 +111,21 @@ function DartPanel({ stock }) {
   const load = useCallback(async () => {
     setLoading(true); setError('')
     try {
+      // 항상 /api/dart 프록시 사용 (브라우저 직접 호출 시 DART CORS 차단)
       const corpCode = DART_CORP_MAP[stock.code]
       let url
-      if (corpCode && DART_KEY) {
+      if (corpCode) {
         const today = new Date().toISOString().slice(0,10).replace(/-/g,'')
         const from  = new Date(Date.now()-180*86400000).toISOString().slice(0,10).replace(/-/g,'')
-        url = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_KEY}&corp_code=${corpCode}&bgn_de=${from}&end_de=${today}&page_count=20`
+        url = `/api/dart?type=list&corp_code=${corpCode}&bgn_de=${from}&end_de=${today}`
       } else {
-        // DART API 프록시 사용
-        url = `/api/dart?type=corp_list&corp_name=${encodeURIComponent(stock.name)}&page_count=20`
+        url = `/api/dart?type=corp_list&corp_name=${encodeURIComponent(stock.name)}`
       }
       const res  = await fetch(url)
       const data = await res.json()
-      const items = data.list || data.items || []
+      const items = data.list || data.items || data.disclosures || []
       setList(items)
-      if (!items.length) setError('공시 없음')
+      if (!items.length) setError('최근 6개월 내 공시가 없습니다')
     } catch(e) { setError(e.message) }
     finally { setLoading(false) }
   }, [stock.code, stock.name])
@@ -313,7 +350,7 @@ function AiPopup({ stock, onClose }) {
         {!loading && result && (
           <div className="smc-ai-result">
             <div className="smc-ai-result-meta">📅 {result.date} 저장 · 다음 분석 시 자동 업데이트</div>
-            <pre className="smc-ai-result-text">{result.text}</pre>
+            <MarkdownView text={result.text} className="smc-ai-result-text"/>
           </div>
         )}
         {!loading && !result && !error && (
@@ -718,6 +755,12 @@ export default function StockChartModal({ stock, onClose }) {
   }, [onClose, textOverlay, showAI])
 
   // ── 차트 데이터 로드 (타입 수정) ──
+  // EC2 server.py 응답 키 매핑
+  const DATA_KEY = {
+    min:'stk_min_pole_chart_qry', day:'stk_dt_pole_chart_qry',
+    week:'stk_stk_pole_chart_qry', month:'stk_mth_pole_chart_qry', year:'stk_yr_pole_chart_qry',
+  }
+
   const fetchChart = useCallback(async () => {
     if (!stock?.code) return
     setLoading(true); setError(null)
@@ -726,26 +769,51 @@ export default function StockChartModal({ stock, onClose }) {
       if (period === 'min') params.set('tic', scope)
       const json = await fetch(`/api/kiwoom?${params}`).then(r => r.json())
       if (json.error) throw new Error(json.error)
-      const raw = (json.candles || []).map(c => ({
-        dateRaw:   String(c.date || ''),
-        dateLabel: formatDateLabel(c.date, period),
-        open:   Math.abs(parseN(c.open)),
-        high:   Math.abs(parseN(c.high)),
-        low:    Math.abs(parseN(c.low)),
-        close:  Math.abs(parseN(c.close)),
-        volume: parseN(c.volume),
-      })).filter(c => c.close > 0)
+
+      // server.py는 { candles:[...] } 또는 { stk_dt_pole_chart_qry:[...] } 형태로 반환
+      let items = json.candles || json[DATA_KEY[period]] || []
+
+      const raw = items.map(c => {
+        // candles 형태: { date, open, high, low, close, volume }
+        // DATA_KEY 형태: { dt, open_pric, high_pric, low_pric, cur_prc, trde_qty }
+        const dateStr = String(c.date || c.dt || c.cntr_tm || '')
+        return {
+          dateRaw:   dateStr,
+          dateLabel: formatDateLabel(dateStr, period),
+          open:   Math.abs(parseN(c.open   ?? c.open_pric)),
+          high:   Math.abs(parseN(c.high   ?? c.high_pric)),
+          low:    Math.abs(parseN(c.low    ?? c.low_pric)),
+          close:  Math.abs(parseN(c.close  ?? c.cur_prc)),
+          volume: parseN(c.volume ?? c.trde_qty),
+        }
+      }).filter(c => c.close > 0)
+
+      // DATA_KEY 형태는 최신→과거 순이므로 reverse
+      if (!json.candles && json[DATA_KEY[period]]) raw.reverse()
+
       setAllData(raw)
     } catch(e) { setError(e.message) }
     finally { setLoading(false) }
   }, [stock?.code, period, scope])
 
-  // ── 현재가만 (stockbasic/stockinfo 제거) ──
+  // ── 현재가 조회 (cur_prc / pred_pre / flu_rt 정규화) ──
   const fetchInfos = useCallback(async () => {
     if (!stock?.code) return
     try {
       const p = await fetch(`/api/kiwoom?type=price&code=${stock.code}`).then(r => r.json())
-      if (!p?.error) setPriceInfo(p)
+      if (!p?.error) {
+        // EC2는 cur_prc, pred_pre, flu_rt, open_pric, high_pric, low_pric, trde_qty 반환
+        // 또는 이미 current, change, changeRate로 정규화된 경우도 처리
+        setPriceInfo({
+          current:    Math.abs(parseN(p.current    ?? p.cur_prc)),
+          change:     parseN(p.change     ?? p.pred_pre),
+          changeRate: parseFloat(p.changeRate ?? p.flu_rt ?? 0),
+          open:       Math.abs(parseN(p.open       ?? p.open_pric)),
+          high:       Math.abs(parseN(p.high       ?? p.high_pric)),
+          low:        Math.abs(parseN(p.low        ?? p.low_pric)),
+          volume:     parseN(p.volume     ?? p.trde_qty),
+        })
+      }
     } catch {}
   }, [stock?.code])
 

@@ -237,10 +237,20 @@
 .smc-ai-result-meta { font-size:11px; color:#94a3b8; margin-bottom:12px; }
 .smc-ai-result-text {
   font-size:13px; line-height:1.8; color:#334155;
-  white-space:pre-wrap; font-family:var(--font-kr,sans-serif);
+  font-family:var(--font-kr,sans-serif);
   background:#f8fafc; border-radius:8px; padding:14px 16px;
   border:1px solid #e2e8f0; max-height:480px; overflow-y:auto;
 }
+
+/* 마크다운 스타일 */
+.smc-md-h1 { font-size:16px; font-weight:800; color:#0f172a; margin:14px 0 6px; border-bottom:2px solid #e2e8f0; padding-bottom:4px; }
+.smc-md-h2 { font-size:15px; font-weight:700; color:#0f172a; margin:12px 0 5px; padding-left:8px; border-left:3px solid #2563eb; }
+.smc-md-h3 { font-size:13px; font-weight:700; color:#1e293b; margin:10px 0 4px; }
+.smc-md-p  { margin:4px 0; color:#334155; }
+.smc-md-li { margin:3px 0 3px 16px; color:#334155; list-style:disc; }
+.smc-md-br { height:8px; }
+.smc-ai-result-text strong { color:#0f172a; font-weight:700; }
+.smc-ai-result-text ul     { padding-left:4px; }
 
 /* ── 모바일 ── */
 @media (max-width:640px) {
