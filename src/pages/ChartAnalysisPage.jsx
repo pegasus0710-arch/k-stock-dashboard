@@ -39,6 +39,10 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
   const [selIdx,    setSelIdx]    = useState(null)
   const [wrapEl,    setWrapEl]    = useState(null)
   const [width,     setWidth]     = useState(1200)
+  const [fsBasicInfo,  setFsBasicInfo]   = useState(null)
+  const [fsShowSupply, setFsShowSupply]  = useState(false)
+  const [fsSupplyData, setFsSupplyData]  = useState(null)
+  const [fsSupplyLoad, setFsSupplyLoad]  = useState(false)
 
   const { allData, loading, error } = useStockChart({ code:stock.code, period, scope })
   const candles = period==='min' ? allData : filterByRange(allData, range)
@@ -56,6 +60,33 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
 
   const saveD=next=>{ setDrawings(next); lsSet(`${LS_DRAWINGS}_${stock.code}`,next) }
   const toggleMA=p=>setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
+
+  // 전체화면: 기본 정보 로드
+  useEffect(()=>{
+    if (!stock?.code) return
+    Promise.allSettled([
+      fetch(`/api/kiwoom?type=stockbasic&code=${stock.code}`).then(r=>r.json()),
+      fetch(`/api/kiwoom?type=stockinfo&code=${stock.code}`).then(r=>r.json()),
+    ]).then(([b,s])=>{
+      setFsBasicInfo({
+        ...(b.status==='fulfilled'&&!b.value?.error?b.value:{}),
+        ...(s.status==='fulfilled'&&!s.value?.error?s.value:{}),
+      })
+    }).catch(()=>{})
+  },[stock?.code])
+
+  // 전체화면: 수급 로드
+  useEffect(()=>{
+    if (!fsShowSupply||fsSupplyData||!stock?.code) return
+    setFsSupplyLoad(true)
+    Promise.all([
+      fetch(`/api/kiwoom?type=supply-foreign&code=${stock.code}`).then(r=>r.json()),
+      fetch(`/api/kiwoom?type=supply-short&code=${stock.code}&days=30`).then(r=>r.json()),
+      fetch(`/api/kiwoom?type=supply-strength&code=${stock.code}`).then(r=>r.json()),
+    ]).then(([f,sh,st])=>{
+      setFsSupplyData({ foreign:f.data?.slice(0,60)||[], short:sh.data?.slice(0,60)||[], strength:st.data?.slice(0,60)||[] })
+    }).catch(()=>{}).finally(()=>setFsSupplyLoad(false))
+  },[fsShowSupply, stock?.code])
 
   function handleSvgClick(args) {
     const r=handleDrawClick({drawTool,setDrawTool,drawState,setDrawState,drawings,saveDrawings:saveD,...args,data:candles})
@@ -99,11 +130,35 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
           ))}
           {drawings.length>0&&<button className="cap-fs-btn cap-fs-del" onClick={()=>{ saveD([]); setDrawState(null) }}>🗑 초기화</button>}
         </div>
-        <div style={{marginLeft:'auto',display:'flex',gap:6}}>
+        <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
           {drawState&&<div className="cap-fs-hint">{drawTool==='trend'?'2번째 점 클릭':'끝점 클릭'}</div>}
+          {fsSupplyLoad&&<span style={{fontSize:11,color:'#64748b'}}>⟳</span>}
+          <button className={`cap-fs-btn ${fsShowSupply?'active':''}`}
+            onClick={()=>setFsShowSupply(v=>!v)}>📊 수급</button>
           <button className="cap-fs-close" onClick={onClose}>✕ 닫기</button>
         </div>
       </div>
+
+      {/* 전체화면 정보 바 */}
+      {fsBasicInfo&&Object.keys(fsBasicInfo).length>0&&(
+        <div className="cap-fs-info-bar">
+          {[
+            fsBasicInfo.mac?['시가총액',(Number(String(fsBasicInfo.mac).replace(/,/g,''))/100000000).toFixed(0)+'억']:null,
+            fsBasicInfo.per&&fsBasicInfo.per!=='0'?['PER',Number(fsBasicInfo.per).toFixed(1)+'배']:null,
+            fsBasicInfo.pbr&&fsBasicInfo.pbr!=='0'?['PBR',Number(fsBasicInfo.pbr).toFixed(2)+'배']:null,
+            fsBasicInfo.eps&&fsBasicInfo.eps!=='0'?['EPS',Number(fsBasicInfo.eps).toLocaleString('ko-KR')+'원']:null,
+            fsBasicInfo.roe&&fsBasicInfo.roe!=='0'?['ROE',Number(fsBasicInfo.roe).toFixed(1)+'%']:null,
+            fsBasicInfo.for_exh_rt?['외국인',fsBasicInfo.for_exh_rt+'%']:null,
+            fsBasicInfo.dstr_rt?['유통비율',fsBasicInfo.dstr_rt+'%']:null,
+            fsBasicInfo.upName?['업종',fsBasicInfo.upName]:null,
+          ].filter(Boolean).map(([lbl,val])=>(
+            <div key={lbl} className="cap-fs-info-item">
+              <span className="cap-fs-info-label">{lbl}</span>
+              <span className="cap-fs-info-val">{val}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="cap-fs-body" ref={setWrapEl}>
         {loading&&<div className="cap-fs-loading"><div className="cap-spinner"/>불러오는 중...</div>}
@@ -116,6 +171,15 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
           />
         )}
         {!loading&&!candles.length&&<div style={{padding:80,textAlign:'center',color:'#475569'}}>데이터가 없습니다</div>}
+        {/* 수급 서브차트 */}
+        {fsShowSupply&&fsSupplyData&&(
+          <SupplySubChart supplyData={fsSupplyData} candles={candles}/>
+        )}
+        {fsShowSupply&&fsSupplyLoad&&(
+          <div style={{padding:12,textAlign:'center',background:'#0a0f1a',color:'#475569',fontSize:12}}>
+            <div className="cap-spinner" style={{display:'inline-block',marginRight:6}}/>수급 로딩 중...
+          </div>
+        )}
       </div>
 
       {textOverlay&&(
@@ -175,6 +239,9 @@ export default function ChartAnalysisPage() {
   const [showEtf, setShowEtf] = useState(false)
   const etfMode = isEtf(selected?.code)
 
+  // 종목 기본 정보 (시가총액, EPS, 유통비율 등)
+  const [basicInfo, setBasicInfo] = useState(null)
+
   // AI
   const [aiResult, setAiResult] = useState('')
   const [aiLoading,setAiLoading]= useState(false)
@@ -205,7 +272,7 @@ export default function ChartAnalysisPage() {
 
   const select=stock=>{
     setSelected(stock); setQuery(stock.name); setShowDrop(false)
-    setAiResult(''); setAiError(''); setForeignData(null)
+    setAiResult(''); setAiError(''); setForeignData(null); setBasicInfo(null)
     const d=lsGet(`${LS_DRAWINGS}_${stock.code}`,[])
     setDrawings(d); setDrawTool('none'); setDrawState(null)
     const next=[stock,...recent.filter(r=>r.code!==stock.code)].slice(0,8)
@@ -388,16 +455,21 @@ export default function ChartAnalysisPage() {
               </div>
 
               {/* 정보바 */}
-              {price?.price>0&&(
+              {(price?.price>0||basicInfo) && (
                 <div className="cap-info-bar">
                   {[
-                    ['현재가', `${fmtN(price.price)}원`,                          pc],
-                    ['등락률', `${sign}${price.changeRate?.toFixed(2)}%`,         pc],
-                    ['거래량', `${fmtShort(price.volume)}주`,                     null],
-                    ['PER',    price.per?`${Number(price.per).toFixed(1)}배`:'-', null],
-                    ['PBR',    price.pbr?`${Number(price.pbr).toFixed(2)}배`:'-', null],
-                    ['외국인', price.forExhRt?`${price.forExhRt}%`:'-',           null],
-                  ].map(([label,val,color])=>(
+                    price?.price>0 ? ['현재가', `${fmtN(price.price)}원`, pc] : null,
+                    price?.changeRate!=null ? ['등락률', `${sign}${price.changeRate?.toFixed(2)}%`, pc] : null,
+                    price?.volume  ? ['거래량', `${fmtShort(price.volume)}주`, null] : null,
+                    basicInfo?.mac ? ['시가총액', `${(Number(String(basicInfo.mac).replace(/,/g,''))/100000000).toFixed(0)}억`, null] : null,
+                    basicInfo?.per&&basicInfo.per!=='0' ? ['PER', `${Number(basicInfo.per).toFixed(1)}배`, null] : (price?.per?['PER',`${Number(price.per).toFixed(1)}배`,null]:null),
+                    basicInfo?.pbr&&basicInfo.pbr!=='0' ? ['PBR', `${Number(basicInfo.pbr).toFixed(2)}배`, null] : (price?.pbr?['PBR',`${Number(price.pbr).toFixed(2)}배`,null]:null),
+                    basicInfo?.eps&&basicInfo.eps!=='0' ? ['EPS', `${Number(basicInfo.eps).toLocaleString('ko-KR')}원`, null] : null,
+                    basicInfo?.roe&&basicInfo.roe!=='0' ? ['ROE', `${Number(basicInfo.roe).toFixed(1)}%`, null] : null,
+                    basicInfo?.for_exh_rt ? ['외국인', `${basicInfo.for_exh_rt}%`, null] : (price?.forExhRt?['외국인',`${price.forExhRt}%`,null]:null),
+                    basicInfo?.dstr_rt ? ['유통비율', `${basicInfo.dstr_rt}%`, null] : null,
+                    basicInfo?.upName  ? ['업종', basicInfo.upName, null] : null,
+                  ].filter(Boolean).map(([label,val,color])=>(
                     <div key={label} className="cap-info-item">
                       <div className="cap-info-label">{label}</div>
                       <div className="cap-info-val" style={{color:color||undefined}}>{val}</div>
