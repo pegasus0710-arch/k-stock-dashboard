@@ -1,81 +1,189 @@
 // api/kiwoom.js — Vercel Serverless → EC2 키움 중계 서버 프록시
+// Phase 2: 수급·ETF·업종·공매도·체결강도 API 추가
 
-const KIWOOM_SERVER = process.env.KIWOOM_SERVER_URL || "http://3.38.37.78:3001";
+const KIWOOM_SERVER = process.env.KIWOOM_SERVER_URL || 'http://3.38.37.78:3001'
 
 async function relay(endpoint, body, res) {
   try {
     const response = await fetch(`${KIWOOM_SERVER}${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(20000),
-    });
-    const data = await response.json();
-    return res.status(200).json(data);
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+      signal:  AbortSignal.timeout(20000),
+    })
+    const data = await response.json()
+    return res.status(200).json(data)
   } catch (err) {
-    console.error(`[kiwoom proxy] ${endpoint}:`, err.message);
-    return res.status(500).json({ error: err.message, endpoint });
+    console.error(`[kiwoom proxy] ${endpoint}:`, err.message)
+    return res.status(500).json({ error: err.message, endpoint })
   }
 }
 
+function today() {
+  return new Date().toISOString().slice(0, 10).replace(/-/g, '')
+}
+function daysAgo(n) {
+  const d = new Date(Date.now() - n * 86400000)
+  return d.toISOString().slice(0, 10).replace(/-/g, '')
+}
+
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  if (req.method === 'OPTIONS') return res.status(200).end()
 
-  const { type, code, period, tic, inds_cd, min_days } = req.query;
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const q = req.query
 
-  // ── 종목 현재가 ──────────────────────────────────────────
-  if (type === "price") {
-    if (!code) return res.status(400).json({ error: "code required" });
-    return relay("/price", { stk_cd: code }, res);
+  // ══════════════════════════════════════════════════
+  // 종목 기본
+  // ══════════════════════════════════════════════════
+
+  // 현재가 — /api/kiwoom?type=price&code=005930
+  if (q.type === 'price') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/price', { stk_cd: q.code }, res)
   }
 
-  // ── 호가 ─────────────────────────────────────────────────
-  if (type === "hoga") {
-    if (!code) return res.status(400).json({ error: "code required" });
-    return relay("/hoga", { stk_cd: code }, res);
+  // 호가 — /api/kiwoom?type=hoga&code=005930
+  if (q.type === 'hoga') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/hoga', { stk_cd: q.code }, res)
   }
 
-  // ── 종목 차트 ─────────────────────────────────────────────
-  // GET /api/kiwoom?type=stock-chart&code=005930&period=day
-  // GET /api/kiwoom?type=stock-chart&code=005930&period=min&tic=5&min_days=3
-  if (type === "stock-chart") {
-    if (!code) return res.status(400).json({ error: "code required" });
-    return relay("/chart/stock", {
-      stk_cd:   code,
-      period:   period || "day",
-      tic_scope: tic   || "5",
-      base_dt:  today,
-      min_days: Number(min_days || 1),
-    }, res);
+  // 종목 차트 — /api/kiwoom?type=stock-chart&code=005930&period=day
+  if (q.type === 'stock-chart') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/chart/stock', {
+      stk_cd:    q.code,
+      period:    q.period   || 'day',
+      tic_scope: q.tic      || '5',
+      base_dt:   today(),
+      min_days:  Number(q.min_days || 1),
+    }, res)
   }
 
-  // ── 업종(지수) 차트 ──────────────────────────────────────
-  // GET /api/kiwoom?type=index-chart&inds_cd=001&period=day
-  // GET /api/kiwoom?type=index-chart&inds_cd=001&period=min&tic=5&min_days=3
-  if (type === "index-chart") {
-    const cd = inds_cd || code || "001";
-    return relay("/chart/index", {
-      inds_cd:  cd,
-      period:   period || "day",
-      tic_scope: tic   || "5",
-      base_dt:  today,
-      min_days: Number(min_days || 1),
-    }, res);
+  // 업종 차트 — /api/kiwoom?type=index-chart&inds_cd=001&period=day
+  if (q.type === 'index-chart') {
+    const cd = q.inds_cd || q.code || '001'
+    return relay('/chart/index', {
+      inds_cd:   cd,
+      period:    q.period || 'day',
+      tic_scope: q.tic    || '5',
+      base_dt:   today(),
+      min_days:  Number(q.min_days || 1),
+    }, res)
   }
 
-  // ── 업종 현재가 ──────────────────────────────────────────
-  if (type === "index-price") {
-    const cd    = inds_cd || "001";
-    const mrkt  = cd.startsWith("1") ? "1" : "0";
-    return relay("/index/price", { inds_cd: cd, mrkt_tp: mrkt }, res);
+  // 업종 현재가 — /api/kiwoom?type=index-price&inds_cd=001
+  if (q.type === 'index-price') {
+    const cd   = q.inds_cd || '001'
+    const mrkt = cd.startsWith('1') ? '1' : '0'
+    return relay('/index/price', { inds_cd: cd, mrkt_tp: mrkt }, res)
+  }
+
+  // ══════════════════════════════════════════════════
+  // Phase 2 — 수급
+  // ══════════════════════════════════════════════════
+
+  // 외국인 종목별 매매동향 — /api/kiwoom?type=supply-foreign&code=005930
+  if (q.type === 'supply-foreign') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/supply/foreign', { stk_cd: q.code }, res)
+  }
+
+  // 장중 투자자별 매매 (외인/기관 순매수 상위)
+  // /api/kiwoom?type=supply-investor&market=001&invsr=6
+  // invsr: 6=외국인, 7=기관계, 1=투신, 3=연기금
+  if (q.type === 'supply-investor') {
+    return relay('/supply/investor', {
+      mrkt_tp: q.market || '001',
+      invsr:   q.invsr  || '6',
+    }, res)
+  }
+
+  // 일별 기관 매매 종목 — /api/kiwoom?type=supply-institution&market=001&trde_tp=2
+  // trde_tp: 1=순매도, 2=순매수
+  if (q.type === 'supply-institution') {
+    return relay('/supply/institution', {
+      strt_dt: q.strt_dt || today(),
+      end_dt:  q.end_dt  || today(),
+      trde_tp: q.trde_tp || '2',
+      mrkt_tp: q.market  || '001',
+    }, res)
+  }
+
+  // 공매도 추이 — /api/kiwoom?type=supply-short&code=005930&days=30
+  if (q.type === 'supply-short') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    const days = Number(q.days || 30)
+    return relay('/supply/short', {
+      stk_cd:  q.code,
+      strt_dt: daysAgo(days),
+      end_dt:  today(),
+    }, res)
+  }
+
+  // 체결강도 일별 — /api/kiwoom?type=supply-strength&code=005930
+  if (q.type === 'supply-strength') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/supply/strength', { stk_cd: q.code }, res)
+  }
+
+  // ══════════════════════════════════════════════════
+  // Phase 2 — 업종 배치
+  // ══════════════════════════════════════════════════
+
+  // 전업종지수 — /api/kiwoom?type=sector-all&inds_cd=001
+  if (q.type === 'sector-all') {
+    return relay('/index/all', { inds_cd: q.inds_cd || '001' }, res)
+  }
+
+  // 업종별 종목 주가 — /api/kiwoom?type=sector-stocks&inds_cd=001&mrkt_tp=0
+  if (q.type === 'sector-stocks') {
+    return relay('/index/stocks', {
+      inds_cd: q.inds_cd || '001',
+      mrkt_tp: q.mrkt_tp || '0',
+    }, res)
+  }
+
+  // ══════════════════════════════════════════════════
+  // Phase 2 — ETF
+  // ══════════════════════════════════════════════════
+
+  // ETF 종목 정보 — /api/kiwoom?type=etf-info&code=069500
+  if (q.type === 'etf-info') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/etf/info', { stk_cd: q.code }, res)
+  }
+
+  // ETF 전체시세 — /api/kiwoom?type=etf-list&mngmcomp=0000
+  // mngmcomp: 0000=전체, 3020=KODEX, 3191=TIGER, 3228=KINDEX, 3023=KStar
+  if (q.type === 'etf-list') {
+    return relay('/etf/list', {
+      mngmcomp: q.mngmcomp || '0000',
+    }, res)
+  }
+
+  // ETF 수익률 — /api/kiwoom?type=etf-profit&code=069500&idx=207&dt=3
+  // dt: 0=1주, 1=1달, 2=6개월, 3=1년
+  if (q.type === 'etf-profit') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/etf/profit', {
+      stk_cd:          q.code,
+      etfobjt_idex_cd: q.idx || '207',
+      dt:              q.dt  || '3',
+    }, res)
   }
 
   return res.status(400).json({
-    error: "Invalid type",
-    valid: ["price", "hoga", "stock-chart", "index-chart", "index-price"],
-  });
+    error: 'Invalid type',
+    valid: [
+      'price', 'hoga', 'stock-chart', 'index-chart', 'index-price',
+      'supply-foreign', 'supply-investor', 'supply-institution',
+      'supply-short', 'supply-strength',
+      'sector-all', 'sector-stocks',
+      'etf-info', 'etf-list', 'etf-profit',
+    ],
+  })
 }
