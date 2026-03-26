@@ -268,7 +268,7 @@ export default function CandleChart({
             {/* 가격 그리드 */}
             {yTicks.map((v, i) => (
               <g key={i}>
-                <line x1={PAD.left} x2={W - PAD.right} y1={toY(v)} y2={toY(v)} stroke="#2a2a3a" strokeDasharray="4,4"/>
+                <line x1={PAD.left} x2={W - PAD.right} y1={toY(v)} y2={toY(v)} stroke="rgba(255,255,255,0.06)" strokeDasharray="4,4"/>
                 <text x={PAD.left - 6} y={toY(v) + 4} fill="#888" fontSize="11" textAnchor="end">
                   {fmt(v, dec)}
                 </text>
@@ -276,7 +276,7 @@ export default function CandleChart({
             ))}
 
             {/* 거래량 그리드 */}
-            <line x1={PAD.left} x2={W - PAD.right} y1={volTop} y2={volTop} stroke="#2a2a3a" strokeDasharray="2,4"/>
+            <line x1={PAD.left} x2={W - PAD.right} y1={volTop} y2={volTop} stroke="rgba(255,255,255,0.05)" strokeDasharray="2,4"/>
             <text x={PAD.left - 6} y={volTop + 10} fill="#555" fontSize="9" textAnchor="end">거래량</text>
 
             {/* X축 */}

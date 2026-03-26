@@ -381,7 +381,7 @@ function SupplyMiniChart({ label, data, color, width, type = 'bar' }) {
 
   return (
     <svg width={W} height={H} style={{display:'block'}}>
-      <line x1={PAD.left} x2={PAD.left+cW} y1={PAD.top+cH/2} y2={PAD.top+cH/2} stroke="#e2e8f0" strokeWidth={0.5}/>
+      <line x1={PAD.left} x2={PAD.left+cW} y1={PAD.top+cH/2} y2={PAD.top+cH/2} stroke="rgba(255,255,255,0.08)" strokeWidth={0.5}/>
       <text x={PAD.left-4} y={PAD.top+4} fontSize={9} fill="#94a3b8" textAnchor="end">{label}</text>
       {type === 'bar' && data.map((d, i) => {
         const v = d.value || 0
@@ -520,19 +520,19 @@ function CandleChart({
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setTooltip(null)}
         onClick={handleClick}
-        style={{display:'block', cursor: drawTool !== 'none' ? 'crosshair' : 'default'}}
+        style={{display:'block', cursor: drawTool !== 'none' ? 'crosshair' : 'default', background:'#0f172a', borderRadius:'8px'}}
       >
         {/* Y축 눈금 */}
         {yTicks.map((v,i) => (
           <g key={i}>
-            <line x1={PAD.left} y1={py(v)} x2={PAD.left+W} y2={py(v)} stroke="#e2e8f0" strokeWidth={0.5} strokeDasharray="3,3"/>
-            <text x={PAD.left-5} y={py(v)+4} textAnchor="end" fontSize={10} fill="#94a3b8">{fmtN(Math.round(v))}</text>
+            <line x1={PAD.left} y1={py(v)} x2={PAD.left+W} y2={py(v)} stroke="rgba(255,255,255,0.07)" strokeWidth={0.5} strokeDasharray="3,3"/>
+            <text x={PAD.left-5} y={py(v)+4} textAnchor="end" fontSize={10} fill="#64748b">{fmtN(Math.round(v))}</text>
           </g>
         ))}
 
         {/* X축 날짜 */}
         {data.filter((_,i) => i % xTickStep === 0).map((d,i) => (
-          <text key={i} x={bx(data.indexOf(d))} y={PAD.top+H+16} textAnchor="middle" fontSize={10} fill="#94a3b8">{d.dateLabel}</text>
+          <text key={i} x={bx(data.indexOf(d))} y={PAD.top+H+16} textAnchor="middle" fontSize={10} fill="#64748b">{d.dateLabel}</text>
         ))}
 
         {/* 캔들 */}
@@ -601,7 +601,7 @@ function CandleChart({
             const lineColor = isSelected ? '#fbbf24' : '#334155'
             return <g key={i} style={{cursor:'pointer'}}>
               <rect x={cx2-2} y={y2-13} width={d.text.length*7+8} height={16}
-                fill={isSelected?'#fef3c7':'white'} stroke={lineColor} rx={3} opacity={0.9}/>
+                fill={isSelected?'rgba(251,191,36,0.15)':'rgba(30,41,59,0.9)'} stroke={lineColor} rx={3} opacity={0.9}/>
               <text x={cx2+2} y={y2} fontSize={11} fill={lineColor}>{d.text}</text>
             </g>
           }
@@ -638,8 +638,8 @@ function CandleChart({
           const spy    = (v)   => midY - (v / sMax) * (SUPPLY_H/2 - 4)
           return (
             <g key={key}>
-              <line x1={PAD.left} x2={PAD.left+W} y1={sTop} y2={sTop} stroke="#e2e8f0" strokeWidth={0.5}/>
-              <line x1={PAD.left} x2={PAD.left+W} y1={midY} y2={midY} stroke="#e2e8f0" strokeWidth={0.5} strokeDasharray="2,4"/>
+              <line x1={PAD.left} x2={PAD.left+W} y1={sTop} y2={sTop} stroke="rgba(255,255,255,0.08)" strokeWidth={0.5}/>
+              <line x1={PAD.left} x2={PAD.left+W} y1={midY} y2={midY} stroke="rgba(255,255,255,0.06)" strokeWidth={0.5} strokeDasharray="2,4"/>
               <text x={PAD.left-5} y={sTop+14} fontSize={9} fill="#94a3b8" textAnchor="end">{supplyLabels[si]}</text>
               {supplyLoading && (
                 <text x={PAD.left + W/2} y={midY+4} fontSize={10} fill="#94a3b8" textAnchor="middle">로딩 중...</text>
@@ -697,7 +697,7 @@ function VolumeChart({ data, width, height = 60 }) {
   const barW = Math.max(1, Math.min(12, W/data.length - 1))
   const bx   = i => PAD.left + (i + 0.5) * (W/data.length)
   return (
-    <svg width={width} height={height} style={{display:'block'}}>
+    <svg width={width} height={height} style={{display:'block', background:'#0f172a'}}>
       <text x={PAD.left-5} y={PAD.top+10} textAnchor="end" fontSize={9} fill="#94a3b8">거래량</text>
       {data.map((d,i) => {
         const barH = maxV > 0 ? (d.volume/maxV)*H : 0
@@ -705,6 +705,228 @@ function VolumeChart({ data, width, height = 60 }) {
           fill={d.close>=d.open ? '#fca5a5' : '#93c5fd'} opacity={0.8}/>
       })}
     </svg>
+  )
+}
+
+// ── 전체화면 차트 컴포넌트 ──────────────────────────────
+function FullScreenChart({
+  stock, period: initPeriod, scope: initScope, range: initRange,
+  showMA: initShowMA, enabledMA: initEnabledMA,
+  drawings, saveDrawings,
+  showSupply, supplyData, supplyLoading,
+  onClose,
+}) {
+  const [period,    setPeriod]    = useState(initPeriod || 'day')
+  const [scope,     setScope]     = useState(initScope  || '5')
+  const [range,     setRange]     = useState(initRange  || 3)
+  const [showMA,    setShowMA]    = useState(initShowMA ?? true)
+  const [enabledMA, setEnabledMA] = useState(initEnabledMA || new Set([5,10,20,60,120]))
+  const [allData,   setAllData]   = useState([])
+  const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState(null)
+  const [drawTool,  setDrawTool]  = useState('none')
+  const [drawState, setDrawState] = useState(null)
+  const [selectedIdx, setSelectedIdx] = useState(null)
+  const [textOverlay, setTextOverlay] = useState(null)
+  const wrapRef = useRef(null)
+  const [chartWidth, setChartWidth] = useState(1200)
+
+  const DATA_KEY = {
+    min:'stk_min_pole_chart_qry', day:'stk_dt_pole_chart_qry',
+    week:'stk_stk_pole_chart_qry', month:'stk_mth_pole_chart_qry', year:'stk_yr_pole_chart_qry',
+  }
+
+  useEffect(() => {
+    const update = () => { if (wrapRef.current) setChartWidth(wrapRef.current.clientWidth) }
+    update(); window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
+  const fetchChart = useCallback(async () => {
+    if (!stock?.code) return
+    setLoading(true); setError(null)
+    try {
+      const params = new URLSearchParams({ type:'stock-chart', period, code: stock.code })
+      if (period === 'min') params.set('tic', scope)
+      const json = await fetch(`/api/kiwoom?${params}`).then(r => r.json())
+      if (json.error) throw new Error(json.error)
+      let items = json.candles || json[DATA_KEY[period]] || []
+      const raw = items.map(c => {
+        const dateStr = String(c.date || c.dt || c.cntr_tm || '')
+        return {
+          dateRaw:   dateStr,
+          dateLabel: formatDateLabel(dateStr, period),
+          open:   Math.abs(parseN(c.open   ?? c.open_pric)),
+          high:   Math.abs(parseN(c.high   ?? c.high_pric)),
+          low:    Math.abs(parseN(c.low    ?? c.low_pric)),
+          close:  Math.abs(parseN(c.close  ?? c.cur_prc)),
+          volume: parseN(c.volume ?? c.trde_qty),
+        }
+      }).filter(c => c.close > 0)
+      if (!json.candles && json[DATA_KEY[period]]) raw.reverse()
+      setAllData(raw)
+    } catch(e) { setError(e.message) }
+    finally { setLoading(false) }
+  }, [stock?.code, period, scope])
+
+  useEffect(() => { fetchChart() }, [fetchChart])
+
+  const toggleMA = p => setEnabledMA(prev => {
+    const n = new Set(prev); n.has(p) ? n.delete(p) : n.add(p); return n
+  })
+
+  const chartData = period === 'min' ? allData : filterByRange(allData, range)
+
+  function handleSvgClick({ x, y, price: clickPrice, idx }) {
+    if (drawTool === 'none') return
+    if (drawTool === 'hline') {
+      saveDrawings([...drawings, { type:'hline', price: clickPrice }])
+    } else if (drawTool === 'split3') {
+      const prices = allData.map(d => d.close).filter(Boolean)
+      const lo = Math.min(...prices), hi = Math.max(...prices), r = hi - lo
+      saveDrawings([...drawings,
+        { type:'split3_a', price: lo + r/3, color:'#06b6d4' },
+        { type:'split3_b', price: lo + r*2/3, color:'#06b6d4' },
+      ]); setDrawTool('none')
+    } else if (drawTool === 'split4') {
+      const prices = allData.map(d => d.close).filter(Boolean)
+      const lo = Math.min(...prices), hi = Math.max(...prices), r = hi - lo
+      saveDrawings([...drawings,
+        { type:'split4_a', price: lo + r*0.25, color:'#f472b6' },
+        { type:'split4_b', price: lo + r*0.50, color:'#f472b6' },
+        { type:'split4_c', price: lo + r*0.75, color:'#f472b6' },
+      ]); setDrawTool('none')
+    } else if (drawTool === 'trend' || drawTool === 'fib') {
+      if (!drawState) {
+        setDrawState({ x1:x, y1:y, price1: clickPrice })
+      } else {
+        if (drawTool === 'trend') saveDrawings([...drawings, { type:'trend', x1:drawState.x1, y1:drawState.y1, x2:x, y2:y }])
+        else saveDrawings([...drawings, { type:'fib', x1:drawState.x1, y1:drawState.y1, x2:x, y2:y, price1:drawState.price1, price2:clickPrice }])
+        setDrawState(null)
+      }
+    } else if (drawTool === 'text') {
+      const rect = wrapRef.current?.getBoundingClientRect()
+      setTextOverlay({ svgX: x, svgY: y, price: clickPrice, idx })
+    }
+  }
+
+  return (
+    <div style={{
+      position:'fixed', inset:0, zIndex:2000,
+      background:'#0a0f1a', display:'flex', flexDirection:'column',
+    }}>
+      {/* 상단 헤더 바 */}
+      <div style={{
+        display:'flex', alignItems:'center', gap:8, flexWrap:'wrap',
+        padding:'8px 16px', background:'#0f172a', borderBottom:'1px solid #1e293b', flexShrink:0,
+      }}>
+        <span style={{fontSize:'15px',fontWeight:700,color:'#f1f5f9',marginRight:4}}>{stock.name}</span>
+        <span style={{fontSize:'12px',color:'#475569',fontFamily:'monospace'}}>{stock.code}</span>
+
+        {/* 봉 탭 */}
+        <div style={{display:'flex',gap:2,marginLeft:8}}>
+          {PERIODS.map(p => (
+            <button key={p.type}
+              className={`smc-tab ${period===p.type?'active':''}`}
+              onClick={() => setPeriod(p.type)}>{p.label}</button>
+          ))}
+        </div>
+
+        {/* 범위/분봉 탭 */}
+        {period === 'min' ? (
+          <div style={{display:'flex',gap:2,paddingLeft:8,borderLeft:'1px solid #334155'}}>
+            {MIN_SCOPES.map(s => (
+              <button key={s} className={`smc-scope-btn ${scope===s?'active':''}`}
+                onClick={() => setScope(s)}>{s}분</button>
+            ))}
+          </div>
+        ) : (
+          <div style={{display:'flex',gap:2,paddingLeft:8,borderLeft:'1px solid #334155'}}>
+            {RANGES.map(r => (
+              <button key={r.label} className={`smc-scope-btn ${range===r.months?'active':''}`}
+                onClick={() => setRange(r.months)}>{r.label}</button>
+            ))}
+          </div>
+        )}
+
+        {/* MA 토글 */}
+        <button className={`smc-ma-btn ${showMA?'active':''}`} onClick={() => setShowMA(v=>!v)}>MA</button>
+        {showMA && (
+          <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
+            {MA_SETTINGS.map(({period:p,color,label}) => (
+              <button key={p}
+                className={`smc-ma-chip ${enabledMA.has(p)?'active':''}`}
+                style={enabledMA.has(p)?{color,borderColor:color,background:color+'18'}:{}}
+                onClick={() => toggleMA(p)}>{label}</button>
+            ))}
+          </div>
+        )}
+
+        <button onClick={onClose}
+          style={{marginLeft:'auto',background:'rgba(239,68,68,0.15)',border:'1px solid rgba(239,68,68,0.3)',
+            color:'#f87171',borderRadius:7,padding:'5px 12px',cursor:'pointer',fontSize:12,fontWeight:600}}>
+          ✕ 닫기
+        </button>
+      </div>
+
+      {/* 드로잉 툴바 */}
+      <div className="smc-draw-bar">
+        {DRAW_TOOLS.map(t => (
+          <button key={t.id}
+            className={`smc-draw-btn ${drawTool===t.id?'active':''}`}
+            onClick={() => { setDrawTool(t.id); setDrawState(null); setSelectedIdx(null) }}>
+            {t.label}
+          </button>
+        ))}
+        <div style={{flex:1}}/>
+        {selectedIdx !== null && (
+          <button className="smc-draw-btn smc-draw-del"
+            onClick={() => { saveDrawings(drawings.filter((_,i) => i !== selectedIdx)); setSelectedIdx(null) }}>
+            ✕ 선택 삭제
+          </button>
+        )}
+        <button className="smc-draw-btn" style={{color:'#4ade80',borderColor:'#4ade80'}}
+          onClick={() => { lsSet(`smc_draw_${stock.code}`, drawings) }} title="저장">💾 저장</button>
+        {drawings.length > 0 && (
+          <button className="smc-draw-btn smc-draw-del"
+            onClick={() => { saveDrawings([]); setDrawState(null); setSelectedIdx(null) }}>🗑 전체삭제</button>
+        )}
+        {drawState && <span className="smc-draw-hint">{drawTool==='trend'?'2번째 점 클릭':drawTool==='fib'?'끝점 클릭':''}</span>}
+      </div>
+
+      {/* 차트 영역 */}
+      <div ref={wrapRef} style={{flex:1, overflow:'hidden', position:'relative', background:'#0a0f1a', padding:'8px 0 0'}}>
+        {loading && <div className="smc-loading">⟳ 차트 불러오는 중...</div>}
+        {error   && <div className="smc-error">⚠️ {error}</div>}
+        {!loading && !error && chartData.length > 0 && (<>
+          <CandleChart
+            data={chartData} width={chartWidth} height={Math.max(400, window.innerHeight - 230)}
+            showMA={showMA} enabledMA={enabledMA}
+            drawings={drawings} onSvgClick={handleSvgClick} drawTool={drawTool}
+            selectedIdx={selectedIdx} onSelectDrawing={setSelectedIdx}
+            showSupply={showSupply} supplyData={supplyData} supplyLoading={supplyLoading}
+          />
+          <VolumeChart data={chartData} width={chartWidth} height={60}/>
+          {textOverlay && (
+            <div className="smc-text-overlay" style={{
+              left: Math.min((textOverlay.svgX / chartWidth)*100, 65) + '%',
+              top:  (textOverlay.svgY / (window.innerHeight-230))*100 + '%',
+            }}>
+              <input autoFocus className="smc-text-overlay-input" placeholder="메모 입력 후 Enter"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    if (e.target.value.trim()) saveDrawings([...drawings,{type:'text',price:textOverlay.price,idxVal:textOverlay.idx,text:e.target.value.trim()}])
+                    setTextOverlay(null); setDrawTool('none')
+                  }
+                  if (e.key === 'Escape') setTextOverlay(null)
+                }}/>
+              <button className="smc-text-overlay-cancel" onClick={() => setTextOverlay(null)}>✕</button>
+            </div>
+          )}
+        </>)}
+        {!loading && !error && chartData.length === 0 && <div className="smc-empty">데이터가 없습니다</div>}
+      </div>
+    </div>
   )
 }
 
@@ -737,6 +959,8 @@ export default function StockChartModal({ stock, onClose }) {
 
   // AI 팝업
   const [showAI, setShowAI] = useState(false)
+  // 전체화면
+  const [showFull, setShowFull] = useState(false)
 
   const wrapRef     = useRef(null)
   const textInputRef= useRef(null)
@@ -749,7 +973,7 @@ export default function StockChartModal({ stock, onClose }) {
   }, [])
 
   useEffect(() => {
-    const fn = e => { if (e.key === 'Escape') { if (textOverlay) setTextOverlay(null); else if (showAI) setShowAI(false); else onClose() } }
+    const fn = e => { if (e.key === 'Escape') { if (textOverlay) setTextOverlay(null); else if (showFull) setShowFull(false); else if (showAI) setShowAI(false); else onClose() } }
     window.addEventListener('keydown', fn)
     return () => window.removeEventListener('keydown', fn)
   }, [onClose, textOverlay, showAI])
@@ -1008,6 +1232,11 @@ export default function StockChartModal({ stock, onClose }) {
               style={{marginLeft:'auto'}}
               onClick={() => setShowSupply(v => !v)}
             >📊 수급</button>
+            <button
+              className="smc-scope-btn"
+              onClick={() => setShowFull(true)}
+              title="전체화면 차트"
+            >⛶ 전체화면</button>
           </div>
 
           {/* 드로잉 툴바 */}
@@ -1110,6 +1339,18 @@ export default function StockChartModal({ stock, onClose }) {
           ))}
         </div>
       </div>
+
+      {/* 전체화면 차트 */}
+      {showFull && (
+        <FullScreenChart
+          stock={stock}
+          period={period} scope={scope} range={range}
+          showMA={showMA} enabledMA={enabledMA}
+          drawings={drawings} saveDrawings={saveDrawings}
+          showSupply={showSupply} supplyData={supplyData} supplyLoading={supplyLoading}
+          onClose={() => setShowFull(false)}
+        />
+      )}
 
       {/* AI 분석 팝업 */}
       {showAI && <AiPopup stock={stock} onClose={() => setShowAI(false)}/>}
