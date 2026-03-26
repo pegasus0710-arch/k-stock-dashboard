@@ -6,46 +6,8 @@ import StockChartModal from '../components/StockChartModal'
 import ChartModal from '../components/ChartModal'
 import './DashboardPage.css'
 
-const ALL_THEMES = [
-  { id:'semi',    label:'반도체·AI',    color:'#2563eb', emoji:'💻',
-    etf:[{name:'KODEX 반도체',code:'091160',cap:15000},{name:'TIGER 반도체',code:'091230',cap:8000}],
-    stocks:[{name:'삼성전자',code:'005930'},{name:'SK하이닉스',code:'000660'},{name:'한미반도체',code:'042700'}] },
-  { id:'defense', label:'방산',          color:'#dc2626', emoji:'🛡️',
-    etf:[{name:'KODEX K-방산',code:'459580',cap:5000},{name:'TIGER 방산',code:'453810',cap:3000}],
-    stocks:[{name:'한화에어로',code:'012450'},{name:'현대로템',code:'064350'},{name:'LIG넥스원',code:'079550'}] },
-  { id:'ship',    label:'조선',          color:'#0d9488', emoji:'🚢',
-    etf:[{name:'KODEX 조선',code:'139220',cap:3000},{name:'TIGER 조선',code:'395160',cap:2000}],
-    stocks:[{name:'HD현대중공업',code:'329180'},{name:'삼성중공업',code:'010140'},{name:'한화오션',code:'042660'}] },
-  { id:'nuclear', label:'원전·전력',     color:'#d97706', emoji:'⚡',
-    etf:[{name:'KODEX 원자력',code:'445290',cap:4000},{name:'TIGER 원자력',code:'425420',cap:3500}],
-    stocks:[{name:'두산에너빌리티',code:'034020'},{name:'효성중공업',code:'298040'},{name:'일진전기',code:'103590'}] },
-  { id:'battery', label:'2차전지',       color:'#16a34a', emoji:'🔋',
-    etf:[{name:'KODEX 2차전지',code:'305720',cap:6000},{name:'TIGER 2차전지',code:'364980',cap:4000}],
-    stocks:[{name:'LG에너지솔루션',code:'373220'},{name:'삼성SDI',code:'006400'},{name:'POSCO홀딩스',code:'005490'}] },
-  { id:'bio',     label:'바이오',        color:'#7c3aed', emoji:'🧬',
-    etf:[{name:'KODEX 바이오',code:'244580',cap:5000},{name:'TIGER 바이오',code:'143460',cap:3000}],
-    stocks:[{name:'셀트리온',code:'068270'},{name:'삼성바이오',code:'207940'},{name:'HLB',code:'028300'}] },
-  { id:'value',   label:'밸류업·금융',   color:'#ea580c', emoji:'🏦',
-    etf:[{name:'KODEX 밸류업',code:'473190',cap:4000},{name:'TIGER 밸류업',code:'474220',cap:3000}],
-    stocks:[{name:'KB금융',code:'105560'},{name:'신한지주',code:'055550'},{name:'하나금융',code:'086790'}] },
-  { id:'it',      label:'IT·소프트웨어', color:'#6366f1', emoji:'💡',
-    etf:[{name:'KODEX IT',code:'266360',cap:3000}],
-    stocks:[{name:'카카오',code:'035720'},{name:'네이버',code:'035420'},{name:'크래프톤',code:'259960'}] },
-  { id:'auto',    label:'자동차·모빌리티',color:'#0891b2', emoji:'🚗',
-    etf:[{name:'KODEX 자동차',code:'091180',cap:2000}],
-    stocks:[{name:'현대차',code:'005380'},{name:'기아',code:'000270'},{name:'현대모비스',code:'012330'}] },
-  { id:'green',   label:'친환경·ESG',    color:'#059669', emoji:'🌿',
-    etf:[{name:'KODEX 탄소효율그린뉴딜',code:'375770',cap:1000}],
-    stocks:[{name:'OCI홀딩스',code:'010060'},{name:'씨에스윈드',code:'112610'},{name:'한화솔루션',code:'009830'}] },
-  { id:'chemical',label:'화학·소재',     color:'#78716c', emoji:'⚗️',
-    etf:[{name:'KODEX 화학',code:'117460',cap:2000}],
-    stocks:[{name:'LG화학',code:'051910'},{name:'롯데케미칼',code:'011170'},{name:'금호석유',code:'011780'}] },
-  { id:'consumer',label:'소비재·유통',   color:'#f59e0b', emoji:'🛍️',
-    etf:[{name:'KODEX 소비재',code:'228800',cap:2000}],
-    stocks:[{name:'CJ제일제당',code:'097950'},{name:'BGF리테일',code:'282330'},{name:'이마트',code:'139480'}] },
-]
-
-const DEFAULT_ACTIVE = ['semi','defense','ship','nuclear','battery','bio','value']
+import { ALL_THEMES, DEFAULT_ACTIVE_IDS as DEFAULT_ACTIVE } from '../constants/themes'
+import { fmt, fmtRate, fmtChange, rateColor as rc, getTodayStr, getKstStatus, isMarketOpen, isUSMarketOpen, getDashTTL } from '../utils/format'
 const THEME_DOC_KEY  = 'dashboard_theme_prefs'
 const GLOBAL_SYMS    = ['SP500','NASDAQ','DOW','US10Y','N225','WTI']
 

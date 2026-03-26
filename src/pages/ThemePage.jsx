@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import StockChartModal from '../components/StockChartModal'
+import { ALL_THEMES } from '../constants/themes'
+import { fmt, fmtRate, rateColor as rc } from '../utils/format'
 import './ThemePage.css'
+
+// ThemePage는 ALL_THEMES에 없는 추가 상세정보(desc, keywords)를 포함한 자체 THEMES 사용
+// 향후 constants/themes.js에 desc/keywords 필드 추가 후 통합 예정
+
 
 const THEMES = [
   {
