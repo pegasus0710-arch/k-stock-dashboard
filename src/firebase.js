@@ -1,5 +1,10 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+import {
+  initializeAuth,
+  GoogleAuthProvider,
+  indexedDBLocalPersistence,
+  browserPopupRedirectResolver,
+} from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -12,14 +17,14 @@ const firebaseConfig = {
 }
 
 const app = initializeApp(firebaseConfig)
-export const auth = getAuth(app)
-export const db   = getFirestore(app)
+
+// initializeAuth: COOP window.closed 버그 우회
+export const auth = initializeAuth(app, {
+  persistence: indexedDBLocalPersistence,
+  popupRedirectResolver: browserPopupRedirectResolver,
+})
+
+export const db = getFirestore(app)
 
 export const googleProvider = new GoogleAuthProvider()
-googleProvider.addScope('email')
-googleProvider.addScope('profile')
-googleProvider.setCustomParameters({
-  prompt: 'select_account',
-  // Vercel 배포 환경에서 redirect 방식을 위한 설정
-  hd: '',
-})
+googleProvider.setCustomParameters({ prompt: 'select_account' })
