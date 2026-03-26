@@ -3,7 +3,6 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import StockChartModal from '../components/StockChartModal'
-import ChartModal from '../components/ChartModal'
 import GlobalChartModal from '../components/GlobalChartModal'
 import { ALL_THEMES, DEFAULT_ACTIVE_IDS } from '../constants/themes'
 import { fmt, fmtRate, fmtChange, rateColor, getTodayStr, getNowTime, getKstStatus, isMarketOpen, isUSMarketOpen, getDashTTL } from '../utils/format'
@@ -196,39 +195,7 @@ function GlobalSection({ globalData, loading, onChartClick }) {
 }
 
 // ── 바로가기 ──────────────────────────────────────────
-const QUICK_LINKS = [
-  { label: '네이버 증권',   url: 'https://finance.naver.com',                                    icon: '📊' },
-  { label: 'KRX 시장정보', url: 'https://data.krx.co.kr',                                       icon: '🏛️' },
-  { label: 'DART 공시',    url: 'https://dart.fss.or.kr',                                       icon: '📋' },
-  { label: '한국은행',     url: 'https://www.bok.or.kr',                                        icon: '🏦' },
-  { label: '거래량 상위',  url: 'https://finance.naver.com/sise/sise_quant.naver',              icon: '🔥' },
-  { label: '외국인 순매수',url: 'https://finance.naver.com/sise/foreign_list.naver',            icon: '🌐' },
-  { label: '증권사 리포트',url: 'https://finance.naver.com/research/invest_list.naver',         icon: '📈' },
-  { label: '상한가 종목',  url: 'https://finance.naver.com/sise/sise_upper.naver',              icon: '🚀' },
-]
 
-function QuickLinks() {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="db-quicklinks-wrap">
-      <button className="db-quicklinks-toggle" onClick={() => setOpen(v => !v)}>
-        <span>🔗 바로가기</span>
-        <span className="db-ql-arrow">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div className="db-quicklinks-panel">
-          {QUICK_LINKS.map(l => (
-            <a key={l.label} href={l.url} target="_blank" rel="noreferrer" className="db-ql-item">
-              <span className="db-ql-icon">{l.icon}</span>
-              <span className="db-ql-label">{l.label}</span>
-              <span className="db-ql-arrow-sm">→</span>
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ── 테마 설정 모달 ────────────────────────────────────
 function ThemeSettingModal({ activeIds, onChange, onClose }) {
@@ -589,8 +556,7 @@ export default function DashboardPage() {
   const renderChartModal = () => {
     if (!chartItem) return null
     if (chartItem.isStock) return (
-      // ChartModal + CandleChart 사용 (안정적으로 동작)
-      <ChartModal code={chartItem.code} name={chartItem.label} initialPeriod="day" onClose={() => setChartItem(null)}/>
+      <StockChartModal stock={{ name: chartItem.label, code: chartItem.code }} onClose={() => setChartItem(null)}/>
     )
     if (chartItem.type === 'index') return (
       <ChartModal isIndex inds_cd={marketToInds(chartItem.market)} name={chartItem.label} initialPeriod="day" onClose={() => setChartItem(null)}/>
@@ -620,7 +586,6 @@ export default function DashboardPage() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <QuickLinks/>
             <div className="db-status-badge" style={{ background: st.color + '18', color: st.color, borderColor: st.color + '40' }}>
               {st.dot && <span className="db-status-dot" style={{ background: st.color }}/>}
               {st.label}
@@ -722,12 +687,15 @@ export default function DashboardPage() {
                       const p = priceMap[s.code]
                       return (
                         <button key={s.code} className="db-stock-chip"
+                          style={p?.price>0?{borderLeftColor:rateColor(p.changeRate)}:{}}
                           onClick={() => setChartItem({ isStock: true, code: s.code, label: s.name })}>
                           <span className="db-stock-name">{s.name}</span>
                           {p?.price > 0
-                            ? <span className="db-stock-price" style={{ color: rateColor(p.changeRate) }}>
-                                {fmt(p.price)}{' '}
-                                <span style={{ fontSize: '10px' }}>({fmtRate(p.changeRate)})</span>
+                            ? <span className="db-stock-price">
+                                <span style={{ color: rateColor(p.changeRate), fontWeight:700 }}>{fmt(p.price)}</span>
+                                <span style={{ color: rateColor(p.changeRate), fontSize: '10px', marginLeft:3 }}>
+                                  {(p.changeRate>=0?'+':'')}{fmtRate(p.changeRate)}
+                                </span>
                                 {p.status === 'after' && <span style={{ fontSize: '9px', color: '#7c3aed', marginLeft: 2 }}>시간외</span>}
                               </span>
                             : <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>}

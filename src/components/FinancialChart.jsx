@@ -225,18 +225,14 @@ export default function FinancialChart({ stock, onClose }) {
 
   // ── DART API 호출 ─────────────────────────────────
   const loadData = useCallback(async () => {
-    if (!stock?.code || !DART_KEY) {
-      setError(DART_KEY ? '종목 정보 없음' : 'DART API 키 미설정 (VITE_DART_API_KEY)')
-      return
-    }
+    if (!stock?.code) { setError('종목 정보 없음'); return }
     setLoading(true); setError('')
 
     try {
       // 1. 종목코드 → DART 기업코드 변환
       const corpRes = await fetch(
-        `https://opendart.fss.or.kr/api/company.json?crtfc_key=${DART_KEY}&stock_code=${stock.code}`,
-        { mode: 'cors' }
-      ).catch(()=>{ throw new Error('DART API 접근 실패 (CORS). Vercel 프록시 설정이 필요합니다. 현재 브라우저에서 DART 직접 호출이 차단됩니다.') })
+        `/api/dart?endpoint=company&stock_code=${stock.code}`
+      ).catch(e=>{ throw new Error('DART 프록시 오류: '+e.message) })
       const corpData = await corpRes.json()
       if (!corpData || corpData.status !== '000' || !corpData.corp_code) {
         throw new Error(`DART 기업코드 없음: ${corpData?.message || '미등록 종목'} (${stock.code})`)
@@ -250,10 +246,8 @@ export default function FinancialChart({ stock, onClose }) {
 
       const reprtCode = reportType === 'half' ? '11012' : '11011'
       const fetches   = targetYears.map(yr =>
-        fetch(`https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json` +
-          `?crtfc_key=${DART_KEY}&corp_code=${corpCode}` +
-          `&bsns_year=${yr}&reprt_code=${reprtCode}&fs_div=CFS`
-        ).then(r => r.json()).catch(() => null)
+        fetch(`/api/dart?endpoint=fnlttSinglAcntAll&corp_code=${corpCode}&bsns_year=${yr}&reprt_code=${reprtCode}&fs_div=CFS`)
+        .then(r => r.json()).catch(() => null)
       )
 
       const results = await Promise.allSettled(fetches)

@@ -57,11 +57,25 @@ function RequireAuth({ children }) {
 }
 
 // ── 사이드바 ──────────────────────────────────────────
+
+// ── 바로가기 링크 ─────────────────────────────────────
+const QUICK_LINKS = [
+  { label: '네이버 증권',    url: 'https://finance.naver.com',                          icon: '📊' },
+  { label: 'KRX 시장정보',  url: 'https://data.krx.co.kr',                            icon: '🏛️' },
+  { label: 'DART 공시',     url: 'https://dart.fss.or.kr',                            icon: '📋' },
+  { label: '한국은행',      url: 'https://www.bok.or.kr',                             icon: '🏦' },
+  { label: '거래량 상위',   url: 'https://finance.naver.com/sise/sise_quant.naver',   icon: '🔥' },
+  { label: '외국인 순매수', url: 'https://finance.naver.com/sise/foreign_list.naver', icon: '🌐' },
+  { label: '증권사 리포트', url: 'https://finance.naver.com/research/invest_list.naver', icon: '📈' },
+  { label: '상한가 종목',   url: 'https://finance.naver.com/sise/sise_upper.naver',   icon: '🚀' },
+]
 function Sidebar({ collapsed, onToggle }) {
   const { user, logout } = useAuth()
+  const [qlOpen, setQlOpen] = useState(false)
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+      {/* 로고 */}
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">K</div>
         {!collapsed && (
@@ -75,18 +89,7 @@ function Sidebar({ collapsed, onToggle }) {
         </button>
       </div>
 
-      {!collapsed && user && (
-        <div className="sidebar-user">
-          <div className="sidebar-user-avatar">
-            {(user.displayName || user.email || 'J')[0].toUpperCase()}
-          </div>
-          <div className="sidebar-user-info">
-            <span className="sidebar-user-name">{user.displayName || 'Trader'}</span>
-            <span className="sidebar-user-email">{user.email}</span>
-          </div>
-        </div>
-      )}
-
+      {/* 메뉴 */}
       <nav className="sidebar-nav">
         {MENU.map(item => (
           <NavLink key={item.path} to={item.path}
@@ -104,12 +107,45 @@ function Sidebar({ collapsed, onToggle }) {
             )}
           </NavLink>
         ))}
+
+        {/* 바로가기 */}
+        {!collapsed && (
+          <div className="sidebar-quicklinks">
+            <button className="sidebar-ql-toggle" onClick={() => setQlOpen(v => !v)}>
+              <span className="sidebar-item-icon">🔗</span>
+              <span className="sidebar-ql-label">바로가기</span>
+              <span className="sidebar-ql-arrow">{qlOpen ? '▲' : '▼'}</span>
+            </button>
+            {qlOpen && (
+              <div className="sidebar-ql-panel">
+                {QUICK_LINKS.map(l => (
+                  <a key={l.label} href={l.url} target="_blank" rel="noreferrer" className="sidebar-ql-item">
+                    <span>{l.icon}</span>
+                    <span>{l.label}</span>
+                    <span className="sidebar-ql-arrow-sm">→</span>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </nav>
 
+      {/* 하단: 유저 정보 + 로그아웃 */}
       <div className="sidebar-bottom">
-        {!collapsed && <span className="sidebar-version">K-Stock {APP_VERSION}</span>}
+        {!collapsed && user && (
+          <div className="sidebar-user-bottom">
+            <div className="sidebar-user-avatar-sm">
+              {(user.displayName || user.email || 'J')[0].toUpperCase()}
+            </div>
+            <div className="sidebar-user-info-sm">
+              <span className="sidebar-user-name-sm">{user.displayName || 'Trader'}</span>
+              <span className="sidebar-user-email-sm">{user.email}</span>
+            </div>
+          </div>
+        )}
         <button className="sidebar-logout" onClick={logout} title="로그아웃">
-          {collapsed ? '⏻' : '⏻  로그아웃'}
+          {collapsed ? '⏻' : '⏻'}
         </button>
       </div>
     </aside>

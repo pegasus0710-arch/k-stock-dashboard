@@ -32,7 +32,7 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
   const [scope,     setScope]     = useState('5')
   const [range,     setRange]     = useState(initRange||3)
   const [showMA,    setShowMA]    = useState(initMA??true)
-  const [enabledMA, setEnabledMA] = useState(initEMA||new Set([5,20,60,120]))
+  const [enabledMA, setEnabledMA] = useState(initEMA||new Set([5,10,20,60,120]))
   const [drawings,  setDrawings]  = useState(()=>lsGet(`${LS_DRAWINGS}_${stock.code}`,[]))
   const [drawTool,  setDrawTool]  = useState('none')
   const [drawState, setDrawState] = useState(null)
@@ -216,7 +216,7 @@ export default function ChartAnalysisPage() {
   const [scope,     setScope]     = useState('5')
   const [range,     setRange]     = useState(3)
   const [showMA,    setShowMA]    = useState(true)
-  const [enabledMA, setEnabledMA] = useState(new Set([5,20,60,120]))
+  const [enabledMA, setEnabledMA] = useState(new Set([5,10,20,60,120]))
   const [activeTab, setActiveTab] = useState('chart')
   const [showFull,  setShowFull]  = useState(false)
 
@@ -250,6 +250,7 @@ export default function ChartAnalysisPage() {
   const [aiError,  setAiError]  = useState('')
 
   // 관심종목 카테고리
+  const [wlPanelTab, setWlPanelTab] = useState('watch') // 'watch'|'hold'
   const [wlCats,     setWlCats]     = useState(()=>{ try{return JSON.parse(localStorage.getItem('wl_v3'))||[]}catch{return []} })
   const [selCatId,   setSelCatId]   = useState('') // '' = 없음
   const [showWlPanel,setShowWlPanel]= useState(false)
@@ -259,6 +260,8 @@ export default function ChartAnalysisPage() {
 
   // 공시/뉴스/종목정보 팝업
   const [infoPopup,  setInfoPopup]  = useState(null) // 'disclosure'|'news'|'stockinfo'
+  const [newsData,   setNewsData]   = useState([])   // 종목 뉴스
+  const [newsLoading,setNewsLoading]= useState(false)
   const infoPopupRef = useRef(null)
 
   // 보유 종목
@@ -295,7 +298,7 @@ export default function ChartAnalysisPage() {
 
   const select=stock=>{
     setSelected(stock); setQuery(stock.name); setShowDrop(false)
-    setAiResult(''); setAiError(''); setForeignData(null); setBasicInfo(null)
+    setAiResult(''); setAiError(''); setForeignData(null); setBasicInfo(null); setNewsData([])
     const d=lsGet(`${LS_DRAWINGS}_${stock.code}`,[])
     setDrawings(d); setDrawTool('none'); setDrawState(null)
     const next=[stock,...recent.filter(r=>r.code!==stock.code)].slice(0,8)
@@ -322,6 +325,28 @@ export default function ChartAnalysisPage() {
       setShortData(sh.data?.slice(0,30)||[])
       setStrData(st.data?.slice(0,30)||[])
     } catch {} finally { setSupplyLoading(false) }
+  },[selected?.code])
+
+  // 종목 뉴스 로드 (Claude web_search)
+  const loadNews = useCallback(async(stock)=>{
+    if(!stock?.code||!CLAUDE_KEY) return
+    setNewsLoading(true); setNewsData([])
+    try {
+      const today=new Date().toLocaleDateString('ko-KR')
+      const res=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':CLAUDE_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1500,
+          tools:[{type:'web_search_20250305',name:'web_search'}],
+          messages:[{role:'user',content:`웹 검색으로 오늘(${today}) ${stock.name}(${stock.code}) 관련 최신 뉴스를 7개 찾아줘. 반드시 아래 JSON 형식으로만 응답:
+[{"title":"제목","summary":"한줄요약","url":"https://...","source":"언론사","date":"날짜"}]`}]
+        })
+      })
+      const data=await res.json()
+      const text=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||''
+      const match=text.match(/\[[\s\S]*\]/)
+      if(match) setNewsData(JSON.parse(match[0]))
+    } catch(e){console.error(e)} finally{setNewsLoading(false)}
   },[selected?.code])
 
   const doAI=async()=>{
@@ -381,17 +406,46 @@ export default function ChartAnalysisPage() {
       {/* ── 왼쪽 사이드: 관심종목 패널 ── */}
       <div className={`cap-wl-side ${showWlPanel?'open':''}`}>
         <div className="cap-wl-side-header">
-          <span className="cap-wl-side-title">⭐ 관심종목</span>
+          <div className="cap-wl-side-tabs">
+            <button className={`cap-wl-side-tab ${wlPanelTab==='watch'?'active':''}`} onClick={()=>setWlPanelTab('watch')}>⭐ 관심</button>
+            <button className={`cap-wl-side-tab ${wlPanelTab==='hold'?'active':''}`} onClick={()=>setWlPanelTab('hold')}>💼 보유</button>
+          </div>
           <button className="cap-wl-side-close" onClick={()=>setShowWlPanel(false)}>✕</button>
         </div>
-        {/* 카테고리 드롭다운 */}
-        <select className="cap-wl-cat-select" value={selCatId} onChange={e=>setSelCatId(e.target.value)}>
+        {/* 카테고리 드롭다운 (관심종목 탭만) */}
+        {wlPanelTab==='watch'&&<select className="cap-wl-cat-select" value={selCatId} onChange={e=>setSelCatId(e.target.value)}>
           <option value="">— 카테고리 선택 —</option>
-          {wlCats.map(c=><option key={c.id} value={c.id}>{c.name} ({c.stocks.length})</option>)}
-        </select>
+          {wlCats.map(cat=><option key={cat.id} value={cat.id}>{cat.name} ({cat.stocks.length})</option>)}
+        </select>}
         {/* 종목 목록 */}
         <div className="cap-wl-stock-list">
-          {selCatStocks.length===0 && (
+          {/* 보유종목 탭 */}
+          {wlPanelTab==='hold'&&(
+            Object.keys(holdings).length===0
+            ? <div className="cap-wl-empty">보유종목 없음</div>
+            : Object.entries(holdings).map(([code,h])=>{
+                const p=prices[code]
+                const pc2=p?rateColor(p.changeRate):'#64748b'
+                const sign2=(p?.changeRate??0)>0?'+':''
+                const isSelected=selected?.code===code
+                // 종목명 찾기
+                const stockName = STOCK_LIST.find(s=>s.code===code)?.name||code
+                return (
+                  <button key={code} className={`cap-wl-stock-item ${isSelected?'active':''}`}
+                    onClick={()=>select({code,name:stockName,theme:'보유종목'})}>
+                    <div className="cap-wl-item-left">
+                      <span className="cap-wl-item-name">{stockName}</span>
+                      <span className="cap-wl-item-code" style={{color:'#4ade80'}}>{h.qty}주 {h.rate>=0?'+':''}{h.rate?.toFixed(1)}%</span>
+                    </div>
+                    <div className="cap-wl-item-right" style={{color:pc2}}>
+                      {p?.price>0?<><span>{fmtN(p.price)}</span><span className="cap-wl-item-rate">{sign2}{p.changeRate?.toFixed(1)}%</span></>:<span>—</span>}
+                    </div>
+                  </button>
+                )
+              })
+          )}
+          {/* 관심종목 탭 */}
+          {wlPanelTab==='watch'&&selCatStocks.length===0 && (
             <div className="cap-wl-empty">{selCatId?'종목이 없습니다':'카테고리를 선택하세요'}</div>
           )}
           {selCatStocks.map(s=>{
@@ -420,7 +474,7 @@ export default function ChartAnalysisPage() {
       <div className="page-header" style={{marginBottom:8}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <button className="cap-wl-toggle-btn" onClick={()=>setShowWlPanel(v=>!v)} title="관심종목 패널">⭐ 관심종목</button>
-          <h1 className="page-title" style={{fontSize:18}}>차트 분석</h1>
+          <h1 className="page-title" style={{fontSize:18}}>종목 분석</h1>
         </div>
       </div>
 
@@ -513,27 +567,28 @@ export default function ChartAnalysisPage() {
                   {/* 수급 */}
                   <button className={`cap-period-btn ${showSupply?'active':''}`}
                     onClick={()=>{ const n=!showSupply; setShowSupply(n); if(n) { setSupplyPopup(true); if(!foreignData) loadSupply() } else { setSupplyPopup(false) } }}>
-                    📊 수급
+                    수급
                   </button>
                   {/* ETF 구성종목 */}
                   {etfMode&&(
                     <button className="cap-period-btn" style={{color:'#60a5fa',borderColor:'rgba(37,99,235,0.4)'}}
                       onClick={()=>setShowEtf(true)}>🧩 구성종목</button>
                   )}
-                  {/* 재무제표 */}
-                  <button className="cap-fullscreen-btn" onClick={()=>setShowFinancial(true)} title="재무제표">📊</button>
-                  {/* 공시 팝업 */}
-                  <div style={{position:'relative'}} ref={infoPopupRef}>
-                    <div style={{display:'flex',gap:2}}>
-                      <button className={`cap-fullscreen-btn ${infoPopup==='disclosure'?'active':''}`}
-                        onClick={()=>setInfoPopup(p=>p==='disclosure'?null:'disclosure')} title="공시">📋</button>
-                      <button className={`cap-fullscreen-btn ${infoPopup==='news'?'active':''}`}
-                        onClick={()=>setInfoPopup(p=>p==='news'?null:'news')} title="뉴스">📰</button>
-                      <button className={`cap-fullscreen-btn ${infoPopup==='stockinfo'?'active':''}`}
-                        onClick={()=>setInfoPopup(p=>p==='stockinfo'?null:'stockinfo')} title="종목정보">ℹ️</button>
-                      <a href={`https://finance.naver.com/item/main.naver?code=${selected?.code}`}
-                        target="_blank" rel="noreferrer" className="cap-fullscreen-btn" title="네이버증권" style={{display:'flex',alignItems:'center',justifyContent:'center',textDecoration:'none',color:'#94a3b8'}}>N</a>
-                    </div>
+                  {/* 우측 버튼 그룹 */}
+                  <div style={{position:'relative',display:'flex',gap:3,alignItems:'center'}} ref={infoPopupRef}>
+                    <button className="cap-icon-btn" onClick={()=>setShowFinancial(true)}>재무</button>
+                    <button className={`cap-icon-btn ${infoPopup==='disclosure'?'active':''}`}
+                      onClick={()=>setInfoPopup(p=>p==='disclosure'?null:'disclosure')}>공시</button>
+                    <button className={`cap-icon-btn ${infoPopup==='news'?'active':''}`}
+                      onClick={()=>{
+                        const next=infoPopup==='news'?null:'news'
+                        setInfoPopup(next)
+                        if(next==='news'&&newsData.length===0&&!newsLoading) loadNews(selected)
+                      }}>뉴스{newsLoading&&'⟳'}</button>
+                    <button className={`cap-icon-btn ${infoPopup==='stockinfo'?'active':''}`}
+                      onClick={()=>setInfoPopup(p=>p==='stockinfo'?null:'stockinfo')}>종목정보</button>
+                    <a href={`https://finance.naver.com/item/main.naver?code=${selected?.code}`}
+                      target="_blank" rel="noreferrer" className="cap-icon-btn" style={{textDecoration:'none',color:'#94a3b8'}}>N증권</a>
                     {/* 공시 팝업 */}
                     {infoPopup==='disclosure'&&(
                       <div className="cap-info-popup">
@@ -544,14 +599,22 @@ export default function ChartAnalysisPage() {
                           target="_blank" rel="noreferrer" className="cap-info-popup-item" onClick={()=>setInfoPopup(null)}>KRX KIND 공시 →</a>
                       </div>
                     )}
-                    {/* 뉴스 팝업 */}
+                    {/* 뉴스 팝업 - 직접 로드 */}
                     {infoPopup==='news'&&(
-                      <div className="cap-info-popup">
-                        <div className="cap-info-popup-title">📰 뉴스 바로가기</div>
-                        <a href={`https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(selected?.name||'')}&sort=1`}
-                          target="_blank" rel="noreferrer" className="cap-info-popup-item" onClick={()=>setInfoPopup(null)}>네이버 뉴스 →</a>
-                        <a href={`https://finance.naver.com/item/news_news.naver?code=${selected?.code}`}
-                          target="_blank" rel="noreferrer" className="cap-info-popup-item" onClick={()=>setInfoPopup(null)}>네이버 종목뉴스 →</a>
+                      <div className="cap-info-popup cap-news-popup">
+                        <div className="cap-info-popup-title">
+                          📰 {selected?.name} 최신 뉴스
+                          <button className="cap-news-refresh" onClick={()=>loadNews(selected)}>↺</button>
+                        </div>
+                        {newsLoading&&<div className="cap-news-loading">⟳ 뉴스 검색 중...</div>}
+                        {!newsLoading&&newsData.length===0&&<div className="cap-news-empty">버튼을 눌러 뉴스 검색</div>}
+                        {newsData.map((n,i)=>(
+                          <a key={i} href={n.url} target="_blank" rel="noreferrer" className="cap-news-item" onClick={()=>setInfoPopup(null)}>
+                            <div className="cap-news-item-title">{n.title}</div>
+                            <div className="cap-news-item-meta">{n.source} · {n.date}</div>
+                            <div className="cap-news-item-summary">{n.summary}</div>
+                          </a>
+                        ))}
                       </div>
                     )}
                     {/* 종목정보 팝업 */}
@@ -583,7 +646,7 @@ export default function ChartAnalysisPage() {
                       </div>
                     )}
                   </div>
-                  <button className="cap-fullscreen-btn" onClick={()=>setShowFull(true)}>⛶</button>
+                  <button className="cap-fullscreen-btn" onClick={()=>setShowFull(true)}>전체화면</button>
                 </div>
               </div>
 
@@ -623,7 +686,7 @@ export default function ChartAnalysisPage() {
                 {chartLoading
                   ? <div className="cap-chart-loading"><div className="cap-spinner"/>차트 불러오는 중...</div>
                   : <CandleSvg
-                      data={candles} width={chartWidth} height={440}
+                      data={candles} width={chartWidth} height={500}
                       showMA={showMA} enabledMA={enabledMA}
                       drawings={drawings} onSvgClick={handleInlineClick} drawTool={drawTool}
                       selectedIdx={selIdx} onSelectDrawing={setSelIdx}

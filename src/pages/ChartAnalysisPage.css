@@ -222,7 +222,7 @@
 }
 .cap-supply-popup {
   background: #0f172a; border: 1px solid #334155; border-radius: 14px;
-  width: 100%; max-width: 800px; max-height: 80vh; overflow-y: auto;
+  width: 100%; max-width: 1100px; max-height: 90vh; overflow-y: auto;
   box-shadow: 0 24px 64px rgba(0,0,0,.7);
 }
 .cap-supply-popup-header {
@@ -267,3 +267,47 @@
   border-color: #2563eb !important;
   color: #60a5fa !important;
 }
+
+/* ── cap-icon-btn: 글자 버튼 ── */
+.cap-icon-btn {
+  padding: 4px 10px; border: 1px solid #334155; border-radius: 6px;
+  background: transparent; font-size: 12px; font-weight: 600; color: #94a3b8;
+  cursor: pointer; font-family: inherit; white-space: nowrap; transition: all .12s;
+  display: inline-flex; align-items: center;
+}
+.cap-icon-btn:hover  { border-color: #2563eb; color: #60a5fa; }
+.cap-icon-btn.active { background: rgba(37,99,235,.15); border-color: #2563eb; color: #60a5fa; }
+
+/* 뉴스 팝업 */
+.cap-news-popup {
+  min-width: 340px; max-width: 400px; max-height: 480px; overflow-y: auto;
+  right: 0; left: auto;
+}
+.cap-news-refresh {
+  background: none; border: none; color: #64748b; cursor: pointer;
+  font-size: 13px; padding: 0 4px; margin-left: auto; float: right;
+}
+.cap-news-refresh:hover { color: #e2e8f0; }
+.cap-info-popup-title { display: flex; align-items: center; }
+.cap-news-loading { padding: 16px 14px; font-size: 12px; color: #64748b; text-align: center; }
+.cap-news-empty   { padding: 16px 14px; font-size: 12px; color: #475569; text-align: center; }
+.cap-news-item {
+  display: block; padding: 10px 14px; border-bottom: 1px solid #1e293b;
+  text-decoration: none; transition: background .1s;
+}
+.cap-news-item:last-child { border-bottom: none; }
+.cap-news-item:hover { background: rgba(255,255,255,.05); }
+.cap-news-item-title  { font-size: 12px; font-weight: 600; color: #e2e8f0; line-height: 1.5; margin-bottom: 3px; }
+.cap-news-item-meta   { font-size: 10px; color: #64748b; margin-bottom: 2px; }
+.cap-news-item-summary{ font-size: 11px; color: #94a3b8; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* 사이드 패널 탭 */
+.cap-wl-side-tabs { display: flex; gap: 2px; flex: 1; }
+.cap-wl-side-tab {
+  flex: 1; padding: 4px 6px; background: transparent; border: 1px solid #334155;
+  border-radius: 6px; color: #64748b; font-size: 11px; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: all .12s;
+}
+.cap-wl-side-tab.active { background: rgba(37,99,235,.15); border-color: #2563eb; color: #60a5fa; }
+.cap-wl-side-header { gap: 6px; }
