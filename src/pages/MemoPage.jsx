@@ -21,16 +21,9 @@ const TEXT_COLORS = [
 ]
 const FONT_SIZES = ['12','13','14','15','16','18','20','22','24','28']
 
-// ── 기본 카테고리 ─────────────────────────────────────
+// ── 기본 카테고리 ('기타' 하나만 유지 — 나머지는 직접 추가) ─
 const DEFAULT_CATEGORIES = [
-  { name:'전략',    color:'#3b82f6' },
-  { name:'아이디어', color:'#8b5cf6' },
-  { name:'종목',    color:'#f59e0b' },
-  { name:'매수',    color:'#10b981' },
-  { name:'매도',    color:'#ef4444' },
-  { name:'리스크',  color:'#f97316' },
-  { name:'공부',    color:'#06b6d4' },
-  { name:'기타',    color:'#94a3b8' },
+  { name:'기타', color:'#94a3b8' },
 ]
 
 const LS_CATS = 'mp_categories_v1'
@@ -225,9 +218,56 @@ function MemoEditor({ memo, categories, onSave, onClose }) {
               </select>
             </div>
             <div className="mp-toolbar-group">
-              <button className="mp-fmt-btn" onClick={() => document.execCommand('bold')}><b>B</b></button>
-              <button className="mp-fmt-btn" onClick={() => document.execCommand('italic')}><i>I</i></button>
-              <button className="mp-fmt-btn" onClick={() => document.execCommand('underline')}><u>U</u></button>
+              <button className="mp-fmt-btn" title="굵게" onClick={() => document.execCommand('bold')}><b>B</b></button>
+              <button className="mp-fmt-btn" title="기울임" onClick={() => document.execCommand('italic')}><i>I</i></button>
+              <button className="mp-fmt-btn" title="밑줄" onClick={() => document.execCommand('underline')}><u>U</u></button>
+            </div>
+            <div className="mp-toolbar-sep"/>
+            {/* 목록 · 단락 버튼 */}
+            <div className="mp-toolbar-group">
+              <button className="mp-fmt-btn" title="글머리 목록 삽입"
+                onClick={() => {
+                  const ta = textRef.current; if (!ta) return
+                  const s = ta.selectionStart, v = ta.value
+                  const before = v.slice(0, s), after = v.slice(s)
+                  const ins = (before.length === 0 || before.endsWith('\n')) ? '• ' : '\n• '
+                  const next = before + ins + after
+                  setContent(next)
+                  setTimeout(() => { ta.selectionStart = ta.selectionEnd = s + ins.length; ta.focus() }, 0)
+                }}>• 목록</button>
+              <button className="mp-fmt-btn" title="번호 목록 삽입"
+                onClick={() => {
+                  const ta = textRef.current; if (!ta) return
+                  const s = ta.selectionStart, v = ta.value
+                  const lines = v.slice(0, s).split('\n')
+                  const prevLine = lines[lines.length - 1]
+                  const m = prevLine.match(/^(\d+)\.\s/)
+                  const num = m ? parseInt(m[1]) + 1 : 1
+                  const before = v.slice(0, s), after = v.slice(s)
+                  const ins = (before.length === 0 || before.endsWith('\n')) ? `${num}. ` : `\n${num}. `
+                  const next = before + ins + after
+                  setContent(next)
+                  setTimeout(() => { ta.selectionStart = ta.selectionEnd = s + ins.length; ta.focus() }, 0)
+                }}>1. 번호</button>
+              <button className="mp-fmt-btn" title="단락 구분선 삽입"
+                onClick={() => {
+                  const ta = textRef.current; if (!ta) return
+                  const s = ta.selectionStart, v = ta.value
+                  const ins = '\n\n──────────\n\n'
+                  const next = v.slice(0, s) + ins + v.slice(s)
+                  setContent(next)
+                  setTimeout(() => { ta.selectionStart = ta.selectionEnd = s + ins.length; ta.focus() }, 0)
+                }}>── 단락</button>
+              <button className="mp-fmt-btn" title="인용구 삽입"
+                onClick={() => {
+                  const ta = textRef.current; if (!ta) return
+                  const s = ta.selectionStart, v = ta.value
+                  const before = v.slice(0, s), after = v.slice(s)
+                  const ins = (before.endsWith('\n') || before.length === 0) ? '❝ ' : '\n❝ '
+                  const next = before + ins + after
+                  setContent(next)
+                  setTimeout(() => { ta.selectionStart = ta.selectionEnd = s + ins.length; ta.focus() }, 0)
+                }}>❝ 인용</button>
             </div>
             <div style={{ flex: 1 }}/>
             <button
@@ -241,8 +281,24 @@ function MemoEditor({ memo, categories, onSave, onClose }) {
           {/* 저장 에러 */}
           {saveError && <div className="mp-save-error">⚠️ {saveError}</div>}
 
-          {/* 2행: 태그 선택됨 + 직접입력 */}
+          {/* 2행: 태그 + 카테고리 드롭다운 */}
           <div className="mp-tags-section">
+            {/* 카테고리 드롭다운 */}
+            <span className="mp-cpicker-label" style={{ flexShrink: 0 }}>카테고리</span>
+            <select className="mp-cat-select"
+              value=""
+              onChange={e => { if (e.target.value) toggleCat(e.target.value); e.target.value = '' }}>
+              <option value="">선택...</option>
+              {categories
+                .filter(cat => !tags.includes(cat.name))
+                .map(cat => (
+                  <option key={cat.name} value={cat.name}>{cat.name}</option>
+                ))}
+            </select>
+
+            <div className="mp-toolbar-sep"/>
+
+            {/* 선택된 태그 칩 */}
             <span className="mp-cpicker-label" style={{ flexShrink: 0 }}>태그</span>
             <div className="mp-selected-tags">
               {tags.map(t => {
@@ -257,23 +313,9 @@ function MemoEditor({ memo, categories, onSave, onClose }) {
                 )
               })}
             </div>
-            <input className="mp-tag-input" placeholder="직접 입력 후 Enter"
+            <input className="mp-tag-input" placeholder="태그 입력 후 엔터"
               value={tagInput} onChange={e => setTagInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTagInput() } }}/>
-          </div>
-
-          {/* 3행: 카테고리 버튼들 */}
-          <div className="mp-cats-row">
-            {categories.map(cat => (
-              <button key={cat.name}
-                className={`mp-cat-btn ${tags.includes(cat.name) ? 'active' : ''}`}
-                style={tags.includes(cat.name)
-                  ? { background: cat.color + '33', color: cat.color, borderColor: cat.color + '66' }
-                  : {}}
-                onClick={() => toggleCat(cat.name)}>
-                {cat.name}
-              </button>
-            ))}
           </div>
         </div>
 
