@@ -196,12 +196,12 @@
 }
 .db-tooltip-box {
   position: fixed;
-  width: 260px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
+  width: 270px;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
   border-radius: 10px;
-  padding: 10px 12px;
-  box-shadow: var(--shadow-md);
+  padding: 12px 14px;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.18);
   z-index: 9999;
   pointer-events: none;
   text-align: left;

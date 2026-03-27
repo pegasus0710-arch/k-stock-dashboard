@@ -30,12 +30,23 @@ export function TooltipIcon({ id }) {
 
   const handleMouseEnter = (e) => {
     const rect = e.currentTarget.getBoundingClientRect()
-    const tooltipW = 260
-    const left = rect.right + 8
-    const right = window.innerWidth - left
-    // 오른쪽 공간 부족하면 왼쪽에 표시
-    const x = right < tooltipW + 16 ? rect.left - tooltipW - 8 : left
-    const y = Math.min(rect.top, window.innerHeight - 200)
+    const tooltipW = 270
+    const tooltipH = 160  // 대략적 높이
+
+    // X: 오른쪽 공간 부족하면 왼쪽으로
+    let x = rect.right + 8
+    if (x + tooltipW > window.innerWidth - 8) {
+      x = rect.left - tooltipW - 8
+    }
+    // X 최솟값 보정
+    x = Math.max(8, x)
+
+    // Y: 카드 위에 표시, 화면 위로 넘치면 아래에 표시
+    let y = rect.top - tooltipH - 8
+    if (y < 8) {
+      y = rect.bottom + 8
+    }
+
     setPos({ x, y })
   }
 
