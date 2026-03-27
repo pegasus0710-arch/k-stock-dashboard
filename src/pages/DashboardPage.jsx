@@ -4,7 +4,6 @@ import { rateColor, getTodayStr, getKstStatus, isMarketOpen, isUSMarketOpen } fr
 import { SECTOR_GROUPS, ALL_ITEMS, GAUGE_CONFIG } from '../constants/dashboardData'
 import { GaugeBar, TooltipIcon } from '../components/ui/GaugeBar'
 import GuideModal        from '../components/dashboard/GuideModal'
-import HeatmapSection    from '../components/dashboard/HeatmapSection'
 import GlobalChartModal  from '../components/GlobalChartModal'
 import useDashboard      from '../hooks/useDashboard'
 import HeroChart         from '../components/dashboard/HeroChart'
@@ -164,9 +163,6 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
-
-      {/* 영역 3: 하단 업종 히트맵 */}
-      <HeatmapSection/>
 
       <div className="dash-footer-note">
         ✅ KIS API · {isOpen?'장중 30초':isAfter?'시간외 2분':'장외 5분'} 자동 갱신

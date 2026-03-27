@@ -115,33 +115,44 @@
 ══════════════════════════════════════════════════ */
 .db-cards-section {
   margin: 12px 20px 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
+@media(max-width:1200px) { .db-cards-section { grid-template-columns: repeat(2, 1fr); } }
+@media(max-width:768px)  { .db-cards-section { grid-template-columns: 1fr; margin: 10px 12px 0; } }
 
-.db-card-group { }
+/* 그룹 박스 */
+.db-card-group {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
 .db-card-group-label {
   font-size: 11px;
   font-weight: 700;
   color: var(--text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   display: flex;
   align-items: center;
   gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
 }
 .db-card-group-items {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
 }
 
 /* 개별 지수 카드 */
 .db-idx-card {
-  background: var(--bg-panel);
+  background: var(--bg-base);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 14px;
+  border-radius: 10px;
+  padding: 10px 12px;
   cursor: pointer;
   transition: all .15s;
   display: flex;
@@ -149,14 +160,14 @@
   gap: 3px;
   text-align: left;
   width: 100%;
-  box-shadow: var(--shadow-sm);
 }
-.db-idx-card:hover  { border-color: #CBD5E1; box-shadow: var(--shadow-md); background: #FAFBFF; }
+.db-idx-card:hover  { border-color: #CBD5E1; background: var(--bg-hover); }
 .db-idx-card.active {
   background: var(--accent-light) !important;
   border-color: var(--accent-mid) !important;
 }
 .db-idx-card.closed { opacity: .75; }
+.db-idx-card.spread-card { cursor: default; }
 
 .db-idx-top-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:2px; }
 .db-idx-name    { font-size:11px; font-weight:600; color:var(--text-secondary); }
