@@ -109,6 +109,62 @@ function Skeleton({ w='60%', h=14, r=3 }) {
   return <div className="db-skeleton" style={{width:w,height:h,borderRadius:r}}/>
 }
 
+// ── 게이지 설정 (수치 위치 표시가 의미있는 지수만) ─────
+const GAUGE_CONFIG = {
+  VIX:    { min:0,    max:80,   safe:15,  caution:30,  labels:['안전','주의','공포'],  unit:''  },
+  US10Y:  { min:0,    max:7,    safe:3.5, caution:4.5, labels:['저금리','보통','고금리'], unit:'%' },
+  US2Y:   { min:0,    max:7,    safe:3.5, caution:4.5, labels:['저금리','보통','고금리'], unit:'%' },
+  KR10Y:  { min:0,    max:6,    safe:3.0, caution:4.0, labels:['저금리','보통','고금리'], unit:'%' },
+  WTI:    { min:40,   max:120,  safe:60,  caution:80,  labels:['저유가','보통','고유가'],  unit:'$' },
+  BRENT:  { min:40,   max:130,  safe:65,  caution:85,  labels:['저유가','보통','고유가'],  unit:'$' },
+  DXY:    { min:85,   max:115,  safe:95,  caution:105, labels:['약달러','보통','강달러'], unit:''  },
+  FX_USD: { min:1100, max:1600, safe:1300,caution:1400,labels:['원화강세','보통','원화약세'],unit:'' },
+}
+
+// ── 게이지바 컴포넌트 ──────────────────────────────────
+function GaugeBar({ id, price }) {
+  const cfg = GAUGE_CONFIG[id]
+  if (!cfg || price == null) return null
+  const { min, max, safe, caution } = cfg
+  const pct = Math.min(100, Math.max(0, (price - min) / (max - min) * 100))
+  const color = price <= safe ? 'var(--gauge-safe)'
+              : price <= caution ? 'var(--gauge-caution)'
+              : 'var(--gauge-danger)'
+  return (
+    <div className="db-gauge-wrap">
+      <div className="db-gauge-track">
+        <div className="db-gauge-fill" style={{width:`${pct}%`, background:color}}/>
+      </div>
+      <div className="db-gauge-label">
+        <span>{cfg.labels[0]}</span>
+        <span>{cfg.labels[2]}</span>
+      </div>
+    </div>
+  )
+}
+
+// ── 툴팁 컴포넌트 ─────────────────────────────────────
+function TooltipIcon({ id }) {
+  const [show, setShow] = useState(false)
+  const g = GUIDE_DATA[id]
+  if (!g) return null
+  return (
+    <span className="db-tooltip-wrap"
+      onMouseEnter={()=>setShow(true)}
+      onMouseLeave={()=>setShow(false)}
+      onClick={e=>e.stopPropagation()}>
+      <span className="db-tooltip-icon">?</span>
+      {show && (
+        <div className="db-tooltip-box">
+          <div className="db-tooltip-title">{g.title}</div>
+          <div className="db-tooltip-desc">{g.desc}</div>
+          {g.tip && <div className="db-tooltip-tip">{g.tip}</div>}
+        </div>
+      )}
+    </span>
+  )
+}
+
 // ── 데이터 getter ─────────────────────────────────────
 function getItemData(item, dashData, globalData, forexData, cbRates) {
   if (item.type==='global') return globalData?.[item.sym] || null
@@ -668,18 +724,22 @@ export default function DashboardPage() {
                 const badge = getMarketBadge(item, d)
                 const isClosed = badge?.label === '전일'
                 const active = selId === item.id
+                const hasGauge = !!GAUGE_CONFIG[item.id]
                 return (
                   <button key={item.id}
                     className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''}`}
                     onClick={()=>item.type!=='cb' && setSelId(item.id)}>
                     <div className="db-idx-top-row">
                       <span className="db-idx-name">{item.label}</span>
-                      {badge&&(
-                        <span className="db-idx-badge" style={{color:badge.color}}>
-                          {badge.label==='LIVE'&&<span className="db-idx-live-dot"/>}
-                          {badge.label}
-                        </span>
-                      )}
+                      <span style={{display:'flex',alignItems:'center',gap:4}}>
+                        <TooltipIcon id={item.id}/>
+                        {badge&&(
+                          <span className="db-idx-badge" style={{color:badge.color}}>
+                            {badge.label==='LIVE'&&<span className="db-idx-live-dot"/>}
+                            {badge.label}
+                          </span>
+                        )}
+                      </span>
                     </div>
                     {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
                      d?.price!=null ? (
@@ -688,6 +748,7 @@ export default function DashboardPage() {
                         {d.isCB ? <div className="db-idx-cb-date">{d.date}</div>
                           : rate!=null ? <div className="db-idx-rate" style={{color:pc}}>{up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%</div>
                           : null}
+                        {hasGauge && <GaugeBar id={item.id} price={d.price}/>}
                       </>
                     ) : <div className="db-idx-na">—</div>}
                   </button>
