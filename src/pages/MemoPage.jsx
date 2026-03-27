@@ -197,10 +197,16 @@ function MemoEditor({ memo, categories, onSave, onClose }) {
 
   const selectedCat = categories.find(c => c.name === category)
 
+  const overlayRef = useRef(null)
+  const mouseDownOnOverlay = useRef(false)
+
   return (
-    <div className="mp-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="mp-modal-overlay" ref={overlayRef}
+      onMouseDown={e => { mouseDownOnOverlay.current = e.target === overlayRef.current }}
+      onMouseUp={e => { if (mouseDownOnOverlay.current && e.target === overlayRef.current) onClose() }}>
       <div className={`mp-editor mp-editor-resizable ${!editMode ? 'read-mode' : ''}`}
-        style={{ background: bgColor }}>
+        style={{ background: bgColor }}
+        onMouseDown={e => e.stopPropagation()}>
 
         {/* ── 읽기모드 헤더 ── */}
         {!editMode && (

@@ -203,20 +203,22 @@
 /* ── 에디터 ────────────────────────────────────────── */
 .mp-modal-overlay {
   position: fixed; inset: 0; z-index: 1000;
-  background: rgba(15,23,42,.45); display: flex; align-items: center; justify-content: center;
-  padding: 20px; backdrop-filter: blur(3px);
+  background: rgba(15,23,42,.45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; backdrop-filter: blur(3px);
 }
 .mp-editor {
   display: flex; flex-direction: column;
-  width: 100%; max-width: 560px; max-height: 86vh;
+  width: 560px; max-height: 86vh;
   border-radius: 16px; overflow: hidden;
   box-shadow: 0 24px 64px rgba(15,23,42,.2);
   border: 1px solid var(--border);
 }
 .mp-editor-resizable {
   resize: both; overflow: auto;
-  min-width: 420px; min-height: 320px;
-  max-width: 92vw; max-height: 92vh;
+  min-width: 400px; min-height: 300px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
 }
 
 /* 읽기모드 */
