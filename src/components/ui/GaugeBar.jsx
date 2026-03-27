@@ -24,40 +24,18 @@ export function GaugeBar({ id, price }) {
 }
 
 export function TooltipIcon({ id }) {
-  const [pos, setPos] = useState(null)
+  const [show, setShow] = useState(false)
   const g = GUIDE_DATA[id]
-  if (!g) return null
-
-  const handleMouseEnter = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const tooltipW = 270
-    const tooltipH = 160  // 대략적 높이
-
-    // X: 오른쪽 공간 부족하면 왼쪽으로
-    let x = rect.right + 8
-    if (x + tooltipW > window.innerWidth - 8) {
-      x = rect.left - tooltipW - 8
-    }
-    // X 최솟값 보정
-    x = Math.max(8, x)
-
-    // Y: 카드 위에 표시, 화면 위로 넘치면 아래에 표시
-    let y = rect.top - tooltipH - 8
-    if (y < 8) {
-      y = rect.bottom + 8
-    }
-
-    setPos({ x, y })
-  }
+  if (!g) return null   // GUIDE_DATA 없으면 ? 미표시
 
   return (
     <span className="db-tooltip-wrap"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={()=>setPos(null)}
-      onClick={e=>e.stopPropagation()}>
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onClick={e => e.stopPropagation()}>
       <span className="db-tooltip-icon">?</span>
-      {pos && (
-        <div className="db-tooltip-box" style={{ left: pos.x, top: pos.y }}>
+      {show && (
+        <div className="db-tooltip-box">
           <div className="db-tooltip-title">{g.title}</div>
           <div className="db-tooltip-desc">{g.desc}</div>
           {g.tip && <div className="db-tooltip-tip">{g.tip}</div>}
