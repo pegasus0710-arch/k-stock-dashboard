@@ -102,3 +102,71 @@ export function getDashTTL() {
   if (s === 'after') return 120_000
   return 600_000
 }
+
+/**
+ * 종목 ID 기반 현재 거래소 상태 (시간 기반)
+ * 반환값: 'live' | 'pre' | 'after' | 'closed' | null
+ */
+export function getSymbolMarketStatus(itemId) {
+  const kst  = new Date(Date.now() + 9 * 3600000)
+  const day  = kst.getUTCDay()   // 0=일 1=월 ... 6=토
+  const mins = kst.getUTCHours() * 60 + kst.getUTCMinutes()
+
+  // ── 한국 (KOSPI, KOSDAQ, KRX100, KOSPI200, KOSDAQ150) ──
+  const KR = ['KOSPI','KOSDAQ','KRX100','K200','KQ150']
+  if (KR.includes(itemId)) {
+    if (day === 0 || day === 6) return 'closed'
+    if (mins >= 540  && mins < 930)  return 'live'   // 09:00~15:30
+    if (mins >= 930  && mins < 1080) return 'after'  // 15:30~18:00
+    return 'closed'
+  }
+
+  // ── 미국 (서머타임 커버: 22:30~05:00 KST) ──
+  const US = ['SP500','NASDAQ','DOW']
+  if (US.includes(itemId)) {
+    if (day === 0) return 'closed'
+    // pre: 21:00~22:30 KST
+    const isPre  = (day >= 1 && day <= 5) && mins >= 1260 && mins < 1350
+    // live: 22:30~05:00 KST (across midnight)
+    const isLive = ((day >= 1 && day <= 5) && mins >= 1350) ||
+                   ((day >= 2 && day <= 6) && mins < 300)
+    // after: 05:00~09:30 KST
+    const isAft  = (day >= 2 && day <= 6) && mins >= 300 && mins < 570
+    if (isLive) return 'live'
+    if (isPre)  return 'pre'
+    if (isAft)  return 'after'
+    return 'closed'
+  }
+
+  // ── 일본 닛케이 (09:00~15:30 JST ≈ KST) ──
+  if (itemId === 'N225') {
+    if (day === 0 || day === 6) return 'closed'
+    if (mins >= 540 && mins < 930) return 'live'
+    return 'closed'
+  }
+
+  // ── 중국·홍콩 (상해 SSE, 항셍 HSI) — 10:30~16:00 KST ──
+  const CN = ['SSE','HSI']
+  if (CN.includes(itemId)) {
+    if (day === 0 || day === 6) return 'closed'
+    if (mins >= 630 && mins < 960) return 'live'
+    return 'closed'
+  }
+
+  // ── 대만 가권 — 09:00~13:30 TST = 10:00~14:30 KST ──
+  if (itemId === 'TWI') {
+    if (day === 0 || day === 6) return 'closed'
+    if (mins >= 600 && mins < 870) return 'live'
+    return 'closed'
+  }
+
+  // ── 독일 DAX (유럽장) — 16:00~01:30 KST (서머타임 포함) ──
+  if (itemId === 'DAX') {
+    if (day === 0 || day === 6) return 'closed'
+    if (mins >= 960) return 'live'                   // 16:00+ 당일
+    if (mins < 90 && day >= 2) return 'live'         // 00:00~01:30 전날 세션
+    return 'closed'
+  }
+
+  return null // 채권, 환율, 스프레드 등
+}

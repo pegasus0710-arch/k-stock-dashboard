@@ -1,6 +1,6 @@
 // src/pages/DashboardPage.jsx — v5 (컴포넌트 분리 후 경량화)
 import { useState } from 'react'
-import { rateColor, getTodayStr, getKstStatus, isMarketOpen, isUSMarketOpen } from '../utils/format'
+import { rateColor, getTodayStr, getKstStatus, isMarketOpen, isUSMarketOpen, getSymbolMarketStatus } from '../utils/format'
 import { SECTOR_GROUPS, ALL_ITEMS, GAUGE_CONFIG } from '../constants/dashboardData'
 import { GaugeBar, TooltipIcon } from '../components/ui/GaugeBar'
 import GuideModal        from '../components/dashboard/GuideModal'
@@ -26,14 +26,15 @@ function getItemData(item, dashData, globalData, forexData, cbRates) {
 }
 
 function getMarketBadge(item, data) {
-  if (!data) return null
-  if (item.type==='cb')    return { label:'정책금리', color:'#0891b2' }
-  if (item.type==='forex') return null
-  const ms = data.marketState || data.status
-  if (ms==='open'||ms==='REGULAR') return { label:'LIVE',  color:'#22c55e' }
-  if (ms==='POST'||ms==='after')   return { label:'시간외', color:'#a78bfa' }
-  if (ms==='PRE')                   return { label:'프리',  color:'#f59e0b' }
-  return { label:'전일', color:'#64748b' }
+  if (item.type==='cb')      return { label:'정책금리', cls:'cb'     }
+  if (item.type==='forex')   return null
+  if (item.type==='spread')  return null
+  if (item.type==='divider') return null
+  const status = getSymbolMarketStatus(item.id)
+  if (status === 'live')  return { label:'LIVE',  cls:'live'  }
+  if (status === 'pre')   return { label:'프리',  cls:'pre'   }
+  if (status === 'after') return { label:'시간외', cls:'after' }
+  return { label:'전일', cls:'closed' }
 }
 
 function Skeleton({ w='60%', h=14 }) {
@@ -92,11 +93,11 @@ export default function DashboardPage() {
       {/* 영역 1: 상단 인터랙티브 차트 */}
       <div className="db-chart-section">
         <div className="db-selector-row">
-          {SECTOR_GROUPS.filter(g=>g.id!=='cbrate').map((group,gi)=>(
+          {SECTOR_GROUPS.map((group,gi)=>(
             <div key={group.id} style={{display:'flex',alignItems:'center',gap:4}}>
               {gi>0 && <div className="db-sel-divider"/>}
               <div className="db-sel-group">
-                {group.items.filter(it=>it.type!=='cb').map(it=>(
+                {group.items.filter(it=>it.type==='global'||it.type==='forex').map(it=>(
                   <button key={it.id}
                     className={`db-sel-btn ${selId===it.id?'active':''}`}
                     onClick={()=>setSelId(it.id)}>{it.label}</button>
@@ -112,46 +113,55 @@ export default function DashboardPage() {
       {/* 영역 2: 중단 지수 카드 그리드 */}
       <div className="db-cards-section">
         {SECTOR_GROUPS.map(group=>(
-          <div key={group.id} className="db-card-group">
+          <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
             <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
             <div className="db-card-group-items">
               {group.items.map(item=>{
+                // divider 렌더링
+                if (item.type==='divider') return (
+                  <div key={item.id} className="db-card-group-divider">{item.label}</div>
+                )
                 const d        = getItemData(item, dashData, globalData, forexData, cbRates)
                 const rate     = d?.changeRate
-                const pc       = rate!=null ? rateColor(rate) : 'var(--text-dim)'
-                const up       = rate > 0
+                const up       = (rate ?? 0) > 0
                 const badge    = getMarketBadge(item, d)
-                const isClosed = badge?.label === '전일'
+                const isClosed = badge?.cls === 'closed'
                 const active   = selId === item.id
                 return (
                   <button key={item.id}
-                    className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''} ${item.type==='spread'?'spread-card':''}`}
-                    onClick={()=>item.type!=='cb' && item.type!=='spread' && setSelId(item.id)}>
+                    className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''} ${item.type==='spread'?'spread-card':''} ${item.type==='cb'?'cb-card':''}`}
+                    onClick={()=>(item.type==='global'||item.type==='forex') && setSelId(item.id)}>
                     <div className="db-idx-top-row">
                       <span className="db-idx-name">{item.label}</span>
-                      <span style={{display:'flex',alignItems:'center',gap:4}}>
+                      <span style={{display:'flex',alignItems:'center',gap:3}}>
                         <TooltipIcon id={item.id}/>
-                        {badge&&<span className="db-idx-badge" style={{color:badge.color}}>
-                          {badge.label==='LIVE'&&<span className="db-idx-live-dot"/>}{badge.label}
-                        </span>}
+                        {badge && (
+                          <span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
+                            {badge.cls==='live' && <span className="db-idx-live-dot"/>}
+                            {badge.label}
+                          </span>
+                        )}
                       </span>
                     </div>
                     {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
                      d?.price!=null ? (
                       <>
-                        <div className="db-idx-price" style={d.isSpread ? {color: d.inverted ? 'var(--color-down)' : d.price < 0.5 ? '#d97706' : 'var(--color-up)'} : {}}>
+                        <div className="db-idx-price" style={d.isSpread?{color:d.inverted?'var(--color-down)':d.price<0.5?'#d97706':'var(--color-up)'}:{}}>
                           {d.isSpread
-                            ? `${d.price >= 0 ? '+' : ''}${d.price.toFixed(2)}%`
+                            ? `${d.price>=0?'+':''}${d.price.toFixed(2)}%`
                             : `${d.price.toLocaleString(undefined,{maximumFractionDigits:2})}${item.unit||''}`
                           }
                         </div>
                         {d.isSpread
-                          ? <div className="db-idx-spread-label" style={{color: d.inverted ? 'var(--color-down)' : d.price < 0.5 ? '#d97706' : '#16a34a'}}>
-                              {d.inverted ? '⚠️ 역전 (경기침체 경보)' : d.price < 0.5 ? '⚡ 주의 구간' : '✅ 정상'}
+                          ? <div className="db-idx-spread-label" style={{color:d.inverted?'var(--color-down)':d.price<0.5?'#d97706':'#16a34a'}}>
+                              {d.inverted?'⚠️ 역전 (경기침체 경보)':d.price<0.5?'⚡ 주의 구간':'✅ 정상'}
                             </div>
                           : d.isCB ? <div className="db-idx-cb-date">{d.date}</div>
-                          : d.changeRate!=null ? <div className="db-idx-rate" style={{color: d.changeRate>0?'var(--color-up)':'var(--color-down)'}}>{d.changeRate>0?'▲':'▼'}{Math.abs(d.changeRate).toFixed(2)}%</div>
-                          : null
+                          : rate!=null
+                            ? <div className={`db-idx-rate-badge ${up?'up':'down'}`}>
+                                {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
+                              </div>
+                            : null
                         }
                         {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
                       </>

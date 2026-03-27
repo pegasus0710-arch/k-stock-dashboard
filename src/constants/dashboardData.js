@@ -1,12 +1,15 @@
 // src/constants/dashboardData.js
 // DashboardPage 전용 상수 — SECTOR_GROUPS, GUIDE_DATA, GAUGE_CONFIG
 
-export const BATCH_SYMBOLS = ['KS11','KQ11','SP500','NASDAQ','DOW','N225','HSI','SSE','TWI','DAX','US10Y','US2Y','KR10Y','WTI','BRENT','GOLD','SILVER','COPPER','VIX','DXY']
+export const BATCH_SYMBOLS = ['KS11','KQ11','KRX100','K200','KQ150','SP500','NASDAQ','DOW','N225','HSI','SSE','TWI','DAX','US10Y','US2Y','KR10Y','WTI','BRENT','GOLD','SILVER','COPPER','VIX','DXY']
 
 export const SECTOR_GROUPS = [
   { id:'domestic',  label:'🇰🇷 국내 지수',   accent:'#2563eb', items:[
-    { id:'KOSPI',  label:'KOSPI',   type:'global', sym:'KS11',   color:'#3b82f6' },
-    { id:'KOSDAQ', label:'KOSDAQ',  type:'global', sym:'KQ11',   color:'#22c55e' },
+    { id:'KOSPI',   label:'KOSPI',      type:'global', sym:'KS11',   color:'#3b82f6' },
+    { id:'KOSDAQ',  label:'KOSDAQ',     type:'global', sym:'KQ11',   color:'#22c55e' },
+    { id:'KRX100',  label:'KRX 100',    type:'global', sym:'KRX100', color:'#0891b2' },
+    { id:'K200',    label:'KOSPI 200',  type:'global', sym:'K200',   color:'#6366f1' },
+    { id:'KQ150',   label:'KOSDAQ 150', type:'global', sym:'KQ150',  color:'#16a34a' },
   ]},
   { id:'global',    label:'🌍 해외 지수',    accent:'#64748b', items:[
     { id:'SP500',  label:'S&P 500',  type:'global', sym:'SP500',  color:'#ef4444' },
@@ -23,13 +26,12 @@ export const SECTOR_GROUPS = [
     { id:'US2Y',    label:'미국 3M',   type:'global', sym:'US2Y',   unit:'%', color:'#6d28d9' },
     { id:'KR10Y',   label:'한국 10Y',  type:'global', sym:'KR10Y',  unit:'%', color:'#4f46e5' },
     { id:'SPREAD',  label:'10Y-3M 스프레드', type:'spread', color:'#0891b2', unit:'%' },
-  ]},
-  { id:'cbrate',    label:'🏦 기준금리',     accent:'#0891b2', items:[
-    { id:'CB_US', label:'미국 Fed',   type:'cb', cbKey:'US',  unit:'%', color:'#0ea5e9' },
-    { id:'CB_KR', label:'한국 BOK',   type:'cb', cbKey:'KR',  unit:'%', color:'#2563eb' },
-    { id:'CB_JP', label:'일본 BOJ',   type:'cb', cbKey:'JP',  unit:'%', color:'#dc2626' },
-    { id:'CB_CN', label:'중국 PBoC',  type:'cb', cbKey:'CN',  unit:'%', color:'#b91c1c' },
-    { id:'CB_EU', label:'유럽 ECB',   type:'cb', cbKey:'EU',  unit:'%', color:'#7c3aed' },
+    { id:'DIV_CB',  label:'🏦 기준금리', type:'divider' },
+    { id:'CB_US',   label:'미국 Fed',   type:'cb', cbKey:'US',  unit:'%', color:'#0ea5e9' },
+    { id:'CB_KR',   label:'한국 BOK',   type:'cb', cbKey:'KR',  unit:'%', color:'#2563eb' },
+    { id:'CB_JP',   label:'일본 BOJ',   type:'cb', cbKey:'JP',  unit:'%', color:'#dc2626' },
+    { id:'CB_CN',   label:'중국 PBoC',  type:'cb', cbKey:'CN',  unit:'%', color:'#b91c1c' },
+    { id:'CB_EU',   label:'유럽 ECB',   type:'cb', cbKey:'EU',  unit:'%', color:'#7c3aed' },
   ]},
   { id:'commodity', label:'🛢️ 원자재',       accent:'#16a34a', items:[
     { id:'WTI',    label:'WTI',      type:'global', sym:'WTI',    color:'#16a34a' },
@@ -61,11 +63,15 @@ export const GAUGE_CONFIG = {
   BRENT:  { min:55,   max:145,  safe:80,  caution:100, labels:['저유가','보통','고유가'],   unit:'$' },
   DXY:    { min:85,   max:115,  safe:95,  caution:105, labels:['약달러','보통','강달러'],   unit:''  },
   SPREAD: { min:-2, max:3, safe:0.5, caution:-0.5, labels:['역전(위험)','중립','정상'], unit:'%' },
+  FX_USD: { min:1200, max:1700, safe:1400, caution:1500, labels:['원화강세','보통','원화약세'], unit:'' },
 }
 
 export const GUIDE_DATA = {
   KOSPI:  { title:'KOSPI (코스피)', desc:'대한민국 유가증권시장 전체 시가총액 가중평균 지수. 삼성전자·SK하이닉스 등 대형주 비중이 높아 반도체·수출 경기에 민감.', up:'경기 회복·외국인 순매수 → 대형 수출주·성장주 비중 확대', down:'경기 둔화·외국인 이탈 → 방어주(통신·필수소비재)·현금 확대', tip:'📌 PBR 1배(약 4,800) = 역사적 바닥 근처. 5,500↑ 강세 / 4,500↓ 약세 경계 (2026년 기준)' },
   KOSDAQ: { title:'KOSDAQ (코스닥)', desc:'중소·벤처·기술 성장기업 지수. 바이오·게임·2차전지 비중이 높아 KOSPI보다 변동성 크고 금리에 더 민감.', up:'금리 하락·성장주 선호 → 바이오·IT·2차전지 종목 관심', down:'금리 상승·위험회피 → 변동성 크므로 비중 축소 또는 ETF로 분산', tip:'📌 1,200↑ 강세 / 900↓ 약세 / KOSPI 대비 상대강도 확인 중요 (2026년 기준)' },
+  KRX100: { title:'KRX 100', desc:'코스피·코스닥 대표 우량주 100종목. 시가총액 상위 블루칩 집약 지수로 외국인 투자 선호 종목군을 반영.', up:'외국인 대형 우량주 선호 → KRX100 강세 시 외국인 매수 확인 신호', down:'외국인 이탈 시 KRX100 먼저 약세. 중소형 테마주 로테이션 가능', tip:'📌 KOSPI와 높은 상관관계. 둘 간 괴리 확대 시 중소형주 과열 신호' },
+  K200:   { title:'KOSPI 200', desc:'코스피 시총 상위 200종목. 선물·옵션 기초지수로 기관·외국인 파생상품 거래의 기준.', up:'파생시장 콜옵션 매수 증가 → 기관 상승 베팅 확인 신호', down:'풋옵션 증가·선물 매도 → 기관 헤지 강화 신호. 지수 하락 선행', tip:'📌 선물 베이시스(현물-선물)가 마이너스=백워데이션=시장 약세 신호' },
+  KQ150:  { title:'KOSDAQ 150', desc:'코스닥 대표 150종목. 코스닥 시장의 우량 성장주를 집약. 중소형 성장주의 방향성 선행지표.', up:'성장주·기술주 선호 → 바이오·IT·AI 중소형주 강세', down:'금리 상승·위험회피 → 코스닥 전반 약세. KOSPI 대비 낙폭 큼', tip:'📌 KOSPI200 대비 KQ150 상대강도 하락=성장주 외면. 금리 방향과 역상관' },
   SP500:  { title:'S&P 500', desc:'미국 대형주 500개사 시가총액 가중지수. 전 세계 주식시장 40% 이상을 차지해 글로벌 위험선호의 바로미터.', up:'글로벌 위험선호 확대 → 국내 외국인 매수 유입, 성장주 긍정', down:'글로벌 위험회피 → 외국인 이탈, 원화 약세 압력. 방어주·현금 확보', tip:'📌 200일 이동평균 위=상승추세 / 아래=하락추세. 5,000↑ 강세 / 4,200↓ 약세 경계 (2026년 기준)' },
   NASDAQ: { title:'NASDAQ Composite', desc:'미국 기술주·성장주 중심. 엔비디아·애플·MS 등 AI·반도체 비중이 높아 금리 변화에 매우 민감.', up:'금리 하락·AI 투자 확대 → 국내 반도체·AI 관련주 동반 상승 기대', down:'금리 상승·성장주 밸류 부담 → 국내 IT·게임주 동반 약세 경계', tip:'📌 NASDAQ/S&P 비율 상승=성장주 선호 국면. 18,000↑ 강세 / 14,000↓ 약세 경계 (2026년 기준)' },
   DOW:    { title:'DOW Jones 산업평균', desc:'미국 30개 우량 산업주 단순평균. 전통 제조업·금융·에너지 비중이 높아 경기 민감도 대표.', up:'전통 산업·경기 회복 신호 → 원자재·소재·금융 관련 종목 긍정', down:'경기 침체 우려 → 필수소비재·헬스케어 등 방어 섹터로 이동 검토', tip:'📌 S&P500과 동반 하락 시 본격 약세장. 40,000↑ 강세 / 35,000↓ 약세 경계 (2026년 기준)' },
