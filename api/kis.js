@@ -548,12 +548,18 @@ export default async function handler(req, res) {
         const regularPrice = meta.regularMarketPrice || 0
         const postPrice    = meta.postMarketPrice    || 0
         const prePrice     = meta.preMarketPrice     || 0
-        const prevClose    = meta.regularMarketPreviousClose || meta.chartPreviousClose || meta.previousClose || 0
         const mktState     = meta.marketState || 'CLOSED'
 
         let price = regularPrice
         if (mktState === 'POST' && postPrice > 0) price = postPrice
         if (mktState === 'PRE'  && prePrice  > 0) price = prePrice
+
+        // ✅ chartPreviousClose 제거 — range 시작점 종가라서 누적 등락률이 나옴 (WTI +64% 버그 원인)
+        // regularMarketPreviousClose = 전일 정규장 종가 (정확)
+        // 없을 경우 캔들 배열의 끝에서 두 번째 종가를 사용
+        const metaPrev    = meta.regularMarketPreviousClose || 0
+        const candlePrev  = candles.length >= 2 ? candles[candles.length - 2].close : 0
+        const prevClose   = metaPrev > 0 ? metaPrev : candlePrev
 
         const change     = Math.round((price - prevClose) * 100) / 100
         const changeRate = prevClose ? Math.round(change / prevClose * 10000) / 100 : 0
@@ -597,7 +603,10 @@ export default async function handler(req, res) {
           volume: quotes.volume?.[i] || 0,
         })).filter(c => c.close > 0)
         const price    = r4(meta.regularMarketPrice)
-        const prevClose= r4(meta.regularMarketPreviousClose || meta.chartPreviousClose)
+        // ✅ chartPreviousClose 제거 — range 시작점 종가 (누적 등락률 버그 원인)
+        const metaPrev   = r4(meta.regularMarketPreviousClose)
+        const candlePrev = candles.length >= 2 ? candles[candles.length - 2].close : 0
+        const prevClose  = metaPrev > 0 ? metaPrev : candlePrev
         const change   = r4(price - prevClose)
         const changeRate = prevClose ? Math.round(change / prevClose * 100 * 100) / 100 : 0
         return res.json({ pair, candles, price, change, changeRate })

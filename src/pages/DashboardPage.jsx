@@ -472,14 +472,14 @@ export default function DashboardPage() {
     if (!force && lsRead(LS_DASH, getDashTTL())) { setLoading(false); return }
     isFetching.current = true
     const codes = getNeededCodes()
-    if (!codes.length) { isFetching.current = false; return }
+    if (!codes.length) { setLoading(false); isFetching.current = false; return }
     try {
       const res = await fetch(`/api/kis?type=dashboard&codes=${codes.join(',')}`).then(r => r.json())
       if (res.error) throw new Error(res.error)
       setDashData(res)
       lsWrite(LS_DASH, res)
       setLastFetch(getNowTime())
-    } catch (e) { console.error('[dashboard]', e) }
+    } catch (e) { console.error('[dashboard]', e); setFetchError(true) }
     finally { setLoading(false); isFetching.current = false }
   }, [getNeededCodes])
 
