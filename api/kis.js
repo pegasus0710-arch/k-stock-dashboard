@@ -415,6 +415,78 @@ async function fetchForex() {
   }
 }
 
+// ── 해외지수 심볼 맵 (Yahoo Finance) ──────────────────
+const GLOBAL_SYMBOLS = {
+  // 미국 지수
+  'SP500':  '%5EGSPC',
+  'NASDAQ': '%5EIXIC',
+  'DOW':    '%5EDJI',
+  // 아시아
+  'N225':   '%5EN225',    // 닛케이225
+  'HSI':    '%5EHSI',     // 항셍
+  'SSE':    '000001.SS',  // 상해종합
+  'TWI':    '%5ETWII',    // 대만가권
+  // 유럽
+  'DAX':    '%5EGDAXI',   // 독일 DAX
+  // 채권/금리
+  'US10Y':  '%5ETNX',     // 미국 10년
+  'US2Y':   '%5EIRX',     // 미국 단기(3M T-Bill 대리)
+  'KR10Y':  'KR10YT%3DRR', // 한국 10년
+  // 원자재
+  'WTI':    'CL%3DF',     // WTI 원유
+  'BRENT':  'BZ%3DF',     // 브렌트유
+  'GOLD':   'GC%3DF',     // 금
+  'SILVER': 'SI%3DF',     // 은
+  'COPPER': 'HG%3DF',     // 구리
+  // 기타
+  'VIX':    '%5EVIX',     // 공포지수
+  'DXY':    'DX-Y.NYB',   // 달러인덱스
+}
+
+// ── 단일 해외지수 조회 헬퍼 ────────────────────────────
+async function fetchOneGlobal(sym, range = '3mo') {
+  const yahooSym = GLOBAL_SYMBOLS[sym]
+  if (!yahooSym) return { symbol: sym, error: '알 수 없는 심볼' }
+  const interval = (range === '5y' || range === '2y') ? '1mo' : range === '1y' ? '1wk' : '1d'
+  try {
+    const yRes = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${interval}&range=${range}`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' } }
+    )
+    if (!yRes.ok) return { symbol: sym, error: `Yahoo ${yRes.status}` }
+    const yData  = await yRes.json()
+    const result = yData.chart?.result?.[0]
+    if (!result) return { symbol: sym, error: '데이터 없음' }
+    const meta       = result.meta
+    const timestamps = result.timestamp || []
+    const quotes     = result.indicators?.quote?.[0] || {}
+    const candles = timestamps.map((ts, i) => ({
+      date:   new Date(ts * 1000).toISOString().slice(0,10).replace(/-/g,''),
+      open:   Math.round((quotes.open?.[i]  || 0) * 100) / 100,
+      high:   Math.round((quotes.high?.[i]  || 0) * 100) / 100,
+      low:    Math.round((quotes.low?.[i]   || 0) * 100) / 100,
+      close:  Math.round((quotes.close?.[i] || 0) * 100) / 100,
+      volume: quotes.volume?.[i] || 0,
+    })).filter(c => c.close > 0)
+    const regularPrice = meta.regularMarketPrice || 0
+    const postPrice    = meta.postMarketPrice    || 0
+    const prePrice     = meta.preMarketPrice     || 0
+    const mktState     = meta.marketState || 'CLOSED'
+    let price = regularPrice
+    if (mktState === 'POST' && postPrice > 0) price = postPrice
+    if (mktState === 'PRE'  && prePrice  > 0) price = prePrice
+    // ✅ chartPreviousClose 사용 안 함 (range 시작점 종가 = 누적 등락률 버그)
+    const metaPrev    = meta.regularMarketPreviousClose || 0
+    const candlePrev  = candles.length >= 2 ? candles[candles.length - 2].close : 0
+    const prevClose   = metaPrev > 0 ? metaPrev : candlePrev
+    const change      = Math.round((price - prevClose) * 100) / 100
+    const changeRate  = prevClose ? Math.round(change / prevClose * 10000) / 100 : 0
+    return { symbol: sym, price, change, changeRate, marketState: mktState, candles }
+  } catch (e) {
+    return { symbol: sym, error: e.message }
+  }
+}
+
 // ══════════════════════════════════════════════════════
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -511,59 +583,61 @@ export default async function handler(req, res) {
 
       // ── 해외 지수 (Yahoo Finance 프록시) ──────────────
       case 'global': {
-        const SYMBOLS = {
-          'SP500':  '%5EGSPC',
-          'NASDAQ': '%5EIXIC',
-          'DOW':    '%5EDJI',
-          'US10Y':  '%5ETNX',
-          'N225':   '%5EN225',
-          'HSI':    '%5EHSI',
-          'SSE':    '000001.SS',
-          'WTI':    'CL%3DF',
+        const sym   = req.query.symbol || 'SP500'
+        const range = req.query.range  || '3mo'
+        return res.json(await fetchOneGlobal(sym, range))
+      }
+
+      // ── 배치 조회 ───────────────────────────────────────
+      case 'global-batch': {
+        const symbols = (req.query.symbols || '').split(',').filter(Boolean)
+        if (!symbols.length) return res.json({})
+        const results = await Promise.allSettled(symbols.map(s => fetchOneGlobal(s, '1d')))
+        const map = {}
+        results.forEach((r, i) => {
+          if (r.status === 'fulfilled' && !r.value?.error) map[symbols[i]] = r.value
+        })
+        return res.json(map)
+      }
+
+      // ── 환율 KRW 기준 배치 ────────────────────────────
+      case 'forex-krw': {
+        const range    = req.query.range || '3mo'
+        const interval = range === '5y' ? '1mo' : range === '1y' ? '1wk' : '1d'
+        const PAIRS = { USD: 'KRW=X', JPY: 'JPYKRW=X', CNY: 'CNYKRW=X', EUR: 'EURKRW=X' }
+        const fetchPair = async (key, yahooSym) => {
+          const r = await fetch(
+            `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${interval}&range=${range}`,
+            { headers: { 'User-Agent': 'Mozilla/5.0' } }
+          )
+          if (!r.ok) return null
+          const j      = await r.json()
+          const result = j.chart?.result?.[0]
+          if (!result) return null
+          const meta = result.meta
+          const ts   = result.timestamp || []
+          const q    = result.indicators?.quote?.[0] || {}
+          const mult = key === 'JPY' ? 100 : 1  // 100엔 단위
+          const r4   = v => Math.round((v || 0) * mult * 100) / 100
+          const candles = ts.map((t, i) => ({
+            date:  new Date(t * 1000).toISOString().slice(0,10).replace(/-/g,''),
+            close: r4(q.close?.[i]),
+          })).filter(c => c.close > 0)
+          const price    = r4(meta.regularMarketPrice)
+          const metaPrev = r4(meta.regularMarketPreviousClose)
+          const prev     = metaPrev > 0 ? metaPrev : (candles.length >= 2 ? candles[candles.length-2].close : 0)
+          const change   = Math.round((price - prev) * 100) / 100
+          const changeRate = prev ? Math.round(change / prev * 10000) / 100 : 0
+          return { price, change, changeRate, candles }
         }
-        const sym      = req.query.symbol || 'SP500'
-        const range    = req.query.range  || '3mo' // 1mo, 3mo, 6mo, 1y, 2y, 5y
-        const interval = (range === '5y' || range === '2y') ? '1mo' : range === '1y' ? '1wk' : '1d'
-        const yahooSym = SYMBOLS[sym] || SYMBOLS['SP500']
-        const yRes = await fetch(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${interval}&range=${range}`,
-          { headers: { 'User-Agent': 'Mozilla/5.0' } }
+        const results = await Promise.allSettled(
+          Object.entries(PAIRS).map(([k, v]) => fetchPair(k, v))
         )
-        if (!yRes.ok) throw new Error(`Yahoo Finance 오류: ${yRes.status}`)
-        const yData = await yRes.json()
-        const result = yData.chart?.result?.[0]
-        if (!result) throw new Error('데이터 없음')
-        const meta       = result.meta
-        const timestamps = result.timestamp || []
-        const quotes     = result.indicators?.quote?.[0] || {}
-        const candles = timestamps.map((ts, i) => ({
-          date:   new Date(ts * 1000).toISOString().slice(0,10).replace(/-/g,''),
-          open:   quotes.open?.[i]  ? Math.round((quotes.open[i]  || 0) * 100) / 100 : 0,
-          high:   quotes.high?.[i]  ? Math.round((quotes.high[i]  || 0) * 100) / 100 : 0,
-          low:    quotes.low?.[i]   ? Math.round((quotes.low[i]   || 0) * 100) / 100 : 0,
-          close:  quotes.close?.[i] ? Math.round((quotes.close[i] || 0) * 100) / 100 : 0,
-          volume: quotes.volume?.[i] || 0,
-        })).filter(c => c.close > 0)
-        // 실시간 가격: 시간외(POST/PRE) > 정규장 순으로 사용
-        const regularPrice = meta.regularMarketPrice || 0
-        const postPrice    = meta.postMarketPrice    || 0
-        const prePrice     = meta.preMarketPrice     || 0
-        const mktState     = meta.marketState || 'CLOSED'
-
-        let price = regularPrice
-        if (mktState === 'POST' && postPrice > 0) price = postPrice
-        if (mktState === 'PRE'  && prePrice  > 0) price = prePrice
-
-        // ✅ chartPreviousClose 제거 — range 시작점 종가라서 누적 등락률이 나옴 (WTI +64% 버그 원인)
-        // regularMarketPreviousClose = 전일 정규장 종가 (정확)
-        // 없을 경우 캔들 배열의 끝에서 두 번째 종가를 사용
-        const metaPrev    = meta.regularMarketPreviousClose || 0
-        const candlePrev  = candles.length >= 2 ? candles[candles.length - 2].close : 0
-        const prevClose   = metaPrev > 0 ? metaPrev : candlePrev
-
-        const change     = Math.round((price - prevClose) * 100) / 100
-        const changeRate = prevClose ? Math.round(change / prevClose * 10000) / 100 : 0
-        return res.json({ symbol: sym, price, change, changeRate, marketState: mktState, candles })
+        const map = {}
+        Object.keys(PAIRS).forEach((k, i) => {
+          if (results[i].status === 'fulfilled' && results[i].value) map[k] = results[i].value
+        })
+        return res.json(map)
       }
 
       // ── 환율 차트 (frankfurter.app) ────────────────────
@@ -603,10 +677,7 @@ export default async function handler(req, res) {
           volume: quotes.volume?.[i] || 0,
         })).filter(c => c.close > 0)
         const price    = r4(meta.regularMarketPrice)
-        // ✅ chartPreviousClose 제거 — range 시작점 종가 (누적 등락률 버그 원인)
-        const metaPrev   = r4(meta.regularMarketPreviousClose)
-        const candlePrev = candles.length >= 2 ? candles[candles.length - 2].close : 0
-        const prevClose  = metaPrev > 0 ? metaPrev : candlePrev
+        const prevClose= r4(meta.regularMarketPreviousClose || meta.chartPreviousClose)
         const change   = r4(price - prevClose)
         const changeRate = prevClose ? Math.round(change / prevClose * 100 * 100) / 100 : 0
         return res.json({ pair, candles, price, change, changeRate })
