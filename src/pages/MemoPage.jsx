@@ -588,20 +588,22 @@ export default function MemoPage() {
           <p className="page-sub">투자 아이디어 · 종목 분석 · 매매 전략 · 공부 기록</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* 휴지통 보관기간 */}
-          <div className="mp-trash-setting">
-            <span className="mp-trash-label">🗑 보관</span>
-            {TRASH_DAY_OPTIONS.map(d => (
-              <button key={d}
-                className={`mp-trash-day-btn ${trashDays === d ? 'active' : ''}`}
-                onClick={() => handleTrashDaysChange(d)}>{d}일</button>
-            ))}
+          {/* 휴지통 버튼 + 보관기간 인라인 */}
+          <div className="mp-trash-group">
+            <button
+              className={`mp-cat-mgr-btn ${showTrash ? 'active' : ''}`}
+              onClick={() => { setShowTrash(v => !v); setFilterCat(''); setFilterTag('') }}>
+              🗑 휴지통 {trashMemos.length > 0 && <span className="mp-count">{trashMemos.length}</span>}
+            </button>
+            <div className="mp-trash-days-inline">
+              {TRASH_DAY_OPTIONS.map(d => (
+                <button key={d}
+                  className={`mp-trash-day-btn ${trashDays === d ? 'active' : ''}`}
+                  onClick={() => handleTrashDaysChange(d)}
+                  title={`${d}일 후 자동 삭제`}>{d}일</button>
+              ))}
+            </div>
           </div>
-          <button
-            className={`mp-cat-mgr-btn ${showTrash ? 'active' : ''}`}
-            onClick={() => { setShowTrash(v => !v); setFilterCat(''); setFilterTag('') }}>
-            🗑 휴지통 {trashMemos.length > 0 && <span className="mp-count">{trashMemos.length}</span>}
-          </button>
           <button className="mp-cat-mgr-btn" onClick={() => setShowCatMgr(true)}>🏷 카테고리</button>
           {!showTrash && <button className="mp-new-btn" onClick={() => setEditMemo({})}>✏️ 새 메모</button>}
         </div>

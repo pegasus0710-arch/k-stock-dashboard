@@ -33,20 +33,26 @@
 .mp-cat-mgr-btn:hover { border-color: var(--accent-mid); color: var(--accent-mid); }
 .mp-cat-mgr-btn.active { background: var(--accent-light); border-color: var(--accent-mid); color: var(--accent-mid); }
 
-/* 휴지통 보관기간 */
-.mp-trash-setting {
-  display: flex; align-items: center; gap: 4px;
-  padding: 4px 8px; background: var(--bg-panel);
-  border: 1px solid var(--border); border-radius: 8px;
+/* 휴지통 그룹 */
+.mp-trash-group {
+  display: flex; align-items: center;
+  border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden; background: var(--bg-panel);
 }
-.mp-trash-label { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.mp-trash-group .mp-cat-mgr-btn {
+  border: none; border-radius: 0;
+  border-right: 1px solid var(--border);
+}
+.mp-trash-days-inline {
+  display: flex; align-items: center; gap: 2px; padding: 0 6px;
+}
 .mp-trash-day-btn {
-  padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px;
-  background: transparent; font-size: 11px; font-weight: 600;
-  color: var(--text-secondary); cursor: pointer; transition: all .1s;
+  padding: 3px 7px; border: 1px solid transparent; border-radius: 5px;
+  background: transparent; font-size: 10px; font-weight: 600;
+  color: var(--text-dim); cursor: pointer; transition: all .1s;
 }
-.mp-trash-day-btn:hover  { border-color: var(--accent-mid); color: var(--accent-mid); }
-.mp-trash-day-btn.active { background: var(--accent-mid); border-color: var(--accent-mid); color: white; }
+.mp-trash-day-btn:hover  { color: var(--text-secondary); background: var(--bg-base); }
+.mp-trash-day-btn.active { background: var(--accent-mid); color: white; }
 
 /* ── 툴바 ─────────────────────────────────────────── */
 .mp-toolbar {
@@ -196,15 +202,15 @@
 }
 .mp-editor {
   display: flex; flex-direction: column;
-  width: 100%; max-width: 680px; max-height: 88vh;
+  width: 100%; max-width: 560px; max-height: 86vh;
   border-radius: 16px; overflow: hidden;
   box-shadow: 0 24px 64px rgba(15,23,42,.2);
   border: 1px solid var(--border);
 }
 .mp-editor-resizable {
   resize: both; overflow: auto;
-  min-width: 480px; min-height: 360px;
-  max-width: 95vw; max-height: 95vh;
+  min-width: 420px; min-height: 320px;
+  max-width: 92vw; max-height: 92vh;
 }
 
 /* 읽기모드 */
