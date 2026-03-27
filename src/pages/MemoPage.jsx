@@ -29,6 +29,7 @@ const DEFAULT_CATEGORIES = [
 ]
 const LS_TRASH_DAYS = 'mp_trash_days'
 const TRASH_DAY_OPTIONS = [7, 30, 90]
+const LS_CATS = 'mp_categories_v2'
 const LS_VIEW = 'mp_view_v1'
 const LS_SORT = 'mp_sort_v1'
 
