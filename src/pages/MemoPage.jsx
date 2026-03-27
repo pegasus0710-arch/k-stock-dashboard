@@ -27,7 +27,8 @@ const DEFAULT_CATEGORIES = [
   { name:'기타',     color:'#94a3b8' },
   { name:'AI브리핑', color:'#2563eb' },
 ]
-const LS_CATS = 'mp_categories_v2'
+const LS_TRASH_DAYS = 'mp_trash_days'
+const TRASH_DAY_OPTIONS = [7, 30, 90]
 const LS_VIEW = 'mp_view_v1'
 const LS_SORT = 'mp_sort_v1'
 
@@ -129,13 +130,13 @@ function CategoryManager({ categories, onChange, onClose }) {
 }
 
 // ── 메모 에디터 ───────────────────────────────────────
-// category: 문자열 1개 (카테고리), tags: 문자열[] (자유 태그)
 function MemoEditor({ memo, categories, onSave, onClose }) {
+  const isNew    = !memo?.id
   const [title,      setTitle]      = useState(memo?.title    || '')
   const [content,    setContent]    = useState(memo?.content  || '')
-  const [bgColor,    setBgColor]    = useState(memo?.bgColor  || '#1e293b')
-  const [titleColor, setTitleColor] = useState(memo?.titleColor || '#f1f5f9')
-  const [textColor,  setTextColor]  = useState(memo?.textColor  || '#cbd5e1')
+  const [bgColor,    setBgColor]    = useState(memo?.bgColor  || '#FFFFFF')
+  const [titleColor, setTitleColor] = useState(memo?.titleColor || '#0F172A')
+  const [textColor,  setTextColor]  = useState(memo?.textColor  || '#334155')
   const [fontSize,   setFontSize]   = useState(memo?.fontSize   || 14)
   const [category,   setCategory]   = useState(memo?.category   || '')
   const [tags,       setTags]       = useState(memo?.tags       || [])
@@ -143,8 +144,8 @@ function MemoEditor({ memo, categories, onSave, onClose }) {
   const [saving,     setSaving]     = useState(false)
   const [saveError,  setSaveError]  = useState('')
   const [saveOk,     setSaveOk]     = useState(false)
-  // AI브리핑용 읽기모드 토글 (기본: 읽기모드)
-  const [viewMode,   setViewMode]   = useState(memo?.category === 'AI브리핑')
+  // 기존 메모 → 기본 읽기모드, 새 메모 → 편집모드
+  const [editMode,   setEditMode]   = useState(isNew)
   const textRef = useRef(null)
 
   // 태그 추가 (직접 입력)
@@ -156,14 +157,13 @@ function MemoEditor({ memo, categories, onSave, onClose }) {
   }
   const removeTag = name => setTags(prev => prev.filter(t => t !== name))
 
-  // 저장
   async function handleSave() {
     if (!title.trim() && !content.trim()) { setSaveError('제목 또는 내용을 입력해주세요'); return }
     setSaving(true); setSaveError('')
     try {
       await onSave({ title, content, bgColor, titleColor, textColor, fontSize, category, tags })
       setSaveOk(true)
-      setTimeout(() => { setSaveOk(false); onClose() }, 700)
+      setTimeout(() => { setSaveOk(false); setEditMode(false) }, 600)
     } catch (e) {
       console.error('저장 오류:', e)
       setSaveError('저장 실패: ' + (e.message || '다시 시도해주세요'))
@@ -198,136 +198,131 @@ function MemoEditor({ memo, categories, onSave, onClose }) {
 
   return (
     <div className="mp-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="mp-editor mp-editor-resizable" style={{ background: bgColor }}>
+      <div className={`mp-editor mp-editor-resizable ${!editMode ? 'read-mode' : ''}`}
+        style={{ background: bgColor }}>
 
-        {/* ── 툴바 1행: 색상·크기·서식·삽입 ── */}
-        <div className="mp-editor-toolbar">
-          <div className="mp-toolbar-row">
-            <ColorPicker value={bgColor}    onChange={setBgColor}    colors={BG_COLORS}   label="배경"/>
-            <ColorPicker value={textColor}  onChange={setTextColor}  colors={TEXT_COLORS} label="글자"/>
-            <ColorPicker value={titleColor} onChange={setTitleColor} colors={TEXT_COLORS} label="제목"/>
-            <div className="mp-toolbar-sep"/>
-            <div className="mp-toolbar-group">
-              <span className="mp-cpicker-label">크기</span>
-              <select className="mp-select" value={fontSize} onChange={e => setFontSize(Number(e.target.value))}>
-                {FONT_SIZES.map(s => <option key={s} value={s}>{s}px</option>)}
-              </select>
-            </div>
-            <div className="mp-toolbar-group">
-              <button className="mp-fmt-btn" title="굵게"   onClick={() => document.execCommand('bold')}><b>B</b></button>
-              <button className="mp-fmt-btn" title="기울임" onClick={() => document.execCommand('italic')}><i>I</i></button>
-              <button className="mp-fmt-btn" title="밑줄"   onClick={() => document.execCommand('underline')}><u>U</u></button>
-            </div>
-            <div className="mp-toolbar-sep"/>
-            <div className="mp-toolbar-group">
-              <button className="mp-fmt-btn mp-fmt-wide" title="글머리 목록"
-                onClick={() => insertAt('• ')}>• 목록</button>
-              <button className="mp-fmt-btn mp-fmt-wide" title="번호 목록"
-                onClick={() => {
-                  const ta = textRef.current; if (!ta) return
-                  const lines = ta.value.slice(0, ta.selectionStart).split('\n')
-                  const m = lines[lines.length-1].match(/^(\d+)\.\s/)
-                  insertAt(`${m ? parseInt(m[1])+1 : 1}. `)
-                }}>1. 번호</button>
-              <button className="mp-fmt-btn mp-fmt-wide" title="단락 구분선"
-                onClick={() => {
-                  const ta = textRef.current; if (!ta) return
-                  const s = ta.selectionStart, v = ta.value
-                  const ins = '\n──────────\n'
-                  setContent(v.slice(0,s) + ins + v.slice(s))
-                  setTimeout(() => { ta.selectionStart = ta.selectionEnd = s+ins.length; ta.focus() }, 0)
-                }}>── 단락</button>
-              <button className="mp-fmt-btn mp-fmt-wide" title="인용구"
-                onClick={() => insertAt('❝ ')}>❝ 인용</button>
-            </div>
-            <div style={{ flex: 1 }}/>
-            <button className={`mp-save-btn ${saveOk ? 'ok' : ''}`}
-              onClick={handleSave} disabled={saving}>
-              {saving ? '⟳ 저장 중...' : saveOk ? '✅ 저장됨!' : '💾 저장'}
-            </button>
-            <button className="mp-icon-btn" onClick={onClose} style={{ marginLeft: 4 }}>✕</button>
-          </div>
-
-          {saveError && <div className="mp-save-error">⚠️ {saveError}</div>}
-
-          {/* ── 툴바 2행: 카테고리(1개 선택) ── */}
-          <div className="mp-meta-row">
-            <span className="mp-meta-label">📁 카테고리</span>
-            <select className="mp-cat-select"
-              value={category}
-              onChange={e => setCategory(e.target.value)}>
-              <option value="">없음</option>
-              {categories.map(cat => (
-                <option key={cat.name} value={cat.name}>{cat.name}</option>
-              ))}
-            </select>
-            {/* 선택된 카테고리 뱃지 */}
-            {selectedCat && (
-              <span className="mp-cat-badge"
-                style={{ background: selectedCat.color + '33', color: selectedCat.color, borderColor: selectedCat.color + '55' }}>
-                {selectedCat.name}
-                <button className="mp-tag-x" onClick={() => setCategory('')}>×</button>
-              </span>
-            )}
-
-            <div className="mp-toolbar-sep"/>
-
-            {/* ── 태그 (자유 키워드) ── */}
-            <span className="mp-meta-label">🏷 태그</span>
-            <div className="mp-selected-tags">
-              {tags.map(t => (
-                <span key={t} className="mp-tag-chip-edit">
-                  #{t}
-                  <button className="mp-tag-x" onClick={() => removeTag(t)}>×</button>
+        {/* ── 읽기모드 헤더 ── */}
+        {!editMode && (
+          <div className="mp-read-header">
+            <div className="mp-read-header-left">
+              {selectedCat && (
+                <span className="mp-cat-badge" style={{ background: selectedCat.color+'22', color: selectedCat.color, borderColor: selectedCat.color+'44' }}>
+                  📁 {selectedCat.name}
                 </span>
-              ))}
+              )}
+              {tags.map(t => <span key={t} className="mp-tag-chip">#{t}</span>)}
             </div>
-            <input className="mp-tag-input" placeholder="태그 입력 후 엔터"
-              value={tagInput} onChange={e => setTagInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() }}}/>
-          </div>
-        </div>
-
-        {/* 제목 */}
-        <input className="mp-title-input"
-          style={{ color: titleColor, fontSize: Math.min(fontSize + 6, 28) + 'px' }}
-          placeholder="제목을 입력하세요..."
-          value={title} onChange={e => setTitle(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); textRef.current?.focus() }}}/>
-
-        {/* AI브리핑 읽기/편집 토글 */}
-        {category === 'AI브리핑' && (
-          <div className="mp-viewmode-toggle">
-            <button
-              className={`mp-viewmode-btn ${viewMode ? 'active' : ''}`}
-              onClick={() => setViewMode(true)}>📖 읽기</button>
-            <button
-              className={`mp-viewmode-btn ${!viewMode ? 'active' : ''}`}
-              onClick={() => setViewMode(false)}>✏️ 편집</button>
+            <div className="mp-read-header-right">
+              <button className="mp-read-edit-btn" onClick={() => setEditMode(true)}>✏️ 수정</button>
+              <button className="mp-icon-btn" onClick={onClose}>✕</button>
+            </div>
           </div>
         )}
 
-        {/* 본문 — 읽기모드(마크다운) / 편집모드(textarea) */}
-        {viewMode && category === 'AI브리핑' ? (
-          <div className="mp-content-preview" style={{ color: textColor, fontSize: fontSize + 'px' }}>
-            <MarkdownRenderer text={content}/>
+        {/* ── 편집모드 툴바 ── */}
+        {editMode && (
+          <div className="mp-editor-toolbar">
+            <div className="mp-toolbar-row">
+              <ColorPicker value={bgColor}    onChange={setBgColor}    colors={BG_COLORS}   label="배경"/>
+              <ColorPicker value={textColor}  onChange={setTextColor}  colors={TEXT_COLORS} label="글자"/>
+              <ColorPicker value={titleColor} onChange={setTitleColor} colors={TEXT_COLORS} label="제목"/>
+              <div className="mp-toolbar-sep"/>
+              <div className="mp-toolbar-group">
+                <span className="mp-cpicker-label">크기</span>
+                <select className="mp-select" value={fontSize} onChange={e => setFontSize(Number(e.target.value))}>
+                  {FONT_SIZES.map(s => <option key={s} value={s}>{s}px</option>)}
+                </select>
+              </div>
+              <div className="mp-toolbar-group">
+                <button className="mp-fmt-btn" title="굵게"   onClick={() => insertAt('**')}><b>B</b></button>
+                <button className="mp-fmt-btn" title="기울임" onClick={() => insertAt('*')}><i>I</i></button>
+              </div>
+              <div className="mp-toolbar-sep"/>
+              <div className="mp-toolbar-group">
+                <button className="mp-fmt-btn mp-fmt-wide" onClick={() => insertAt('• ')}>• 목록</button>
+                <button className="mp-fmt-btn mp-fmt-wide" onClick={() => insertAt('## ')}>## 제목</button>
+                <button className="mp-fmt-btn mp-fmt-wide" onClick={() => insertAt('---\n')}>── 구분</button>
+              </div>
+              <div style={{ flex: 1 }}/>
+              <button className={`mp-save-btn ${saveOk ? 'ok' : ''}`}
+                onClick={handleSave} disabled={saving}>
+                {saving ? '⟳...' : saveOk ? '✅' : '💾 저장'}
+              </button>
+              <button className="mp-icon-btn" onClick={onClose} style={{ marginLeft: 4 }}>✕</button>
+            </div>
+
+            {saveError && <div className="mp-save-error">⚠️ {saveError}</div>}
+
+            <div className="mp-meta-row">
+              <span className="mp-meta-label">📁</span>
+              <select className="mp-cat-select" value={category} onChange={e => setCategory(e.target.value)}>
+                <option value="">없음</option>
+                {categories.map(cat => <option key={cat.name} value={cat.name}>{cat.name}</option>)}
+              </select>
+              {selectedCat && (
+                <span className="mp-cat-badge" style={{ background: selectedCat.color+'22', color: selectedCat.color, borderColor: selectedCat.color+'44' }}>
+                  {selectedCat.name}
+                  <button className="mp-tag-x" onClick={() => setCategory('')}>×</button>
+                </span>
+              )}
+              <div className="mp-toolbar-sep"/>
+              <span className="mp-meta-label">🏷</span>
+              <div className="mp-selected-tags">
+                {tags.map(t => (
+                  <span key={t} className="mp-tag-chip-edit">
+                    #{t}<button className="mp-tag-x" onClick={() => removeTag(t)}>×</button>
+                  </span>
+                ))}
+              </div>
+              <input className="mp-tag-input" placeholder="태그 입력 후 엔터"
+                value={tagInput} onChange={e => setTagInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() }}}/>
+            </div>
           </div>
+        )}
+
+        {/* 제목 */}
+        {editMode ? (
+          <input className="mp-title-input"
+            style={{ color: titleColor, fontSize: Math.min(fontSize + 6, 28) + 'px' }}
+            placeholder="제목을 입력하세요..."
+            value={title} onChange={e => setTitle(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); textRef.current?.focus() }}}/>
         ) : (
+          <div className="mp-read-title" style={{ color: titleColor, fontSize: Math.min(fontSize + 6, 28) + 'px' }}>
+            {title || '제목 없음'}
+          </div>
+        )}
+
+        {/* 본문 */}
+        {editMode ? (
           <textarea ref={textRef} className="mp-content-input"
             style={{ color: textColor, fontSize: fontSize + 'px', background: 'transparent' }}
             placeholder={'내용을 입력하세요...\n\n• 투자 아이디어\n• 종목 분석 메모\n• 매매 전략\n• 공부 내용'}
             value={content} onChange={e => setContent(e.target.value)}
             onKeyDown={handleKeyDown}/>
+        ) : (
+          <div className="mp-content-preview" style={{ color: textColor, fontSize: fontSize + 'px' }}>
+            <MarkdownRenderer text={content}/>
+          </div>
         )}
 
         {/* 하단 */}
         <div className="mp-editor-footer">
-          <span style={{ color: textColor, opacity: 0.35, fontSize: 11 }}>
-            {content.length}자 · {content.split('\n').filter(Boolean).length}줄
-          </span>
-          <span style={{ color: textColor, opacity: 0.35, fontSize: 11 }}>
-            Ctrl+S 저장 · ESC 닫기 · Tab 들여쓰기
-          </span>
+          {editMode ? (
+            <>
+              <span style={{ color: textColor, opacity: 0.4, fontSize: 11 }}>
+                {content.length}자 · Ctrl+S 저장 · ESC 닫기
+              </span>
+              <button className="mp-read-cancel-btn" onClick={() => isNew ? onClose() : setEditMode(false)}>
+                {isNew ? '취소' : '읽기모드로'}
+              </button>
+            </>
+          ) : (
+            <span style={{ color: textColor, opacity: 0.4, fontSize: 11 }}>
+              {memo?.updatedAt?.toDate?.()?.toLocaleString('ko-KR') || ''}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -335,25 +330,54 @@ function MemoEditor({ memo, categories, onSave, onClose }) {
 }
 
 // ── 메모 카드 ─────────────────────────────────────────
-function MemoCard({ memo, categories, onEdit, onDelete, onPin }) {
+function MemoCard({ memo, categories, viewMode, isTrash, onEdit, onDelete, onRestore, onPermanentDelete, onPin }) {
   const [confirm, setConfirm] = useState(false)
   const isAiBriefing = memo.category === 'AI브리핑'
   const lines   = (memo.content || '').split('\n').filter(Boolean)
   const preview = lines.slice(0, 4).join('\n')
   const hasMore = lines.length > 4
   const cat     = categories.find(c => c.name === memo.category)
+  const dateStr = memo.updatedAt?.toDate?.()?.toLocaleDateString('ko-KR') || ''
 
+  // 리스트 모드 — 제목 + 날짜만
+  if (viewMode === 'list') {
+    return (
+      <div className="mp-list-row" onClick={() => onEdit?.(memo)}>
+        <div className="mp-list-left">
+          {memo.pinned && <span className="mp-pin-sm">📌</span>}
+          {cat && <span className="mp-list-cat" style={{ background: cat.color+'20', color: cat.color }}>{cat.name}</span>}
+          <span className="mp-list-title">{memo.title || '제목 없음'}</span>
+        </div>
+        <div className="mp-list-right">
+          <span className="mp-list-date">{dateStr}</span>
+          {isTrash ? (
+            <div className="mp-list-actions" onClick={e => e.stopPropagation()}>
+              <button className="mp-action-btn" onClick={() => onRestore(memo.id)}>↩ 복원</button>
+              <button className="mp-action-btn danger" onClick={() => onPermanentDelete(memo.id)}>🗑 영구삭제</button>
+            </div>
+          ) : (
+            <div className="mp-list-actions" onClick={e => e.stopPropagation()}>
+              <button className="mp-action-btn" onClick={() => onPin(memo)}>{memo.pinned ? '📌' : '📍'}</button>
+              <button className="mp-action-btn danger" onClick={() => onDelete(memo.id)}>🗑</button>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // 그리드 모드
   return (
     <div className="mp-card"
-      style={{ background: memo.bgColor || '#1e293b', borderColor: memo.pinned ? '#f59e0b' : '#334155' }}
-      onClick={() => onEdit(memo)}>
+      style={{ background: memo.bgColor || '#FFFFFF', borderColor: memo.pinned ? '#f59e0b' : 'var(--border)' }}
+      onClick={() => onEdit?.(memo)}>
 
       {memo.pinned && <div className="mp-pin-badge">📌</div>}
 
       {cat && (
         <div className="mp-card-cat-row" onClick={e => e.stopPropagation()}>
           <span className="mp-card-cat-badge"
-            style={{ background: cat.color + '28', color: cat.color, borderColor: cat.color + '44' }}>
+            style={{ background: cat.color+'22', color: cat.color, borderColor: cat.color+'44' }}>
             📁 {cat.name}
           </span>
         </div>
@@ -361,42 +385,56 @@ function MemoCard({ memo, categories, onEdit, onDelete, onPin }) {
 
       {memo.tags?.length > 0 && (
         <div className="mp-card-tags" onClick={e => e.stopPropagation()}>
-          {memo.tags.map(t => (
-            <span key={t} className="mp-tag-chip">#{t}</span>
-          ))}
+          {memo.tags.map(t => <span key={t} className="mp-tag-chip">#{t}</span>)}
         </div>
       )}
 
-      <div className="mp-card-title" style={{ color: memo.titleColor || '#f1f5f9' }}>
+      <div className="mp-card-title" style={{ color: memo.titleColor || 'var(--text-primary)' }}>
         {memo.title || '제목 없음'}
       </div>
 
       {isAiBriefing ? (
         <div className="mp-card-md-preview" onClick={e => e.stopPropagation()}>
           <MarkdownRenderer text={preview} className="ai-briefing-card"/>
-          {hasMore && <div className="mp-card-more" style={{opacity:.5}}>...더 보기</div>}
+          {hasMore && <div className="mp-card-more">...더 보기</div>}
         </div>
       ) : (
         <>
           <pre className="mp-card-preview"
-            style={{ color: memo.textColor || '#94a3b8', fontSize: Math.min(memo.fontSize || 13, 14) + 'px' }}>
+            style={{ color: memo.textColor || 'var(--text-secondary)', fontSize: Math.min(memo.fontSize || 13, 14) + 'px' }}>
             {preview}
           </pre>
-          {hasMore && <div className="mp-card-more" style={{ color: memo.textColor || '#94a3b8', opacity: 0.5 }}>...더 보기</div>}
+          {hasMore && <div className="mp-card-more" style={{ color: memo.textColor || 'var(--text-dim)', opacity: 0.5 }}>...더 보기</div>}
         </>
       )}
 
       <div className="mp-card-footer">
-        <span className="mp-card-date">{memo.updatedAt?.toDate?.()?.toLocaleDateString('ko-KR') || ''}</span>
+        <span className="mp-card-date">{dateStr}</span>
         <div className="mp-card-actions" onClick={e => e.stopPropagation()}>
-          <button className="mp-action-btn" onClick={() => onPin(memo)}>{memo.pinned ? '📌' : '📍'}</button>
-          {confirm ? (
+          {isTrash ? (
             <>
-              <button className="mp-action-btn danger" onClick={() => onDelete(memo.id)}>삭제</button>
-              <button className="mp-action-btn" onClick={() => setConfirm(false)}>취소</button>
+              <button className="mp-action-btn" onClick={() => onRestore(memo.id)}>↩</button>
+              {confirm ? (
+                <>
+                  <button className="mp-action-btn danger" onClick={() => onPermanentDelete(memo.id)}>영구삭제</button>
+                  <button className="mp-action-btn" onClick={() => setConfirm(false)}>취소</button>
+                </>
+              ) : (
+                <button className="mp-action-btn danger" onClick={() => setConfirm(true)}>🗑</button>
+              )}
             </>
           ) : (
-            <button className="mp-action-btn danger" onClick={() => setConfirm(true)}>🗑</button>
+            <>
+              <button className="mp-action-btn" onClick={() => onPin(memo)}>{memo.pinned ? '📌' : '📍'}</button>
+              {confirm ? (
+                <>
+                  <button className="mp-action-btn danger" onClick={() => onDelete(memo.id)}>삭제</button>
+                  <button className="mp-action-btn" onClick={() => setConfirm(false)}>취소</button>
+                </>
+              ) : (
+                <button className="mp-action-btn danger" onClick={() => setConfirm(true)}>🗑</button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -422,6 +460,10 @@ export default function MemoPage() {
   const [categories,  setCategories]  = useState(() => lsGet(LS_CATS, null) || DEFAULT_CATEGORIES)
 
   const handleCatsChange = cats => { setCategories(cats); lsSet(LS_CATS, cats) }
+  const [trashDays,   setTrashDays]  = useState(() => lsGet(LS_TRASH_DAYS, 30))
+  const [showTrash,   setShowTrash]  = useState(false)
+
+  const handleTrashDaysChange = d => { setTrashDays(d); lsSet(LS_TRASH_DAYS, d) }
 
   // Firestore 구독
   useEffect(() => {
@@ -433,6 +475,14 @@ export default function MemoPage() {
     )
     return () => unsub()
   }, [user])
+
+  // 휴지통 자동 정리 — trashDays 경과한 메모 영구 삭제
+  useEffect(() => {
+    if (!user || !memos.length) return
+    const limit = Date.now() - trashDays * 86400000
+    const expired = memos.filter(m => m.deletedAt && m.deletedAt.toMillis?.() < limit)
+    expired.forEach(m => deleteDoc(doc(db, 'users', user.uid, 'memos', m.id)).catch(() => {}))
+  }, [memos, user, trashDays])
 
   // AI브리핑 localStorage → Firestore 자동 동기화
   useEffect(() => {
@@ -473,7 +523,21 @@ export default function MemoPage() {
     setEditMemo(null)
   }, [user, editMemo])
 
+  // 소프트 삭제 (휴지통 이동)
   const handleDelete = useCallback(async id => {
+    if (!user) return
+    await updateDoc(doc(db, 'users', user.uid, 'memos', id),
+      { deletedAt: Timestamp.fromDate(new Date()) })
+  }, [user])
+
+  // 복원
+  const handleRestore = useCallback(async id => {
+    if (!user) return
+    await updateDoc(doc(db, 'users', user.uid, 'memos', id), { deletedAt: null })
+  }, [user])
+
+  // 영구 삭제
+  const handlePermanentDelete = useCallback(async id => {
     if (!user) return
     await deleteDoc(doc(db, 'users', user.uid, 'memos', id))
   }, [user])
@@ -484,8 +548,12 @@ export default function MemoPage() {
       { pinned: !memo.pinned, updatedAt: Timestamp.fromDate(new Date()) })
   }, [user])
 
-  // 필터 + 정렬
-  const filtered = memos
+  // 실제 사용 중인 카테고리·태그만 추출
+  const activeMemos = memos.filter(m => !m.deletedAt)
+  const trashMemos  = memos.filter(m =>  m.deletedAt)
+  const displayMemos = showTrash ? trashMemos : activeMemos
+
+  const filtered = displayMemos
     .filter(m => {
       if (filterCat && m.category !== filterCat) return false
       if (filterTag && !m.tags?.includes(filterTag)) return false
@@ -505,10 +573,9 @@ export default function MemoPage() {
       return (b.updatedAt?.toMillis?.() ?? 0) - (a.updatedAt?.toMillis?.() ?? 0)
     })
 
-  // 실제 사용 중인 카테고리·태그만 추출
-  const usedCats = [...new Set(memos.map(m => m.category).filter(Boolean))]
-  const usedTags = [...new Set(memos.flatMap(m => m.tags || []))]
-  const pinnedCount = memos.filter(m => m.pinned).length
+  const usedCats    = [...new Set(activeMemos.map(m => m.category).filter(Boolean))]
+  const usedTags    = [...new Set(activeMemos.flatMap(m => m.tags || []))]
+  const pinnedCount = activeMemos.filter(m => m.pinned).length
 
   return (
     <div className="mp-wrap">
@@ -519,9 +586,23 @@ export default function MemoPage() {
           <h1 className="page-title">📝 메모장</h1>
           <p className="page-sub">투자 아이디어 · 종목 분석 · 매매 전략 · 공부 기록</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* 휴지통 보관기간 */}
+          <div className="mp-trash-setting">
+            <span className="mp-trash-label">🗑 보관</span>
+            {TRASH_DAY_OPTIONS.map(d => (
+              <button key={d}
+                className={`mp-trash-day-btn ${trashDays === d ? 'active' : ''}`}
+                onClick={() => handleTrashDaysChange(d)}>{d}일</button>
+            ))}
+          </div>
+          <button
+            className={`mp-cat-mgr-btn ${showTrash ? 'active' : ''}`}
+            onClick={() => { setShowTrash(v => !v); setFilterCat(''); setFilterTag('') }}>
+            🗑 휴지통 {trashMemos.length > 0 && <span className="mp-count">{trashMemos.length}</span>}
+          </button>
           <button className="mp-cat-mgr-btn" onClick={() => setShowCatMgr(true)}>🏷 카테고리</button>
-          <button className="mp-new-btn" onClick={() => setEditMemo({})}>✏️ 새 메모</button>
+          {!showTrash && <button className="mp-new-btn" onClick={() => setEditMemo({})}>✏️ 새 메모</button>}
         </div>
       </div>
 
@@ -627,7 +708,12 @@ export default function MemoPage() {
         <div className="mp-loading"><div className="mp-spinner"/>불러오는 중...</div>
       ) : filtered.length === 0 ? (
         <div className="mp-empty">
-          {memos.length === 0 ? (
+          {showTrash ? (
+            <>
+              <div className="mp-empty-icon">🗑</div>
+              <p>휴지통이 비어있습니다</p>
+            </>
+          ) : activeMemos.length === 0 ? (
             <>
               <div className="mp-empty-icon">📝</div>
               <p>첫 번째 메모를 작성해보세요</p>
@@ -648,7 +734,13 @@ export default function MemoPage() {
         <div className={`mp-memo-grid ${viewMode}`}>
           {filtered.map(memo => (
             <MemoCard key={memo.id} memo={memo} categories={categories}
-              onEdit={setEditMemo} onDelete={handleDelete} onPin={handlePin}/>
+              viewMode={viewMode}
+              isTrash={showTrash}
+              onEdit={showTrash ? null : setEditMemo}
+              onDelete={handleDelete}
+              onRestore={handleRestore}
+              onPermanentDelete={handlePermanentDelete}
+              onPin={handlePin}/>
           ))}
         </div>
       )}
