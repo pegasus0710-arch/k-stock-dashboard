@@ -15,6 +15,14 @@ function getItemData(item, dashData, globalData, forexData, cbRates) {
   if (item.type==='global') return globalData?.[item.sym] || null
   if (item.type==='forex')  { const d=forexData?.[item.pair]; return d?{price:d.price,changeRate:d.changeRate,change:d.change,marketState:'CURRENCY'}:null }
   if (item.type==='cb')     { const d=cbRates?.[item.cbKey]; return d?{price:d.rate,changeRate:null,isCB:true,date:d.date}:null }
+  if (item.type==='spread') {
+    const us10y = globalData?.['US10Y']?.price
+    const us2y  = globalData?.['US2Y']?.price
+    if (us10y==null || us2y==null) return null
+    const spread = Math.round((us10y - us2y) * 100) / 100
+    return { price: spread, changeRate: null, isSpread: true,
+             us10y, us2y, inverted: spread < 0 }
+  }
   return null
 }
 
@@ -116,8 +124,8 @@ export default function DashboardPage() {
                 const active   = selId === item.id
                 return (
                   <button key={item.id}
-                    className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''}`}
-                    onClick={()=>item.type!=='cb' && setSelId(item.id)}>
+                    className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''} ${item.type==='spread'?'spread-card':''}`}
+                    onClick={()=>item.type!=='cb' && item.type!=='spread' && setSelId(item.id)}>
                     <div className="db-idx-top-row">
                       <span className="db-idx-name">{item.label}</span>
                       <span style={{display:'flex',alignItems:'center',gap:4}}>
@@ -130,10 +138,20 @@ export default function DashboardPage() {
                     {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
                      d?.price!=null ? (
                       <>
-                        <div className="db-idx-price">{d.price.toLocaleString(undefined,{maximumFractionDigits:2})}{item.unit||''}</div>
-                        {d.isCB ? <div className="db-idx-cb-date">{d.date}</div>
-                          : rate!=null ? <div className="db-idx-rate" style={{color:pc}}>{up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%</div>
-                          : null}
+                        <div className="db-idx-price" style={d.isSpread ? {color: d.inverted ? 'var(--color-down)' : d.price < 0.5 ? '#d97706' : 'var(--color-up)'} : {}}>
+                          {d.isSpread
+                            ? `${d.price >= 0 ? '+' : ''}${d.price.toFixed(2)}%`
+                            : `${d.price.toLocaleString(undefined,{maximumFractionDigits:2})}${item.unit||''}`
+                          }
+                        </div>
+                        {d.isSpread
+                          ? <div className="db-idx-spread-label" style={{color: d.inverted ? 'var(--color-down)' : d.price < 0.5 ? '#d97706' : '#16a34a'}}>
+                              {d.inverted ? '⚠️ 역전 (경기침체 경보)' : d.price < 0.5 ? '⚡ 주의 구간' : '✅ 정상'}
+                            </div>
+                          : d.isCB ? <div className="db-idx-cb-date">{d.date}</div>
+                          : d.changeRate!=null ? <div className="db-idx-rate" style={{color: d.changeRate>0?'var(--color-up)':'var(--color-down)'}}>{d.changeRate>0?'▲':'▼'}{Math.abs(d.changeRate).toFixed(2)}%</div>
+                          : null
+                        }
                         {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
                       </>
                     ) : <div className="db-idx-na">—</div>}

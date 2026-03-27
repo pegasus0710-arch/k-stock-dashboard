@@ -167,6 +167,8 @@
   border-color: var(--accent-mid) !important;
 }
 .db-idx-card.closed { opacity: .75; }
+.db-idx-card.spread-card { cursor: default; }
+.db-idx-spread-label { font-size: 10px; font-weight: 700; margin-top: 1px; }
 
 .db-idx-top-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:2px; }
 .db-idx-name    { font-size:11px; font-weight:600; color:var(--text-secondary); }
