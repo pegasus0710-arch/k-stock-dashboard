@@ -2,6 +2,7 @@
 // AI 시장 브리핑 — 슬라이드 드로어 팝업
 import { useState, useEffect } from 'react'
 import { getTimeSlot, SLOT_LABEL, readAiCache, writeAiCache, makeAiCacheKey, saveAiBriefingMemo } from '../../hooks/useAiCache'
+import MarkdownRenderer from '../ui/MarkdownRenderer'
 
 const CLAUDE_KEY = import.meta.env.VITE_CLAUDE_API_KEY
 
@@ -176,7 +177,7 @@ export default function AiBriefing({ open, onClose, marketData }) {
         {/* 결과 */}
         {text && !loading && (
           <div className="ai-drawer-content">
-            <pre className="ai-drawer-text">{text}</pre>
+            <MarkdownRenderer text={text}/>
           </div>
         )}
 

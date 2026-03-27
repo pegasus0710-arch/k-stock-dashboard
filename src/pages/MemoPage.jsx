@@ -5,6 +5,7 @@ import {
   onSnapshot, orderBy, query, Timestamp,
 } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
+import MarkdownRenderer from '../components/ui/MarkdownRenderer'
 import './MemoPage.css'
 
 // ── 색상 프리셋 ───────────────────────────────────────
@@ -316,9 +317,10 @@ function MemoEditor({ memo, categories, onSave, onClose }) {
 // ── 메모 카드 ─────────────────────────────────────────
 function MemoCard({ memo, categories, onEdit, onDelete, onPin }) {
   const [confirm, setConfirm] = useState(false)
+  const isAiBriefing = memo.category === 'AI브리핑'
   const lines   = (memo.content || '').split('\n').filter(Boolean)
-  const preview = lines.slice(0, 3).join('\n')
-  const hasMore = lines.length > 3
+  const preview = lines.slice(0, 4).join('\n')
+  const hasMore = lines.length > 4
   const cat     = categories.find(c => c.name === memo.category)
 
   return (
@@ -328,7 +330,6 @@ function MemoCard({ memo, categories, onEdit, onDelete, onPin }) {
 
       {memo.pinned && <div className="mp-pin-badge">📌</div>}
 
-      {/* 카테고리 뱃지 */}
       {cat && (
         <div className="mp-card-cat-row" onClick={e => e.stopPropagation()}>
           <span className="mp-card-cat-badge"
@@ -338,7 +339,6 @@ function MemoCard({ memo, categories, onEdit, onDelete, onPin }) {
         </div>
       )}
 
-      {/* 태그 */}
       {memo.tags?.length > 0 && (
         <div className="mp-card-tags" onClick={e => e.stopPropagation()}>
           {memo.tags.map(t => (
@@ -351,11 +351,20 @@ function MemoCard({ memo, categories, onEdit, onDelete, onPin }) {
         {memo.title || '제목 없음'}
       </div>
 
-      <pre className="mp-card-preview"
-        style={{ color: memo.textColor || '#94a3b8', fontSize: Math.min(memo.fontSize || 13, 14) + 'px' }}>
-        {preview}
-      </pre>
-      {hasMore && <div className="mp-card-more" style={{ color: memo.textColor || '#94a3b8', opacity: 0.5 }}>...더 보기</div>}
+      {isAiBriefing ? (
+        <div className="mp-card-md-preview" onClick={e => e.stopPropagation()}>
+          <MarkdownRenderer text={preview} className="ai-briefing-card"/>
+          {hasMore && <div className="mp-card-more" style={{opacity:.5}}>...더 보기</div>}
+        </div>
+      ) : (
+        <>
+          <pre className="mp-card-preview"
+            style={{ color: memo.textColor || '#94a3b8', fontSize: Math.min(memo.fontSize || 13, 14) + 'px' }}>
+            {preview}
+          </pre>
+          {hasMore && <div className="mp-card-more" style={{ color: memo.textColor || '#94a3b8', opacity: 0.5 }}>...더 보기</div>}
+        </>
+      )}
 
       <div className="mp-card-footer">
         <span className="mp-card-date">{memo.updatedAt?.toDate?.()?.toLocaleDateString('ko-KR') || ''}</span>

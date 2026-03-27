@@ -409,3 +409,32 @@
 }
 .mp-fab:hover { background: #1d4ed8; transform: translateY(-2px) scale(1.05); }
 @media (min-width: 768px) { .mp-fab { bottom: 24px; right: 24px; } }
+
+/* ── AI브리핑 카드 마크다운 프리뷰 ─────────────────── */
+.mp-card-md-preview {
+  flex: 1;
+  overflow: hidden;
+  margin: 4px 0;
+}
+.mp-card-md-preview .md-body {
+  color: #0F172A;
+}
+.mp-card-md-preview .md-h2 {
+  font-size: 12px;
+  margin: 6px 0 3px;
+  color: #1E40AF;
+}
+.mp-card-md-preview .md-h2::before {
+  height: 12px;
+}
+.mp-card-md-preview .md-h3 {
+  font-size: 12px;
+  margin: 4px 0 2px;
+}
+.mp-card-md-preview .md-p,
+.mp-card-md-preview .md-li {
+  font-size: 11px;
+  color: #334155;
+  margin: 1px 0;
+}
+.mp-card-md-preview .md-hr { margin: 4px 0; }
