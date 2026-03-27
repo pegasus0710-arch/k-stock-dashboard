@@ -197,7 +197,7 @@ function SectorAccordion({ selId, onSelChange, dashData, globalData, forexData, 
                         <Skeleton w="70%" h={13}/>
                       ) : d?.price != null ? (
                         <>
-                          <div className="db-idx-price" style={{color: isClosed ? '#94a3b8' : '#f1f5f9'}}>
+                          <div className="db-idx-price" style={{color: isClosed ? 'var(--text-dim)' : 'var(--text-primary)'}}>
                             {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}{item.unit||''}
                           </div>
                           {d.isCB ? (
@@ -331,8 +331,8 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
           const y=py(v)
           if(y<pT-2||y>pT+cH+2) return null
           return <g key={i}>
-            <line x1={pL} x2={pL+cW} y1={y} y2={y} stroke="rgba(255,255,255,0.06)" strokeDasharray="3,4"/>
-            <text x={pL-5} y={y+4} textAnchor="end" fontSize="10" fill="#475569">
+            <line x1={pL} x2={pL+cW} y1={y} y2={y} stroke="rgba(15,23,42,0.06)" strokeDasharray="3,4"/>
+            <text x={pL-5} y={y+4} textAnchor="end" fontSize="10" fill="#94A3B8">
               {v>=1000?Math.round(v).toLocaleString():v>=10?v.toFixed(1):v.toFixed(2)}
             </text>
           </g>
@@ -340,10 +340,10 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
         {/* 영역 + 라인 */}
         <polygon points={`${pL},${pT+cH} ${pts} ${px(candles.length-1)},${pT+cH}`} fill="url(#hg)"/>
         <polyline points={pts} fill="none" stroke={accent} strokeWidth="1.8"/>
-        <circle cx={px(candles.length-1)} cy={py(closes[closes.length-1])} r="4" fill={accent} stroke="#0a0f1a" strokeWidth="2"/>
+        <circle cx={px(candles.length-1)} cy={py(closes[closes.length-1])} r="4" fill={accent} stroke="#FFFFFF" strokeWidth="2"/>
         {/* X축 레이블 */}
         {filteredX.map((l,i)=>(
-          <text key={i} x={l.x} y={H-6} textAnchor="middle" fontSize="10" fill="#475569">{l.lbl}</text>
+          <text key={i} x={l.x} y={H-6} textAnchor="middle" fontSize="10" fill="#94A3B8">{l.lbl}</text>
         ))}
       </svg>
     )
@@ -375,7 +375,7 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
                   <div className="db-bottom-name">{it.label}</div>
                   {d?.price != null ? (
                     <>
-                      <div className="db-bottom-price" style={{color: isClosed?'#94a3b8':'#f1f5f9'}}>
+                      <div className="db-bottom-price" style={{color: isClosed?'var(--text-dim)':'var(--text-primary)'}}>
                         {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}{it.unit||''}
                       </div>
                       {rate != null && (
@@ -385,7 +385,7 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
                       )}
                     </>
                   ) : (
-                    <div style={{fontSize:10,color:'#475569'}}>—</div>
+                    <div style={{fontSize:10,color:'var(--text-dim)'}}>—</div>
                   )}
                 </button>
               )
@@ -403,8 +403,8 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
         <div className="db-hero-top-row">
           <div className="db-hero-info">
             <span className="db-hero-sym-label" style={{color:accent}}>{item.label}</span>
-            <span className="db-hero-price" style={{color:'#94a3b8'}}>차트 없음</span>
-            <span style={{fontSize:12,color:'#64748b'}}>기준금리는 정책 결정값으로 차트 미제공</span>
+            <span className="db-hero-price" style={{color:'var(--text-dim)'}}>차트 없음</span>
+            <span style={{fontSize:12,color:'var(--text-secondary)'}}>기준금리는 정책 결정값으로 차트 미제공</span>
           </div>
           <div className="db-hero-periods">
             {PERIODS.map(p=>(
@@ -433,7 +433,7 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
               )}
             </>
           ) : (
-            <span className="db-hero-price" style={{color:'#475569'}}>—</span>
+            <span className="db-hero-price" style={{color:'var(--text-dim)'}}>—</span>
           )}
         </div>
         <div className="db-hero-periods">
@@ -613,11 +613,11 @@ export default function DashboardPage() {
         <div className="dash-header-row">
           <div>
             <h1 className="dash-title">시장 대시보드</h1>
-            <p className="dash-date">{getTodayStr()}{lastFetch&&<span style={{color:'#64748b'}}> · {lastFetch} 기준</span>}</p>
+            <p className="dash-date">{getTodayStr()}{lastFetch&&<span style={{color:'var(--text-dim)'}}> · {lastFetch} 기준</span>}</p>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
             <button className="db-guide-btn" onClick={()=>setShowGuide(true)}>📖 지수 가이드</button>
-            <div className="db-status-badge" style={{background:st.color+'18',color:st.color,borderColor:st.color+'40'}}>
+            <div className="db-status-badge" style={{background:st.color+'15',color:st.color,borderColor:st.color+'30'}}>
               {st.dot&&<span className="db-status-dot" style={{background:st.color}}/>}{st.label}
             </div>
             <button className="btn-outline db-refresh-btn" disabled={loading}
@@ -626,27 +626,79 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {fetchError&&<div className="db-error-banner">⚠️ 데이터 로드 실패 <button onClick={()=>{setFetchError(false);fetchDashboard(true)}} style={{marginLeft:12,fontSize:11,color:'#3b82f6',background:'none',border:'none',cursor:'pointer'}}>↺ 재시도</button></div>}
+      {fetchError&&<div className="db-error-banner">⚠️ 데이터 로드 실패 <button onClick={()=>{setFetchError(false);fetchDashboard(true)}} style={{marginLeft:12,fontSize:11,color:'var(--accent-mid)',background:'none',border:'none',cursor:'pointer'}}>↺ 재시도</button></div>}
 
-      {/* 메인: 차트 + 아코디언 */}
-      <div className="db-main-layout">
-        {/* 좌: 아코디언 */}
-        <div className="db-left-panel">
-          <SectorAccordion
-            selId={selId} onSelChange={setSelId}
-            dashData={dashData} globalData={globalData}
-            forexData={forexData} cbRates={cbRates}
-            globalLoading={globalLoading}
-          />
+      {/* ── 영역 1: 상단 인터랙티브 차트 ── */}
+      <div className="db-chart-section">
+        {/* 지수 선택 버튼 행 */}
+        <div className="db-selector-row">
+          {SECTOR_GROUPS.filter(g=>!['cbrate'].includes(g.id)).map((group, gi) => (
+            <div key={group.id} style={{display:'flex',alignItems:'center',gap:4}}>
+              {gi>0 && <div className="db-sel-divider"/>}
+              <div className="db-sel-group">
+                {group.items.filter(it=>it.type!=='cb').map(it=>(
+                  <button key={it.id}
+                    className={`db-sel-btn ${selId===it.id?'active':''}`}
+                    onClick={()=>setSelId(it.id)}>
+                    {it.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
-        {/* 우: 차트 */}
-        <div className="db-right-panel">
-          <HeroChart
-            selId={selId} onSelChange={setSelId}
-            dashData={dashData} globalData={globalData} forexData={forexData}
-          />
-        </div>
+        {/* 차트 */}
+        <HeroChart
+          selId={selId} onSelChange={setSelId}
+          dashData={dashData} globalData={globalData} forexData={forexData}
+        />
       </div>
+
+      {/* ── 영역 2: 중단 지수 카드 그리드 ── */}
+      <div className="db-cards-section">
+        {SECTOR_GROUPS.map(group => (
+          <div key={group.id} className="db-card-group">
+            <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
+            <div className="db-card-group-items">
+              {group.items.map(item => {
+                const d     = getItemData(item, dashData, globalData, forexData, cbRates)
+                const rate  = d?.changeRate
+                const pc    = rate!=null ? rateColor(rate) : 'var(--text-dim)'
+                const up    = rate > 0
+                const badge = getMarketBadge(item, d)
+                const isClosed = badge?.label === '전일'
+                const active = selId === item.id
+                return (
+                  <button key={item.id}
+                    className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''}`}
+                    onClick={()=>item.type!=='cb' && setSelId(item.id)}>
+                    <div className="db-idx-top-row">
+                      <span className="db-idx-name">{item.label}</span>
+                      {badge&&(
+                        <span className="db-idx-badge" style={{color:badge.color}}>
+                          {badge.label==='LIVE'&&<span className="db-idx-live-dot"/>}
+                          {badge.label}
+                        </span>
+                      )}
+                    </div>
+                    {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
+                     d?.price!=null ? (
+                      <>
+                        <div className="db-idx-price">{d.price.toLocaleString(undefined,{maximumFractionDigits:2})}{item.unit||''}</div>
+                        {d.isCB ? <div className="db-idx-cb-date">{d.date}</div>
+                          : rate!=null ? <div className="db-idx-rate" style={{color:pc}}>{up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%</div>
+                          : null}
+                      </>
+                    ) : <div className="db-idx-na">—</div>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── 영역 3: 하단 업종 히트맵 (Step 3-3에서 구현) ── */}
 
       <AiBriefing/>
 
@@ -657,7 +709,7 @@ export default function DashboardPage() {
       </div>
 
       {showGuide && <GuideModal onClose={()=>setShowGuide(false)}/>}
-      {chartItem  && <GlobalChartModal type={chartItem.type==='forex'?'forex':'global'} symbol={chartItem.type==='forex'?chartItem.pair:chartItem.sym} name={chartItem.label} currentPrice={chartItem.price} changeRate={chartItem.changeRate} onClose={()=>setChartItem(null)}/>}
+      {chartItem && <GlobalChartModal type={chartItem.type==='forex'?'forex':'global'} symbol={chartItem.type==='forex'?chartItem.pair:chartItem.sym} name={chartItem.label} currentPrice={chartItem.price} changeRate={chartItem.changeRate} onClose={()=>setChartItem(null)}/>}
     </div>
   )
 }
