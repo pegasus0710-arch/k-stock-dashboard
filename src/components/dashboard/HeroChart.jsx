@@ -2,6 +2,33 @@
 import { useState, useEffect, useCallback } from 'react'
 import { rateColor } from '../../utils/format'
 import { SECTOR_GROUPS, ALL_ITEMS } from '../../constants/dashboardData'
+
+// ── 데이터 getter ─────────────────────────────────────
+function getItemData(item, dashData, globalData, forexData, cbRates) {
+  if (item.type==='global') return globalData?.[item.sym] || null
+  if (item.type==='forex')  {
+    const d = forexData?.[item.pair]
+    return d ? { price:d.price, changeRate:d.changeRate, change:d.change, marketState:'CURRENCY' } : null
+  }
+  if (item.type==='cb') {
+    const d = cbRates?.[item.cbKey]
+    return d ? { price:d.rate, changeRate:null, isCB:true, date:d.date } : null
+  }
+  return null
+}
+
+// ── 마켓 상태 판별 ────────────────────────────────────
+function getMarketBadge(item, data) {
+  if (!data) return null
+  if (item.type==='cb')    return { label:'정책금리', color:'#0891b2' }
+  if (item.type==='forex') return null
+  const ms = data.marketState || data.status
+  if (ms==='open'||ms==='REGULAR') return { label:'LIVE',  color:'#22c55e' }
+  if (ms==='POST'||ms==='after')   return { label:'시간외', color:'#a78bfa' }
+  if (ms==='PRE')                   return { label:'프리',  color:'#f59e0b' }
+  return { label:'전일', color:'#64748b' }
+}
+
 function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
   const [range,   setRange]   = useState('3mo')
   const [candles, setCandles] = useState([])
