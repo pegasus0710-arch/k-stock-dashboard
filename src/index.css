@@ -1,47 +1,76 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg-base:    #f4f6f9;
-  --bg-panel:   #ffffff;
-  --bg-card:    #ffffff;
-  --bg-hover:   #f0f4ff;
-  --border:     #e2e8f0;
-  --border-dim: #edf2f7;
+  /* ── 배경 ───────────────────────────────────────── */
+  --bg-base:    #F1F5F9;
+  --bg-panel:   #FFFFFF;
+  --bg-card:    #FFFFFF;
+  --bg-hover:   #EEF3FF;
+  --border:     #E2E8F0;
+  --border-dim: #EDF2F7;
 
-  --text-primary:   #1a202c;
-  --text-secondary: #64748b;
-  --text-dim:       #a0aec0;
+  /* ── 텍스트 ─────────────────────────────────────── */
+  --text-primary:   #0F172A;
+  --text-secondary: #64748B;
+  --text-dim:       #94A3B8;
 
-  --accent-blue:   #2563eb;
-  --accent-teal:   #0d9488;
-  --accent-green:  #16a34a;
-  --accent-red:    #dc2626;
-  --accent-amber:  #d97706;
-  --accent-purple: #7c3aed;
+  /* ── 네이비 포인트 (App.css와 통일) ─────────────── */
+  --accent:         #1E40AF;
+  --accent-mid:     #2563EB;
+  --accent-light:   #DBEAFE;
 
-  --theme-semi:    #2563eb;
-  --theme-defense: #dc2626;
-  --theme-ship:    #0d9488;
-  --theme-nuclear: #d97706;
-  --theme-battery: #16a34a;
-  --theme-bio:     #7c3aed;
-  --theme-value:   #ea580c;
+  /* ── 금융 색상 ──────────────────────────────────── */
+  --color-up:   #EF4444;   /* 상승 — 빨강 */
+  --color-down: #2563EB;   /* 하락 — 파랑 */
 
-  --font-kr:   'Noto Sans KR', sans-serif;
+  /* ── 기존 accent 계열 (페이지 호환용 유지) ──────── */
+  --accent-blue:   #2563EB;
+  --accent-teal:   #0D9488;
+  --accent-green:  #16A34A;
+  --accent-red:    #EF4444;
+  --accent-amber:  #D97706;
+  --accent-purple: #7C3AED;
+
+  /* ── 테마 색상 ──────────────────────────────────── */
+  --theme-semi:    #2563EB;
+  --theme-defense: #EF4444;
+  --theme-ship:    #0D9488;
+  --theme-nuclear: #D97706;
+  --theme-battery: #16A34A;
+  --theme-bio:     #7C3AED;
+  --theme-value:   #EA580C;
+
+  /* ── 게이지바 단계 색상 (VIX·환율·금리 등) ──────── */
+  --gauge-safe:    #22C55E;   /* 안전 구간 */
+  --gauge-caution: #F59E0B;   /* 주의 구간 */
+  --gauge-danger:  #EF4444;   /* 위험 구간 */
+  --gauge-track:   #E2E8F0;   /* 트랙 배경 */
+
+  /* ── 폰트 ───────────────────────────────────────── */
+  --font-kr:   'Pretendard', 'Noto Sans KR', sans-serif;
+  --font-en:   'Inter', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
 
+  /* ── 모서리 ─────────────────────────────────────── */
   --radius-sm: 6px;
   --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
 
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  /* ── 그림자 ─────────────────────────────────────── */
+  --shadow-sm: 0 2px 8px rgba(15,23,42,0.06);
+  --shadow-md: 0 4px 12px rgba(15,23,42,0.08);
+  --shadow-lg: 0 8px 24px rgba(15,23,42,0.10);
+
+  /* ── 카드 기본 스타일 (공통 참조용) ─────────────── */
+  --card-border:  1px solid #E2E8F0;
+  --card-radius:  16px;
+  --card-padding: 20px 24px;
 }
 
 html, body, #root {
   width: 100%;
   height: 100%;
-  /* 절대 max-width 없음 */
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-kr);
@@ -55,8 +84,8 @@ html, body, #root {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 .mono { font-family: var(--font-mono); }
-.up   { color: var(--accent-red); }
-.down { color: var(--accent-blue); }
+.up   { color: var(--color-up); }
+.down { color: var(--color-down); }
 .dim  { color: var(--text-secondary); }
 
 button { cursor: pointer; border: none; background: none; font-family: inherit; font-size: inherit; color: inherit; }

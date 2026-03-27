@@ -2,15 +2,15 @@
 
 /* ── 부팅 스피너 ────────────────────────────────────── */
 .app-boot-spinner {
-  width:40px; height:40px; border:3px solid #1e293b;
-  border-top-color:#3b82f6; border-radius:50%;
+  width:40px; height:40px; border:3px solid var(--border);
+  border-top-color:var(--accent-mid); border-radius:50%;
   animation:app-spin .8s linear infinite;
 }
 @keyframes app-spin { to{ transform:rotate(360deg); } }
 
 /* ── 레이아웃 ───────────────────────────────────────── */
 .app-layout {
-  display:flex; min-height:100vh; background:#0a0f1a;
+  display:flex; min-height:100vh; background:var(--bg-base);
   --sidebar-w: 220px;
   --sidebar-w-collapsed: 60px;
   --header-h: 52px;
@@ -25,8 +25,8 @@
 /* ── 사이드바 ───────────────────────────────────────── */
 .sidebar {
   position:fixed; top:0; left:0; bottom:0;
-  width:var(--sidebar-w); background:#0f172a;
-  border-right:1px solid #1e293b;
+  width:var(--sidebar-w); background:var(--bg-panel);
+  border-right:1px solid var(--border);
   display:flex; flex-direction:column;
   transition:width .2s; overflow:hidden; z-index:200;
   font-family:var(--font-kr,sans-serif);
@@ -36,7 +36,7 @@
 /* 로고 */
 .sidebar-logo {
   display:flex; align-items:center; gap:10px;
-  padding:16px 14px 12px; border-bottom:1px solid #1e293b;
+  padding:16px 14px 12px; border-bottom:1px solid var(--border);
   flex-shrink:0; min-height:60px; position:relative;
 }
 .sidebar-logo-icon {
@@ -45,20 +45,20 @@
   font-size:16px; font-weight:900; color:white; flex-shrink:0;
 }
 .sidebar-logo-text { min-width:0; }
-.sidebar-logo-name { display:block; font-size:15px; font-weight:800; color:#f1f5f9; }
-.sidebar-logo-sub  { display:block; font-size:10px; color:#475569; }
+.sidebar-logo-name { display:block; font-size:15px; font-weight:800; color:var(--text-primary); }
+.sidebar-logo-sub  { display:block; font-size:10px; color:var(--text-dim); }
 .sidebar-toggle {
   position:absolute; right:8px; top:50%; transform:translateY(-50%);
-  width:22px; height:22px; background:rgba(255,255,255,.06); border:1px solid #334155;
-  border-radius:5px; color:#64748b; cursor:pointer; font-size:13px;
+  width:22px; height:22px; background:rgba(0,0,0,.04); border:1px solid var(--border);
+  border-radius:5px; color:var(--text-secondary); cursor:pointer; font-size:13px;
   display:flex; align-items:center; justify-content:center; transition:all .12s;
 }
-.sidebar-toggle:hover { background:rgba(255,255,255,.12); color:#e2e8f0; }
+.sidebar-toggle:hover { background:rgba(0,0,0,.07); color:var(--text-primary); }
 
 /* 유저 */
 .sidebar-user {
   display:flex; align-items:center; gap:9px;
-  padding:12px 14px; border-bottom:1px solid #1e293b; flex-shrink:0;
+  padding:12px 14px; border-bottom:1px solid var(--border); flex-shrink:0;
 }
 .sidebar-user-avatar {
   width:32px; height:32px; background:linear-gradient(135deg,#2563eb,#7c3aed);
@@ -66,87 +66,87 @@
   font-size:13px; font-weight:700; color:white; flex-shrink:0;
 }
 .sidebar-user-info { min-width:0; }
-.sidebar-user-name  { display:block; font-size:12px; font-weight:600; color:#e2e8f0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.sidebar-user-email { display:block; font-size:10px; color:#475569; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sidebar-user-name  { display:block; font-size:12px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sidebar-user-email { display:block; font-size:10px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 /* 네비 */
 .sidebar-nav { flex:1; overflow-y:auto; padding:8px 0; }
 .sidebar-nav::-webkit-scrollbar { width:3px; }
-.sidebar-nav::-webkit-scrollbar-thumb { background:#334155; border-radius:2px; }
+.sidebar-nav::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
 
 .sidebar-item {
   display:flex; align-items:center; gap:10px;
-  padding:9px 14px; color:#64748b; text-decoration:none;
+  padding:9px 14px; color:var(--text-secondary); text-decoration:none;
   font-size:13px; transition:all .12s; position:relative;
   white-space:nowrap;
 }
-.sidebar-item:hover { background:rgba(255,255,255,.05); color:#cbd5e1; }
+.sidebar-item:hover { background:var(--bg-hover); color:var(--text-primary); }
 .sidebar-item.active {
-  background:rgba(37,99,235,.12); color:#60a5fa;
-  border-right:2px solid #3b82f6;
+  background:var(--accent-light); color:var(--accent-mid);
+  border-right:2px solid var(--accent-mid);
 }
 .sidebar-item-icon { font-size:16px; flex-shrink:0; width:22px; text-align:center; }
 .sidebar-item-text { min-width:0; flex:1; }
 .sidebar-item-label { display:block; font-weight:600; font-size:13px; }
-.sidebar-item-sub   { display:block; font-size:10px; color:#475569; margin-top:1px; }
-.sidebar-item.active .sidebar-item-sub { color:#3b82f6; opacity:.7; }
+.sidebar-item-sub   { display:block; font-size:10px; color:var(--text-dim); margin-top:1px; }
+.sidebar-item.active .sidebar-item-sub { color:var(--accent-mid); opacity:.7; }
 .sidebar-item-badge {
   font-size:9px; font-weight:700; padding:1px 5px;
   border-radius:8px; flex-shrink:0;
 }
-.sidebar-item-badge.new { background:rgba(34,197,94,.2); color:#4ade80; border:1px solid rgba(34,197,94,.3); }
+.sidebar-item-badge.new { background:rgba(34,197,94,.15); color:#16a34a; border:1px solid rgba(34,197,94,.25); }
 
 /* 하단 */
 .sidebar-bottom {
-  padding:10px 14px 16px; border-top:1px solid #1e293b;
+  padding:10px 14px 16px; border-top:1px solid var(--border);
   display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
 }
-.sidebar-version { font-size:10px; color:#334155; }
+.sidebar-version { font-size:10px; color:var(--text-dim); }
 .sidebar-logout {
-  background:none; border:1px solid #334155; border-radius:7px;
-  color:#64748b; font-size:11px; padding:5px 10px; cursor:pointer;
+  background:none; border:1px solid var(--border); border-radius:7px;
+  color:var(--text-secondary); font-size:11px; padding:5px 10px; cursor:pointer;
   font-family:inherit; transition:all .12s; white-space:nowrap;
 }
-.sidebar-logout:hover { background:rgba(239,68,68,.1); border-color:rgba(239,68,68,.4); color:#f87171; }
+.sidebar-logout:hover { background:rgba(239,68,68,.08); border-color:rgba(239,68,68,.3); color:#ef4444; }
 .sidebar.collapsed .sidebar-logout { padding:5px 8px; }
 
 /* ── 헤더 ─────────────────────────────────────────── */
 .top-header {
   display:flex; align-items:center; justify-content:space-between;
   padding:0 20px; height:var(--header-h);
-  background:#0f172a; border-bottom:1px solid #1e293b;
+  background:var(--bg-panel); border-bottom:1px solid var(--border);
   flex-shrink:0; gap:12px;
 }
 .top-header-left { display:flex; align-items:center; gap:10px; }
 .top-header-icon { font-size:18px; }
-.top-header-title { font-size:15px; font-weight:700; color:#f1f5f9; display:block; }
-.top-header-sub   { font-size:11px; color:#64748b; display:block; margin-top:1px; }
+.top-header-title { font-size:15px; font-weight:700; color:var(--text-primary); display:block; }
+.top-header-sub   { font-size:11px; color:var(--text-secondary); display:block; margin-top:1px; }
 .top-header-right { display:flex; align-items:center; gap:12px; flex-shrink:0; }
 .top-header-status { font-size:12px; font-weight:700; }
-.top-header-date   { font-size:11px; color:#475569; }
+.top-header-date   { font-size:11px; color:var(--text-dim); }
 
 /* ── 메인 콘텐츠 영역 ───────────────────────────────── */
 .app-content {
   flex:1; overflow-y:auto; overflow-x:hidden;
-  padding-bottom:70px; /* 모바일 탭바 여백 */
+  padding-bottom:70px; background:var(--bg-base);
 }
 @media(min-width:768px) { .app-content { padding-bottom:0; } }
 
 /* ── 모바일 하단 탭바 ────────────────────────────────── */
 .bottom-tabbar {
   display:flex; position:fixed; bottom:0; left:0; right:0; z-index:150;
-  background:#0f172a; border-top:1px solid #1e293b;
+  background:var(--bg-panel); border-top:1px solid var(--border);
   padding:6px 0 calc(6px + env(safe-area-inset-bottom));
 }
 @media(min-width:768px) { .bottom-tabbar { display:none; } }
 
 .bottom-tab {
   flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
-  padding:4px 2px; color:#64748b; text-decoration:none;
+  padding:4px 2px; color:var(--text-secondary); text-decoration:none;
   font-size:10px; transition:all .12s;
 }
-.bottom-tab:hover { color:#94a3b8; }
-.bottom-tab.active { color:#3b82f6; }
+.bottom-tab:hover { color:var(--text-primary); }
+.bottom-tab.active { color:var(--accent-mid); }
 .bottom-tab-icon  { font-size:18px; line-height:1; }
 .bottom-tab-label { font-size:9px; font-weight:600; }
 
@@ -164,16 +164,16 @@
   gap:12px; flex-wrap:wrap; margin-bottom:4px;
 }
 .page-title {
-  font-size:20px; font-weight:800; color:#f1f5f9; margin:0;
+  font-size:20px; font-weight:800; color:var(--text-primary); margin:0;
   letter-spacing:-.5px;
 }
-.page-sub { font-size:12px; color:#64748b; margin:4px 0 0; }
+.page-sub { font-size:12px; color:var(--text-secondary); margin:4px 0 0; }
 
 /* ── 스크롤바 ───────────────────────────────────────── */
 ::-webkit-scrollbar { width:5px; height:5px; }
 ::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:#334155; border-radius:3px; }
-::-webkit-scrollbar-thumb:hover { background:#475569; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:#cbd5e1; }
 
 
 /* ═══════════════════════════════════════════════════
@@ -182,30 +182,43 @@
    src/index.css 또는 main.jsx에서 import
    ═══════════════════════════════════════════════════ */
 
-/* ── CSS 변수 전역 설정 ─────────────────────────── */
+/* ── CSS 변수 전역 설정 (라이트 테마) ──────────────── */
 :root {
-  --bg:            #0a0f1a;
-  --surface:       #0f172a;
-  --card:          #111827;
-  --card2:         #1e293b;
-  --border:        #1e293b;
-  --border2:       #334155;
-  --text1:         #f1f5f9;
-  --text2:         #94a3b8;
-  --text3:         #64748b;
-  --accent:        #2563eb;
-  --up:            #ef4444;
-  --down:          #3b82f6;
+  --bg-base:        #F1F5F9;
+  --bg-panel:       #FFFFFF;
+  --bg-hover:       #EEF3FF;
+  --text-primary:   #0F172A;
+  --text-secondary: #64748B;
+  --text-dim:       #94A3B8;
+  --accent:         #1E40AF;
+  --accent-mid:     #2563EB;
+  --accent-light:   #DBEAFE;
+  --color-up:       #EF4444;
+  --color-down:     #2563EB;
+  --border:         #E2E8F0;
+  --shadow-sm:      0 2px 8px rgba(15,23,42,0.06);
+  --shadow-md:      0 4px 12px rgba(15,23,42,0.08);
+  /* 레거시 변수 — 기존 페이지 호환용 */
+  --bg:      #F1F5F9;
+  --surface: #FFFFFF;
+  --card:    #FFFFFF;
+  --card2:   #F8FAFC;
+  --border2: #CBD5E1;
+  --text1:   #0F172A;
+  --text2:   #64748B;
+  --text3:   #94A3B8;
+  --up:      #EF4444;
+  --down:    #2563EB;
 }
 
 /* ── 기본 body/html ──────────────────────────────── */
 body, html {
-  background: #0a0f1a !important;
-  color: #e2e8f0 !important;
+  background: var(--bg-base);
+  color: var(--text-primary);
 }
 
 /* ── 앱 콘텐츠 전체 배경 ─────────────────────────── */
-.app-content { background: #0a0f1a; }
+.app-content { background: var(--bg-base); }
 
 /* ══════════════════════════════════════════════════
    공통 라이트 테마 패턴 → 다크 강제 변환
@@ -950,8 +963,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-size: 12px; font-weight: 700; color: white; flex-shrink: 0;
 }
 .sidebar-user-info-sm { min-width: 0; flex: 1; }
-.sidebar-user-name-sm  { display: block; font-size: 11px; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sidebar-user-email-sm { display: block; font-size: 9px;  color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-user-name-sm  { display: block; font-size: 11px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-user-email-sm { display: block; font-size: 9px;  color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 하단 레이아웃 재정의 */
 .sidebar-bottom {
@@ -970,32 +983,32 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .sidebar.collapsed .sidebar-logout  { padding: 7px 8px !important; }
 
 /* 바로가기 섹션 */
-.sidebar-quicklinks { border-top: 1px solid #1e293b; padding-top: 4px; }
+.sidebar-quicklinks { border-top: 1px solid var(--border); padding-top: 4px; }
 .sidebar-ql-toggle {
   display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 9px 14px; color: #64748b; background: none; border: none;
+  padding: 9px 14px; color: var(--text-secondary); background: none; border: none;
   font-size: 13px; cursor: pointer; font-family: inherit; transition: all .12s;
 }
-.sidebar-ql-toggle:hover { background: rgba(255,255,255,.05); color: #cbd5e1; }
+.sidebar-ql-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
 .sidebar-ql-label { flex: 1; text-align: left; font-weight: 600; }
-.sidebar-ql-arrow  { font-size: 10px; color: #475569; }
+.sidebar-ql-arrow  { font-size: 10px; color: var(--text-dim); }
 .sidebar-ql-panel  { padding: 4px 0; }
 .sidebar-ql-item {
   display: flex; align-items: center; gap: 10px;
-  padding: 7px 14px 7px 20px; color: #64748b; text-decoration: none;
+  padding: 7px 14px 7px 20px; color: var(--text-secondary); text-decoration: none;
   font-size: 12px; transition: background .1s; border-bottom: none;
 }
-.sidebar-ql-item:hover { background: rgba(255,255,255,.04); color: #94a3b8; }
-.sidebar-ql-arrow-sm { margin-left: auto; font-size: 10px; color: #334155; }
+.sidebar-ql-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-ql-arrow-sm { margin-left: auto; font-size: 10px; color: var(--text-dim); }
 
-/* 테마 종목 칩 색상 강화 */
+/* 테마 종목 칩 색상 */
 .db-stock-chip {
   border-left: 2px solid transparent !important;
   transition: background .1s, border-color .12s !important;
 }
-.db-stock-chip:hover { background: rgba(255,255,255,.05) !important; }
+.db-stock-chip:hover { background: var(--bg-hover) !important; }
 .db-stock-price { display: flex; align-items: center; gap: 3px; flex-direction: column; }
 
 /* ETF 칩도 같이 */
 .db-etf-chip { transition: background .1s !important; }
-.db-etf-chip:hover { background: rgba(255,255,255,.05) !important; }
+.db-etf-chip:hover { background: var(--bg-hover) !important; }

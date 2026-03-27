@@ -45,7 +45,24 @@ export default async function handler(req, res) {
     return relay('/price', { stk_cd: q.code }, res)
   }
 
-  // 호가 — /api/kiwoom?type=hoga&code=005930
+  // 종목 기본정보 (PER/PBR/ROE 등) — /api/kiwoom?type=stockbasic&code=005930
+  if (q.type === 'stockbasic') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/stockbasic', { stk_cd: q.code }, res)
+  }
+
+  // 종목 현재가 상세 — /api/kiwoom?type=stockinfo&code=005930
+  if (q.type === 'stockinfo') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/stockinfo', { stk_cd: q.code }, res)
+  }
+
+  // 배치 현재가 (히트맵용) — /api/kiwoom?type=prices&codes=005930,000660,...
+  if (q.type === 'prices') {
+    const codes = (q.codes || '').split(',').map(c => c.trim()).filter(Boolean)
+    if (!codes.length) return res.status(400).json({ error: 'codes required' })
+    return relay('/prices', { codes }, res)
+  }
   if (q.type === 'hoga') {
     if (!q.code) return res.status(400).json({ error: 'code required' })
     return relay('/hoga', { stk_cd: q.code }, res)
@@ -258,7 +275,8 @@ export default async function handler(req, res) {
   return res.status(400).json({
     error: 'Invalid type',
     valid: [
-      'price', 'hoga', 'stock-chart', 'index-chart', 'index-price',
+      'price', 'stockbasic', 'stockinfo', 'prices',
+      'hoga', 'stock-chart', 'index-chart', 'index-price',
       'supply-foreign', 'supply-investor', 'supply-institution',
       'supply-short', 'supply-strength',
       'sector-all', 'sector-stocks',

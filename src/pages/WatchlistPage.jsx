@@ -1,6 +1,9 @@
 // src/pages/WatchlistPage.jsx
-// 관심종목 — 사용자 정의 카테고리 + 실시간 주가 + 차트/공시/뉴스/메모/주문
+// 관심종목 — 사용자 정의 카테고리 + 실시간 주가 + Firestore 동기화
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { db } from '../firebase'
+import { useAuth } from '../context/AuthContext'
 import ChartModal from '../components/ChartModal'
 import { ALL_THEMES } from '../constants/themes'
 import { fmt, fmtRate, rateColor, getKstStatus } from '../utils/format'
@@ -283,48 +286,90 @@ function StockSearch({ onAdd, existing }) {
 // 메인 WatchlistPage
 // ══════════════════════════════════════════════════════
 export default function WatchlistPage() {
+  const { user } = useAuth()
+
   // 카테고리 상태
   const [cats,    setCats]    = useState(() => lsGet(LS_KEY, DEFAULT_CATS))
   const [activeCat, setActiveCat] = useState(null)  // null = 전체
   const [adding,  setAdding]  = useState(false)
-  const [editCat, setEditCat] = useState(null)  // 카테고리 편집 중인 id
+  const [editCat, setEditCat] = useState(null)
   const [newCatName, setNewCatName] = useState('')
   const [showCatForm, setShowCatForm] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   // 가격 상태
   const [prices,  setPrices]  = useState({})
-  const [holdings, setHoldings] = useState({})  // 보유종목
+  const [holdings, setHoldings] = useState({})
 
   // UI 상태
   const [chartStock, setChartStock] = useState(null)
   const [memoStock,  setMemoStock]  = useState(null)
   const [memoText,   setMemoText]   = useState('')
   const [memos,      setMemos]      = useState(() => lsGet('wl_memos', {}))
-  const [sortKey,    setSortKey]    = useState('name')  // name|price|change|rate|vol
+  const [sortKey,    setSortKey]    = useState('name')
   const [sortDir,    setSortDir]    = useState(1)
+
+  // ── Firestore 경로 ─────────────────────────────────
+  const fsDocRef = user ? doc(db, 'watchlists', user.uid) : null
+
+  // ── Firestore → 로드 (마운트 시 1회) ──────────────
+  useEffect(() => {
+    if (!fsDocRef) return
+    const load = async () => {
+      try {
+        const snap = await getDoc(fsDocRef)
+        if (snap.exists()) {
+          const data = snap.data()
+          if (data.cats?.length) {
+            setCats(data.cats)
+            lsSet(LS_KEY, data.cats)
+          }
+          if (data.memos) {
+            setMemos(data.memos)
+            lsSet('wl_memos', data.memos)
+          }
+        }
+      } catch (e) { console.error('Firestore load:', e) }
+    }
+    load()
+  }, [user?.uid])
+
+  // ── Firestore → 저장 ───────────────────────────────
+  const saveToFirestore = useCallback(async (nextCats, nextMemos) => {
+    if (!fsDocRef) return
+    setSyncing(true)
+    try {
+      await setDoc(fsDocRef, {
+        cats:      nextCats  ?? cats,
+        memos:     nextMemos ?? memos,
+        updatedAt: Date.now(),
+      }, { merge: true })
+    } catch (e) { console.error('Firestore save:', e) }
+    finally { setSyncing(false) }
+  }, [fsDocRef, cats, memos])
+
+  // ── 카테고리 저장 (localStorage + Firestore) ───────
+  const saveCats = useCallback((next) => {
+    setCats(next)
+    lsSet(LS_KEY, next)
+    saveToFirestore(next, null)
+  }, [saveToFirestore])
 
   // ── 현재 카테고리 종목 ──────────────────────────────
   const activeCatData = cats.find(c => c.id === activeCat) || null
   const allStocks = [...new Map(cats.flatMap(c => c.stocks).map(s => [s.code, s])).values()]
   const displayStocks = activeCat ? (activeCatData?.stocks || []) : allStocks
 
-  // ── 카테고리 저장 ──────────────────────────────────
-  const saveCats = useCallback((next) => {
-    setCats(next)
-    lsSet(LS_KEY, next)
-  }, [])
-
   // ── 가격 조회 ──────────────────────────────────────
   const fetchPrices = useCallback(async () => {
     const codes = [...new Set(allStocks.map(s => s.code))]
     if (!codes.length) return
     try {
-      const res = await fetch(`/api/kiwoom?type=prices&codes=${codes.join(',')}`)
+      const res  = await fetch(`/api/kiwoom?type=prices&codes=${codes.join(',')}`)
       const data = await res.json()
-      if (data.prices) {
-        const map = {}
-        data.prices.forEach(p => { if (p?.code) map[p.code] = p })
-        setPrices(map)
+      // /api/kiwoom?type=prices 는 { code: {price, change, changeRate} } 객체 맵 반환
+      if (data && typeof data === 'object' && !data.error) {
+        setPrices(data)
       }
     } catch {}
   }, [allStocks.map(s => s.code).join(',')])
@@ -417,6 +462,7 @@ export default function WatchlistPage() {
     const next = { ...memos, [memoStock.code]: memoText }
     setMemos(next)
     lsSet('wl_memos', next)
+    saveToFirestore(null, next)
     setMemoStock(null)
   }
 
@@ -431,6 +477,8 @@ export default function WatchlistPage() {
           <p className="page-sub">원하는 종목 모음 · 실시간 주가 · 카테고리 관리</p>
         </div>
         <div className="wl-header-actions">
+          {syncing && <span className="wl-sync-badge">☁ 동기화 중...</span>}
+          {user && !syncing && <span className="wl-sync-badge wl-sync-ok">☁ 동기화됨</span>}
           <button className="wl-btn-refresh" onClick={() => { fetchPrices(); fetchHoldings() }} title="새로고침">↺ 새로고침</button>
           {activeCat && (
             <button className="wl-btn-add" onClick={() => setAdding(v => !v)}>
