@@ -274,18 +274,54 @@ function HeroChart({ selId, dashData, globalData, forexData }) {
 
   const renderLine = () => {
     if (!candles.length) return <div className="db-hero-empty">데이터를 불러오는 중...</div>
-    const W=800,H=190,pL=64,pR=16,pT=10,pB=28
+    const W=800,H=190,pL=68,pR=16,pT=10,pB=28
     const cW=W-pL-pR,cH=H-pT-pB
     const closes=candles.map(c=>c.close)
-    const min=Math.min(...closes)*0.998,max=Math.max(...closes)*1.002,rng=max-min||1
-    const py=v=>pT+cH-(v-min)/rng*cH
+    const rawMin=Math.min(...closes), rawMax=Math.max(...closes)
+    const pad=(rawMax-rawMin)*0.05||rawMax*0.01
+
+    // ── Y축: 보기 좋은 눈금 자동 계산 ──
+    const niceNum=(r,round)=>{const e=Math.floor(Math.log10(r));const f=r/Math.pow(10,e);let nf;if(round){if(f<1.5)nf=1;else if(f<3)nf=2;else if(f<7)nf=5;else nf=10;}else{if(f<=1)nf=1;else if(f<=2)nf=2;else if(f<=5)nf=5;else nf=10;}return nf*Math.pow(10,e)}
+    const tickInterval=niceNum((rawMax-rawMin)/4,true)
+    const yMin=Math.floor((rawMin-pad)/tickInterval)*tickInterval
+    const yMax=Math.ceil( (rawMax+pad)/tickInterval)*tickInterval
+    const yRng=yMax-yMin||1
+    const py=v=>pT+cH-(v-yMin)/yRng*cH
     const px=i=>pL+(i/(candles.length-1||1))*cW
     const pts=candles.map((c,i)=>`${px(i)},${py(c.close)}`).join(' ')
-    const step=Math.max(1,Math.floor(candles.length/6))
-    const xLabels=candles.filter((_,i)=>i%step===0||i===candles.length-1).slice(0,7).map(c=>{
-      const idx=candles.indexOf(c); const d=String(c.date||'')
-      return {x:px(idx),lbl:d.length>=8?`${d.slice(4,6)}/${d.slice(6,8)}`:d}
-    })
+
+    // Y 눈금 목록
+    const yTicks=[]
+    for(let v=yMin;v<=yMax+tickInterval*0.01;v+=tickInterval) yTicks.push(Math.round(v*100)/100)
+
+    // ── X축: 기간별 레이블 형식 ──
+    // 1년/6개월 → 'YY년MM월' or 'MM월' 단위 / 3개월/1개월 → MM/DD
+    const useMon = range==='1y' || range==='6mo'
+    const useYr  = range==='1y'
+    const xLabels=[]
+    if (useMon) {
+      // 월이 바뀌는 첫 캔들만 표시
+      let lastMon=''
+      candles.forEach((c,i)=>{
+        const d=String(c.date||''); if(d.length<6) return
+        const yr=d.slice(2,4), mo=d.slice(4,6)
+        const key=`${yr}${mo}`
+        if(key!==lastMon){ lastMon=key; xLabels.push({x:px(i), lbl: useYr ? `${yr}년${mo}월` : `${mo}월`}) }
+      })
+    } else {
+      const step=Math.max(1,Math.floor(candles.length/6))
+      candles.forEach((c,i)=>{
+        if(i%step===0||i===candles.length-1){
+          const d=String(c.date||'')
+          xLabels.push({x:px(i), lbl:d.length>=8?`${d.slice(4,6)}/${d.slice(6,8)}`:d})
+        }
+      })
+    }
+    // X 레이블 최대 8개로 제한 (겹침 방지)
+    const filteredX = xLabels.length>8
+      ? xLabels.filter((_,i)=>i%(Math.ceil(xLabels.length/7))===0)
+      : xLabels
+
     return (
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block'}}>
         <defs>
@@ -294,19 +330,23 @@ function HeroChart({ selId, dashData, globalData, forexData }) {
             <stop offset="100%" stopColor={accent} stopOpacity="0"/>
           </linearGradient>
         </defs>
-        {[0,1,2,3].map(i=>{
-          const v=min+rng/3*i; const y=py(v)
+        {/* Y축 그리드 + 눈금 */}
+        {yTicks.map((v,i)=>{
+          const y=py(v)
+          if(y<pT-2||y>pT+cH+2) return null
           return <g key={i}>
-            <line x1={pL} x2={pL+cW} y1={y} y2={y} stroke="rgba(255,255,255,0.05)" strokeDasharray="3,4"/>
+            <line x1={pL} x2={pL+cW} y1={y} y2={y} stroke="rgba(255,255,255,0.06)" strokeDasharray="3,4"/>
             <text x={pL-5} y={y+4} textAnchor="end" fontSize="10" fill="#475569">
-              {v>1000?Math.round(v).toLocaleString():v.toFixed(2)}
+              {v>=1000?Math.round(v).toLocaleString():v>=10?v.toFixed(1):v.toFixed(2)}
             </text>
           </g>
         })}
+        {/* 영역 + 라인 */}
         <polygon points={`${pL},${pT+cH} ${pts} ${px(candles.length-1)},${pT+cH}`} fill="url(#hg)"/>
         <polyline points={pts} fill="none" stroke={accent} strokeWidth="1.8"/>
         <circle cx={px(candles.length-1)} cy={py(closes[closes.length-1])} r="4" fill={accent} stroke="#0a0f1a" strokeWidth="2"/>
-        {xLabels.map((l,i)=>(
+        {/* X축 레이블 */}
+        {filteredX.map((l,i)=>(
           <text key={i} x={l.x} y={H-6} textAnchor="middle" fontSize="10" fill="#475569">{l.lbl}</text>
         ))}
       </svg>
