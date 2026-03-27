@@ -431,7 +431,7 @@ const GLOBAL_SYMBOLS = {
   // 채권/금리
   'US10Y':  '%5ETNX',     // 미국 10년
   'US2Y':   '%5EIRX',     // 미국 단기(3M T-Bill 대리)
-  'KR10Y':  'KR10YT%3DRR', // 한국 10년
+  'KR10Y':  '%5EKRX', // 한국 10년 (KRX composite as proxy)
   // 원자재
   'WTI':    'CL%3DF',     // WTI 원유
   'BRENT':  'BZ%3DF',     // 브렌트유
@@ -446,6 +446,16 @@ const GLOBAL_SYMBOLS = {
 // ── 단일 해외지수 조회 헬퍼 ────────────────────────────
 async function fetchOneGlobal(sym, range = '3mo') {
   const yahooSym = GLOBAL_SYMBOLS[sym]
+  // KR10Y fallback symbols
+  if (sym === 'KR10Y') {
+    for (const altSym of ['KR10YT%3DRR','%5EKR10YT%3DRR','KRGB10YD%3DRR']) {
+      try {
+        const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${altSym}?interval=1d&range=5d`,{ headers:{ 'User-Agent':'Mozilla/5.0' }})
+        if (r.ok) { const j = await r.json(); if (j.chart?.result?.[0]?.meta?.regularMarketPrice) { return await _fetchOneGlobal(altSym, range) } }
+      } catch {}
+    }
+    return { symbol: sym, error: 'KR10Y 데이터 없음' }
+  }
   if (!yahooSym) return { symbol: sym, error: '알 수 없는 심볼' }
   const interval = (range === '5y' || range === '2y') ? '1mo' : range === '1y' ? '1wk' : '1d'
   try {
@@ -764,6 +774,46 @@ export default async function handler(req, res) {
           output2_first: raw.output2?.[0] || null,
           output2_keys:  raw.output2?.[0] ? Object.keys(raw.output2[0]) : [],
         })
+      }
+
+      // ── 기준금리 (FRED API) ──────────────────────────
+      case 'central-rates': {
+        // FRED 심볼: 미국 FEDFUNDS, 일본 IRSTCI01JPM156N, 중국 IRSTCI01CNM156N, 유럽 ECBDFR
+        const FRED_SERIES = {
+          US:  'FEDFUNDS',              // 미국 연방기금금리
+          JP:  'IRSTCI01JPM156N',       // 일본 기준금리
+          CN:  'IRSTCI01CNM156N',       // 중국 기준금리
+          EU:  'ECBDFR',                // 유럽 ECB 예금금리
+        }
+        // 한국은행 ECOS API (FRED에 없음) → 고정값 fallback
+        const KR_RATE = { rate: 2.75, date: '2025-02', note: '한국은행 기준금리' }
+
+        const fetchFRED = async (series) => {
+          try {
+            const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${series}&vintage_date=${new Date().toISOString().slice(0,10)}`
+            const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+            if (!r.ok) return null
+            const text = await r.text()
+            const lines = text.trim().split('\n').filter(l => !l.startsWith('DATE') && l.trim())
+            const last = lines[lines.length - 1]
+            if (!last) return null
+            const [date, val] = last.split(',')
+            const rate = parseFloat(val)
+            if (isNaN(rate)) return null
+            return { rate, date: date?.trim() }
+          } catch { return null }
+        }
+
+        const results = await Promise.allSettled(
+          Object.entries(FRED_SERIES).map(([k, v]) => fetchFRED(v).then(r => ({ k, r })))
+        )
+        const rates = { KR: KR_RATE }
+        results.forEach(r => {
+          if (r.status === 'fulfilled' && r.value?.r) {
+            rates[r.value.k] = r.value.r
+          }
+        })
+        return res.json(rates)
       }
 
       default:
