@@ -257,5 +257,4 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
     </div>
   )
 }
--e 
 export default HeroChart
