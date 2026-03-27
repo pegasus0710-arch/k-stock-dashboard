@@ -152,52 +152,6 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
     )
   }
 
-  // ── 차트 하단 소형 카드 렌더러 ─────────────────────────
-  const BOTTOM_GROUPS = SECTOR_GROUPS.filter(g => ['forex','commodity','sentiment'].includes(g.id))
-
-  const renderBottomCards = () => (
-    <div className="db-bottom-cards">
-      {BOTTOM_GROUPS.map(grp => (
-        <div key={grp.id} className="db-bottom-group">
-          <div className="db-bottom-group-label" style={{color:grp.accent}}>{grp.label}</div>
-          <div className="db-bottom-group-items">
-            {grp.items.map(it => {
-              const d    = grp.id==='forex' ? forexData?.[it.pair]
-                         : globalData?.[it.sym]
-              const rate = d?.changeRate
-              const up   = rate > 0
-              const pc   = rate != null ? rateColor(rate) : '#64748b'
-              const badge = getMarketBadge(it, d)
-              const isClosed = badge?.label === '전일'
-              const active = selId === it.id
-              return (
-                <button key={it.id}
-                  className={`db-bottom-card ${active?'active':''}`}
-                  style={active?{'--bc':it.color||grp.accent}:{}}
-                  onClick={()=>onSelChange(it.id)}>
-                  <div className="db-bottom-name">{it.label}</div>
-                  {d?.price != null ? (
-                    <>
-                      <div className="db-bottom-price" style={{color: isClosed?'var(--text-dim)':'var(--text-primary)'}}>
-                        {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}{it.unit||''}
-                      </div>
-                      {rate != null && (
-                        <div className="db-bottom-rate" style={{color:pc}}>
-                          {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{fontSize:10,color:'var(--text-dim)'}}>—</div>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
 
   if (item?.type==='cb') {
     const d = null // cb has no chart
@@ -252,8 +206,6 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
           : renderLine()
         }
       </div>
-      {/* 차트 하단: 환율 + 원자재 + 심리·달러 소형 카드 */}
-      {renderBottomCards()}
     </div>
   )
 }
