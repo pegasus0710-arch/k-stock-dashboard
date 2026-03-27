@@ -24,17 +24,29 @@ export function GaugeBar({ id, price }) {
 }
 
 export function TooltipIcon({ id }) {
-  const [show, setShow] = useState(false)
+  const [pos, setPos] = useState(null)
   const g = GUIDE_DATA[id]
   if (!g) return null
+
+  const handleMouseEnter = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const tooltipW = 260
+    const left = rect.right + 8
+    const right = window.innerWidth - left
+    // 오른쪽 공간 부족하면 왼쪽에 표시
+    const x = right < tooltipW + 16 ? rect.left - tooltipW - 8 : left
+    const y = Math.min(rect.top, window.innerHeight - 200)
+    setPos({ x, y })
+  }
+
   return (
     <span className="db-tooltip-wrap"
-      onMouseEnter={()=>setShow(true)}
-      onMouseLeave={()=>setShow(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={()=>setPos(null)}
       onClick={e=>e.stopPropagation()}>
       <span className="db-tooltip-icon">?</span>
-      {show && (
-        <div className="db-tooltip-box">
+      {pos && (
+        <div className="db-tooltip-box" style={{ left: pos.x, top: pos.y }}>
           <div className="db-tooltip-title">{g.title}</div>
           <div className="db-tooltip-desc">{g.desc}</div>
           {g.tip && <div className="db-tooltip-tip">{g.tip}</div>}
