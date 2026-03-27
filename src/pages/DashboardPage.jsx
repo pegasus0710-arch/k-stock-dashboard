@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import GlobalChartModal from '../components/GlobalChartModal'
 import { rateColor, getTodayStr, getNowTime, getKstStatus, isMarketOpen, isUSMarketOpen, getDashTTL } from '../utils/format'
+import { ALL_THEMES } from '../constants/themes'
 import './DashboardPage.css'
 
 // ── 캐시 키 ──────────────────────────────────────────
@@ -563,6 +564,209 @@ function GuideModal({ onClose }) {
 }
 
 // ══════════════════════════════════════════════════════
+// ④ 업종 히트맵 + 섹터 팝업
+// ══════════════════════════════════════════════════════
+
+// 등락률 → 히트맵 배경색
+function heatColor(rate) {
+  if (rate == null) return { bg:'#F1F5F9', text:'#64748B' }
+  if (rate >=  3)   return { bg:'#7F1D1D', text:'#FEE2E2' }
+  if (rate >=  1.5) return { bg:'#DC2626', text:'#FEF2F2' }
+  if (rate >=  0.3) return { bg:'#EF4444', text:'#FFFFFF' }
+  if (rate >= -0.3) return { bg:'#F8FAFC', text:'#475569' }
+  if (rate >= -1.5) return { bg:'#2563EB', text:'#DBEAFE' }
+  if (rate >= -3)   return { bg:'#1D4ED8', text:'#EFF6FF' }
+  return             { bg:'#1E3A8A', text:'#BFDBFE' }
+}
+
+// 섹터 팝업
+function SectorPopup({ theme, prices, onClose }) {
+  useEffect(() => {
+    const fn = e => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [onClose])
+
+  return (
+    <div className="chart-modal-overlay" onClick={onClose}>
+      <div className="db-sector-popup" onClick={e => e.stopPropagation()}>
+        {/* 헤더 */}
+        <div className="db-sector-popup-header">
+          <div style={{display:'flex', alignItems:'center', gap:8}}>
+            <span style={{fontSize:20}}>{theme.emoji}</span>
+            <div>
+              <div className="db-sector-popup-title">{theme.label}</div>
+              <div className="db-sector-popup-desc">{theme.desc}</div>
+            </div>
+          </div>
+          <button className="chart-modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        {/* 키워드 */}
+        <div className="db-sector-popup-keywords">
+          {theme.keywords.map(k => (
+            <span key={k} className="db-sector-kw">{k}</span>
+          ))}
+        </div>
+
+        {/* 대표 ETF */}
+        {theme.etf?.length > 0 && (
+          <div className="db-sector-popup-section">
+            <div className="db-sector-popup-section-label">📦 대표 ETF</div>
+            <div className="db-sector-stock-list">
+              {theme.etf.map(e => {
+                const p = prices?.[e.code]
+                const rate = p?.changeRate
+                const up = rate > 0
+                const pc = rate != null ? rateColor(rate) : '#94A3B8'
+                return (
+                  <div key={e.code} className="db-sector-stock-row">
+                    <div className="db-sector-stock-info">
+                      <span className="db-sector-stock-name">{e.name}</span>
+                      <span className="db-sector-stock-code">{e.code}</span>
+                    </div>
+                    {p?.price != null ? (
+                      <div className="db-sector-stock-price">
+                        <span className="db-sector-stock-val">{p.price.toLocaleString()}원</span>
+                        <span className="db-sector-stock-rate" style={{color:pc}}>
+                          {rate!=null ? `${up?'▲':'▼'}${Math.abs(rate).toFixed(2)}%` : '—'}
+                        </span>
+                      </div>
+                    ) : <span className="db-sector-stock-na">—</span>}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 구성 종목 */}
+        <div className="db-sector-popup-section">
+          <div className="db-sector-popup-section-label">📊 구성 종목</div>
+          <div className="db-sector-stock-list">
+            {theme.stocks.map(s => {
+              const p = prices?.[s.code]
+              const rate = p?.changeRate
+              const up = rate > 0
+              const pc = rate != null ? rateColor(rate) : '#94A3B8'
+              return (
+                <div key={s.code} className="db-sector-stock-row">
+                  <div className="db-sector-stock-info">
+                    <span className="db-sector-stock-name">{s.name}</span>
+                    <span className="db-sector-stock-desc">{s.desc}</span>
+                  </div>
+                  {p?.price != null ? (
+                    <div className="db-sector-stock-price">
+                      <span className="db-sector-stock-val">{p.price.toLocaleString()}원</span>
+                      <span className="db-sector-stock-rate" style={{color:pc}}>
+                        {rate!=null ? `${up?'▲':'▼'}${Math.abs(rate).toFixed(2)}%` : '—'}
+                      </span>
+                    </div>
+                  ) : <span className="db-sector-stock-na">—</span>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 히트맵 섹션
+const LS_HEATMAP = 'db_heatmap_v1'
+
+function HeatmapSection() {
+  const [prices,     setPrices]     = useState(() => {
+    try { const r=localStorage.getItem(LS_HEATMAP); if(!r) return {}
+          const {data,ts}=JSON.parse(r); return Date.now()-ts<300000?data:{} } catch { return {} }
+  })
+  const [loading,    setLoading]    = useState(false)
+  const [popupTheme, setPopupTheme] = useState(null)
+
+  // 전체 종목 코드 수집
+  const allCodes = ALL_THEMES.flatMap(t => [
+    ...t.etf.map(e => e.code),
+    ...t.stocks.map(s => s.code),
+  ])
+
+  const fetchPrices = useCallback(async () => {
+    setLoading(true)
+    try {
+      const chunks = []
+      for (let i = 0; i < allCodes.length; i += 20)
+        chunks.push(allCodes.slice(i, i + 20))
+
+      const results = {}
+      await Promise.all(chunks.map(async chunk => {
+        try {
+          const res = await fetch(`/api/kiwoom?type=prices&codes=${chunk.join(',')}`)
+          const data = await res.json()
+          if (data && typeof data === 'object') Object.assign(results, data)
+        } catch {}
+      }))
+      setPrices(results)
+      localStorage.setItem(LS_HEATMAP, JSON.stringify({data:results, ts:Date.now()}))
+    } catch {}
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { fetchPrices() }, [fetchPrices])
+
+  // 테마별 평균 등락률 계산
+  const getThemeRate = theme => {
+    const rates = theme.stocks
+      .map(s => prices?.[s.code]?.changeRate)
+      .filter(r => r != null)
+    if (!rates.length) return null
+    return rates.reduce((a,b) => a+b, 0) / rates.length
+  }
+
+  return (
+    <div className="db-heatmap-section">
+      <div className="db-section-header">
+        <span className="db-section-label">🏷️ 업종·테마 히트맵</span>
+        <button className="btn-outline" style={{fontSize:10,padding:'3px 8px'}}
+          onClick={fetchPrices} disabled={loading}>
+          {loading ? '로딩...' : '⟳ 새로고침'}
+        </button>
+      </div>
+      <div className="db-heatmap-grid">
+        {ALL_THEMES.map(theme => {
+          const rate = getThemeRate(theme)
+          const { bg, text } = heatColor(rate)
+          return (
+            <button key={theme.id}
+              className="db-heatmap-cell"
+              style={{background:bg, color:text}}
+              onClick={() => setPopupTheme(theme)}>
+              <span className="db-heatmap-emoji">{theme.emoji}</span>
+              <span className="db-heatmap-name">{theme.label}</span>
+              <span className="db-heatmap-rate">
+                {rate != null
+                  ? `${rate>=0?'▲':'▼'}${Math.abs(rate).toFixed(2)}%`
+                  : '—'}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      <div style={{fontSize:10, color:'var(--text-dim)', marginTop:8}}>
+        * 구성 종목 평균 등락률 기준 · 클릭 시 종목 상세
+      </div>
+
+      {popupTheme && (
+        <SectorPopup
+          theme={popupTheme}
+          prices={prices}
+          onClose={() => setPopupTheme(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════
 // ④ AI 브리핑
 // ══════════════════════════════════════════════════════
 function AiBriefing() {
@@ -759,7 +963,8 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ── 영역 3: 하단 업종 히트맵 (Step 3-3에서 구현) ── */}
+      {/* ── 영역 3: 하단 업종 히트맵 ── */}
+      <HeatmapSection/>
 
       <AiBriefing/>
 
