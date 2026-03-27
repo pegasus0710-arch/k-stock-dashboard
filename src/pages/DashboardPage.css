@@ -570,7 +570,11 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .ai-drawer-content {
-  flex: 1; overflow-y: auto; padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px;
+  min-height: 0; /* flex 자식 스크롤 필수 */
 }
 .ai-drawer-text {
   white-space: pre-wrap; font-family: var(--font-kr, sans-serif);

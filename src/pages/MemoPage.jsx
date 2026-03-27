@@ -137,12 +137,14 @@ function MemoEditor({ memo, categories, onSave, onClose }) {
   const [titleColor, setTitleColor] = useState(memo?.titleColor || '#f1f5f9')
   const [textColor,  setTextColor]  = useState(memo?.textColor  || '#cbd5e1')
   const [fontSize,   setFontSize]   = useState(memo?.fontSize   || 14)
-  const [category,   setCategory]   = useState(memo?.category   || '')   // ← 카테고리 (1개)
-  const [tags,       setTags]       = useState(memo?.tags       || [])   // ← 태그 (여러개)
+  const [category,   setCategory]   = useState(memo?.category   || '')
+  const [tags,       setTags]       = useState(memo?.tags       || [])
   const [tagInput,   setTagInput]   = useState('')
   const [saving,     setSaving]     = useState(false)
   const [saveError,  setSaveError]  = useState('')
   const [saveOk,     setSaveOk]     = useState(false)
+  // AI브리핑용 읽기모드 토글 (기본: 읽기모드)
+  const [viewMode,   setViewMode]   = useState(memo?.category === 'AI브리핑')
   const textRef = useRef(null)
 
   // 태그 추가 (직접 입력)
@@ -196,7 +198,7 @@ function MemoEditor({ memo, categories, onSave, onClose }) {
 
   return (
     <div className="mp-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="mp-editor" style={{ background: bgColor }}>
+      <div className="mp-editor mp-editor-resizable" style={{ background: bgColor }}>
 
         {/* ── 툴바 1행: 색상·크기·서식·삽입 ── */}
         <div className="mp-editor-toolbar">
@@ -293,12 +295,30 @@ function MemoEditor({ memo, categories, onSave, onClose }) {
           value={title} onChange={e => setTitle(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); textRef.current?.focus() }}}/>
 
-        {/* 본문 */}
-        <textarea ref={textRef} className="mp-content-input"
-          style={{ color: textColor, fontSize: fontSize + 'px', background: 'transparent' }}
-          placeholder={'내용을 입력하세요...\n\n• 투자 아이디어\n• 종목 분석 메모\n• 매매 전략\n• 공부 내용'}
-          value={content} onChange={e => setContent(e.target.value)}
-          onKeyDown={handleKeyDown}/>
+        {/* AI브리핑 읽기/편집 토글 */}
+        {category === 'AI브리핑' && (
+          <div className="mp-viewmode-toggle">
+            <button
+              className={`mp-viewmode-btn ${viewMode ? 'active' : ''}`}
+              onClick={() => setViewMode(true)}>📖 읽기</button>
+            <button
+              className={`mp-viewmode-btn ${!viewMode ? 'active' : ''}`}
+              onClick={() => setViewMode(false)}>✏️ 편집</button>
+          </div>
+        )}
+
+        {/* 본문 — 읽기모드(마크다운) / 편집모드(textarea) */}
+        {viewMode && category === 'AI브리핑' ? (
+          <div className="mp-content-preview" style={{ color: textColor, fontSize: fontSize + 'px' }}>
+            <MarkdownRenderer text={content}/>
+          </div>
+        ) : (
+          <textarea ref={textRef} className="mp-content-input"
+            style={{ color: textColor, fontSize: fontSize + 'px', background: 'transparent' }}
+            placeholder={'내용을 입력하세요...\n\n• 투자 아이디어\n• 종목 분석 메모\n• 매매 전략\n• 공부 내용'}
+            value={content} onChange={e => setContent(e.target.value)}
+            onKeyDown={handleKeyDown}/>
+        )}
 
         {/* 하단 */}
         <div className="mp-editor-footer">
