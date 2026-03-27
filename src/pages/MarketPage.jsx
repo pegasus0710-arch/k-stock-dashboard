@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import StockChartModal from '../components/StockChartModal'
+import ChartModal from '../components/ChartModal'
 import { fmt, fmtRate, rateColor, getKstStatus } from '../utils/format'
 import './MarketPage.css'
 
@@ -67,15 +67,14 @@ const MARKET_STAT_LINKS = [
 
 // ── 히트맵 색상 계산 ─────────────────────────────────
 function heatmapColor(rate) {
-  if (rate === null || rate === undefined) return { bg: '#1e293b', text: '#64748b' }
-  if (rate >=  3.0) return { bg: '#166534', text: '#86efac' }
-  if (rate >=  1.5) return { bg: '#15803d', text: '#bbf7d0' }
-  if (rate >=  0.5) return { bg: '#166534', text: '#4ade80' }
-  if (rate >=  0.0) return { bg: '#14532d', text: '#86efac' }
-  if (rate >= -0.5) return { bg: '#7f1d1d', text: '#fca5a5' }
-  if (rate >= -1.5) return { bg: '#991b1b', text: '#fecaca' }
-  if (rate >= -3.0) return { bg: '#b91c1c', text: '#fee2e2' }
-  return { bg: '#7f1d1d', text: '#fca5a5' }
+  if (rate === null || rate === undefined) return { bg: '#F1F5F9', text: '#64748B' }
+  if (rate >=  3.0) return { bg: '#7F1D1D', text: '#FEE2E2' }
+  if (rate >=  1.5) return { bg: '#DC2626', text: '#FEF2F2' }
+  if (rate >=  0.3) return { bg: '#EF4444', text: '#FFFFFF' }
+  if (rate >=  0.0) return { bg: '#F8FAFC', text: '#475569' }
+  if (rate >= -1.5) return { bg: '#2563EB', text: '#DBEAFE' }
+  if (rate >= -3.0) return { bg: '#1D4ED8', text: '#EFF6FF' }
+  return { bg: '#1E3A8A', text: '#BFDBFE' }
 }
 
 // ── 섹터 히트맵 셀 ───────────────────────────────────
@@ -243,7 +242,7 @@ export default function MarketPage() {
       // 키움 API로 업종별 현재 등락률 조회
       const results = await Promise.allSettled(
         HEATMAP_SECTORS.map(s =>
-          fetch(`/api/kiwoom?type=sector-price&inds_cd=${s.inds_cd}&mrkt=${s.mrkt}`)
+          fetch(`/api/kiwoom?type=index-price&inds_cd=${s.inds_cd}&mrkt_tp=${s.mrkt}`)
             .then(r => r.json())
             .catch(() => null)
         )
@@ -264,14 +263,11 @@ export default function MarketPage() {
   const loadThemePrices = useCallback(async () => {
     try {
       const allCodes = [...new Set(ISSUE_THEMES.flatMap(t => t.codes))]
-      const res = await fetch(`/api/kis?type=prices&codes=${allCodes.join(',')}`).then(r => r.json())
-      const map = {}
-      ;(res.prices || []).forEach(p => { if (p?.code) map[p.code] = p })
-
-      // 테마별 평균 등락률 계산
+      const map = await fetch(`/api/kiwoom?type=prices&codes=${allCodes.join(',')}`).then(r => r.json())
+      // 새 API: { code: { price, changeRate } } 객체 형식
       const themeRates = {}
       ISSUE_THEMES.forEach(t => {
-        const rates = t.codes.map(c => map[c]?.changeRate).filter(r => r !== undefined)
+        const rates = t.codes.map(c => map[c]?.changeRate).filter(r => r !== undefined && r !== null)
         themeRates[t.name] = rates.length
           ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length * 100) / 100
           : null
@@ -408,7 +404,7 @@ export default function MarketPage() {
 
                 {/* 컬러 범례 */}
                 <div className="mp-heatmap-legend">
-                  {[[-4,'#7f1d1d'],[-2,'#991b1b'],[-0.5,'#b91c1c'],[0,'#1e293b'],[0.5,'#14532d'],[2,'#15803d'],[4,'#166534']].map(([v,bg]) => (
+                  {[[-4,'#1E3A8A'],[-2,'#1D4ED8'],[-0.3,'#2563EB'],[0,'#F1F5F9'],[0.3,'#EF4444'],[2,'#DC2626'],[4,'#7F1D1D']].map(([v,bg]) => (
                     <div key={v} className="mp-legend-item">
                       <div className="mp-legend-dot" style={{ background: bg }}/>
                       <span>{v > 0 ? '+' : ''}{v}%</span>
@@ -689,7 +685,7 @@ export default function MarketPage() {
         </div>
       )}
 
-      {chartStock && <StockChartModal stock={chartStock} onClose={() => setChartStock(null)}/>}
+      {chartStock && <ChartModal code={chartStock.code} name={chartStock.name} onClose={() => setChartStock(null)}/>}
     </div>
   )
 }
