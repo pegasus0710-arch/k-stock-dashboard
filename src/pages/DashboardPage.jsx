@@ -11,15 +11,15 @@ const LS_GLOBAL  = 'db_global_v4'
 const LS_FOREX   = 'db_forex_krw_v1'
 const LS_RATES   = 'db_central_rates_v1'
 
-const BATCH_SYMBOLS = ['SP500','NASDAQ','DOW','N225','HSI','SSE','TWI','DAX','US10Y','US2Y','KR10Y','WTI','BRENT','GOLD','SILVER','COPPER','VIX','DXY']
+const BATCH_SYMBOLS = ['KS11','KQ11','SP500','NASDAQ','DOW','N225','HSI','SSE','TWI','DAX','US10Y','US2Y','KR10Y','WTI','BRENT','GOLD','SILVER','COPPER','VIX','DXY']
 
 // ══════════════════════════════════════════════════════
 // 섹터 그룹 정의
 // ══════════════════════════════════════════════════════
 const SECTOR_GROUPS = [
   { id:'domestic',  label:'🇰🇷 국내 지수',   accent:'#2563eb', items:[
-    { id:'KOSPI',  label:'KOSPI',   type:'dash',   field:'kospi',  color:'#3b82f6' },
-    { id:'KOSDAQ', label:'KOSDAQ',  type:'dash',   field:'kosdaq', color:'#22c55e' },
+    { id:'KOSPI',  label:'KOSPI',   type:'global', sym:'KS11',   color:'#3b82f6' },
+    { id:'KOSDAQ', label:'KOSDAQ',  type:'global', sym:'KQ11',   color:'#22c55e' },
   ]},
   { id:'global',    label:'🌍 해외 지수',    accent:'#64748b', items:[
     { id:'SP500',  label:'S&P 500',  type:'global', sym:'SP500',  color:'#ef4444' },
@@ -111,7 +111,6 @@ function Skeleton({ w='60%', h=14, r=3 }) {
 
 // ── 데이터 getter ─────────────────────────────────────
 function getItemData(item, dashData, globalData, forexData, cbRates) {
-  if (item.type==='dash')   return dashData?.[item.field] || null
   if (item.type==='global') return globalData?.[item.sym] || null
   if (item.type==='forex')  {
     const d = forexData?.[item.pair]
@@ -148,9 +147,12 @@ function SectorAccordion({ selId, onSelChange, dashData, globalData, forexData, 
     )
   }
 
+  // 아코디언에서 환율/원자재/심리는 하단 카드로 이동 → 제외
+  const ACCORDION_GROUPS = SECTOR_GROUPS.filter(g => !['commodity','sentiment','forex'].includes(g.id))
+
   return (
     <div className="db-accordion">
-      {SECTOR_GROUPS.map(group => {
+      {ACCORDION_GROUPS.map(group => {
         const isOpen = openGroups.includes(group.id)
         return (
           <div key={group.id} className="db-accordion-group"
@@ -224,7 +226,7 @@ function SectorAccordion({ selId, onSelChange, dashData, globalData, forexData, 
 // ══════════════════════════════════════════════════════
 // ② HERO 차트
 // ══════════════════════════════════════════════════════
-function HeroChart({ selId, dashData, globalData, forexData }) {
+function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
   const [range,   setRange]   = useState('3mo')
   const [candles, setCandles] = useState([])
   const [loading, setLoading] = useState(false)
@@ -240,12 +242,7 @@ function HeroChart({ selId, dashData, globalData, forexData }) {
     setLoading(true)
     try {
       let raw = []
-      if (it.type==='dash') {
-        const days = rng==='1y'?365:rng==='6mo'?180:rng==='3mo'?90:30
-        const mkt  = id==='KOSPI'?'J':'Q'
-        const j = await fetch(`/api/kis?type=index-chart&market=${mkt}&days=${days}`).then(r=>r.json())
-        raw = j.candles||[]
-      } else if (it.type==='global') {
+      if (it.type==='global') {
         const j = await fetch(`/api/kis?type=global&symbol=${it.sym}&range=${rng}`).then(r=>r.json())
         raw = j.candles||[]
       } else if (it.type==='forex') {
@@ -262,7 +259,6 @@ function HeroChart({ selId, dashData, globalData, forexData }) {
   // 현재가
   const getCur = () => {
     if (!item) return null
-    if (item.type==='dash')   return dashData?.[item.field]||null
     if (item.type==='global') return globalData?.[item.sym]||null
     if (item.type==='forex')  {
       const d=forexData?.[item.pair]; return d?{price:d.price,changeRate:d.changeRate,change:d.change}:null
@@ -353,6 +349,53 @@ function HeroChart({ selId, dashData, globalData, forexData }) {
     )
   }
 
+  // ── 차트 하단 소형 카드 렌더러 ─────────────────────────
+  const BOTTOM_GROUPS = SECTOR_GROUPS.filter(g => ['forex','commodity','sentiment'].includes(g.id))
+
+  const renderBottomCards = () => (
+    <div className="db-bottom-cards">
+      {BOTTOM_GROUPS.map(grp => (
+        <div key={grp.id} className="db-bottom-group">
+          <div className="db-bottom-group-label" style={{color:grp.accent}}>{grp.label}</div>
+          <div className="db-bottom-group-items">
+            {grp.items.map(it => {
+              const d    = grp.id==='forex' ? forexData?.[it.pair]
+                         : globalData?.[it.sym]
+              const rate = d?.changeRate
+              const up   = rate > 0
+              const pc   = rate != null ? rateColor(rate) : '#64748b'
+              const badge = getMarketBadge(it, d)
+              const isClosed = badge?.label === '전일'
+              const active = selId === it.id
+              return (
+                <button key={it.id}
+                  className={`db-bottom-card ${active?'active':''}`}
+                  style={active?{'--bc':it.color||grp.accent}:{}}
+                  onClick={()=>onSelChange(it.id)}>
+                  <div className="db-bottom-name">{it.label}</div>
+                  {d?.price != null ? (
+                    <>
+                      <div className="db-bottom-price" style={{color: isClosed?'#94a3b8':'#f1f5f9'}}>
+                        {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}{it.unit||''}
+                      </div>
+                      {rate != null && (
+                        <div className="db-bottom-rate" style={{color:pc}}>
+                          {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{fontSize:10,color:'#475569'}}>—</div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+
   if (item?.type==='cb') {
     const d = null // cb has no chart
     return (
@@ -406,6 +449,8 @@ function HeroChart({ selId, dashData, globalData, forexData }) {
           : renderLine()
         }
       </div>
+      {/* 차트 하단: 환율 + 원자재 + 심리·달러 소형 카드 */}
+      {renderBottomCards()}
     </div>
   )
 }
@@ -597,7 +642,7 @@ export default function DashboardPage() {
         {/* 우: 차트 */}
         <div className="db-right-panel">
           <HeroChart
-            selId={selId}
+            selId={selId} onSelChange={setSelId}
             dashData={dashData} globalData={globalData} forexData={forexData}
           />
         </div>

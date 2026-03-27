@@ -432,6 +432,9 @@ const GLOBAL_SYMBOLS = {
   'US10Y':  '%5ETNX',     // 미국 10년
   'US2Y':   '%5EIRX',     // 미국 단기(3M T-Bill 대리)
   'KR10Y':  '%5EKRX', // 한국 10년 (KRX composite as proxy)
+  // 국내 지수 (Yahoo Finance)
+  'KS11':  '%5EKS11',    // KOSPI
+  'KQ11':  '%5EKQ11',    // KOSDAQ
   // 원자재
   'WTI':    'CL%3DF',     // WTI 원유
   'BRENT':  'BZ%3DF',     // 브렌트유
