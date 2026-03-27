@@ -592,7 +592,7 @@ export default async function handler(req, res) {
       case 'global-batch': {
         const symbols = (req.query.symbols || '').split(',').filter(Boolean)
         if (!symbols.length) return res.json({})
-        const results = await Promise.allSettled(symbols.map(s => fetchOneGlobal(s, '1d')))
+        const results = await Promise.allSettled(symbols.map(s => fetchOneGlobal(s, '5d')))
         const map = {}
         results.forEach((r, i) => {
           if (r.status === 'fulfilled' && !r.value?.error) map[symbols[i]] = r.value
