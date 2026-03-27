@@ -42,19 +42,44 @@ async function analyzeOrders(orders) {
 export default function TradingLogPage() {
   const { user } = useAuth()
   const [logs,        setLogs]        = useState(() => lsGet(LS_KEY, []))
-  const [autoOrders,  setAutoOrders]  = useState(null)   // 오늘 체결내역
+  const [autoOrders,  setAutoOrders]  = useState(null)
   const [autoLoading, setAutoLoading] = useState(false)
   const [autoError,   setAutoError]   = useState('')
   const [selDate,     setSelDate]     = useState(todayStr())
-  const [activeTab,   setActiveTab]   = useState('auto')  // auto | manual | ai
+  const [activeTab,   setActiveTab]   = useState('auto')
   const [showForm,    setShowForm]    = useState(false)
+
+  // Firestore 초기 로드
+  useEffect(() => {
+    if (!user) return
+    const load = async () => {
+      try {
+        const ref  = doc(db, 'users', user.uid, 'data', 'tradelog')
+        const snap = await getDoc(ref)
+        if (snap.exists()) {
+          const data = snap.data()
+          if (data?.logs?.length > (lsGet(LS_KEY, []).length || 0)) {
+            setLogs(data.logs)
+            lsSet(LS_KEY, data.logs)
+          }
+        }
+      } catch {}
+    }
+    load()
+  }, [user])
   const [form,        setForm]        = useState({ date:'', code:'', name:'', trde_tp:'매수', qty:0, price:0, memo:'' })
   const [aiResult,    setAiResult]    = useState('')
   const [aiLoading,   setAiLoading]   = useState(false)
   const [aiError,     setAiError]     = useState('')
   const [filter,      setFilter]      = useState('전체')  // 전체|매수|매도
 
-  useEffect(() => lsSet(LS_KEY, logs), [logs])
+  // localStorage + Firestore 동기화
+  useEffect(() => {
+    lsSet(LS_KEY, logs)
+    if (!user) return
+    const ref = doc(db, 'users', user.uid, 'data', 'tradelog')
+    setDoc(ref, { logs, updatedAt: Date.now() }, { merge: true }).catch(() => {})
+  }, [logs, user])
 
   // 체결내역 자동 조회
   const loadOrders = useCallback(async (date = selDate) => {

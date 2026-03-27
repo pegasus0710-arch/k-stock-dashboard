@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { db } from '../firebase'
 import { useAuth } from '../context/AuthContext'
 import { doc, getDoc, setDoc, collection, getDocs, orderBy, query, limit } from 'firebase/firestore'
-import StockChartModal from '../components/StockChartModal'
+import ChartModal from '../components/ChartModal'
 import { fmt, fmtRate, rateColor } from '../utils/format'
 import './PortfolioPage.css'
 
@@ -225,7 +225,7 @@ export default function PortfolioPage() {
       setReturnData([data])
       // 오늘 수익률 Firestore 자동 저장
       if (user?.uid) {
-        await saveTodayReturn(user.uid, { ...data, tot_evlt_amt: h?.tot_evlt_amt, tot_pur_amt: h?.tot_pur_amt }, h)
+        await saveTodayReturn(user.uid, { ...data, tot_evlt_amt: holdings?.tot_evlt_amt, tot_pur_amt: holdings?.tot_pur_amt }, holdings)
       }
     } catch (e) { console.error(e) }
     finally { setRetLoading(false) }
@@ -444,7 +444,7 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {chartStock && <StockChartModal stock={chartStock} onClose={() => setChartStock(null)}/>}
+      {chartStock && <ChartModal code={chartStock.code} name={chartStock.name} onClose={() => setChartStock(null)}/>}
     </div>
   )
 }
