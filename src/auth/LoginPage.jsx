@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react'
-import { signInWithPopup, signInWithRedirect } from 'firebase/auth'
+import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import './LoginPage.css'
-
-const IS_LOCAL = window.location.hostname === 'localhost' ||
-                 window.location.hostname === '127.0.0.1'
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
@@ -14,27 +11,30 @@ export default function LoginPage() {
   const { user, denied } = useAuth()
   const navigate = useNavigate()
 
-  // ✅ 핵심: 이미 로그인된 상태면 대시보드로 이동
+  // 로그인 성공 시 대시보드로 이동
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard', { replace: true })
-    }
+    if (user) navigate('/dashboard', { replace: true })
   }, [user])
 
   const loginWithGoogle = async () => {
     setLoading(true)
     setError('')
     try {
-      if (IS_LOCAL) {
-        await signInWithPopup(auth, googleProvider)
-      } else {
-        await signInWithRedirect(auth, googleProvider)
-      }
+      await signInWithPopup(auth, googleProvider)
+      // 성공 시 onAuthStateChanged → user 설정 → useEffect에서 navigate
     } catch (e) {
-      const ignoreCodes = ['auth/popup-closed-by-user', 'auth/cancelled-popup-request']
+      // COOP 에러는 무시 (Firebase auth state는 이미 설정됨)
+      const ignoreCodes = [
+        'auth/popup-closed-by-user',
+        'auth/cancelled-popup-request',
+        'auth/popup-blocked',
+      ]
       if (!ignoreCodes.includes(e.code)) {
-        setError(`로그인 오류 (${e.code})`)
-        console.error('[Login] 오류:', e)
+        // auth/cancelled-popup-request 외 에러도 user가 설정됐을 수 있음
+        if (!auth.currentUser) {
+          setError(`로그인 오류: ${e.code}`)
+          console.error('[Login]', e.code, e.message)
+        }
       }
       setLoading(false)
     }
@@ -81,9 +81,7 @@ export default function LoginPage() {
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
             )}
-            {loading
-              ? (IS_LOCAL ? '로그인 중...' : 'Google 인증 처리 중...')
-              : 'Google로 로그인'}
+            {loading ? '로그인 중...' : 'Google로 로그인'}
           </button>
         </div>
 
