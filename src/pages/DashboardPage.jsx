@@ -53,9 +53,10 @@ export default function DashboardPage() {
   const { dashData, globalData, forexData, cbRates, loading, globalLoading,
           fetchError, setFetchError, lastFetch, refresh, fetchDashboard } = useDashboard()
 
-  const [selId,      setSelId]      = useState('KOSPI')
-  const [showGuide,  setShowGuide]  = useState(false)
-  const [chartItem,  setChartItem]  = useState(null)
+  const [selId,       setSelId]       = useState('KOSPI')
+  const [showGuide,   setShowGuide]   = useState(false)
+  const [showBriefing,setShowBriefing]= useState(false)
+  const [chartItem,   setChartItem]   = useState(null)
 
   const kstStatus = getKstStatus()
   const isOpen    = kstStatus === 'open'
@@ -73,6 +74,7 @@ export default function DashboardPage() {
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
             <button className="db-guide-btn" onClick={()=>setShowGuide(true)}>📖 지수 가이드</button>
+            <button className="db-briefing-btn" onClick={()=>setShowBriefing(true)}>🤖 AI 브리핑</button>
             <div className="db-status-badge" style={{background:st.color+'15',color:st.color,borderColor:st.color+'30'}}>
               {st.dot&&<span className="db-status-dot" style={{background:st.color}}/>}{st.label}
             </div>
@@ -166,14 +168,33 @@ export default function DashboardPage() {
       {/* 영역 3: 하단 업종 히트맵 */}
       <HeatmapSection/>
 
-      <AiBriefing/>
-
       <div className="dash-footer-note">
         ✅ KIS API · {isOpen?'장중 30초':isAfter?'시간외 2분':'장외 5분'} 자동 갱신
         · 해외지수 {isUSMarketOpen()?'미장 운영중 60초':'5분'} 갱신 · 기준금리 6시간 캐시
       </div>
 
       {showGuide && <GuideModal onClose={()=>setShowGuide(false)}/>}
+
+      {/* AI 브리핑 드로어 */}
+      <AiBriefing
+        open={showBriefing}
+        onClose={()=>setShowBriefing(false)}
+        marketData={{
+          kospi:  globalData?.['KS11'],
+          kosdaq: globalData?.['KQ11'],
+          sp500:  globalData?.['SP500'],
+          nasdaq: globalData?.['NASDAQ'],
+          vix:    globalData?.['VIX'],
+          wti:    globalData?.['WTI'],
+          gold:   globalData?.['GOLD'],
+          us10y:  globalData?.['US10Y'],
+          usdkrw: forexData?.['USD'],
+          spread: globalData?.['US10Y']?.price != null && globalData?.['US2Y']?.price != null
+            ? Math.round((globalData['US10Y'].price - globalData['US2Y'].price) * 100) / 100
+            : null,
+        }}
+      />
+
       {chartItem && <GlobalChartModal
         type={chartItem.type==='forex'?'forex':'global'}
         symbol={chartItem.type==='forex'?chartItem.pair:chartItem.sym}

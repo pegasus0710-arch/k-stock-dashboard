@@ -22,7 +22,10 @@ const TEXT_COLORS = [
 const FONT_SIZES = ['12','13','14','15','16','18','20','22','24','28']
 
 // ── 기본 카테고리 ('기타' 하나만) ──────────────────────
-const DEFAULT_CATEGORIES = [{ name:'기타', color:'#94a3b8' }]
+const DEFAULT_CATEGORIES = [
+  { name:'기타',     color:'#94a3b8' },
+  { name:'AI브리핑', color:'#2563eb' },
+]
 const LS_CATS = 'mp_categories_v2'
 const LS_VIEW = 'mp_view_v1'
 const LS_SORT = 'mp_sort_v1'
@@ -101,7 +104,7 @@ function CategoryManager({ categories, onChange, onClose }) {
         {error && <div className="mp-catmgr-error">{error}</div>}
         <div className="mp-catmgr-list">
           {categories.map(cat => {
-            const isDefault = cat.name === '기타'
+            const isDefault = cat.name === '기타' || cat.name === 'AI브리핑'
             return (
               <div key={cat.name} className="mp-catmgr-item">
                 <span className="mp-catmgr-dot" style={{ background: cat.color }}/>
@@ -116,7 +119,7 @@ function CategoryManager({ categories, onChange, onClose }) {
           })}
         </div>
         <div className="mp-catmgr-footer">
-          <span className="mp-catmgr-hint">기타는 삭제할 수 없습니다</span>
+          <span className="mp-catmgr-hint">기타·AI브리핑은 삭제할 수 없습니다</span>
           <button className="mp-save-btn" onClick={onClose}>완료</button>
         </div>
       </div>
@@ -400,6 +403,32 @@ export default function MemoPage() {
       err  => { setLoadError('Firestore 오류: ' + err.message); setLoading(false) }
     )
     return () => unsub()
+  }, [user])
+
+  // AI브리핑 localStorage → Firestore 자동 동기화
+  useEffect(() => {
+    if (!user) return
+    const LS_AI = 'ai_briefing_memos'
+    const pending = JSON.parse(localStorage.getItem(LS_AI) || '[]')
+    if (!pending.length) return
+    const now = Timestamp.fromDate(new Date())
+    Promise.all(pending.map(entry =>
+      addDoc(collection(db, 'users', user.uid, 'memos'), {
+        title:      entry.title,
+        content:    entry.content,
+        category:   'AI브리핑',
+        tags:       ['AI', '자동저장'],
+        bgColor:    '#EFF6FF',
+        titleColor: '#1E40AF',
+        textColor:  '#1E293B',
+        fontSize:   13,
+        pinned:     false,
+        createdAt:  now,
+        updatedAt:  now,
+      })
+    )).then(() => {
+      localStorage.removeItem(LS_AI)
+    }).catch(e => console.warn('[MemoPage] AI브리핑 동기화 실패:', e.message))
   }, [user])
 
   // 저장
