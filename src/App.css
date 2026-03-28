@@ -1028,3 +1028,58 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   --accent-mid:   #64748b;
   --accent-light: #F1F5F9;
 }
+
+/* ══════════════════════════════════════════════════
+   최종 라이트 강제 — 전역 다크 블록보다 나중에 선언해야 우선 적용
+   (같은 !important 우선순위에서는 나중에 선언된 것이 이김)
+   ══════════════════════════════════════════════════ */
+
+/* 사이드바 */
+.sidebar                { background: var(--bg-panel) !important; border-right-color: var(--border) !important; }
+.sidebar-logo           { border-bottom-color: var(--border) !important; }
+.sidebar-logo-name      { color: var(--text-primary) !important; }
+.sidebar-logo-sub       { color: var(--text-dim) !important; }
+.sidebar-nav            { background: transparent !important; }
+.sidebar-item           { background: transparent !important; color: var(--text-secondary) !important; }
+.sidebar-item:hover     { background: var(--bg-hover) !important; color: var(--text-primary) !important; }
+.sidebar-item.active    { background: var(--accent-light) !important; color: var(--accent-mid) !important; border-right-color: var(--accent-mid) !important; }
+.sidebar-item-label     { color: inherit !important; }
+.sidebar-item-sub       { color: var(--text-dim) !important; }
+.sidebar-item-icon      { color: inherit !important; }
+.sidebar-user           { border-bottom-color: var(--border) !important; }
+.sidebar-user-name      { color: var(--text-primary) !important; }
+.sidebar-user-email     { color: var(--text-dim) !important; }
+.sidebar-bottom         { border-top-color: var(--border) !important; background: var(--bg-panel) !important; }
+
+/* 상단 헤더 */
+.top-header             { background: var(--bg-panel) !important; border-bottom-color: var(--border) !important; }
+.top-header-title       { color: var(--text-primary) !important; }
+.top-header-sub         { color: var(--text-secondary) !important; }
+.top-header-date        { color: var(--text-dim) !important; }
+
+/* 앱 전체 배경 */
+.app-layout             { background: var(--bg-base) !important; }
+.app-main               { background: var(--bg-base) !important; }
+.app-content            { background: var(--bg-base) !important; }
+
+/* 대시보드 컨테이너 */
+.db-chart-section       { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.db-cards-section       { background: transparent !important; }
+.db-card-group          { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.db-card-group-label    { color: var(--text-secondary) !important; border-bottom-color: var(--border) !important; background: transparent !important; }
+.db-idx-card            { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.db-idx-card:hover      { background: var(--bg-hover) !important; }
+.db-idx-card.active     { background: var(--accent-light) !important; border-color: var(--accent-mid) !important; }
+.db-idx-name            { color: var(--text-secondary) !important; }
+.db-idx-price           { color: var(--text-primary) !important; }
+.db-idx-na              { color: var(--text-dim) !important; }
+.db-heatmap-section     { background: var(--bg-panel) !important; border-color: var(--border) !important; }
+.db-flow-section        { background: transparent !important; }
+.db-selector-row        { background: transparent !important; }
+.db-sel-btn             { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.db-sel-btn.active      { background: var(--accent-mid) !important; border-color: var(--accent-mid) !important; color: white !important; }
+.db-date-badge          { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-dim) !important; }
+.db-52w-track           { background: var(--border) !important; }
+.db-flow-track          { background: var(--border) !important; }
+.db-global-big          { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.db-global-small        { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
