@@ -29,7 +29,7 @@ function getMarketBadge(item, data) {
   return { label:'전일', color:'#64748b' }
 }
 
-function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
+function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeekRange }) {
   const [range,   setRange]   = useState('3mo')
   const [candles, setCandles] = useState([])
   const [loading, setLoading] = useState(false)
@@ -53,11 +53,29 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
         raw = j[it.pair]?.candles||[]
       }
       setCandles(raw.filter(c=>(c.close||0)>0))
+      // 52주 고저 계산해서 부모로 전달
+      const valid = raw.filter(c=>(c.close||0)>0)
+      if(valid.length && onWeekRange) {
+        const highs = valid.map(c=>c.high||c.close||0).filter(v=>v>0)
+        const lows  = valid.map(c=>c.low||c.close||0).filter(v=>v>0)
+        if(highs.length && lows.length) {
+          onWeekRange(it.id, Math.max(...highs), Math.min(...lows))
+        }
+      }
     } catch(e){console.error(e)}
     finally{setLoading(false)}
   },[])
 
   useEffect(()=>{ fetchChart(selId, range) },[selId, range])
+
+  // KOSPI/KOSDAQ 52주 데이터 초기 로드 (1년치)
+  useEffect(()=>{
+    if(onWeekRange) {
+      fetchChart('KOSPI',  '1y')
+      fetchChart('KOSDAQ', '1y')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[])
 
   // 현재가
   const getCur = () => {
@@ -73,7 +91,7 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
 
   const renderLine = () => {
     if (!candles.length) return <div className="db-hero-empty">데이터를 불러오는 중...</div>
-    const W=800,H=260,pL=68,pR=16,pT=10,pB=28
+    const W=800,H=190,pL=68,pR=16,pT=10,pB=28
     const cW=W-pL-pR,cH=H-pT-pB
     const closes=candles.map(c=>c.close)
     const rawMin=Math.min(...closes), rawMax=Math.max(...closes)

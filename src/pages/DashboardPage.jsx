@@ -1,5 +1,5 @@
 // src/pages/DashboardPage.jsx — v5 (컴포넌트 분리 후 경량화)
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { rateColor, getTodayStr, getKstStatus, isMarketOpen, isUSMarketOpen, getSymbolMarketStatus } from '../utils/format'
 import { SECTOR_GROUPS, ALL_ITEMS, GAUGE_CONFIG, HEATMAP_SECTORS, getHeatmapColor } from '../constants/dashboardData'
 import { GaugeBar, TooltipIcon } from '../components/ui/GaugeBar'
@@ -107,8 +107,15 @@ const ST_MAP = {
 }
 
 export default function DashboardPage() {
-  const { dashData, globalData, forexData, cbRates, flowData, weekData, loading, globalLoading,
+  const { dashData, globalData, forexData, cbRates, flowData, weekData: apiWeekData, loading, globalLoading,
           fetchError, setFetchError, lastFetch, refresh, fetchDashboard } = useDashboard()
+
+  // 52주 고저 — HeroChart candles에서 계산 (별도 API 불필요)
+  const [weekData, setWeekData] = useState({})
+  const handleWeekRange = useCallback((id, high, low) => {
+    const key = id === 'KOSPI' ? 'KOSPI' : id === 'KOSDAQ' ? 'KOSDAQ' : null
+    if(key) setWeekData(prev => ({...prev, [key]: {high52: high, low52: low}}))
+  }, [])
 
   const [selId,       setSelId]       = useState('KOSPI')
   const [showGuide,   setShowGuide]   = useState(false)
@@ -164,7 +171,8 @@ export default function DashboardPage() {
           ))}
         </div>
         <HeroChart selId={selId} onSelChange={setSelId}
-          dashData={dashData} globalData={globalData} forexData={forexData}/>
+          dashData={dashData} globalData={globalData} forexData={forexData}
+          onWeekRange={handleWeekRange}/>
       </div>
 
       {/* 영역 2: 중단 지수 카드 그리드 */}
