@@ -1,25 +1,18 @@
 // src/constants/dashboardData.js
 // DashboardPage 전용 상수 — SECTOR_GROUPS, GUIDE_DATA, GAUGE_CONFIG
 
-export const BATCH_SYMBOLS = ['KS11','KQ11','KRX100','K200','KQ150','SP500','NASDAQ','DOW','N225','HSI','SSE','TWI','DAX','US10Y','US2Y','KR10Y','WTI','BRENT','GOLD','SILVER','COPPER','VIX','DXY']
+export const BATCH_SYMBOLS = ['KS11','KQ11','SP500','NASDAQ','DOW','DAX','US10Y','US2Y','KR10Y','WTI','BRENT','GOLD','SILVER','COPPER','VIX','DXY']
 
 export const SECTOR_GROUPS = [
   { id:'domestic',  label:'🇰🇷 국내 지수',   accent:'#2563eb', items:[
-    { id:'KOSPI',   label:'KOSPI',      type:'global', sym:'KS11',   color:'#3b82f6' },
-    { id:'KOSDAQ',  label:'KOSDAQ',     type:'global', sym:'KQ11',   color:'#22c55e' },
-    { id:'KRX100',  label:'KRX 100',    type:'global', sym:'KRX100', color:'#0891b2' },
-    { id:'K200',    label:'KOSPI 200',  type:'global', sym:'K200',   color:'#6366f1' },
-    { id:'KQ150',   label:'KOSDAQ 150', type:'global', sym:'KQ150',  color:'#16a34a' },
+    { id:'KOSPI',   label:'KOSPI',  type:'global', sym:'KS11', color:'#3b82f6' },
+    { id:'KOSDAQ',  label:'KOSDAQ', type:'global', sym:'KQ11', color:'#22c55e' },
   ]},
   { id:'global',    label:'🌍 해외 지수',    accent:'#64748b', items:[
-    { id:'SP500',  label:'S&P 500',  type:'global', sym:'SP500',  color:'#ef4444' },
-    { id:'NASDAQ', label:'NASDAQ',   type:'global', sym:'NASDAQ', color:'#0d9488' },
-    { id:'DOW',    label:'DOW',      type:'global', sym:'DOW',    color:'#2563eb' },
-    { id:'N225',   label:'닛케이',   type:'global', sym:'N225',   color:'#f59e0b' },
-    { id:'HSI',    label:'항셍',     type:'global', sym:'HSI',    color:'#dc2626' },
-    { id:'SSE',    label:'상해',     type:'global', sym:'SSE',    color:'#b91c1c' },
-    { id:'TWI',    label:'대만가권', type:'global', sym:'TWI',    color:'#0891b2' },
-    { id:'DAX',    label:'DAX',      type:'global', sym:'DAX',    color:'#7c3aed' },
+    { id:'SP500',  label:'S&P 500', type:'global', sym:'SP500',  color:'#ef4444' },
+    { id:'NASDAQ', label:'NASDAQ',  type:'global', sym:'NASDAQ', color:'#0d9488' },
+    { id:'DOW',    label:'DOW',     type:'global', sym:'DOW',    color:'#2563eb' },
+    { id:'DAX',    label:'DAX',     type:'global', sym:'DAX',    color:'#7c3aed' },
   ]},
   { id:'bond',      label:'📈 채권·금리',    accent:'#7c3aed', items:[
     { id:'US10Y',   label:'미국 10Y',  type:'global', sym:'US10Y',  unit:'%', color:'#7c3aed' },
@@ -69,16 +62,9 @@ export const GAUGE_CONFIG = {
 export const GUIDE_DATA = {
   KOSPI:  { title:'KOSPI (코스피)', desc:'대한민국 유가증권시장 전체 시가총액 가중평균 지수. 삼성전자·SK하이닉스 등 대형주 비중이 높아 반도체·수출 경기에 민감.', up:'경기 회복·외국인 순매수 → 대형 수출주·성장주 비중 확대', down:'경기 둔화·외국인 이탈 → 방어주(통신·필수소비재)·현금 확대', tip:'📌 PBR 1배(약 4,800) = 역사적 바닥 근처. 5,500↑ 강세 / 4,500↓ 약세 경계 (2026년 기준)' },
   KOSDAQ: { title:'KOSDAQ (코스닥)', desc:'중소·벤처·기술 성장기업 지수. 바이오·게임·2차전지 비중이 높아 KOSPI보다 변동성 크고 금리에 더 민감.', up:'금리 하락·성장주 선호 → 바이오·IT·2차전지 종목 관심', down:'금리 상승·위험회피 → 변동성 크므로 비중 축소 또는 ETF로 분산', tip:'📌 1,200↑ 강세 / 900↓ 약세 / KOSPI 대비 상대강도 확인 중요 (2026년 기준)' },
-  KRX100: { title:'KRX 100', desc:'코스피·코스닥 대표 우량주 100종목. 시가총액 상위 블루칩 집약 지수로 외국인 투자 선호 종목군을 반영.', up:'외국인 대형 우량주 선호 → KRX100 강세 시 외국인 매수 확인 신호', down:'외국인 이탈 시 KRX100 먼저 약세. 중소형 테마주 로테이션 가능', tip:'📌 KOSPI와 높은 상관관계. 둘 간 괴리 확대 시 중소형주 과열 신호' },
-  K200:   { title:'KOSPI 200', desc:'코스피 시총 상위 200종목. 선물·옵션 기초지수로 기관·외국인 파생상품 거래의 기준.', up:'파생시장 콜옵션 매수 증가 → 기관 상승 베팅 확인 신호', down:'풋옵션 증가·선물 매도 → 기관 헤지 강화 신호. 지수 하락 선행', tip:'📌 선물 베이시스(현물-선물)가 마이너스=백워데이션=시장 약세 신호' },
-  KQ150:  { title:'KOSDAQ 150', desc:'코스닥 대표 150종목. 코스닥 시장의 우량 성장주를 집약. 중소형 성장주의 방향성 선행지표.', up:'성장주·기술주 선호 → 바이오·IT·AI 중소형주 강세', down:'금리 상승·위험회피 → 코스닥 전반 약세. KOSPI 대비 낙폭 큼', tip:'📌 KOSPI200 대비 KQ150 상대강도 하락=성장주 외면. 금리 방향과 역상관' },
   SP500:  { title:'S&P 500', desc:'미국 대형주 500개사 시가총액 가중지수. 전 세계 주식시장 40% 이상을 차지해 글로벌 위험선호의 바로미터.', up:'글로벌 위험선호 확대 → 국내 외국인 매수 유입, 성장주 긍정', down:'글로벌 위험회피 → 외국인 이탈, 원화 약세 압력. 방어주·현금 확보', tip:'📌 200일 이동평균 위=상승추세 / 아래=하락추세. 5,000↑ 강세 / 4,200↓ 약세 경계 (2026년 기준)' },
   NASDAQ: { title:'NASDAQ Composite', desc:'미국 기술주·성장주 중심. 엔비디아·애플·MS 등 AI·반도체 비중이 높아 금리 변화에 매우 민감.', up:'금리 하락·AI 투자 확대 → 국내 반도체·AI 관련주 동반 상승 기대', down:'금리 상승·성장주 밸류 부담 → 국내 IT·게임주 동반 약세 경계', tip:'📌 NASDAQ/S&P 비율 상승=성장주 선호 국면. 18,000↑ 강세 / 14,000↓ 약세 경계 (2026년 기준)' },
   DOW:    { title:'DOW Jones 산업평균', desc:'미국 30개 우량 산업주 단순평균. 전통 제조업·금융·에너지 비중이 높아 경기 민감도 대표.', up:'전통 산업·경기 회복 신호 → 원자재·소재·금융 관련 종목 긍정', down:'경기 침체 우려 → 필수소비재·헬스케어 등 방어 섹터로 이동 검토', tip:'📌 S&P500과 동반 하락 시 본격 약세장. 40,000↑ 강세 / 35,000↓ 약세 경계 (2026년 기준)' },
-  N225:   { title:'닛케이 225', desc:'일본 225개 대표 종목. 엔화 환율과 역상관 — 엔 약세 시 수출주 수혜로 상승하는 경향.', up:'엔 약세·일본 수출 호조 → 원/엔 환율 하락(원화 강세) 가능성', down:'엔 강세·일본 내수 위축 → 엔화 강세 전환 시 환전 비용 증가', tip:'📌 40,000↑ 강세장. 엔/달러 150↑ = 지나친 엔저, BOJ 개입 주의 (2026년 기준)' },
-  HSI:    { title:'항셍지수 (홍콩)', desc:'홍콩 대형주 지수. 알리바바·텐센트 등 중국 빅테크 비중이 높아 중국 정책·규제 리스크에 민감.', up:'중국 부양·규제 완화 → 중국 소비·IT 관련주 긍정', down:'중국 부동산 위기·규제 강화·미중 갈등 → 글로벌 신흥국 리스크 전반 부정', tip:'📌 22,000↑ 회복 시 중국 경기 반등 신호. 미중 관계 지표와 함께 관찰 (2026년 기준)' },
-  SSE:    { title:'상해종합지수 (중국)', desc:'중국 상하이 전체 상장종목 지수. 세계 2위 경제의 내수·제조업 경기 반영.', up:'중국 내수 확대·수출 회복 → 화학·철강·뷰티 대중 수출주 긍정', down:'중국 경기 둔화 → 대중 수출 비중 높은 섹터 전반 약세 경계', tip:'📌 3,200↑ 안정 / 2,800↓ 부양책 기대. 중국 PMI 지표와 함께 확인 (2026년 기준)' },
-  TWI:    { title:'대만가권지수 (TAIEX)', desc:'TSMC 비중 40% 이상으로 글로벌 반도체 수요의 선행지표. 삼성전자·SK하이닉스와 높은 상관관계.', up:'글로벌 반도체 수요 증가 → 국내 반도체·장비·소재주 강세 기대', down:'반도체 업황 둔화 → 국내 반도체 섹터 약세 선행 신호로 활용', tip:'📌 TSMC 주가와 삼성전자는 3~6개월 선행/후행 관계. 반드시 함께 확인' },
   DAX:    { title:'DAX 40 (독일)', desc:'독일 40개 대형주. 자동차·산업재·화학 비중이 높아 유럽 제조업 경기 대표.', up:'유럽 경기 회복·에너지 안정 → 국내 자동차·부품 수출주 긍정', down:'에너지 위기·러시아 리스크·유럽 경기 둔화 → 글로벌 제조업 전반 부정', tip:'📌 유로/달러 환율과 함께 확인. 유로 강세=DAX 수출주 부담' },
   US10Y:  { title:'미국 10년 국채 금리', desc:'전 세계 모든 자산의 기준금리. 주식 밸류에이션(PER)에 직접 영향.', up:'금리 상승 → 성장주·바이오·IT 하락 압력. 고PER 종목 매도, 금융·가치주 방어', down:'금리 하락 → 성장주 재평가. 바이오·2차전지·게임 등 고PER 섹터 긍정', tip:'📌 4.5%↑=성장주 위험 / 3.5%↓=성장주 환경 개선 / 5%↑=전면 하락 압력' },
   US2Y:   { title:'미국 단기금리 (3M T-Bill)', desc:'연방기준금리와 가장 가깝게 움직이는 단기 국채. 현재 통화정책 방향을 실시간 반영.', up:'연준 긴축 지속·금리 인하 기대 후퇴 → 주식 전반 하락 압력, 달러 강세', down:'연준 피벗(금리 인하) 기대 → 주식·신흥국·원자재 긍정', tip:'📌 10Y-3M 스프레드 역전(음수)=경기침체 확률 급상승. 현재 스프레드 주시' },

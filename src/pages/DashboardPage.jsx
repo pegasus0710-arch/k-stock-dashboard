@@ -332,45 +332,62 @@ export default function DashboardPage() {
                             : null
                         }
                         {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
-                        {/* 스파크라인 미니차트 — KOSPI/KOSDAQ만 */}
-                        {(item.id==='KOSPI'||item.id==='KOSDAQ') && sparkData?.[item.id]?.length > 1 && (() => {
-                          const closes = sparkData[item.id]
-                          const W=120, H=28, pad=2
-                          const mn = Math.min(...closes), mx = Math.max(...closes)
-                          const rng = mx - mn || 1
-                          const px = i => pad + (i/(closes.length-1))*(W-pad*2)
-                          const py = v => H-pad-(v-mn)/rng*(H-pad*2)
-                          const pts = closes.map((v,i)=>`${px(i)},${py(v)}`).join(' ')
-                          const color = closes[closes.length-1] >= closes[0] ? '#22c55e' : '#ef4444'
-                          return (
-                            <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',margin:'4px 0 2px'}}>
-                              <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
-                              <circle cx={px(closes.length-1)} cy={py(closes[closes.length-1])} r="2.5" fill={color}/>
-                            </svg>
-                          )
-                        })()}
-                        {/* 52주 고저 게이지 — KOSPI/KOSDAQ만 */}
-                        {(item.id==='KOSPI'||item.id==='KOSDAQ') && weekData?.[item.id] && d?.price!=null && (() => {
-                          const w    = weekData[item.id]
-                          const low  = w.low52
-                          const high = w.high52
-                          if (!low||!high||high<=low) return null
-                          const pct  = Math.min(100, Math.max(0, (d.price-low)/(high-low)*100))
-                          return (
-                            <div className="db-52w-wrap">
-                              <div className="db-52w-track">
-                                <div className="db-52w-fill" style={{width:`${pct}%`}}/>
-                                <div className="db-52w-thumb" style={{left:`${pct}%`}}/>
-                              </div>
-                              <div className="db-52w-labels">
-                                <span>{low.toLocaleString()}</span>
-                                <span style={{fontSize:9,color:'var(--accent-mid)'}}>52주 {Math.round(pct)}%</span>
-                                <span>{high.toLocaleString()}</span>
-                              </div>
-                            </div>
-                          )
-                        })()}
-                        {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
+                        {/* KOSPI/KOSDAQ 전용 — 스파크라인 + 52주 게이지 */}
+                        {(item.id==='KOSPI'||item.id==='KOSDAQ') && (
+                          <div className="db-kospi-extra">
+                            {/* 스파크라인 */}
+                            {sparkData?.[item.id]?.length > 1 && (() => {
+                              const closes = sparkData[item.id]
+                              const W=160, H=32, pad=2
+                              const mn = Math.min(...closes), mx = Math.max(...closes)
+                              const rng = mx - mn || 1
+                              const px = i => pad + (i/(closes.length-1))*(W-pad*2)
+                              const py = v => H-pad-(v-mn)/rng*(H-pad*2)
+                              const pts = closes.map((v,i)=>`${px(i)},${py(v)}`).join(' ')
+                              const color = closes[closes.length-1] >= closes[0] ? '#22c55e' : '#ef4444'
+                              const apts = `${pad},${H-pad} ${pts} ${W-pad},${H-pad}`
+                              return (
+                                <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',margin:'6px 0 2px'}}>
+                                  <defs>
+                                    <linearGradient id={`sg-${item.id}`} x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={color} stopOpacity="0.15"/>
+                                      <stop offset="100%" stopColor={color} stopOpacity="0"/>
+                                    </linearGradient>
+                                  </defs>
+                                  <polygon points={apts} fill={`url(#sg-${item.id})`}/>
+                                  <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
+                                  <circle cx={px(closes.length-1)} cy={py(closes[closes.length-1])} r="2.5" fill={color} stroke="white" strokeWidth="1.5"/>
+                                </svg>
+                              )
+                            })()}
+                            {/* 52주 고저 게이지 */}
+                            {weekData?.[item.id] && (() => {
+                              const w = weekData[item.id]
+                              const low = w.low52, high = w.high52
+                              if (!low||!high||high<=low) return null
+                              const pct = Math.min(100, Math.max(0, (d.price-low)/(high-low)*100))
+                              return (
+                                <div className="db-52w-wrap">
+                                  <div className="db-52w-track">
+                                    <div className="db-52w-fill" style={{width:`${pct}%`}}/>
+                                    <div className="db-52w-thumb" style={{left:`${pct}%`}}/>
+                                  </div>
+                                  <div className="db-52w-labels">
+                                    <span>저 {low.toLocaleString()}</span>
+                                    <span style={{color:'var(--accent-mid)'}}>▲ 52주 {Math.round(pct)}%</span>
+                                    <span>고 {high.toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              )
+                            })()}
+                            {/* 기준일 */}
+                            {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
+                          </div>
+                        )}
+                        {/* 일반 카드 기준일 */}
+                        {item.id!=='KOSPI' && item.id!=='KOSDAQ' && dateLabel &&
+                          <span className="db-date-badge">{dateLabel}</span>
+                        }
                       </>
                     ) : <div className="db-idx-na">—</div>}
                   </button>

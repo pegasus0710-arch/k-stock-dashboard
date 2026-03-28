@@ -73,12 +73,10 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
 
   useEffect(()=>{ fetchChart(selId, range) },[selId, range])
 
-  // KOSPI/KOSDAQ 52주 데이터 초기 로드 (1년치)
+  // KOSPI/KOSDAQ 스파크라인 + 52주 — 마운트 시 항상 1년치 로드
   useEffect(()=>{
-    if(onWeekRange) {
-      fetchChart('KOSPI',  '1y')
-      fetchChart('KOSDAQ', '1y')
-    }
+    fetchChart('KOSPI',  '1y')
+    fetchChart('KOSDAQ', '1y')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[])
 
