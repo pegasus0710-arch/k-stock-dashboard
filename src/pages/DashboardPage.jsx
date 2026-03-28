@@ -407,15 +407,13 @@ export default function DashboardPage() {
                         <div key={label} className="db-flow-row">
                           <span className="db-flow-label">{label}</span>
                           <div className="db-flow-bar-wrap">
-                            <div className="db-flow-bar"
-                              style={{
-                                width: `${pct}%`,
-                                background: isUp ? '#DC2626' : '#1D4ED8',
-                                marginLeft: isUp ? 'auto' : '0',
-                              }}/>
+                            {isUp
+                              ? <div className="db-flow-bar" style={{width:`${pct}%`,background:'#DC2626',marginLeft:'auto'}}/>
+                              : <div className="db-flow-bar" style={{width:`${pct}%`,background:'#1D4ED8',marginLeft:'0'}}/>
+                            }
                           </div>
-                          <span className="db-flow-val" style={{color: isUp?'#DC2626':'#1D4ED8'}}>
-                            {isUp?'+':''}{val >= 100 || val <= -100
+                          <span className="db-flow-val" style={{color:isUp?'#DC2626':'#1D4ED8'}}>
+                            {isUp?'+':''}{Math.abs(val)>=100
                               ? `${(val/100).toFixed(0)}백억`
                               : `${val.toFixed(0)}억`}
                           </span>

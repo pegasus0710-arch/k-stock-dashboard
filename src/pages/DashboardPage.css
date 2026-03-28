@@ -964,3 +964,49 @@
 .db-compact-price { font-size:12px; font-weight:700; color:var(--text-primary); }
 .db-compact-rate  { font-size:10px; font-weight:700; min-width:52px; text-align:right; }
 .db-compact-na    { font-size:11px; color:var(--text-dim); }
+
+/* ── VIX 반원 게이지 ─────────────────────────────────── */
+.db-semi-wrap       { padding: 2px 0; }
+.db-semi-badge-row  { display:flex; justify-content:flex-end; margin-bottom:2px; }
+.db-semi-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 7px; border-radius: 10px;
+  font-size: 10px; font-weight: 700; border: 1px solid;
+}
+.db-semi-labels {
+  display: flex; justify-content: space-between;
+  font-size: 9px; color: var(--text-dim);
+  margin-top: -4px; padding: 0 4px;
+}
+
+/* ── USD/KRW 컬러 레인지 바 ─────────────────────────── */
+.db-forex-range-wrap { padding: 2px 0; }
+.db-forex-level-row  { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+.db-forex-track {
+  display: flex;
+  height: 12px;
+  border-radius: 6px;
+  overflow: visible;
+  position: relative;
+}
+.db-forex-thumb {
+  position: absolute;
+  top: -4px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid #1e293b;
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+  transform: translateX(-50%);
+  transition: left .3s ease;
+  z-index: 2;
+}
+.db-forex-range-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 8px;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.3;
+}
