@@ -114,21 +114,38 @@
 .top-header {
   display:flex; align-items:center; justify-content:space-between;
   padding:0 20px; height:var(--header-h);
-  background:var(--bg-panel); border-bottom:1px solid var(--border);
+  background:var(--bg-panel) !important;
+  border-bottom:1px solid var(--border) !important;
   flex-shrink:0; gap:12px;
+  color: var(--text-primary) !important;
 }
 .top-header-left { display:flex; align-items:center; gap:10px; }
 .top-header-icon { font-size:18px; }
-.top-header-title { font-size:15px; font-weight:700; color:var(--text-primary); display:block; }
-.top-header-sub   { font-size:11px; color:var(--text-secondary); display:block; margin-top:1px; }
+.top-header-title { font-size:15px; font-weight:700; color:var(--text-primary) !important; display:block; }
+.top-header-sub   { font-size:11px; color:var(--text-secondary) !important; display:block; margin-top:1px; }
 .top-header-right { display:flex; align-items:center; gap:12px; flex-shrink:0; }
 .top-header-status { font-size:12px; font-weight:700; }
-.top-header-date   { font-size:11px; color:var(--text-dim); }
+.top-header-date   { font-size:11px; color:var(--text-dim) !important; }
+
+/* ── 사이드바 라이트 강제 ───────────────────────────── */
+.sidebar {
+  background: var(--bg-panel) !important;
+  border-right: 1px solid var(--border) !important;
+}
+.sidebar-logo-name  { color: var(--text-primary) !important; }
+.sidebar-logo-sub   { color: var(--text-dim) !important; }
+.sidebar-item       { color: var(--text-secondary) !important; }
+.sidebar-item:hover { background: var(--bg-hover) !important; color: var(--text-primary) !important; }
+.sidebar-item.active { background: var(--accent-light) !important; color: var(--accent-mid) !important; }
+.sidebar-item-label  { color: inherit !important; }
+.sidebar-item-sub    { color: var(--text-dim) !important; }
+.sidebar-user-name   { color: var(--text-primary) !important; }
+.sidebar-user-email  { color: var(--text-dim) !important; }
 
 /* ── 메인 콘텐츠 영역 ───────────────────────────────── */
 .app-content {
   flex:1; overflow-y:auto; overflow-x:hidden;
-  padding-bottom:70px; background:var(--bg-base);
+  padding-bottom:70px; background:var(--bg-base) !important;
 }
 @media(min-width:768px) { .app-content { padding-bottom:0; } }
 
@@ -519,66 +536,6 @@ hr, [class*="-divider"], [class*="-separator"] {
   border-top-color: #2563eb !important;
 }
 
-/* ══════════════════════════════════════════════════
-   Dashboard 카드 레이아웃 수정
-   ══════════════════════════════════════════════════ */
-.db-index-grid {
-  display: grid !important;
-  grid-template-columns: 1fr 1fr !important;
-  gap: 12px !important;
-}
-@media (max-width: 640px) {
-  .db-index-grid { grid-template-columns: 1fr !important; }
-}
-.db-index-card {
-  background: #111827 !important;
-  border-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-.db-index-price { color: #f1f5f9 !important; }
-.db-index-label { color: #64748b !important; }
-.db-section-label { color: #64748b !important; font-size: 11px !important; }
-.db-forex-card { background: #111827 !important; border-color: #1e293b !important; }
-.db-forex-label { color: #64748b !important; }
-.db-forex-value { color: #f1f5f9 !important; font-size: 18px !important; }
-.db-global-card { background: #111827 !important; border-color: #1e293b !important; }
-.db-global-label { color: #64748b !important; }
-.db-global-price { color: #f1f5f9 !important; }
-.db-theme-card { background: #111827 !important; border-color: #1e293b !important; }
-.db-theme-label { color: #94a3b8 !important; }
-.db-stock-chip, .db-etf-chip {
-  background: transparent !important;
-  border-color: #1e293b !important;
-  color: #94a3b8 !important;
-}
-.db-stock-chip:hover, .db-etf-chip:hover {
-  background: rgba(255,255,255,.04) !important;
-  border-color: #334155 !important;
-}
-.db-stock-name { color: #94a3b8 !important; }
-.db-etf-name { color: #94a3b8 !important; }
-.db-etf-badge {
-  background: rgba(37,99,235,.15) !important;
-  color: #60a5fa !important;
-}
-.db-skeleton {
-  background: linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%) !important;
-  background-size: 200% 100% !important;
-}
-.db-briefing-content { background: #111827 !important; border-color: #1e293b !important; }
-.db-briefing-text { color: #94a3b8 !important; }
-.db-overlay { background: rgba(0,0,0,.65) !important; }
-.db-setting-modal {
-  background: #0f172a !important;
-  border-color: #334155 !important;
-  color: #f1f5f9 !important;
-}
-.db-setting-header, .db-setting-footer {
-  background: #0f172a !important;
-  border-color: #1e293b !important;
-}
-.db-theme-check-grid { background: #111827 !important; border-color: #1e293b !important; }
-.db-theme-check-label { color: #e2e8f0 !important; }
 
 /* ══════════════════════════════════════════════════
    ChartAnalysisPage 추가 수정
