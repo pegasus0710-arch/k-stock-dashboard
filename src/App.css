@@ -608,19 +608,19 @@ hr, [class*="-divider"], [class*="-separator"] {
    ═══════════════════════════════════════════════════ */
 
 /* 카드/섹션 계열 */
-[class*="-card"]:not([class*="db-"]):not([class*="sidebar-"]),
-[class*="-panel"]:not([class*="db-"]):not([class*="sidebar-"]),
-[class*="-section"]:not(.db-section):not([class*="db-"]):not([class*="sidebar-"]),
-[class*="-body"]:not(.smc-chart-wrap):not([class*="db-"]):not([class*="sidebar-"]),
-[class*="-content"]:not(.app-content):not([class*="db-"]):not([class*="sidebar-"]),
-[class*="-box"]:not(.cap-search-box):not([class*="db-"]):not([class*="sidebar-"]) {
+[class*="-card"]:not([class*="db-"]):not([class*="sidebar-"]):not([class*="dash-"]),
+[class*="-panel"]:not([class*="db-"]):not([class*="sidebar-"]):not([class*="dash-"]),
+[class*="-section"]:not(.db-section):not([class*="db-"]):not([class*="sidebar-"]):not([class*="dash-"]),
+[class*="-body"]:not(.smc-chart-wrap):not([class*="db-"]):not([class*="sidebar-"]):not([class*="dash-"]),
+[class*="-content"]:not(.app-content):not([class*="db-"]):not([class*="sidebar-"]):not([class*="dash-"]),
+[class*="-box"]:not(.cap-search-box):not([class*="db-"]):not([class*="sidebar-"]):not([class*="dash-"]) {
   background-color: #111827 !important;
   border-color: #1e293b !important;
   color: #e2e8f0 !important;
 }
 
 /* 빈 상태 empty */
-[class*="-empty"]:not([class*="db-"]) {
+[class*="-empty"]:not([class*="db-"]):not([class*="dash-"]) {
   background: #0f172a !important;
   border-color: #1e293b !important;
   color: #64748b !important;
@@ -634,97 +634,97 @@ hr, [class*="-divider"], [class*="-separator"] {
 }
 
 /* 행/아이템 */
-[class*="-row"]:not(.db-forex-row):not(.db-index-row):not(.cap-ctrl-bar):not(.smc-ctrl-row1):not(.smc-ctrl-row2):not([class*="db-"]):not([class*="sidebar-"]) {
+[class*="-row"]:not(.db-forex-row):not(.db-index-row):not(.cap-ctrl-bar):not(.smc-ctrl-row1):not(.smc-ctrl-row2):not([class*="db-"]):not([class*="sidebar-"]):not([class*="dash-"]) {
   border-color: #1e293b !important;
   color: #94a3b8 !important;
 }
-[class*="-row"]:not([class*="db-"]):not([class*="sidebar-"]):hover {
+[class*="-row"]:not([class*="db-"]):not([class*="sidebar-"]):not([class*="dash-"]):hover {
   background: rgba(255,255,255,.04) !important;
 }
 
 /* 테이블 헤더 */
 [class*="-th"]:not([class*="db-"]),
 [class*="-thead"]:not([class*="db-"]),
-[class*="-table-header"]:not([class*="db-"]) {
+[class*="-table-header"]:not([class*="db-"]):not([class*="dash-"]) {
   background: #111827 !important;
   border-color: #1e293b !important;
   color: #64748b !important;
 }
 
 /* 탭 버튼 */
-[class*="-tab"]:not(.smc-tab):not(.cap-tab):not(.fc-tab):not(.bottom-tab):not([class*="db-"]) {
+[class*="-tab"]:not(.smc-tab):not(.cap-tab):not(.fc-tab):not(.bottom-tab):not([class*="db-"]):not([class*="dash-"]) {
   background: transparent !important;
   border-color: #334155 !important;
   color: #94a3b8 !important;
 }
-[class*="-tab"].active:not(.bottom-tab):not([class*="db-"]),
-[class*="-tab-active"]:not([class*="db-"]) {
+[class*="-tab"].active:not(.bottom-tab):not([class*="db-"]):not([class*="dash-"]),
+[class*="-tab-active"]:not([class*="db-"]):not([class*="dash-"]) {
   background: #2563eb !important;
   border-color: #2563eb !important;
   color: white !important;
 }
 
 /* 버튼 */
-[class*="-btn"]:not(.smc-close):not(.fc-close-btn):not(.cap-fs-close):not([class*="db-"]) {
+[class*="-btn"]:not(.smc-close):not(.fc-close-btn):not(.cap-fs-close):not([class*="db-"]):not([class*="dash-"]) {
   background: #1e293b !important;
   border-color: #334155 !important;
   color: #94a3b8 !important;
 }
-[class*="-btn"]:not([class*="db-"]):hover {
+[class*="-btn"]:not([class*="db-"]):not([class*="dash-"]):hover {
   border-color: #2563eb !important;
   color: #60a5fa !important;
 }
-[class*="-btn"].primary:not([class*="db-"]),
-[class*="-btn-primary"]:not([class*="db-"]),
-[class*="btn-primary"]:not([class*="db-"]) {
+[class*="-btn"].primary:not([class*="db-"]):not([class*="dash-"]),
+[class*="-btn-primary"]:not([class*="db-"]):not([class*="dash-"]),
+[class*="btn-primary"]:not([class*="db-"]):not([class*="dash-"]) {
   background: #2563eb !important;
   color: white !important;
   border-color: #2563eb !important;
 }
 
 /* 입력 */
-[class*="-input"]:not(.smc-text-input):not(.cap-text-input):not([class*="db-"]) {
+[class*="-input"]:not(.smc-text-input):not(.cap-text-input):not([class*="db-"]):not([class*="dash-"]) {
   background: #0f172a !important;
   border-color: #334155 !important;
   color: #f1f5f9 !important;
 }
 
 /* 뱃지/칩 */
-[class*="-badge"]:not(.db-live-badge):not(.db-after-badge):not(.db-pre-badge):not(.db-etf-badge):not([class*="db-"]) {
+[class*="-badge"]:not(.db-live-badge):not(.db-after-badge):not(.db-pre-badge):not(.db-etf-badge):not([class*="db-"]):not([class*="dash-"]) {
   background: #1e293b !important;
   color: #94a3b8 !important;
 }
-[class*="-chip"]:not([class*="db-"]) {
+[class*="-chip"]:not([class*="db-"]):not([class*="dash-"]) {
   background: #1e293b !important;
   border-color: #334155 !important;
   color: #94a3b8 !important;
 }
-[class*="-chip"].active:not([class*="db-"]) {
+[class*="-chip"].active:not([class*="db-"]):not([class*="dash-"]) {
   background: rgba(37,99,235,.15) !important;
   border-color: #2563eb !important;
   color: #60a5fa !important;
 }
 
 /* 이름/라벨 */
-[class*="-name"]:not([class*="db-"]):not([class*="sidebar-"]):not([class*="top-header"])   { color: #e2e8f0 !important; }
-[class*="-label"]:not(.smc-info-label):not(.cap-info-label):not(.fc-summary-label):not([class*="db-"]):not([class*="sidebar-"]):not([class*="top-header"]) { color: #94a3b8 !important; }
-[class*="-title"]:not(.page-title):not(.smc-news-title):not([class*="db-"]):not([class*="sidebar-"]):not([class*="top-header"]) { color: #f1f5f9 !important; }
-[class*="-price"]:not([class*="db-"]):not([class*="sidebar-"])  { color: #f1f5f9 !important; }
-[class*="-code"]:not([class*="db-"])   { color: #64748b !important; }
-[class*="-meta"]:not([class*="db-"])   { color: #64748b !important; }
-[class*="-sub"]:not(.page-sub):not([class*="db-"]):not([class*="sidebar-"]):not([class*="top-header"]) { color: #94a3b8 !important; }
+[class*="-name"]:not([class*="db-"]):not([class*="sidebar-"]):not([class*="top-header"]):not([class*="dash-"])   { color: #e2e8f0 !important; }
+[class*="-label"]:not(.smc-info-label):not(.cap-info-label):not(.fc-summary-label):not([class*="db-"]):not([class*="sidebar-"]):not([class*="top-header"]):not([class*="dash-"]) { color: #94a3b8 !important; }
+[class*="-title"]:not(.page-title):not(.smc-news-title):not([class*="db-"]):not([class*="sidebar-"]):not([class*="top-header"]):not([class*="dash-"]) { color: #f1f5f9 !important; }
+[class*="-price"]:not([class*="db-"]):not([class*="sidebar-"]):not([class*="dash-"])  { color: #f1f5f9 !important; }
+[class*="-code"]:not([class*="db-"]):not([class*="dash-"])   { color: #64748b !important; }
+[class*="-meta"]:not([class*="db-"]):not([class*="dash-"])   { color: #64748b !important; }
+[class*="-sub"]:not(.page-sub):not([class*="db-"]):not([class*="sidebar-"]):not([class*="top-header"]):not([class*="dash-"]) { color: #94a3b8 !important; }
 
 /* 래퍼/컨테이너 */
-[class*="-wrap"]:not(.smc-chart-wrap):not(.db-spark-wrap):not(.cap-search-box):not([class*="db-"]):not([class*="sidebar-"]) {
+[class*="-wrap"]:not(.smc-chart-wrap):not(.db-spark-wrap):not(.cap-search-box):not([class*="db-"]):not([class*="sidebar-"]):not([class*="dash-"]) {
   background: #0a0f1a !important;
 }
 
 /* 로딩 */
-[class*="-loading"]:not([class*="db-"]) { color: #64748b !important; background: transparent !important; }
+[class*="-loading"]:not([class*="db-"]):not([class*="dash-"]) { color: #64748b !important; background: transparent !important; }
 
 /* 구분선 */
-[class*="-divider"]:not([class*="db-"]),
-[class*="-separator"]:not([class*="db-"]) {
+[class*="-divider"]:not([class*="db-"]):not([class*="dash-"]),
+[class*="-separator"]:not([class*="db-"]):not([class*="dash-"]) {
   background: #1e293b !important;
   border-color: #1e293b !important;
 }
