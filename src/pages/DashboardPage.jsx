@@ -184,61 +184,49 @@ export default function DashboardPage() {
         {SECTOR_GROUPS.map((group, gi)=>{
           const tipPos = gi % 3 === 0 ? 'right' : 'left'
 
-          // ── 해외지수 그룹: 콤팩트 리스트 렌더링 ──
+          // ── 해외지수 그룹: 카드 그리드 렌더링 (국내지수와 동일 형태) ──
           if (group.id === 'global') return (
             <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
               <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-              <div className="db-compact-list">
+              <div className="db-card-group-items global-items">
                 {group.items.filter(it=>it.type!=='divider').map(item=>{
                   const d      = getItemData(item, dashData, globalData, forexData)
                   const rate   = d?.changeRate
                   const up     = (rate ?? 0) > 0
                   const badge  = getMarketBadge(item, d)
+                  const isClosed = badge?.cls === 'closed'
                   const dateLabel = getItemDateLabel(item, d)
                   const active = selId === item.id
-                  // 미니 방향 바 너비 — 등락률 절댓값 기준 (최대 3% = 100%)
-                  const barPct = rate!=null ? Math.min(100, (Math.abs(rate)/3)*100) : 0
                   return (
-                    <div key={item.id}
-                      className={`db-compact-row ${active?'active':''}`}
-                      onClick={()=>item.type==='global'&&setSelId(item.id)}>
-                      {/* 왼쪽: 지수명 + 배지 */}
-                      <div className="db-compact-left">
-                        <span className="db-compact-name">{item.label}</span>
-                        {badge && (
-                          <span className={`db-idx-badge db-idx-badge--${badge.cls}`} style={{fontSize:8,padding:'1px 4px'}}>
-                            {badge.cls==='live'&&<span className="db-idx-live-dot"/>}{badge.label}
-                          </span>
-                        )}
-                      </div>
-                      {/* 미니 방향 바 */}
-                      <div className="db-compact-minibar-wrap">
-                        {rate!=null && (
-                          <div className="db-compact-minibar"
-                            style={{
-                              width:`${barPct}%`,
-                              background: up ? '#DC2626' : '#1D4ED8',
-                              marginLeft: up ? 'auto' : '0',
-                            }}/>
-                        )}
-                      </div>
-                      {/* 오른쪽: 현재가 + 등락률 + 기준일 */}
-                      <div className="db-compact-right">
-                        {d?.price!=null ? (
-                          <>
-                            <span className="db-compact-price">
-                              {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}{item.unit||''}
+                    <button key={item.id}
+                      className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''}`}
+                      onClick={()=>setSelId(item.id)}>
+                      <div className="db-idx-top-row">
+                        <span className="db-idx-name">{item.label}</span>
+                        <span style={{display:'flex',alignItems:'center',gap:3}}>
+                          <TooltipIcon id={item.id} tipPosition="left"/>
+                          {badge && (
+                            <span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
+                              {badge.cls==='live'&&<span className="db-idx-live-dot"/>}{badge.label}
                             </span>
-                            {rate!=null && (
-                              <span className="db-compact-rate" style={{color:up?'#DC2626':'#1D4ED8'}}>
-                                {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
-                              </span>
-                            )}
-                          </>
-                        ) : <span className="db-compact-na">—</span>}
-                        {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
+                          )}
+                        </span>
                       </div>
-                    </div>
+                      {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
+                       d?.price!=null ? (
+                        <>
+                          <div className="db-idx-price">
+                            {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}{item.unit||''}
+                          </div>
+                          {rate!=null && (
+                            <div className={`db-idx-rate-badge ${up?'up':'down'}`}>
+                              {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
+                            </div>
+                          )}
+                          {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
+                        </>
+                      ) : <div className="db-idx-na">—</div>}
+                    </button>
                   )
                 })}
               </div>
@@ -371,7 +359,7 @@ export default function DashboardPage() {
           return (
           <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
             <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-            <div className="db-card-group-items">
+            <div className={`db-card-group-items ${group.id==='domestic'?'domestic-items':''}`}>
               {group.items.map(item=>{
                 if (item.type==='divider') return (
                   <div key={item.id} className="db-card-group-divider">{item.label}</div>

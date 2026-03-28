@@ -124,9 +124,10 @@
 
 /* 그룹 박스 — 왼쪽 섹터 강조선 */
 .db-card-group {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--group-accent, var(--border));
+  background: var(--bg-panel) !important;
+  border: 1px solid var(--border) !important;
+  border-left: 4px solid var(--group-accent, var(--border)) !important;
+  color: var(--text-primary) !important;
   border-radius: 16px;
   padding: 14px 16px;
   box-shadow: var(--shadow-sm);
@@ -161,8 +162,9 @@
 
 /* 개별 지수 카드 */
 .db-idx-card {
-  background: var(--bg-base);
-  border: 1px solid var(--border);
+  background: var(--bg-base) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-primary) !important;
   border-radius: 10px;
   padding: 10px 12px;
   cursor: pointer;
@@ -174,8 +176,8 @@
   width: 100%;
 }
 .db-idx-card:hover {
-  border-color: #CBD5E1;
-  background: var(--bg-hover);
+  border-color: #CBD5E1 !important;
+  background: var(--bg-hover) !important;
   transform: translateY(-1px);
   box-shadow: var(--shadow-sm);
 }
@@ -196,6 +198,15 @@
 .db-idx-card.cb-card:hover { transform: none; box-shadow: none; }
 .db-idx-card.cb-card .db-idx-price { font-size: 13px; }
 .db-idx-card.cb-card .db-idx-name  { font-size: 10px; }
+
+/* 국내지수 그룹 — 2개 카드가 꽉 채우도록 */
+.db-card-group-items.domestic-items {
+  grid-template-columns: repeat(2, 1fr);
+}
+/* 해외지수 그룹 — 4개 카드 2×2 */
+.db-card-group-items.global-items {
+  grid-template-columns: repeat(2, 1fr);
+}
 
 .db-idx-top-row { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:1px; gap:2px; }
 .db-idx-price   { font-size: 16px; font-weight: 800; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
