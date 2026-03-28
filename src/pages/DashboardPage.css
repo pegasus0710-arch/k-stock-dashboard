@@ -966,8 +966,8 @@
 .db-compact-na    { font-size:11px; color:var(--text-dim); }
 
 /* ── VIX 반원 게이지 ─────────────────────────────────── */
-.db-semi-wrap       { padding: 2px 0; }
-.db-semi-badge-row  { display:flex; justify-content:flex-end; margin-bottom:2px; }
+.db-semi-wrap       { padding: 2px 0; display: flex; flex-direction: column; gap: 0; }
+.db-semi-badge-row  { display:flex; justify-content:flex-end; margin-bottom:3px; }
 .db-semi-badge {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 2px 7px; border-radius: 10px;
@@ -976,7 +976,7 @@
 .db-semi-labels {
   display: flex; justify-content: space-between;
   font-size: 9px; color: var(--text-dim);
-  margin-top: -4px; padding: 0 4px;
+  margin-top: 2px; padding: 0 2px;
 }
 
 /* ── USD/KRW 컬러 레인지 바 ─────────────────────────── */
@@ -1020,6 +1020,40 @@
 }
 /* 52주 레이블 폰트 통일 */
 .db-52w-labels span {
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+/* ── 스프레드 발산 바 ────────────────────────────────── */
+.db-diverge-wrap  { padding: 2px 0; }
+.db-diverge-track {
+  display: flex;
+  align-items: center;
+  height: 10px;
+  gap: 0;
+}
+.db-diverge-half  {
+  flex: 1;
+  height: 10px;
+  background: var(--bg-base);
+  border: 0.5px solid var(--border);
+  overflow: hidden;
+  display: flex;
+}
+.db-diverge-left  { border-radius: 5px 0 0 5px; border-right: none; }
+.db-diverge-right { border-radius: 0 5px 5px 0; border-left: none; }
+.db-diverge-center {
+  width: 2px;
+  height: 16px;
+  background: var(--text-secondary);
+  flex-shrink: 0;
+  border-radius: 1px;
+}
+.db-diverge-bar   { height: 100%; border-radius: 4px; transition: width .3s ease; }
+.db-diverge-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
   font-size: 9px;
   color: var(--text-dim);
 }
