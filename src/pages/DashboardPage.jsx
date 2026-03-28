@@ -492,15 +492,21 @@ export default function DashboardPage() {
                           <div className="db-kospi-extra">
                             {/* 스파크라인 */}
                             {sparkData?.[item.id]?.length > 1 && (() => {
-                              const closes = sparkData[item.id]
+                              const raw = sparkData[item.id]
+                              const closes = raw.filter(v => typeof v === 'number' && isFinite(v))
+                              if (closes.length < 2) return null
                               const W=160, H=32, pad=2
                               const mn = Math.min(...closes), mx = Math.max(...closes)
                               const rng = mx - mn || 1
                               const px = i => pad + (i/(closes.length-1))*(W-pad*2)
                               const py = v => H-pad-(v-mn)/rng*(H-pad*2)
-                              const pts = closes.map((v,i)=>`${px(i)},${py(v)}`).join(' ')
+                              const validPts = closes.map((v,i)=>{const x=px(i),y=py(v);return isFinite(x)&&isFinite(y)?`${x.toFixed(1)},${y.toFixed(1)}`:null}).filter(Boolean)
+                              if (validPts.length < 2) return null
+                              const pts = validPts.join(' ')
                               const color = closes[closes.length-1] >= closes[0] ? '#22c55e' : '#ef4444'
                               const apts = `${pad},${H-pad} ${pts} ${W-pad},${H-pad}`
+                              const lastX = px(closes.length-1), lastY = py(closes[closes.length-1])
+                              if (!isFinite(lastX)||!isFinite(lastY)) return null
                               return (
                                 <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',margin:'6px 0 2px'}}>
                                   <defs>
@@ -511,7 +517,7 @@ export default function DashboardPage() {
                                   </defs>
                                   <polygon points={apts} fill={`url(#sg-${item.id})`}/>
                                   <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
-                                  <circle cx={px(closes.length-1)} cy={py(closes[closes.length-1])} r="2.5" fill={color} stroke="white" strokeWidth="1.5"/>
+                                  <circle cx={lastX.toFixed(1)} cy={lastY.toFixed(1)} r="2.5" fill={color} stroke="white" strokeWidth="1.5"/>
                                 </svg>
                               )
                             })()}

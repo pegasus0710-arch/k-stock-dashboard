@@ -1104,3 +1104,19 @@ html body .sidebar-item.active { background: var(--accent-light) !important; col
 html body .sidebar-item-sub { color: var(--text-dim) !important; }
 html body .sidebar-user-name  { color: var(--text-primary) !important; }
 html body .sidebar-user-email { color: var(--text-dim) !important; }
+
+/* ── db- 남은 다크 잔재 완전 차단 ──────────────────── */
+.db-flow-header,
+.db-flow-title,
+.db-flow-section  { background: transparent !important; color: var(--text-secondary) !important; border-color: var(--border) !important; }
+.db-tooltip-icon  { background: var(--border) !important; color: var(--text-secondary) !important; }
+.db-tooltip-box   { background: #FFFFFF !important; border-color: #CBD5E1 !important; color: var(--text-primary) !important; }
+.db-tooltip-title { color: var(--text-primary) !important; }
+.db-tooltip-desc  { color: var(--text-secondary) !important; }
+.db-tooltip-tip   { color: var(--text-dim) !important; }
+.db-status-badge  { background: transparent !important; }
+.db-guide-btn     { background: var(--accent-light) !important; color: var(--accent) !important; border-color: #BFDBFE !important; }
+.db-briefing-btn  { color: white !important; }
+.dash-title       { color: var(--text-primary) !important; }
+.dash-date        { color: var(--text-secondary) !important; }
+.dashboard        { background: var(--bg-base) !important; color: var(--text-primary) !important; }
