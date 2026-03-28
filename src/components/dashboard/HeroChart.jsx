@@ -39,7 +39,7 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
   const group  = SECTOR_GROUPS.find(g=>g.items.some(x=>x.id===selId))
   const accent = item?.color || group?.accent || '#2563eb'
 
-  const fetchChart = useCallback(async (id, rng) => {
+  const fetchChart = useCallback(async (id, rng, isSparkLoad=false) => {
     const it = ALL_ITEMS.find(x=>x.id===id)
     if (!it || it.type==='cb') return
     setLoading(true)
@@ -53,17 +53,17 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
         raw = j[it.pair]?.candles||[]
       }
       setCandles(raw.filter(c=>(c.close||0)>0))
-      // 52주 고저 계산해서 부모로 전달
       const valid = raw.filter(c=>(c.close||0)>0)
-      if(valid.length && onWeekRange) {
+      // 52주 고저 — 스파크 초기 로드 시에만 업데이트
+      if(isSparkLoad && valid.length && onWeekRange) {
         const highs = valid.map(c=>c.high||c.close||0).filter(v=>v>0)
         const lows  = valid.map(c=>c.low||c.close||0).filter(v=>v>0)
         if(highs.length && lows.length) {
           onWeekRange(it.id, Math.max(...highs), Math.min(...lows))
         }
       }
-      // 스파크라인용 최근 20일 종가 전달
-      if(valid.length && onSparkData) {
+      // 스파크라인 — 스파크 초기 로드 시에만 업데이트 (셀렉터 클릭 시 덮어쓰기 방지)
+      if(isSparkLoad && valid.length && onSparkData) {
         const recent = valid.slice(-20).map(c=>c.close)
         onSparkData(it.id, recent)
       }
@@ -75,14 +75,14 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
 
   // 초기 마운트 시 자동 로드
   useEffect(()=>{
-    // 국내지수 1년치 (스파크라인 + 52주)
-    fetchChart('KOSPI',  '1y')
-    fetchChart('KOSDAQ', '1y')
-    // 해외 주요지수 3개월치 (스파크라인)
-    fetchChart('SP500',  '3m')
-    fetchChart('NASDAQ', '3m')
-    fetchChart('DOW',    '3m')
-    fetchChart('DAX',    '3m')
+    // 국내지수 1년치 (스파크라인 + 52주) — isSparkLoad=true
+    fetchChart('KOSPI',  '1y', true)
+    fetchChart('KOSDAQ', '1y', true)
+    // 해외 주요지수 3개월치 (스파크라인) — isSparkLoad=true
+    fetchChart('SP500',  '3m', true)
+    fetchChart('NASDAQ', '3m', true)
+    fetchChart('DOW',    '3m', true)
+    fetchChart('DAX',    '3m', true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[])
 
