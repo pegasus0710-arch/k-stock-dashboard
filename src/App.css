@@ -627,7 +627,7 @@ hr, [class*="-divider"], [class*="-separator"] {
 }
 
 /* 헤더/타이틀 */
-[class*="-header"]:not(.smc-header):not(.fc-header):not(.top-header):not(.cap-stock-header):not(.cap-fs-toolbar):not([class*="db-"]):not([class*="sidebar-"]) {
+[class*="-header"]:not(.smc-header):not(.fc-header):not(.top-header):not(.cap-stock-header):not(.cap-fs-toolbar):not([class*="db-"]):not([class*="sidebar-"]):not([class*="dash-"]) {
   background: #0f172a !important;
   border-color: #1e293b !important;
   color: #f1f5f9 !important;

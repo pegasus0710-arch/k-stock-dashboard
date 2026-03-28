@@ -7,10 +7,10 @@
 }
 
 /* ── 헤더 ────────────────────────────────────────── */
-.dash-header     { padding: 16px 20px 0; }
+.dash-header     { padding: 16px 20px 0; background: transparent !important; }
 .dash-header-row { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:10px; }
-.dash-title      { font-size:20px; font-weight:700; color:var(--text-primary); margin:0 0 3px; }
-.dash-date       { font-size:11px; color:var(--text-secondary); margin:0; }
+.dash-title      { font-size:20px; font-weight:700; color:var(--text-primary) !important; margin:0 0 3px; }
+.dash-date       { font-size:11px; color:var(--text-secondary) !important; margin:0; }
 
 .db-status-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:600; border:1px solid; }
 .db-status-dot   { width:6px; height:6px; border-radius:50%; animation:pulse 1.5s infinite; }
