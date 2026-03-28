@@ -73,10 +73,16 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
 
   useEffect(()=>{ fetchChart(selId, range) },[selId, range])
 
-  // KOSPI/KOSDAQ 스파크라인 + 52주 — 마운트 시 항상 1년치 로드
+  // 초기 마운트 시 자동 로드
   useEffect(()=>{
+    // 국내지수 1년치 (스파크라인 + 52주)
     fetchChart('KOSPI',  '1y')
     fetchChart('KOSDAQ', '1y')
+    // 해외 주요지수 3개월치 (스파크라인)
+    fetchChart('SP500',  '3m')
+    fetchChart('NASDAQ', '3m')
+    fetchChart('DOW',    '3m')
+    fetchChart('DAX',    '3m')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[])
 

@@ -1105,3 +1105,60 @@
   font-size: 14px !important;
   margin: 2px 0;
 }
+
+/* ── 다크 잔재 완전 차단 — db- 전체 강제 라이트 ─────── */
+.db-chart-section,
+.db-cards-section,
+.db-heatmap-section,
+.db-flow-section,
+.db-card-group,
+.db-card-group-label,
+.db-card-group-items,
+.db-idx-card,
+.db-idx-name,
+.db-idx-price,
+.db-52w-wrap,
+.db-52w-labels,
+.db-kospi-extra,
+.db-commodity-dot-card,
+.db-commodity-price,
+.db-commodity-rate,
+.db-heatmap-cell,
+.db-global-big,
+.db-global-small {
+  color: var(--text-primary) !important;
+}
+.db-chart-section,
+.db-card-group,
+.db-heatmap-section { background: var(--bg-panel) !important; border-color: var(--border) !important; }
+.db-idx-card,
+.db-commodity-dot-card { background: var(--bg-base) !important; border-color: var(--border) !important; }
+.db-cards-section    { background: transparent !important; }
+.db-idx-na           { color: var(--text-dim) !important; }
+.db-card-group-label { color: var(--text-secondary) !important; border-color: var(--border) !important; }
+
+/* ── 해외지수 새 레이아웃 ──────────────────────────────── */
+/* 상단 3개 — S&P500/NASDAQ/DOW 대형 스파크라인 카드 */
+.db-global-big-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.db-global-big {
+  /* db-idx-card 기본 스타일 상속 */
+}
+
+/* 하단 소형 카드 — DAX 등 */
+.db-global-small-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 추후 추가 시 자동 확장 */
+  gap: 6px;
+}
+.db-global-small {
+  padding: 8px 10px !important;
+}
+.db-global-small .db-idx-price {
+  font-size: 13px !important;
+  margin: 2px 0;
+}

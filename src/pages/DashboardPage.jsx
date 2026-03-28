@@ -184,54 +184,122 @@ export default function DashboardPage() {
         {SECTOR_GROUPS.map((group, gi)=>{
           const tipPos = gi % 3 === 0 ? 'right' : 'left'
 
-          // ── 해외지수 그룹: 카드 그리드 렌더링 (국내지수와 동일 형태) ──
-          if (group.id === 'global') return (
-            <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
-              <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-              <div className="db-card-group-items global-items">
-                {group.items.filter(it=>it.type!=='divider').map(item=>{
-                  const d      = getItemData(item, dashData, globalData, forexData)
-                  const rate   = d?.changeRate
-                  const up     = (rate ?? 0) > 0
-                  const badge  = getMarketBadge(item, d)
-                  const isClosed = badge?.cls === 'closed'
-                  const dateLabel = getItemDateLabel(item, d)
-                  const active = selId === item.id
-                  return (
-                    <button key={item.id}
-                      className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''}`}
-                      onClick={()=>setSelId(item.id)}>
-                      <div className="db-idx-top-row">
-                        <span className="db-idx-name">{item.label}</span>
-                        <span style={{display:'flex',alignItems:'center',gap:3}}>
-                          <TooltipIcon id={item.id} tipPosition="left"/>
-                          {badge && (
-                            <span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
+          // ── 해외지수 그룹: 상단 3개 스파크라인 카드 + 하단 DAX 소형 ──
+          if (group.id === 'global') {
+            const bigItems   = group.items.filter(it=>['SP500','NASDAQ','DOW'].includes(it.id))
+            const smallItems = group.items.filter(it=>!['SP500','NASDAQ','DOW'].includes(it.id))
+            const makeSparkSvg = (id, color) => {
+              const closes = sparkData?.[id]
+              if (!closes || closes.length < 2) return null
+              const W=120, H=28, pad=2
+              const mn=Math.min(...closes), mx=Math.max(...closes), rng=mx-mn||1
+              const px=i=>pad+(i/(closes.length-1))*(W-pad*2)
+              const py=v=>H-pad-(v-mn)/rng*(H-pad*2)
+              const pts=closes.map((v,i)=>`${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ')
+              const apts=`${pad},${H-pad} ${pts} ${W-pad},${H-pad}`
+              return (
+                <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',margin:'4px 0 2px'}}>
+                  <defs>
+                    <linearGradient id={`gsg-${id}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={color} stopOpacity="0.15"/>
+                      <stop offset="100%" stopColor={color} stopOpacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <polygon points={apts} fill={`url(#gsg-${id})`}/>
+                  <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
+                  <circle cx={px(closes.length-1).toFixed(1)} cy={py(closes[closes.length-1]).toFixed(1)} r="2.5" fill={color} stroke="white" strokeWidth="1.5"/>
+                </svg>
+              )
+            }
+            return (
+              <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
+                <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
+                {/* 상단 — S&P500 / NASDAQ / DOW 3개 스파크라인 카드 */}
+                <div className="db-global-big-grid">
+                  {bigItems.map(item=>{
+                    const d         = getItemData(item, dashData, globalData, forexData)
+                    const rate      = d?.changeRate
+                    const up        = (rate??0) > 0
+                    const badge     = getMarketBadge(item, d)
+                    const isClosed  = badge?.cls === 'closed'
+                    const dateLabel = getItemDateLabel(item, d)
+                    const active    = selId === item.id
+                    const spark     = makeSparkSvg(item.id, up ? '#DC2626' : '#1D4ED8')
+                    return (
+                      <button key={item.id}
+                        className={`db-idx-card db-global-big ${active?'active':''} ${isClosed?'closed':''}`}
+                        onClick={()=>setSelId(item.id)}>
+                        <div className="db-idx-top-row">
+                          <span className="db-idx-name">{item.label}</span>
+                          <span style={{display:'flex',alignItems:'center',gap:3}}>
+                            <TooltipIcon id={item.id} tipPosition="left"/>
+                            {badge&&<span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
                               {badge.cls==='live'&&<span className="db-idx-live-dot"/>}{badge.label}
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
-                       d?.price!=null ? (
-                        <>
-                          <div className="db-idx-price">
-                            {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}{item.unit||''}
-                          </div>
-                          {rate!=null && (
-                            <div className={`db-idx-rate-badge ${up?'up':'down'}`}>
-                              {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
+                            </span>}
+                          </span>
+                        </div>
+                        {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
+                         d?.price!=null ? (
+                          <>
+                            <div className="db-idx-price" style={{fontSize:15}}>
+                              {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}
                             </div>
-                          )}
-                          {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
-                        </>
-                      ) : <div className="db-idx-na">—</div>}
-                    </button>
-                  )
-                })}
+                            {rate!=null&&<div className={`db-idx-rate-badge ${up?'up':'down'}`}>
+                              {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
+                            </div>}
+                            {spark}
+                            {dateLabel&&<span className="db-date-badge">{dateLabel}</span>}
+                          </>
+                        ) : <div className="db-idx-na">—</div>}
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* 하단 — DAX 소형 카드 */}
+                {smallItems.length > 0 && (
+                  <div className="db-global-small-grid">
+                    {smallItems.map(item=>{
+                      const d         = getItemData(item, dashData, globalData, forexData)
+                      const rate      = d?.changeRate
+                      const up        = (rate??0) > 0
+                      const badge     = getMarketBadge(item, d)
+                      const isClosed  = badge?.cls === 'closed'
+                      const dateLabel = getItemDateLabel(item, d)
+                      const active    = selId === item.id
+                      const spark     = makeSparkSvg(item.id, up ? '#DC2626' : '#1D4ED8')
+                      return (
+                        <button key={item.id}
+                          className={`db-idx-card db-global-small ${active?'active':''} ${isClosed?'closed':''}`}
+                          onClick={()=>setSelId(item.id)}>
+                          <div className="db-idx-top-row">
+                            <span className="db-idx-name">{item.label}</span>
+                            <span style={{display:'flex',alignItems:'center',gap:3}}>
+                              <TooltipIcon id={item.id} tipPosition="left"/>
+                              {badge&&<span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
+                                {badge.cls==='live'&&<span className="db-idx-live-dot"/>}{badge.label}
+                              </span>}
+                            </span>
+                          </div>
+                          {d?.price!=null ? (
+                            <>
+                              <div className="db-idx-price" style={{fontSize:14}}>
+                                {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}
+                              </div>
+                              {rate!=null&&<div className={`db-idx-rate-badge ${up?'up':'down'}`}>
+                                {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
+                              </div>}
+                              {spark}
+                              {dateLabel&&<span className="db-date-badge">{dateLabel}</span>}
+                            </>
+                          ) : <div className="db-idx-na">—</div>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          )
+            )
+          }
 
           // ── 환율 그룹: USD 와이드 + 나머지 3개 소형 ──
           if (group.id === 'forex') {
