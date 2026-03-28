@@ -111,10 +111,15 @@ export default function DashboardPage() {
           fetchError, setFetchError, lastFetch, refresh, fetchDashboard } = useDashboard()
 
   // 52주 고저 — HeroChart candles에서 계산 (별도 API 불필요)
-  const [weekData, setWeekData] = useState({})
+  const [weekData,  setWeekData]  = useState({})
+  const [sparkData, setSparkData] = useState({})
   const handleWeekRange = useCallback((id, high, low) => {
     const key = id === 'KOSPI' ? 'KOSPI' : id === 'KOSDAQ' ? 'KOSDAQ' : null
     if(key) setWeekData(prev => ({...prev, [key]: {high52: high, low52: low}}))
+  }, [])
+  const handleSparkData = useCallback((id, closes) => {
+    const key = id === 'KOSPI' ? 'KOSPI' : id === 'KOSDAQ' ? 'KOSDAQ' : null
+    if(key) setSparkData(prev => ({...prev, [key]: closes}))
   }, [])
 
   const [selId,       setSelId]       = useState('KOSPI')
@@ -172,13 +177,59 @@ export default function DashboardPage() {
         </div>
         <HeroChart selId={selId} onSelChange={setSelId}
           dashData={dashData} globalData={globalData} forexData={forexData}
-          onWeekRange={handleWeekRange}/>
+          onWeekRange={handleWeekRange} onSparkData={handleSparkData}/>
       </div>
 
       {/* 영역 2: 중단 지수 카드 그리드 */}
       <div className="db-cards-section">
         {SECTOR_GROUPS.map((group, gi)=>{
           const tipPos = gi % 3 === 0 ? 'right' : 'left'
+
+          // ── 해외지수 그룹: 콤팩트 리스트 렌더링 ──
+          if (group.id === 'global') return (
+            <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
+              <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
+              <div className="db-compact-list">
+                {group.items.filter(it=>it.type!=='divider').map(item=>{
+                  const d    = getItemData(item, dashData, globalData, forexData, cbRates)
+                  const rate = d?.changeRate
+                  const up   = (rate ?? 0) > 0
+                  const badge = getMarketBadge(item, d)
+                  const dateLabel = getItemDateLabel(item, d)
+                  const active = selId === item.id
+                  return (
+                    <div key={item.id}
+                      className={`db-compact-row ${active?'active':''}`}
+                      onClick={()=>item.type==='global'&&setSelId(item.id)}>
+                      <div className="db-compact-left">
+                        <span className="db-compact-name">{item.label}</span>
+                        {badge && (
+                          <span className={`db-idx-badge db-idx-badge--${badge.cls}`} style={{fontSize:8,padding:'1px 4px'}}>
+                            {badge.cls==='live'&&<span className="db-idx-live-dot"/>}{badge.label}
+                          </span>
+                        )}
+                      </div>
+                      <div className="db-compact-right">
+                        {d?.price!=null ? (
+                          <>
+                            <span className="db-compact-price">
+                              {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}{item.unit||''}
+                            </span>
+                            {rate!=null && (
+                              <span className="db-compact-rate" style={{color:up?'#DC2626':'#1D4ED8'}}>
+                                {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
+                              </span>
+                            )}
+                          </>
+                        ) : <span className="db-compact-na">—</span>}
+                        {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
 
           // ── 원자재 그룹: 도트 히트맵 렌더링 ──
           if (group.id === 'commodity') return (
@@ -281,6 +332,23 @@ export default function DashboardPage() {
                             : null
                         }
                         {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
+                        {/* 스파크라인 미니차트 — KOSPI/KOSDAQ만 */}
+                        {(item.id==='KOSPI'||item.id==='KOSDAQ') && sparkData?.[item.id]?.length > 1 && (() => {
+                          const closes = sparkData[item.id]
+                          const W=120, H=28, pad=2
+                          const mn = Math.min(...closes), mx = Math.max(...closes)
+                          const rng = mx - mn || 1
+                          const px = i => pad + (i/(closes.length-1))*(W-pad*2)
+                          const py = v => H-pad-(v-mn)/rng*(H-pad*2)
+                          const pts = closes.map((v,i)=>`${px(i)},${py(v)}`).join(' ')
+                          const color = closes[closes.length-1] >= closes[0] ? '#22c55e' : '#ef4444'
+                          return (
+                            <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',margin:'4px 0 2px'}}>
+                              <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
+                              <circle cx={px(closes.length-1)} cy={py(closes[closes.length-1])} r="2.5" fill={color}/>
+                            </svg>
+                          )
+                        })()}
                         {/* 52주 고저 게이지 — KOSPI/KOSDAQ만 */}
                         {(item.id==='KOSPI'||item.id==='KOSDAQ') && weekData?.[item.id] && d?.price!=null && (() => {
                           const w    = weekData[item.id]

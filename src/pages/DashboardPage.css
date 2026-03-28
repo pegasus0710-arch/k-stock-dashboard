@@ -939,3 +939,28 @@
   font-size: 8px;
   color: var(--text-dim);
 }
+
+/* ── 해외지수 콤팩트 리스트 ─────────────────────────── */
+.db-compact-list { display: flex; flex-direction: column; gap: 2px; }
+.db-compact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background .12s;
+  gap: 6px;
+}
+.db-compact-row:hover { background: var(--bg-hover); }
+.db-compact-row.active {
+  background: var(--accent-light);
+  border-color: var(--accent-mid);
+}
+.db-compact-left  { display:flex; align-items:center; gap:5px; min-width:0; }
+.db-compact-right { display:flex; align-items:center; gap:5px; flex-shrink:0; }
+.db-compact-name  { font-size:11px; font-weight:600; color:var(--text-primary); white-space:nowrap; }
+.db-compact-price { font-size:12px; font-weight:700; color:var(--text-primary); }
+.db-compact-rate  { font-size:10px; font-weight:700; min-width:52px; text-align:right; }
+.db-compact-na    { font-size:11px; color:var(--text-dim); }

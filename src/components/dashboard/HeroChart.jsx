@@ -29,7 +29,7 @@ function getMarketBadge(item, data) {
   return { label:'전일', color:'#64748b' }
 }
 
-function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeekRange }) {
+function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeekRange, onSparkData }) {
   const [range,   setRange]   = useState('3mo')
   const [candles, setCandles] = useState([])
   const [loading, setLoading] = useState(false)
@@ -61,6 +61,11 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
         if(highs.length && lows.length) {
           onWeekRange(it.id, Math.max(...highs), Math.min(...lows))
         }
+      }
+      // 스파크라인용 최근 20일 종가 전달
+      if(valid.length && onSparkData) {
+        const recent = valid.slice(-20).map(c=>c.close)
+        onSparkData(it.id, recent)
       }
     } catch(e){console.error(e)}
     finally{setLoading(false)}
