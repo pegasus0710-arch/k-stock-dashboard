@@ -1057,3 +1057,25 @@
   font-size: 9px;
   color: var(--text-dim);
 }
+
+/* ── 환율 그룹 레이아웃 ─────────────────────────────── */
+/* USD/KRW 와이드 카드 — 전체 너비 */
+.db-forex-wide {
+  width: 100%;
+  margin-bottom: 8px;
+  text-align: left;
+}
+/* JPY/CNY/EUR 소형 카드 3개 그리드 */
+.db-forex-small-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.db-forex-small {
+  padding: 8px 10px;
+  min-height: 0;
+}
+.db-forex-small .db-idx-price {
+  font-size: 14px !important;
+  margin: 2px 0;
+}

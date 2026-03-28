@@ -230,6 +230,81 @@ export default function DashboardPage() {
             </div>
           )
 
+          // ── 환율 그룹: USD 와이드 + 나머지 3개 소형 ──
+          if (group.id === 'forex') {
+            const usdItem = group.items.find(it=>it.id==='FX_USD')
+            const otherItems = group.items.filter(it=>it.id!=='FX_USD')
+            const usdData = usdItem ? getItemData(usdItem, dashData, globalData, forexData) : null
+            return (
+              <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
+                <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
+                {/* USD/KRW — 와이드 카드 */}
+                {usdItem && (
+                  <button
+                    className={`db-idx-card db-forex-wide ${selId===usdItem.id?'active':''} ${usdData?.price>=1500?'db-idx-card--warn-orange':''}`}
+                    onClick={()=>setSelId(usdItem.id)}>
+                    <div className="db-idx-top-row">
+                      <span className="db-idx-name">{usdItem.label}</span>
+                      <span style={{display:'flex',alignItems:'center',gap:3}}>
+                        <TooltipIcon id={usdItem.id} tipPosition="left"/>
+                      </span>
+                    </div>
+                    {usdData?.price!=null ? (
+                      <>
+                        <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:2}}>
+                          <div className="db-idx-price">{usdData.price.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
+                          {usdData.changeRate!=null && (
+                            <div className={`db-idx-rate-badge ${usdData.changeRate>=0?'up':'down'}`}>
+                              {usdData.changeRate>=0?'▲':'▼'} {Math.abs(usdData.changeRate).toFixed(2)}%
+                            </div>
+                          )}
+                        </div>
+                        <GaugeBar id={usdItem.id} price={usdData.price}/>
+                        {getItemDateLabel(usdItem, usdData) && (
+                          <div style={{textAlign:'right',marginTop:4}}>
+                            <span className="db-date-badge">{getItemDateLabel(usdItem, usdData)}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : <div className="db-idx-na">—</div>}
+                  </button>
+                )}
+                {/* JPY/CNY/EUR — 소형 카드 3개 */}
+                <div className="db-forex-small-grid">
+                  {otherItems.map(item=>{
+                    const d    = getItemData(item, dashData, globalData, forexData)
+                    const rate = d?.changeRate
+                    const up   = (rate ?? 0) > 0
+                    const dateLabel = getItemDateLabel(item, d)
+                    return (
+                      <button key={item.id}
+                        className={`db-idx-card db-forex-small ${selId===item.id?'active':''}`}
+                        onClick={()=>setSelId(item.id)}>
+                        <div className="db-idx-top-row">
+                          <span className="db-idx-name" style={{fontSize:10}}>{item.label}</span>
+                          <TooltipIcon id={item.id} tipPosition="left"/>
+                        </div>
+                        {d?.price!=null ? (
+                          <>
+                            <div className="db-idx-price" style={{fontSize:14}}>
+                              {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}
+                            </div>
+                            {rate!=null && (
+                              <div className={`db-idx-rate-badge ${up?'up':'down'}`}>
+                                {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
+                              </div>
+                            )}
+                            {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
+                          </>
+                        ) : <div className="db-idx-na">—</div>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          }
+
           // ── 원자재 그룹: 도트 히트맵 렌더링 ──
           if (group.id === 'commodity') return (
             <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
