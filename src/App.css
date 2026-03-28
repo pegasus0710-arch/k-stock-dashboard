@@ -647,129 +647,127 @@ hr, [class*="-divider"], [class*="-separator"] {
 
 /* ═══════════════════════════════════════════════════
    전역 라이트 테마 → 다크 강제 변환 (최우선)
-   모든 white/라이트 배경을 다크로 덮어씌움
+   db- 클래스는 라이트 테마이므로 전부 예외처리
    ═══════════════════════════════════════════════════ */
 
-/* ── 모든 라이트 배경 패턴 강제 다크화 ── */
-
 /* 카드/섹션 계열 */
-[class*="-card"],
-[class*="-panel"],
-[class*="-section"]:not(.db-section),
-[class*="-body"]:not(.smc-chart-wrap),
-[class*="-content"]:not(.app-content),
-[class*="-box"]:not(.cap-search-box) {
+[class*="-card"]:not([class*="db-"]),
+[class*="-panel"]:not([class*="db-"]),
+[class*="-section"]:not(.db-section):not([class*="db-"]),
+[class*="-body"]:not(.smc-chart-wrap):not([class*="db-"]),
+[class*="-content"]:not(.app-content):not([class*="db-"]),
+[class*="-box"]:not(.cap-search-box):not([class*="db-"]) {
   background-color: #111827 !important;
   border-color: #1e293b !important;
   color: #e2e8f0 !important;
 }
 
 /* 빈 상태 empty */
-[class*="-empty"] {
+[class*="-empty"]:not([class*="db-"]) {
   background: #0f172a !important;
   border-color: #1e293b !important;
   color: #64748b !important;
 }
 
 /* 헤더/타이틀 */
-[class*="-header"]:not(.smc-header):not(.fc-header):not(.top-header):not(.cap-stock-header):not(.cap-fs-toolbar) {
+[class*="-header"]:not(.smc-header):not(.fc-header):not(.top-header):not(.cap-stock-header):not(.cap-fs-toolbar):not([class*="db-"]) {
   background: #0f172a !important;
   border-color: #1e293b !important;
   color: #f1f5f9 !important;
 }
 
 /* 행/아이템 */
-[class*="-row"]:not(.db-forex-row):not(.db-index-row):not(.cap-ctrl-bar):not(.smc-ctrl-row1):not(.smc-ctrl-row2) {
+[class*="-row"]:not(.db-forex-row):not(.db-index-row):not(.cap-ctrl-bar):not(.smc-ctrl-row1):not(.smc-ctrl-row2):not([class*="db-"]) {
   border-color: #1e293b !important;
   color: #94a3b8 !important;
 }
-[class*="-row"]:hover {
+[class*="-row"]:not([class*="db-"]):hover {
   background: rgba(255,255,255,.04) !important;
 }
 
 /* 테이블 헤더 */
-[class*="-th"],
-[class*="-thead"],
-[class*="-table-header"] {
+[class*="-th"]:not([class*="db-"]),
+[class*="-thead"]:not([class*="db-"]),
+[class*="-table-header"]:not([class*="db-"]) {
   background: #111827 !important;
   border-color: #1e293b !important;
   color: #64748b !important;
 }
 
 /* 탭 버튼 */
-[class*="-tab"]:not(.smc-tab):not(.cap-tab):not(.fc-tab):not(.bottom-tab) {
+[class*="-tab"]:not(.smc-tab):not(.cap-tab):not(.fc-tab):not(.bottom-tab):not([class*="db-"]) {
   background: transparent !important;
   border-color: #334155 !important;
   color: #94a3b8 !important;
 }
-[class*="-tab"].active:not(.bottom-tab),
-[class*="-tab-active"] {
+[class*="-tab"].active:not(.bottom-tab):not([class*="db-"]),
+[class*="-tab-active"]:not([class*="db-"]) {
   background: #2563eb !important;
   border-color: #2563eb !important;
   color: white !important;
 }
 
 /* 버튼 */
-[class*="-btn"]:not(.smc-close):not(.fc-close-btn):not(.cap-fs-close) {
+[class*="-btn"]:not(.smc-close):not(.fc-close-btn):not(.cap-fs-close):not([class*="db-"]) {
   background: #1e293b !important;
   border-color: #334155 !important;
   color: #94a3b8 !important;
 }
-[class*="-btn"]:hover {
+[class*="-btn"]:not([class*="db-"]):hover {
   border-color: #2563eb !important;
   color: #60a5fa !important;
 }
-[class*="-btn"].primary,
-[class*="-btn-primary"],
-[class*="btn-primary"] {
+[class*="-btn"].primary:not([class*="db-"]),
+[class*="-btn-primary"]:not([class*="db-"]),
+[class*="btn-primary"]:not([class*="db-"]) {
   background: #2563eb !important;
   color: white !important;
   border-color: #2563eb !important;
 }
 
 /* 입력 */
-[class*="-input"]:not(.smc-text-input):not(.cap-text-input) {
+[class*="-input"]:not(.smc-text-input):not(.cap-text-input):not([class*="db-"]) {
   background: #0f172a !important;
   border-color: #334155 !important;
   color: #f1f5f9 !important;
 }
 
 /* 뱃지/칩 */
-[class*="-badge"]:not(.db-live-badge):not(.db-after-badge):not(.db-pre-badge):not(.db-etf-badge) {
+[class*="-badge"]:not(.db-live-badge):not(.db-after-badge):not(.db-pre-badge):not(.db-etf-badge):not([class*="db-"]) {
   background: #1e293b !important;
   color: #94a3b8 !important;
 }
-[class*="-chip"] {
+[class*="-chip"]:not([class*="db-"]) {
   background: #1e293b !important;
   border-color: #334155 !important;
   color: #94a3b8 !important;
 }
-[class*="-chip"].active {
+[class*="-chip"].active:not([class*="db-"]) {
   background: rgba(37,99,235,.15) !important;
   border-color: #2563eb !important;
   color: #60a5fa !important;
 }
 
 /* 이름/라벨 */
-[class*="-name"] { color: #e2e8f0 !important; }
-[class*="-label"]:not(.smc-info-label):not(.cap-info-label):not(.fc-summary-label) { color: #94a3b8 !important; }
-[class*="-title"]:not(.page-title):not(.smc-news-title) { color: #f1f5f9 !important; }
-[class*="-price"] { color: #f1f5f9 !important; }
-[class*="-code"] { color: #64748b !important; }
-[class*="-meta"] { color: #64748b !important; }
-[class*="-sub"]:not(.page-sub) { color: #94a3b8 !important; }
+[class*="-name"]:not([class*="db-"])   { color: #e2e8f0 !important; }
+[class*="-label"]:not(.smc-info-label):not(.cap-info-label):not(.fc-summary-label):not([class*="db-"]) { color: #94a3b8 !important; }
+[class*="-title"]:not(.page-title):not(.smc-news-title):not([class*="db-"]) { color: #f1f5f9 !important; }
+[class*="-price"]:not([class*="db-"])  { color: #f1f5f9 !important; }
+[class*="-code"]:not([class*="db-"])   { color: #64748b !important; }
+[class*="-meta"]:not([class*="db-"])   { color: #64748b !important; }
+[class*="-sub"]:not(.page-sub):not([class*="db-"]) { color: #94a3b8 !important; }
 
 /* 래퍼/컨테이너 */
-[class*="-wrap"]:not(.smc-chart-wrap):not(.db-spark-wrap):not(.cap-search-box) {
+[class*="-wrap"]:not(.smc-chart-wrap):not(.db-spark-wrap):not(.cap-search-box):not([class*="db-"]) {
   background: #0a0f1a !important;
 }
 
 /* 로딩 */
-[class*="-loading"] { color: #64748b !important; background: transparent !important; }
+[class*="-loading"]:not([class*="db-"]) { color: #64748b !important; background: transparent !important; }
 
 /* 구분선 */
-[class*="-divider"],
-[class*="-separator"] {
+[class*="-divider"]:not([class*="db-"]),
+[class*="-separator"]:not([class*="db-"]) {
   background: #1e293b !important;
   border-color: #1e293b !important;
 }
