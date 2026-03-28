@@ -10,10 +10,9 @@ import HeroChart         from '../components/dashboard/HeroChart'
 import AiBriefing        from '../components/dashboard/AiBriefing'
 import './DashboardPage.css'
 
-function getItemData(item, dashData, globalData, forexData, cbRates) {
+function getItemData(item, dashData, globalData, forexData) {
   if (item.type==='global') return globalData?.[item.sym] || null
   if (item.type==='forex')  { const d=forexData?.[item.pair]; return d?{price:d.price,changeRate:d.changeRate,change:d.change,marketState:'CURRENCY'}:null }
-  if (item.type==='cb')     { const d=cbRates?.[item.cbKey]; return d?{price:d.rate,changeRate:null,isCB:true,date:d.date}:null }
   if (item.type==='spread') {
     const us10y = globalData?.['US10Y']?.price
     const us2y  = globalData?.['US2Y']?.price
@@ -107,7 +106,7 @@ const ST_MAP = {
 }
 
 export default function DashboardPage() {
-  const { dashData, globalData, forexData, cbRates, flowData, weekData: apiWeekData, heatmapData, loading, globalLoading,
+  const { dashData, globalData, forexData, flowData, weekData: apiWeekData, heatmapData, loading, globalLoading,
           fetchError, setFetchError, lastFetch, refresh, fetchDashboard } = useDashboard()
 
   // 52주 고저 — HeroChart candles에서 계산 (별도 API 불필요)
@@ -191,7 +190,7 @@ export default function DashboardPage() {
               <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
               <div className="db-compact-list">
                 {group.items.filter(it=>it.type!=='divider').map(item=>{
-                  const d    = getItemData(item, dashData, globalData, forexData, cbRates)
+                  const d    = getItemData(item, dashData, globalData, forexData)
                   const rate = d?.changeRate
                   const up   = (rate ?? 0) > 0
                   const badge = getMarketBadge(item, d)
@@ -237,7 +236,7 @@ export default function DashboardPage() {
               <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
               <div className="db-commodity-grid">
                 {group.items.map(item=>{
-                  const d    = getItemData(item, dashData, globalData, forexData, cbRates)
+                  const d    = getItemData(item, dashData, globalData, forexData)
                   const rate = d?.changeRate
                   const up   = (rate ?? 0) > 0
                   const dotColor = getCommodityDotColor(rate)
@@ -287,7 +286,7 @@ export default function DashboardPage() {
                 if (item.type==='divider') return (
                   <div key={item.id} className="db-card-group-divider">{item.label}</div>
                 )
-                const d        = getItemData(item, dashData, globalData, forexData, cbRates)
+                const d        = getItemData(item, dashData, globalData, forexData)
                 const rate     = d?.changeRate
                 const up       = (rate ?? 0) > 0
                 const badge    = getMarketBadge(item, d)

@@ -1,7 +1,7 @@
 // src/constants/dashboardData.js
 // DashboardPage 전용 상수 — SECTOR_GROUPS, GUIDE_DATA, GAUGE_CONFIG
 
-export const BATCH_SYMBOLS = ['KS11','KQ11','SP500','NASDAQ','DOW','DAX','US10Y','US2Y','KR10Y','WTI','BRENT','GOLD','SILVER','COPPER','VIX','DXY']
+export const BATCH_SYMBOLS = ['KS11','KQ11','SP500','NASDAQ','DOW','DAX','US10Y','US2Y','WTI','BRENT','GOLD','SILVER','COPPER','VIX','DXY']
 
 export const SECTOR_GROUPS = [
   { id:'domestic',  label:'🇰🇷 국내 지수',   accent:'#2563eb', items:[
@@ -15,16 +15,9 @@ export const SECTOR_GROUPS = [
     { id:'DAX',    label:'DAX',     type:'global', sym:'DAX',    color:'#7c3aed' },
   ]},
   { id:'bond',      label:'📈 채권·금리',    accent:'#7c3aed', items:[
-    { id:'US10Y',   label:'미국 10Y',  type:'global', sym:'US10Y',  unit:'%', color:'#7c3aed' },
-    { id:'US2Y',    label:'미국 3M',   type:'global', sym:'US2Y',   unit:'%', color:'#6d28d9' },
-    { id:'KR10Y',   label:'한국 10Y',  type:'global', sym:'KR10Y',  unit:'%', color:'#4f46e5' },
-    { id:'SPREAD',  label:'10Y-3M 스프레드', type:'spread', color:'#0891b2', unit:'%' },
-    { id:'DIV_CB',  label:'🏦 기준금리', type:'divider' },
-    { id:'CB_US',   label:'미국 Fed',   type:'cb', cbKey:'US',  unit:'%', color:'#0ea5e9' },
-    { id:'CB_KR',   label:'한국 BOK',   type:'cb', cbKey:'KR',  unit:'%', color:'#2563eb' },
-    { id:'CB_JP',   label:'일본 BOJ',   type:'cb', cbKey:'JP',  unit:'%', color:'#dc2626' },
-    { id:'CB_CN',   label:'중국 PBoC',  type:'cb', cbKey:'CN',  unit:'%', color:'#b91c1c' },
-    { id:'CB_EU',   label:'유럽 ECB',   type:'cb', cbKey:'EU',  unit:'%', color:'#7c3aed' },
+    { id:'US10Y',  label:'미국 10Y',       type:'global', sym:'US10Y', unit:'%', color:'#7c3aed' },
+    { id:'US2Y',   label:'미국 2Y',        type:'global', sym:'US2Y',  unit:'%', color:'#6d28d9' },
+    { id:'SPREAD', label:'10Y-2Y 스프레드', type:'spread', color:'#0891b2', unit:'%' },
   ]},
   { id:'commodity', label:'🛢️ 원자재',       accent:'#16a34a', items:[
     { id:'WTI',    label:'WTI',      type:'global', sym:'WTI',    color:'#16a34a' },
@@ -51,7 +44,6 @@ export const GAUGE_CONFIG = {
   VIX:    { min:0,    max:80,   safe:15,  caution:30,  labels:['안전','주의','공포'],       unit:''  },
   US10Y:  { min:0,    max:7,    safe:3.5, caution:4.5, labels:['저금리','보통','고금리'],   unit:'%' },
   US2Y:   { min:0,    max:7,    safe:3.5, caution:4.5, labels:['저금리','보통','고금리'],   unit:'%' },
-  KR10Y:  { min:0,    max:6,    safe:3.0, caution:4.0, labels:['저금리','보통','고금리'],   unit:'%' },
   WTI:    { min:50,   max:140,  safe:75,  caution:95,  labels:['저유가','보통','고유가'],   unit:'$' },
   BRENT:  { min:55,   max:145,  safe:80,  caution:100, labels:['저유가','보통','고유가'],   unit:'$' },
   DXY:    { min:85,   max:115,  safe:95,  caution:105, labels:['약달러','보통','강달러'],   unit:''  },
@@ -67,14 +59,8 @@ export const GUIDE_DATA = {
   DOW:    { title:'DOW Jones 산업평균', desc:'미국 30개 우량 산업주 단순평균. 전통 제조업·금융·에너지 비중이 높아 경기 민감도 대표.', up:'전통 산업·경기 회복 신호 → 원자재·소재·금융 관련 종목 긍정', down:'경기 침체 우려 → 필수소비재·헬스케어 등 방어 섹터로 이동 검토', tip:'📌 S&P500과 동반 하락 시 본격 약세장. 40,000↑ 강세 / 35,000↓ 약세 경계 (2026년 기준)' },
   DAX:    { title:'DAX 40 (독일)', desc:'독일 40개 대형주. 자동차·산업재·화학 비중이 높아 유럽 제조업 경기 대표.', up:'유럽 경기 회복·에너지 안정 → 국내 자동차·부품 수출주 긍정', down:'에너지 위기·러시아 리스크·유럽 경기 둔화 → 글로벌 제조업 전반 부정', tip:'📌 유로/달러 환율과 함께 확인. 유로 강세=DAX 수출주 부담' },
   US10Y:  { title:'미국 10년 국채 금리', desc:'전 세계 모든 자산의 기준금리. 주식 밸류에이션(PER)에 직접 영향.', up:'금리 상승 → 성장주·바이오·IT 하락 압력. 고PER 종목 매도, 금융·가치주 방어', down:'금리 하락 → 성장주 재평가. 바이오·2차전지·게임 등 고PER 섹터 긍정', tip:'📌 4.5%↑=성장주 위험 / 3.5%↓=성장주 환경 개선 / 5%↑=전면 하락 압력' },
-  US2Y:   { title:'미국 단기금리 (3M T-Bill)', desc:'연방기준금리와 가장 가깝게 움직이는 단기 국채. 현재 통화정책 방향을 실시간 반영.', up:'연준 긴축 지속·금리 인하 기대 후퇴 → 주식 전반 하락 압력, 달러 강세', down:'연준 피벗(금리 인하) 기대 → 주식·신흥국·원자재 긍정', tip:'📌 10Y-3M 스프레드 역전(음수)=경기침체 확률 급상승. 현재 스프레드 주시' },
-  SPREAD: { title:'장단기 금리차 (10Y - 3M)', desc:'미국 10년물 국채금리에서 3개월물을 뺀 값. 역사적으로 음수(역전) 이후 6~18개월 내 경기침체 발생률이 높아 가장 신뢰도 높은 선행지표.', up:'스프레드 확대 → 경기 회복 기대. 은행 대출 마진 증가, 금융주 긍정', down:'스프레드 축소·역전 → 경기침체 경보. 안전자산(채권·금·달러) 선호 증가', tip:'📌 +0.5%↑=정상 / 0%근처=주의 / 음수=역전(경기침체 경보). 현재 역전 해소 여부가 핵심 (2026년 기준)' },
-  KR10Y:  { title:'한국 10년 국채 금리', desc:'국내 기준금리·경기 전망·외국인 채권 투자를 반영. 미국 10년물과 연동되며 원화 환율에도 영향.', up:'한미 금리차 축소·국내 인플레 우려 → 외국인 채권 이탈 가능, 원화 약세', down:'한국은행 금리 인하 기대 → 부동산·리츠·금융주 긍정', tip:'📌 한미 금리차 -1.5%p 이상 역전=외국인 이탈·원화 약세 위험 확대' },
-  CB_US:  { title:'미국 기준금리 (Fed Funds Rate)', desc:'미 연준(Fed)이 결정하는 정책금리. 전 세계 금융시장의 가장 중요한 단일 변수.', up:'금리 인상 → 달러 강세, 신흥국 자금 이탈, 주식 밸류에이션 하락', down:'금리 인하 → 위험자산 선호, 신흥국 자금 유입, 성장주 강세', tip:'📌 5%↑=긴축 구간. 인하 사이클 시작=주식 강세 선행 신호' },
-  CB_KR:  { title:'한국 기준금리 (BOK 기준금리)', desc:'한국은행 금융통화위원회가 결정하는 정책금리. 국내 대출금리·부동산·소비에 직접 영향.', up:'금리 인상 → 대출 부담 증가, 부동산 하락 압력, 고PER 성장주 약세', down:'금리 인하 → 내수 소비 활성화, 부동산 지지, 바이오·IT 성장주 강세', tip:'📌 미국보다 낮으면 외국인 채권 이탈 압력. 한미 금리차 관리가 핵심' },
-  CB_JP:  { title:'일본 기준금리 (BOJ 정책금리)', desc:'일본은행(BOJ)의 정책금리. 오랜 제로금리에서 벗어나는 과정으로 전 세계 엔 캐리 트레이드에 영향.', up:'금리 인상 → 엔화 강세, 캐리 트레이드 청산 → 신흥국 급락 위험', down:'금리 동결/인하 → 엔 약세 지속, 일본 수출주 호재', tip:'📌 BOJ 금리 인상은 전 세계 엔 캐리 청산 → 신흥국 동반 급락 가능. 고위험 이벤트' },
-  CB_CN:  { title:'중국 기준금리 (LPR 1년)', desc:'중국 인민은행(PBoC)의 대출우대금리(LPR). 중국 내수 경기와 부동산 시장에 직접 영향.', up:'금리 인상 → 중국 내수 둔화 우려, 대중 수출 비중 높은 기업 부담', down:'금리 인하 → 중국 경기 부양, 소재·화학·뷰티 등 대중 수출주 긍정', tip:'📌 PBoC는 경기 부양을 위해 선제적 인하. 인하 발표 시 중국 관련주 급등 경향' },
-  CB_EU:  { title:'유럽 기준금리 (ECB 예금금리)', desc:'유럽중앙은행(ECB)의 예금 금리. 유로화 강세/약세와 유럽 경기에 영향.', up:'금리 인상 → 유로 강세, 유럽 내수 둔화', down:'금리 인하 → 유로 약세, 유럽 수출 기업 호재', tip:'📌 ECB와 Fed 금리 차이가 유로/달러 환율 방향을 결정' },
+  US2Y:   { title:'미국 단기금리 (2Y)',  desc:'미국 2년물 국채. 연준 금리 정책 방향을 가장 빠르게 반영. 10Y-2Y 스프레드의 기준선.', up:'연준 긴축 지속 → 주식 하락 압력, 달러 강세', down:'연준 피벗 기대 → 위험자산 선호, 성장주 긍정', tip:'📌 10Y-2Y 역전(음수) = 경기침체 경보. 현재 스프레드와 함께 확인' },
+  SPREAD: { title:'장단기 금리차 (10Y - 2Y)', desc:'미국 10년물 국채금리에서 2년물을 뺀 값. 역사적으로 음수(역전) 이후 경기침체 발생률이 높은 선행지표.', up:'스프레드 확대 → 경기 회복 기대. 은행 대출 마진 증가, 금융주 긍정', down:'스프레드 축소·역전 → 경기침체 경보. 안전자산(채권·금·달러) 선호 증가', tip:'📌 +0.5%↑=정상 / 0%근처=주의 / 음수=역전(경기침체 경보)' },
   WTI:    { title:'WTI 원유 (미국산)', desc:'서부텍사스중질유. 인플레이션 및 물류비용에 직접 영향. 연준 통화정책 변수.', up:'인플레 재부상 → 연준 금리 인하 지연 → 성장주 부담. 에너지·화학주 긍정', down:'글로벌 경기 둔화 수요 감소 신호. 인플레 완화 → 금리 인하 기대 상승', tip:'📌 $90↑=인플레 경계 / $70↓=경기 침체 우려 / $110↑=에너지 위기 (2026년 기준)' },
   BRENT:  { title:'브렌트유 (국제 기준)', desc:'북해산 원유로 국제 원유 가격의 실질적 기준. 정유사·항공·해운 비용에 직접 영향.', up:'정유·화학 마진 상승. 항공·해운 비용 증가 → 해당 업종 수익성 악화', down:'항공·해운·물류 업종 수혜. 무역수지 개선 → 원화 강세 압력', tip:'📌 WTI 대비 $3~5 프리미엄이 정상. $95↑=인플레 경계 / $75↓=경기 둔화 신호 (2026년 기준)' },
   GOLD:   { title:'금 (Gold)', desc:'대표적 안전자산. 달러 가치와 역상관. 인플레·지정학 리스크·금리 하락기에 강세.', up:'안전자산 선호·달러 약세·인플레 우려 → 리스크 자산 경계. 방어적 포지션 고려', down:'달러 강세·실질금리 상승 → 금 약세. 위험자산 선호 복귀 신호일 수 있음', tip:'📌 $2,800↑=불안 상존 / $3,200↑=위기 대비 수요 급증 / $3,500↑=극도 불안. 금/구리 비율로 심리 확인 (2026년 기준)' },
