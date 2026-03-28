@@ -903,3 +903,39 @@
   text-align: center;
   padding: 6px 0;
 }
+
+/* ── 52주 고저 게이지 ────────────────────────────────── */
+.db-52w-wrap  { margin-top: 5px; }
+.db-52w-track {
+  height: 5px;
+  background: var(--bg-base);
+  border-radius: 3px;
+  position: relative;
+  overflow: visible;
+  border: 0.5px solid var(--border);
+}
+.db-52w-fill {
+  height: 100%;
+  background: linear-gradient(to right, #DBEAFE, #2563eb);
+  border-radius: 3px;
+  transition: width .4s ease;
+}
+.db-52w-thumb {
+  position: absolute;
+  top: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  transform: translateX(-50%);
+  transition: left .4s ease;
+}
+.db-52w-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 8px;
+  color: var(--text-dim);
+}

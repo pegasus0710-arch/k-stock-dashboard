@@ -82,6 +82,11 @@ export default async function handler(req, res) {
     return relay('/index/price', { inds_cd: cd, mrkt_tp: mrkt }, res)
   }
 
+  // 52주 고저가 — /api/kiwoom?type=index-52week
+  if (q.type === 'index-52week') {
+    return relay('/index/52week', {}, res)
+  }
+
   // ══════════════════════════════════════════════════
   // Phase 2 — 수급
   // ══════════════════════════════════════════════════
@@ -264,7 +269,7 @@ export default async function handler(req, res) {
   return res.status(400).json({
     error: 'Invalid type',
     valid: [
-      'price', 'hoga', 'stock-chart', 'index-chart', 'index-price',
+      'price', 'hoga', 'stock-chart', 'index-chart', 'index-price', 'index-52week',
       'supply-foreign', 'supply-investor', 'supply-institution',
       'supply-short', 'supply-strength', 'market-flow',
       'sector-all', 'sector-stocks',

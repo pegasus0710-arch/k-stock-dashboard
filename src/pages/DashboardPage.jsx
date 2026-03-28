@@ -107,7 +107,7 @@ const ST_MAP = {
 }
 
 export default function DashboardPage() {
-  const { dashData, globalData, forexData, cbRates, flowData, loading, globalLoading,
+  const { dashData, globalData, forexData, cbRates, flowData, weekData, loading, globalLoading,
           fetchError, setFetchError, lastFetch, refresh, fetchDashboard } = useDashboard()
 
   const [selId,       setSelId]       = useState('KOSPI')
@@ -273,6 +273,27 @@ export default function DashboardPage() {
                             : null
                         }
                         {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
+                        {/* 52주 고저 게이지 — KOSPI/KOSDAQ만 */}
+                        {(item.id==='KOSPI'||item.id==='KOSDAQ') && weekData?.[item.id] && d?.price!=null && (() => {
+                          const w    = weekData[item.id]
+                          const low  = w.low52
+                          const high = w.high52
+                          if (!low||!high||high<=low) return null
+                          const pct  = Math.min(100, Math.max(0, (d.price-low)/(high-low)*100))
+                          return (
+                            <div className="db-52w-wrap">
+                              <div className="db-52w-track">
+                                <div className="db-52w-fill" style={{width:`${pct}%`}}/>
+                                <div className="db-52w-thumb" style={{left:`${pct}%`}}/>
+                              </div>
+                              <div className="db-52w-labels">
+                                <span>{low.toLocaleString()}</span>
+                                <span style={{fontSize:9,color:'var(--accent-mid)'}}>52주 {Math.round(pct)}%</span>
+                                <span>{high.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          )
+                        })()}
                         {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
                       </>
                     ) : <div className="db-idx-na">—</div>}
