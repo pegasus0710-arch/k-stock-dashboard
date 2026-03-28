@@ -42,7 +42,7 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
   const fetchChart = useCallback(async (id, rng, isSparkLoad=false) => {
     const it = ALL_ITEMS.find(x=>x.id===id)
     if (!it || it.type==='cb') return
-    setLoading(true)
+    if (!isSparkLoad) setLoading(true)
     try {
       let raw = []
       if (it.type==='global') {
@@ -52,23 +52,22 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
         const j = await fetch(`/api/kis?type=forex-krw&range=${rng}`).then(r=>r.json())
         raw = j[it.pair]?.candles||[]
       }
-      setCandles(raw.filter(c=>(c.close||0)>0))
       const valid = raw.filter(c=>(c.close||0)>0)
-      // 52주 고저 — 스파크 초기 로드 시에만 업데이트
+      // 메인 차트 candles — 스파크 로드 시엔 덮어쓰지 않음
+      if (!isSparkLoad) setCandles(valid)
+      // 52주 고저
       if(isSparkLoad && valid.length && onWeekRange) {
         const highs = valid.map(c=>c.high||c.close||0).filter(v=>v>0)
         const lows  = valid.map(c=>c.low||c.close||0).filter(v=>v>0)
-        if(highs.length && lows.length) {
-          onWeekRange(it.id, Math.max(...highs), Math.min(...lows))
-        }
+        if(highs.length && lows.length) onWeekRange(it.id, Math.max(...highs), Math.min(...lows))
       }
-      // 스파크라인 — 스파크 초기 로드 시에만 업데이트 (셀렉터 클릭 시 덮어쓰기 방지)
+      // 스파크라인
       if(isSparkLoad && valid.length && onSparkData) {
         const recent = valid.slice(-20).map(c=>c.close)
         onSparkData(it.id, recent)
       }
     } catch(e){console.error(e)}
-    finally{setLoading(false)}
+    finally{ if (!isSparkLoad) setLoading(false) }
   },[])
 
   useEffect(()=>{ fetchChart(selId, range) },[selId, range])
