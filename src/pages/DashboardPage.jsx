@@ -189,14 +189,24 @@ export default function DashboardPage() {
             const bigItems   = group.items.filter(it=>['SP500','NASDAQ','DOW'].includes(it.id))
             const smallItems = group.items.filter(it=>!['SP500','NASDAQ','DOW'].includes(it.id))
             const makeSparkSvg = (id, color) => {
-              const closes = sparkData?.[id]
-              if (!closes || closes.length < 2) return null
+              const raw = sparkData?.[id]
+              if (!raw || raw.length < 2) return null
+              // 유효한 숫자만 필터링
+              const closes = raw.filter(v => typeof v === 'number' && isFinite(v))
+              if (closes.length < 2) return null
               const W=120, H=28, pad=2
               const mn=Math.min(...closes), mx=Math.max(...closes), rng=mx-mn||1
-              const px=i=>pad+(i/(closes.length-1))*(W-pad*2)
-              const py=v=>H-pad-(v-mn)/rng*(H-pad*2)
-              const pts=closes.map((v,i)=>`${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ')
-              const apts=`${pad},${H-pad} ${pts} ${W-pad},${H-pad}`
+              const px=i => pad + (i/(closes.length-1))*(W-pad*2)
+              const py=v  => H-pad-(v-mn)/rng*(H-pad*2)
+              // NaN 포함 포인트 제거
+              const validPts = closes
+                .map((v,i) => { const x=px(i), y=py(v); return isFinite(x)&&isFinite(y)?`${x.toFixed(1)},${y.toFixed(1)}`:null })
+                .filter(Boolean)
+              if (validPts.length < 2) return null
+              const pts  = validPts.join(' ')
+              const apts = `${pad},${H-pad} ${pts} ${W-pad},${H-pad}`
+              const lastX = px(closes.length-1), lastY = py(closes[closes.length-1])
+              if (!isFinite(lastX) || !isFinite(lastY)) return null
               return (
                 <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',margin:'4px 0 2px'}}>
                   <defs>
@@ -207,7 +217,7 @@ export default function DashboardPage() {
                   </defs>
                   <polygon points={apts} fill={`url(#gsg-${id})`}/>
                   <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
-                  <circle cx={px(closes.length-1).toFixed(1)} cy={py(closes[closes.length-1]).toFixed(1)} r="2.5" fill={color} stroke="white" strokeWidth="1.5"/>
+                  <circle cx={lastX.toFixed(1)} cy={lastY.toFixed(1)} r="2.5" fill={color} stroke="white" strokeWidth="1.5"/>
                 </svg>
               )
             }

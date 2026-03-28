@@ -608,12 +608,12 @@ hr, [class*="-divider"], [class*="-separator"] {
    ═══════════════════════════════════════════════════ */
 
 /* 카드/섹션 계열 */
-[class*="-card"]:not([class*="db-"]),
-[class*="-panel"]:not([class*="db-"]),
-[class*="-section"]:not(.db-section):not([class*="db-"]),
-[class*="-body"]:not(.smc-chart-wrap):not([class*="db-"]),
-[class*="-content"]:not(.app-content):not([class*="db-"]),
-[class*="-box"]:not(.cap-search-box):not([class*="db-"]) {
+[class*="-card"]:not([class*="db-"]):not([class*="sidebar-"]),
+[class*="-panel"]:not([class*="db-"]):not([class*="sidebar-"]),
+[class*="-section"]:not(.db-section):not([class*="db-"]):not([class*="sidebar-"]),
+[class*="-body"]:not(.smc-chart-wrap):not([class*="db-"]):not([class*="sidebar-"]),
+[class*="-content"]:not(.app-content):not([class*="db-"]):not([class*="sidebar-"]),
+[class*="-box"]:not(.cap-search-box):not([class*="db-"]):not([class*="sidebar-"]) {
   background-color: #111827 !important;
   border-color: #1e293b !important;
   color: #e2e8f0 !important;
@@ -627,18 +627,18 @@ hr, [class*="-divider"], [class*="-separator"] {
 }
 
 /* 헤더/타이틀 */
-[class*="-header"]:not(.smc-header):not(.fc-header):not(.top-header):not(.cap-stock-header):not(.cap-fs-toolbar):not([class*="db-"]) {
+[class*="-header"]:not(.smc-header):not(.fc-header):not(.top-header):not(.cap-stock-header):not(.cap-fs-toolbar):not([class*="db-"]):not([class*="sidebar-"]) {
   background: #0f172a !important;
   border-color: #1e293b !important;
   color: #f1f5f9 !important;
 }
 
 /* 행/아이템 */
-[class*="-row"]:not(.db-forex-row):not(.db-index-row):not(.cap-ctrl-bar):not(.smc-ctrl-row1):not(.smc-ctrl-row2):not([class*="db-"]) {
+[class*="-row"]:not(.db-forex-row):not(.db-index-row):not(.cap-ctrl-bar):not(.smc-ctrl-row1):not(.smc-ctrl-row2):not([class*="db-"]):not([class*="sidebar-"]) {
   border-color: #1e293b !important;
   color: #94a3b8 !important;
 }
-[class*="-row"]:not([class*="db-"]):hover {
+[class*="-row"]:not([class*="db-"]):not([class*="sidebar-"]):hover {
   background: rgba(255,255,255,.04) !important;
 }
 
@@ -706,16 +706,16 @@ hr, [class*="-divider"], [class*="-separator"] {
 }
 
 /* 이름/라벨 */
-[class*="-name"]:not([class*="db-"])   { color: #e2e8f0 !important; }
-[class*="-label"]:not(.smc-info-label):not(.cap-info-label):not(.fc-summary-label):not([class*="db-"]) { color: #94a3b8 !important; }
-[class*="-title"]:not(.page-title):not(.smc-news-title):not([class*="db-"]) { color: #f1f5f9 !important; }
-[class*="-price"]:not([class*="db-"])  { color: #f1f5f9 !important; }
+[class*="-name"]:not([class*="db-"]):not([class*="sidebar-"]):not([class*="top-header"])   { color: #e2e8f0 !important; }
+[class*="-label"]:not(.smc-info-label):not(.cap-info-label):not(.fc-summary-label):not([class*="db-"]):not([class*="sidebar-"]):not([class*="top-header"]) { color: #94a3b8 !important; }
+[class*="-title"]:not(.page-title):not(.smc-news-title):not([class*="db-"]):not([class*="sidebar-"]):not([class*="top-header"]) { color: #f1f5f9 !important; }
+[class*="-price"]:not([class*="db-"]):not([class*="sidebar-"])  { color: #f1f5f9 !important; }
 [class*="-code"]:not([class*="db-"])   { color: #64748b !important; }
 [class*="-meta"]:not([class*="db-"])   { color: #64748b !important; }
-[class*="-sub"]:not(.page-sub):not([class*="db-"]) { color: #94a3b8 !important; }
+[class*="-sub"]:not(.page-sub):not([class*="db-"]):not([class*="sidebar-"]):not([class*="top-header"]) { color: #94a3b8 !important; }
 
 /* 래퍼/컨테이너 */
-[class*="-wrap"]:not(.smc-chart-wrap):not(.db-spark-wrap):not(.cap-search-box):not([class*="db-"]) {
+[class*="-wrap"]:not(.smc-chart-wrap):not(.db-spark-wrap):not(.cap-search-box):not([class*="db-"]):not([class*="sidebar-"]) {
   background: #0a0f1a !important;
 }
 
@@ -1083,3 +1083,24 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .db-flow-track          { background: var(--border) !important; }
 .db-global-big          { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
 .db-global-small        { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+
+/* ── 헤더/사이드바 다크 완전 차단 (최우선 — 파일 맨 끝) ── */
+html body .top-header,
+html body .top-header * {
+  background: var(--bg-panel) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+html body .top-header-sub,
+html body .top-header-date { color: var(--text-secondary) !important; }
+
+html body .sidebar,
+html body .sidebar-nav,
+html body .sidebar-logo,
+html body .sidebar-bottom { background: var(--bg-panel) !important; }
+html body .sidebar-item { color: var(--text-secondary) !important; background: transparent !important; }
+html body .sidebar-item:hover { background: var(--bg-hover) !important; }
+html body .sidebar-item.active { background: var(--accent-light) !important; color: var(--accent-mid) !important; }
+html body .sidebar-item-sub { color: var(--text-dim) !important; }
+html body .sidebar-user-name  { color: var(--text-primary) !important; }
+html body .sidebar-user-email { color: var(--text-dim) !important; }
