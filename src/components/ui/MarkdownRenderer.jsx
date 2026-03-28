@@ -5,15 +5,21 @@
 import './MarkdownRenderer.css'
 
 function parseInline(text) {
-  // **bold**, *italic*, `code` 인라인 파싱
+  // [text](url), **bold**, *italic*, `code` 인라인 파싱
   const parts = []
-  const re = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)/g
+  const re = /(\[([^\]]+)\]\((https?:\/\/[^\)]+)\)|\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)/g
   let last = 0, m
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index))
-    if (m[2]) parts.push(<strong key={m.index}>{m[2]}</strong>)
-    else if (m[3]) parts.push(<em key={m.index}>{m[3]}</em>)
-    else if (m[4]) parts.push(<code key={m.index} className="md-inline-code">{m[4]}</code>)
+    if (m[2] && m[3]) {
+      // 링크: [text](url)
+      parts.push(
+        <a key={m.index} href={m[3]} target="_blank" rel="noreferrer noopener"
+          className="md-link">{m[2]}</a>
+      )
+    } else if (m[4]) parts.push(<strong key={m.index}>{m[4]}</strong>)
+    else if (m[5]) parts.push(<em key={m.index}>{m[5]}</em>)
+    else if (m[6]) parts.push(<code key={m.index} className="md-inline-code">{m[6]}</code>)
     last = m.index + m[0].length
   }
   if (last < text.length) parts.push(text.slice(last))

@@ -68,3 +68,13 @@
 .md-body.ai-briefing-card .md-h2 { font-size: 13px; margin: 8px 0 4px; }
 .md-body.ai-briefing-card .md-h3 { font-size: 12px; }
 .md-body.ai-briefing-card .md-p  { margin: 2px 0; }
+
+/* 마크다운 링크 */
+.md-link {
+  color: var(--accent-mid);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+  transition: opacity .1s;
+}
+.md-link:hover { opacity: .75; }

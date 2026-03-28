@@ -2,41 +2,50 @@
 // AI 분석 결과 시간대별 캐시 공통 훅
 
 /**
- * 현재 시간대 반환
- * premarket  06:00~09:00
- * morning    09:00~12:00
- * afternoon  12:00~15:30
- * after      15:30~23:00
- * us_market  23:00~06:00
+ * 현재 시간대 반환 (요일 포함)
+ * weekend_sat  토요일 → 전일 미국장 마감 + 주말 뉴스
+ * weekend_sun  일요일 → 이번주 결산 + 월요일 준비
+ * premarket    06:00~09:00
+ * morning      09:00~12:00
+ * afternoon    12:00~15:30
+ * after        15:30~23:00
+ * us_market    23:00~06:00
  */
 export function getTimeSlot() {
-  const h = new Date().getHours()
-  const m = new Date().getMinutes()
+  const now = new Date()
+  const day = now.getDay()   // 0=일 1=월 ... 6=토
+  if (day === 6) return 'weekend_sat'
+  if (day === 0) return 'weekend_sun'
+  const h = now.getHours()
+  const m = now.getMinutes()
   const t = h * 60 + m
-  if (t >= 6*60  && t < 9*60)    return 'premarket'
-  if (t >= 9*60  && t < 12*60)   return 'morning'
-  if (t >= 12*60 && t < 15*60+30)return 'afternoon'
-  if (t >= 15*60+30 && t < 23*60)return 'after'
+  if (t >= 6*60  && t < 9*60)     return 'premarket'
+  if (t >= 9*60  && t < 12*60)    return 'morning'
+  if (t >= 12*60 && t < 15*60+30) return 'afternoon'
+  if (t >= 15*60+30 && t < 23*60) return 'after'
   return 'us_market'
 }
 
 /** 시간대별 TTL (ms) */
 export function getSlotTTL(slot) {
-  const now  = new Date()
-  const h    = now.getHours()
-  const m    = now.getMinutes()
+  const now = new Date()
+  const h   = now.getHours()
+  const m   = now.getMinutes()
   switch (slot) {
-    case 'premarket':  { // 09:00까지
+    case 'weekend_sat':
+    case 'weekend_sun':
+      return 4 * 60 * 60 * 1000  // 4시간
+    case 'premarket': {
       const msTo9 = ((9*60) - (h*60+m)) * 60000
       return Math.max(msTo9, 60000)
     }
     case 'morning':
     case 'afternoon':
-      return 30 * 60 * 1000       // 30분
+      return 30 * 60 * 1000
     case 'after':
-      return 8 * 60 * 60 * 1000  // 8시간 (다음날 개장 전까지)
+      return 8 * 60 * 60 * 1000
     case 'us_market':
-      return 60 * 60 * 1000      // 1시간
+      return 60 * 60 * 1000
     default:
       return 30 * 60 * 1000
   }
@@ -44,11 +53,13 @@ export function getSlotTTL(slot) {
 
 /** 시간대 한글 레이블 */
 export const SLOT_LABEL = {
-  premarket:  '📅 개장 전',
-  morning:    '🌅 오전장',
-  afternoon:  '🌞 오후장',
-  after:      '🌆 마감 후',
-  us_market:  '🌃 미국장',
+  weekend_sat: '📰 주말 (토요일)',
+  weekend_sun: '📋 주말 (일요일)',
+  premarket:   '📅 개장 전',
+  morning:     '🌅 오전장',
+  afternoon:   '🌞 오후장',
+  after:       '🌆 마감 후',
+  us_market:   '🌃 미국장',
 }
 
 /** 캐시 읽기 — 만료 시 null */
