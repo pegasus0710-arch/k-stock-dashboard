@@ -190,16 +190,19 @@ export default function DashboardPage() {
               <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
               <div className="db-compact-list">
                 {group.items.filter(it=>it.type!=='divider').map(item=>{
-                  const d    = getItemData(item, dashData, globalData, forexData)
-                  const rate = d?.changeRate
-                  const up   = (rate ?? 0) > 0
-                  const badge = getMarketBadge(item, d)
+                  const d      = getItemData(item, dashData, globalData, forexData)
+                  const rate   = d?.changeRate
+                  const up     = (rate ?? 0) > 0
+                  const badge  = getMarketBadge(item, d)
                   const dateLabel = getItemDateLabel(item, d)
                   const active = selId === item.id
+                  // 미니 방향 바 너비 — 등락률 절댓값 기준 (최대 3% = 100%)
+                  const barPct = rate!=null ? Math.min(100, (Math.abs(rate)/3)*100) : 0
                   return (
                     <div key={item.id}
                       className={`db-compact-row ${active?'active':''}`}
                       onClick={()=>item.type==='global'&&setSelId(item.id)}>
+                      {/* 왼쪽: 지수명 + 배지 */}
                       <div className="db-compact-left">
                         <span className="db-compact-name">{item.label}</span>
                         {badge && (
@@ -208,6 +211,18 @@ export default function DashboardPage() {
                           </span>
                         )}
                       </div>
+                      {/* 미니 방향 바 */}
+                      <div className="db-compact-minibar-wrap">
+                        {rate!=null && (
+                          <div className="db-compact-minibar"
+                            style={{
+                              width:`${barPct}%`,
+                              background: up ? '#DC2626' : '#1D4ED8',
+                              marginLeft: up ? 'auto' : '0',
+                            }}/>
+                        )}
+                      </div>
+                      {/* 오른쪽: 현재가 + 등락률 + 기준일 */}
                       <div className="db-compact-right">
                         {d?.price!=null ? (
                           <>
