@@ -48,7 +48,7 @@ function RequireAuth({ children }) {
   }, [user, loading])
 
   if (loading) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'var(--bg-base)' }}>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'#0a0f1a' }}>
       <div className="app-boot-spinner"/>
     </div>
   )
@@ -205,18 +205,36 @@ function TopHeader() {
   )
 }
 
+// ── 페이지별 테마 컬러 맵 ─────────────────────────────
+const PAGE_THEMES = {
+  '/dashboard':   'theme-blue',
+  '/chart':       'theme-green',
+  '/market':      'theme-orange',
+  '/etf':         'theme-purple',
+  '/watchlist':   'theme-gold',
+  '/portfolio':   'theme-teal',
+  '/trading-log': 'theme-indigo',
+  '/memo':        'theme-slate',
+  '/news':        'theme-slate',
+}
+
 // ── 메인 레이아웃 ─────────────────────────────────────
 function AppLayout() {
+  const location = useLocation()
   const [collapsed, setCollapsed] = useState(() => {
     try { return JSON.parse(localStorage.getItem('sidebar_collapsed') || 'false') } catch { return false }
   })
+
+  // 현재 경로에 맞는 테마 클래스
+  const themeKey = Object.keys(PAGE_THEMES).find(k => location.pathname.startsWith(k))
+  const themeClass = PAGE_THEMES[themeKey] || 'theme-blue'
 
   useEffect(() => {
     localStorage.setItem('sidebar_collapsed', JSON.stringify(collapsed))
   }, [collapsed])
 
   return (
-    <div className={`app-layout ${collapsed ? 'sidebar-collapsed' : ''}`}>
+    <div className={`app-layout ${collapsed ? 'sidebar-collapsed' : ''} ${themeClass}`}>
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(v => !v)}/>
       <div className="app-main">
         <TopHeader/>

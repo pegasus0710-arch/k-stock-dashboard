@@ -220,3 +220,856 @@ body, html {
 /* ── 앱 콘텐츠 전체 배경 ─────────────────────────── */
 .app-content { background: var(--bg-base); }
 
+/* ══════════════════════════════════════════════════
+   공통 라이트 테마 패턴 → 다크 강제 변환
+   ══════════════════════════════════════════════════ */
+
+/* 흰 카드/패널 배경 */
+.page-body,
+[class$="-body"],
+[class$="-card"],
+[class$="-panel"],
+[class$="-content"],
+[class$="-section"],
+[class$="-wrap"],
+[class$="-container"] {
+  background-color: inherit;
+}
+
+/* ══════════════════════════════════════════════════
+   MarketPage (mp-)
+   ══════════════════════════════════════════════════ */
+.mp-wrap, [class^="mp-wrap"] {
+  background: #0a0f1a !important;
+  color: #e2e8f0 !important;
+}
+.mp-card, [class^="mp-card"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+.mp-header, [class^="mp-header"] {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+.mp-body { background: #0f172a !important; border-color: #1e293b !important; }
+.mp-row:hover { background: rgba(255,255,255,.03) !important; }
+.mp-table-header { background: #111827 !important; border-color: #1e293b !important; color: #64748b !important; }
+.mp-table-row { border-color: #1e293b !important; color: #94a3b8 !important; }
+.mp-table-row:hover { background: rgba(255,255,255,.04) !important; }
+.mp-tab { background: transparent !important; border-color: #334155 !important; color: #94a3b8 !important; }
+.mp-tab.active, .mp-tab-active { background: #2563eb !important; border-color: #2563eb !important; color: white !important; }
+.mp-btn { background: #1e293b !important; border-color: #334155 !important; color: #94a3b8 !important; }
+.mp-btn:hover { border-color: #2563eb !important; color: #60a5fa !important; }
+.mp-input, .mp-search { background: #0f172a !important; border-color: #334155 !important; color: #f1f5f9 !important; }
+.mp-label, .mp-title { color: #f1f5f9 !important; }
+.mp-sub, .mp-meta { color: #94a3b8 !important; }
+.mp-empty { color: #64748b !important; }
+.mp-loading { color: #64748b !important; }
+
+/* MarketPage 공통 섹션 */
+[class^="mp-section"] { background: #0f172a !important; border-color: #1e293b !important; }
+[class^="mp-index"] { background: #111827 !important; border-color: #1e293b !important; color: #f1f5f9 !important; }
+[class^="mp-chart"] { background: #0a0f1a !important; }
+
+/* ══════════════════════════════════════════════════
+   ETFPage (ep-, etf-)
+   ══════════════════════════════════════════════════ */
+.ep-wrap, [class^="ep-"] { color: inherit; }
+.ep-body, .ep-detail, .ep-panel, .ep-right {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+.ep-card, .etf-card {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+}
+.ep-card:hover, .etf-card:hover { border-color: #334155 !important; }
+.ep-header, .etf-header { background: #0f172a !important; border-color: #1e293b !important; color: #f1f5f9 !important; }
+.ep-row, .etf-row { border-color: #1e293b !important; color: #94a3b8 !important; }
+.ep-row:hover, .etf-row:hover { background: rgba(255,255,255,.04) !important; }
+.ep-empty, .etf-empty { color: #64748b !important; background: transparent !important; }
+.ep-tab, .etf-tab { background: transparent !important; border-color: #334155 !important; color: #94a3b8 !important; }
+.ep-tab.active, .etf-tab.active { background: #2563eb !important; color: white !important; border-color: #2563eb !important; }
+.ep-title, .etf-title { color: #f1f5f9 !important; }
+.ep-name, .etf-name { color: #e2e8f0 !important; }
+.ep-price, .etf-price { color: #f1f5f9 !important; }
+.ep-info, .etf-info { background: #111827 !important; border-color: #1e293b !important; }
+.ep-badge, .etf-badge { background: rgba(37,99,235,.15) !important; color: #60a5fa !important; border-color: rgba(37,99,235,.3) !important; }
+.ep-placeholder { background: #0f172a !important; color: #64748b !important; }
+
+/* ETFPage 상세 패널 */
+[class*="etf-detail"], [class*="ep-detail"] {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+[class*="etf-holdings"], [class*="ep-holdings"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+
+/* ══════════════════════════════════════════════════
+   WatchlistPage (wl-)
+   ══════════════════════════════════════════════════ */
+.wl-wrap { background: #0a0f1a !important; }
+.wl-body, .wl-card, .wl-panel {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+.wl-empty {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #64748b !important;
+}
+.wl-row { border-color: #1e293b !important; color: #94a3b8 !important; }
+.wl-row:hover { background: rgba(255,255,255,.04) !important; }
+.wl-header { background: #111827 !important; border-color: #1e293b !important; color: #64748b !important; }
+.wl-name { color: #f1f5f9 !important; }
+.wl-price { color: #f1f5f9 !important; }
+.wl-btn { background: #1e293b !important; border-color: #334155 !important; color: #94a3b8 !important; }
+.wl-btn:hover { border-color: #2563eb !important; color: #60a5fa !important; }
+.wl-btn.primary, .wl-btn-primary { background: #2563eb !important; border-color: #2563eb !important; color: white !important; }
+.wl-tab { background: transparent !important; border-color: #334155 !important; color: #94a3b8 !important; }
+.wl-tab.active { background: #2563eb !important; color: white !important; border-color: #2563eb !important; }
+.wl-chip { background: #1e293b !important; border-color: #334155 !important; color: #94a3b8 !important; }
+.wl-chip.active { background: rgba(37,99,235,.15) !important; border-color: #2563eb !important; color: #60a5fa !important; }
+.wl-input, .wl-search { background: #0f172a !important; border-color: #334155 !important; color: #f1f5f9 !important; }
+
+/* ══════════════════════════════════════════════════
+   PortfolioPage (pp-)
+   ══════════════════════════════════════════════════ */
+.pp-wrap { background: #0a0f1a !important; }
+.pp-body, .pp-card, .pp-panel, .pp-section {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+.pp-summary-card {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+}
+.pp-summary-label { color: #64748b !important; }
+.pp-summary-val { color: #f1f5f9 !important; }
+.pp-table-header { background: #111827 !important; border-color: #1e293b !important; color: #64748b !important; }
+.pp-table-row { border-color: #1e293b !important; }
+.pp-table-row:hover { background: rgba(255,255,255,.04) !important; }
+.pp-stock-name { color: #f1f5f9 !important; }
+.pp-stock-code { color: #64748b !important; }
+.pp-tab { background: transparent !important; border-color: #334155 !important; color: #94a3b8 !important; }
+.pp-tab.active { background: #2563eb !important; color: white !important; border-color: #2563eb !important; }
+.pp-btn { background: #1e293b !important; border-color: #334155 !important; color: #94a3b8 !important; }
+.pp-btn:hover { border-color: #2563eb !important; color: #60a5fa !important; }
+.pp-empty { color: #64748b !important; }
+.pp-chart-wrap { background: #0a0f1a !important; border-color: #1e293b !important; }
+
+/* ══════════════════════════════════════════════════
+   TradingLogPage (tl-)
+   ══════════════════════════════════════════════════ */
+.tl-wrap { background: #0a0f1a !important; }
+.tl-body, .tl-card, .tl-panel, .tl-section {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+.tl-empty {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #64748b !important;
+}
+.tl-header { background: #111827 !important; border-color: #1e293b !important; }
+.tl-row { border-color: #1e293b !important; color: #94a3b8 !important; }
+.tl-row:hover { background: rgba(255,255,255,.04) !important; }
+.tl-table-header { background: #111827 !important; border-color: #1e293b !important; color: #64748b !important; }
+.tl-tab { background: transparent !important; border-color: #334155 !important; color: #94a3b8 !important; }
+.tl-tab.active { background: #2563eb !important; color: white !important; border-color: #2563eb !important; }
+.tl-btn { background: #1e293b !important; border-color: #334155 !important; color: #94a3b8 !important; }
+.tl-btn.primary, .tl-btn-primary { background: #2563eb !important; color: white !important; border-color: #2563eb !important; }
+.tl-input, .tl-date-input { background: #0f172a !important; border-color: #334155 !important; color: #f1f5f9 !important; }
+.tl-name { color: #f1f5f9 !important; }
+.tl-loading { color: #64748b !important; }
+.tl-ai-result { background: rgba(37,99,235,.06) !important; border-color: rgba(37,99,235,.2) !important; color: #94a3b8 !important; }
+
+/* ══════════════════════════════════════════════════
+   NewsPage (np-)
+   ══════════════════════════════════════════════════ */
+.np-wrap { background: #0a0f1a !important; }
+.np-card, .np-item {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+.np-title { color: #f1f5f9 !important; }
+.np-meta { color: #64748b !important; }
+.np-body { color: #94a3b8 !important; }
+
+/* ══════════════════════════════════════════════════
+   공통 page-body / page-wrap
+   ══════════════════════════════════════════════════ */
+.page-wrap { background: #0a0f1a !important; }
+.page-body {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+
+/* ══════════════════════════════════════════════════
+   공통 버튼/입력/뱃지 다크화
+   ══════════════════════════════════════════════════ */
+
+/* white 배경 버튼 → 다크 */
+button[style*="background: white"],
+button[style*="background:white"],
+button[style*="background-color: white"],
+button[style*="background-color:#fff"] {
+  background: #1e293b !important;
+  color: #94a3b8 !important;
+  border-color: #334155 !important;
+}
+
+/* white 배경 카드 */
+div[style*="background: white"],
+div[style*="background:white"],
+div[style*="background-color: white"],
+div[style*="background-color: #fff"],
+div[style*="background: #fff"],
+div[style*="background-color:#ffffff"] {
+  background: #111827 !important;
+  color: #e2e8f0 !important;
+}
+
+/* #f8fafc, #f1f5f9 배경 → 다크 */
+div[style*="background: #f8fafc"],
+div[style*="background:#f8fafc"],
+div[style*="background: #f1f5f9"],
+div[style*="background:#f1f5f9"] {
+  background: #111827 !important;
+}
+
+/* 텍스트 색상 통일 */
+div[style*="color: #0f172a"],
+span[style*="color: #0f172a"],
+p[style*="color: #0f172a"] {
+  color: #f1f5f9 !important;
+}
+div[style*="color: #334155"],
+span[style*="color: #334155"] {
+  color: #94a3b8 !important;
+}
+
+/* ══════════════════════════════════════════════════
+   공통 모달/팝업 다크화
+   ══════════════════════════════════════════════════ */
+.modal-overlay, .dialog-overlay, .popup-overlay {
+  background: rgba(0,0,0,.72) !important;
+}
+.modal-content, .dialog-content, .popup-content {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+/* ══════════════════════════════════════════════════
+   input, select, textarea 전역 다크화
+   ══════════════════════════════════════════════════ */
+input:not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+input::placeholder, textarea::placeholder {
+  color: #475569 !important;
+}
+select option {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+/* ══════════════════════════════════════════════════
+   테이블 전역 다크화
+   ══════════════════════════════════════════════════ */
+table { background: transparent !important; color: #94a3b8 !important; }
+thead, th { background: #111827 !important; color: #64748b !important; border-color: #1e293b !important; }
+tbody tr { border-color: #1e293b !important; }
+tbody tr:hover { background: rgba(255,255,255,.04) !important; }
+td { color: #94a3b8 !important; border-color: #1e293b !important; }
+
+/* ══════════════════════════════════════════════════
+   가독성 개선 - 공통 텍스트 색상
+   ══════════════════════════════════════════════════ */
+h1, h2, h3, h4 { color: #f1f5f9 !important; }
+p { color: #94a3b8; }
+label { color: #94a3b8; }
+a { color: #60a5fa; }
+a:hover { color: #93c5fd; }
+
+/* 구분선 */
+hr, [class*="-divider"], [class*="-separator"] {
+  border-color: #1e293b !important;
+  background: #1e293b !important;
+}
+
+/* 스피너 */
+[class*="-spinner"] {
+  border-color: #1e293b !important;
+  border-top-color: #2563eb !important;
+}
+
+/* ══════════════════════════════════════════════════
+   Dashboard 카드 레이아웃 수정
+   ══════════════════════════════════════════════════ */
+.db-index-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+}
+@media (max-width: 640px) {
+  .db-index-grid { grid-template-columns: 1fr !important; }
+}
+.db-index-card {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+.db-index-price { color: #f1f5f9 !important; }
+.db-index-label { color: #64748b !important; }
+.db-section-label { color: #64748b !important; font-size: 11px !important; }
+.db-forex-card { background: #111827 !important; border-color: #1e293b !important; }
+.db-forex-label { color: #64748b !important; }
+.db-forex-value { color: #f1f5f9 !important; font-size: 18px !important; }
+.db-global-card { background: #111827 !important; border-color: #1e293b !important; }
+.db-global-label { color: #64748b !important; }
+.db-global-price { color: #f1f5f9 !important; }
+.db-theme-card { background: #111827 !important; border-color: #1e293b !important; }
+.db-theme-label { color: #94a3b8 !important; }
+.db-stock-chip, .db-etf-chip {
+  background: transparent !important;
+  border-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+.db-stock-chip:hover, .db-etf-chip:hover {
+  background: rgba(255,255,255,.04) !important;
+  border-color: #334155 !important;
+}
+.db-stock-name { color: #94a3b8 !important; }
+.db-etf-name { color: #94a3b8 !important; }
+.db-etf-badge {
+  background: rgba(37,99,235,.15) !important;
+  color: #60a5fa !important;
+}
+.db-skeleton {
+  background: linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%) !important;
+  background-size: 200% 100% !important;
+}
+.db-briefing-content { background: #111827 !important; border-color: #1e293b !important; }
+.db-briefing-text { color: #94a3b8 !important; }
+.db-overlay { background: rgba(0,0,0,.65) !important; }
+.db-setting-modal {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+.db-setting-header, .db-setting-footer {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+.db-theme-check-grid { background: #111827 !important; border-color: #1e293b !important; }
+.db-theme-check-label { color: #e2e8f0 !important; }
+
+/* ══════════════════════════════════════════════════
+   ChartAnalysisPage 추가 수정
+   ══════════════════════════════════════════════════ */
+.cap-search-box {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+.cap-search-input { color: #f1f5f9 !important; }
+.cap-body {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+.cap-dropdown {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+.cap-dd-item:hover { background: rgba(255,255,255,.05) !important; }
+.cap-dd-name { color: #f1f5f9 !important; }
+.cap-chip { background: #0f172a !important; border-color: #334155 !important; color: #94a3b8 !important; }
+.cap-stock-name { color: #f1f5f9 !important; }
+.cap-stock-header { background: rgba(255,255,255,.02) !important; border-color: #1e293b !important; }
+
+/* ══════════════════════════════════════════════════
+   MemoPage 추가 수정
+   ══════════════════════════════════════════════════ */
+.mp-wrap { background: #0a0f1a !important; }
+.mp-page-header { background: transparent !important; }
+/* 메모 카드 - 배경색이 메모별로 설정되므로 오버라이드 안함 */
+
+/* ══════════════════════════════════════════════════
+   StockChartModal 추가 수정
+   ══════════════════════════════════════════════════ */
+.smc-modal {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+.smc-header { background: #0f172a !important; border-color: #1e293b !important; }
+.smc-name { color: #f1f5f9 !important; }
+.smc-controls, .smc-ctrl-row1, .smc-ctrl-row2 {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+.smc-tab {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+.smc-tab.active {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: white !important;
+}
+.smc-info-bar {
+  background: #080d17 !important;
+  border-color: #1e293b !important;
+}
+.smc-info-label { color: #475569 !important; }
+.smc-info-value { color: #e2e8f0 !important; }
+.smc-news-panel { background: #0f172a !important; }
+.smc-news-item { border-color: #1a2540 !important; }
+.smc-news-item:hover { background: rgba(255,255,255,.03) !important; }
+.smc-news-item-title { color: #e2e8f0 !important; }
+.smc-news-popup { background: #0f172a !important; }
+
+
+/* ═══════════════════════════════════════════════════
+   전역 라이트 테마 → 다크 강제 변환 (최우선)
+   모든 white/라이트 배경을 다크로 덮어씌움
+   ═══════════════════════════════════════════════════ */
+
+/* ── 모든 라이트 배경 패턴 강제 다크화 ── */
+
+/* 카드/섹션 계열 */
+[class*="-card"],
+[class*="-panel"],
+[class*="-section"]:not(.db-section),
+[class*="-body"]:not(.smc-chart-wrap),
+[class*="-content"]:not(.app-content),
+[class*="-box"]:not(.cap-search-box) {
+  background-color: #111827 !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+/* 빈 상태 empty */
+[class*="-empty"] {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #64748b !important;
+}
+
+/* 헤더/타이틀 */
+[class*="-header"]:not(.smc-header):not(.fc-header):not(.top-header):not(.cap-stock-header):not(.cap-fs-toolbar) {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+/* 행/아이템 */
+[class*="-row"]:not(.db-forex-row):not(.db-index-row):not(.cap-ctrl-bar):not(.smc-ctrl-row1):not(.smc-ctrl-row2) {
+  border-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+[class*="-row"]:hover {
+  background: rgba(255,255,255,.04) !important;
+}
+
+/* 테이블 헤더 */
+[class*="-th"],
+[class*="-thead"],
+[class*="-table-header"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #64748b !important;
+}
+
+/* 탭 버튼 */
+[class*="-tab"]:not(.smc-tab):not(.cap-tab):not(.fc-tab):not(.bottom-tab) {
+  background: transparent !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+[class*="-tab"].active:not(.bottom-tab),
+[class*="-tab-active"] {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: white !important;
+}
+
+/* 버튼 */
+[class*="-btn"]:not(.smc-close):not(.fc-close-btn):not(.cap-fs-close) {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+[class*="-btn"]:hover {
+  border-color: #2563eb !important;
+  color: #60a5fa !important;
+}
+[class*="-btn"].primary,
+[class*="-btn-primary"],
+[class*="btn-primary"] {
+  background: #2563eb !important;
+  color: white !important;
+  border-color: #2563eb !important;
+}
+
+/* 입력 */
+[class*="-input"]:not(.smc-text-input):not(.cap-text-input) {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+/* 뱃지/칩 */
+[class*="-badge"]:not(.db-live-badge):not(.db-after-badge):not(.db-pre-badge):not(.db-etf-badge) {
+  background: #1e293b !important;
+  color: #94a3b8 !important;
+}
+[class*="-chip"] {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+[class*="-chip"].active {
+  background: rgba(37,99,235,.15) !important;
+  border-color: #2563eb !important;
+  color: #60a5fa !important;
+}
+
+/* 이름/라벨 */
+[class*="-name"] { color: #e2e8f0 !important; }
+[class*="-label"]:not(.smc-info-label):not(.cap-info-label):not(.fc-summary-label) { color: #94a3b8 !important; }
+[class*="-title"]:not(.page-title):not(.smc-news-title) { color: #f1f5f9 !important; }
+[class*="-price"] { color: #f1f5f9 !important; }
+[class*="-code"] { color: #64748b !important; }
+[class*="-meta"] { color: #64748b !important; }
+[class*="-sub"]:not(.page-sub) { color: #94a3b8 !important; }
+
+/* 래퍼/컨테이너 */
+[class*="-wrap"]:not(.smc-chart-wrap):not(.db-spark-wrap):not(.cap-search-box) {
+  background: #0a0f1a !important;
+}
+
+/* 로딩 */
+[class*="-loading"] { color: #64748b !important; background: transparent !important; }
+
+/* 구분선 */
+[class*="-divider"],
+[class*="-separator"] {
+  background: #1e293b !important;
+  border-color: #1e293b !important;
+}
+
+/* ── 관심종목(wl-) 특화 ── */
+.wl-empty {
+  background: #0f172a !important;
+  border: 1px solid #1e293b !important;
+  color: #64748b !important;
+}
+.wl-empty p, .wl-empty span { color: #64748b !important; }
+
+/* ── ETF(ep-/etf-) 특화 ── */
+.ep-placeholder,
+[class*="etf-placeholder"] {
+  background: #0f172a !important;
+  color: #64748b !important;
+}
+
+/* ── 포트폴리오(pp-) 특화 ── */
+.pp-summary-card {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+}
+.pp-summary-label { color: #64748b !important; font-size: 11px !important; }
+.pp-summary-val { color: #f1f5f9 !important; font-weight: 700 !important; }
+.pp-table-row:hover { background: rgba(255,255,255,.04) !important; }
+.pp-stock-name { color: #e2e8f0 !important; }
+
+/* ── 뉴스(np-/news-) 특화 ── */
+[class*="news-card"],
+[class*="news-item"],
+[class*="np-card"],
+[class*="np-item"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+[class*="news-title"],
+[class*="np-title"] { color: #f1f5f9 !important; }
+[class*="news-body"],
+[class*="np-body"],
+[class*="news-content"] { background: #0f172a !important; border-color: #1e293b !important; }
+
+/* ── 시장(mp-/mkt-) 특화 ── */
+.mp-index-card,
+[class*="mkt-card"],
+[class*="market-card"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+.mp-index-card:hover,
+[class*="mkt-card"]:hover { border-color: #334155 !important; }
+
+/* ── card-section 공통 (ThemePage 등) ── */
+.card-section {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+.card-section:hover { border-color: #334155 !important; }
+
+/* ── layout-main-aside ── */
+.layout-main-aside { background: transparent !important; }
+
+/* ── page-body ── */
+.page-body {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+/* ── 모달/오버레이 ── */
+.overlay, [class*="-overlay"]:not(.smc-overlay):not(.fc-overlay):not(.cap-fullscreen-overlay) {
+  background: rgba(0,0,0,.72) !important;
+}
+
+/* ── 드롭다운 ── */
+[class*="-dropdown"],
+[class*="-menu"] {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6) !important;
+}
+[class*="-menu-item"]:hover,
+[class*="-dropdown-item"]:hover {
+  background: rgba(255,255,255,.05) !important;
+}
+
+/* ── 표 전체 ── */
+table { background: transparent !important; }
+thead tr { background: #111827 !important; }
+th { background: #111827 !important; color: #64748b !important; border-color: #1e293b !important; }
+td { color: #94a3b8 !important; border-color: #1e293b !important; }
+tbody tr:hover { background: rgba(255,255,255,.04) !important; }
+
+/* ═══════════════════════════════════
+   페이지별 추가 구체 수정
+   ═══════════════════════════════════ */
+
+/* 포트폴리오 - 텍스트 가시성 */
+.pp-stock-name, [class*="pp-name"] { color: #f1f5f9 !important; font-weight: 600 !important; }
+.pp-stock-code, [class*="pp-code"] { color: #64748b !important; }
+.pp-buy-price, .pp-cur-price, [class*="pp-price"] { color: #e2e8f0 !important; }
+.pp-profit.plus  { color: #ef4444 !important; }
+.pp-profit.minus { color: #3b82f6 !important; }
+.pp-bar { background: #334155 !important; }
+.pp-bar-fill { background: #2563eb !important; }
+
+/* 관심종목 빈 상태 */
+.wl-empty-icon, [class*="wl-empty"] svg { opacity: 0.3 !important; }
+[class*="wl-empty"] p { color: #64748b !important; }
+
+/* ETF 오른쪽 패널 */
+[class*="ep-right"],
+[class*="ep-detail"],
+[class*="etf-detail"],
+[class*="ep-holdings"] {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+[class*="etf-holdings-row"]:hover { background: rgba(255,255,255,.04) !important; }
+
+/* 뉴스 페이지 */
+[class*="news-section"],
+[class*="np-section"],
+[class*="news-wrap"],
+[class*="np-wrap"] {
+  background: #0a0f1a !important;
+}
+[class*="news-ai"],
+[class*="np-ai"] {
+  background: rgba(37,99,235,.06) !important;
+  border-color: rgba(37,99,235,.2) !important;
+  color: #94a3b8 !important;
+}
+[class*="news-link"],
+[class*="np-link"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #60a5fa !important;
+}
+[class*="news-link"]:hover { background: rgba(37,99,235,.1) !important; }
+
+/* 시장 - 주요지수 카드 텍스트 */
+[class*="mp-index-name"],
+[class*="mp-index-label"],
+[class*="mkt-index-name"] { color: #64748b !important; }
+[class*="mp-index-price"],
+[class*="mkt-index-price"] { color: #f1f5f9 !important; font-weight: 800 !important; }
+
+/* 시장 전체 흐름 카드 */
+[class*="mp-flow"],
+[class*="market-flow"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+/* 빠른 통계 */
+[class*="mp-stat"],
+[class*="market-stat"] {
+  background: #111827 !important;
+  border-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+
+/* 매매일지 날짜 입력 */
+input[type="date"] {
+  background: #0f172a !important;
+  border: 1px solid #334155 !important;
+  color: #f1f5f9 !important;
+  padding: 6px 10px !important;
+  border-radius: 8px !important;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) !important;
+}
+
+/* ── 사이드바 개편: 하단 유저정보 + 바로가기 ── */
+
+/* 유저 정보 → 하단으로 이동 */
+.sidebar-user-bottom {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
+}
+.sidebar-user-avatar-sm {
+  width: 28px; height: 28px; background: linear-gradient(135deg,#2563eb,#7c3aed);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: white; flex-shrink: 0;
+}
+.sidebar-user-info-sm { min-width: 0; flex: 1; }
+.sidebar-user-name-sm  { display: block; font-size: 11px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-user-email-sm { display: block; font-size: 9px;  color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 하단 레이아웃 재정의 */
+.sidebar-bottom {
+  padding: 10px 10px 14px !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  align-items: stretch !important;
+}
+.sidebar-logout {
+  width: 100% !important;
+  text-align: center !important;
+  padding: 7px 10px !important;
+  font-size: 12px !important;
+}
+.sidebar.collapsed .sidebar-bottom { padding: 8px !important; }
+.sidebar.collapsed .sidebar-logout  { padding: 7px 8px !important; }
+
+/* 바로가기 섹션 */
+.sidebar-quicklinks { border-top: 1px solid var(--border); padding-top: 4px; }
+.sidebar-ql-toggle {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 14px; color: var(--text-secondary); background: none; border: none;
+  font-size: 13px; cursor: pointer; font-family: inherit; transition: all .12s;
+}
+.sidebar-ql-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-ql-label { flex: 1; text-align: left; font-weight: 600; }
+.sidebar-ql-arrow  { font-size: 10px; color: var(--text-dim); }
+.sidebar-ql-panel  { padding: 4px 0; }
+.sidebar-ql-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 14px 7px 20px; color: var(--text-secondary); text-decoration: none;
+  font-size: 12px; transition: background .1s; border-bottom: none;
+}
+.sidebar-ql-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-ql-arrow-sm { margin-left: auto; font-size: 10px; color: var(--text-dim); }
+
+/* 테마 종목 칩 색상 */
+.db-stock-chip {
+  border-left: 2px solid transparent !important;
+  transition: background .1s, border-color .12s !important;
+}
+.db-stock-chip:hover { background: var(--bg-hover) !important; }
+.db-stock-price { display: flex; align-items: center; gap: 3px; flex-direction: column; }
+
+/* ETF 칩도 같이 */
+.db-etf-chip { transition: background .1s !important; }
+.db-etf-chip:hover { background: var(--bg-hover) !important; }
+
+/* ══════════════════════════════════════════════════
+   페이지별 컬러 테마 — 사이드바 액센트만 변경
+   카드/배경 공통 유지, 좌측 메뉴 활성 + 상단바 강조색만 전환
+══════════════════════════════════════════════════ */
+
+/* 기본 (대시보드) — 파랑 */
+.theme-blue {
+  --accent:       #1E40AF;
+  --accent-mid:   #2563EB;
+  --accent-light: #DBEAFE;
+}
+
+/* 차트 분석 — 초록 */
+.theme-green {
+  --accent:       #166534;
+  --accent-mid:   #16a34a;
+  --accent-light: #DCFCE7;
+}
+
+/* 시장·업종 — 주황 */
+.theme-orange {
+  --accent:       #92400e;
+  --accent-mid:   #d97706;
+  --accent-light: #FEF3C7;
+}
+
+/* ETF — 보라 */
+.theme-purple {
+  --accent:       #5b21b6;
+  --accent-mid:   #7c3aed;
+  --accent-light: #EDE9FE;
+}
+
+/* 관심종목 — 골드 */
+.theme-gold {
+  --accent:       #854d0e;
+  --accent-mid:   #ca8a04;
+  --accent-light: #FEF9C3;
+}
+
+/* 포트폴리오 — 청록 */
+.theme-teal {
+  --accent:       #164e63;
+  --accent-mid:   #0891b2;
+  --accent-light: #CFFAFE;
+}
+
+/* 매매일지 — 인디고 */
+.theme-indigo {
+  --accent:       #3730a3;
+  --accent-mid:   #4f46e5;
+  --accent-light: #E0E7FF;
+}
+
+/* 메모장·뉴스 — 슬레이트 */
+.theme-slate {
+  --accent:       #334155;
+  --accent-mid:   #64748b;
+  --accent-light: #F1F5F9;
+}
