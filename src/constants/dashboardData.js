@@ -107,18 +107,18 @@ export const GUIDE_DATA = {
 // ── 업종 히트맵 섹터 정의 ─────────────────────────────
 // changeRate는 API에서 받아 주입. 여기서는 섹터 메타만 정의.
 export const HEATMAP_SECTORS = [
-  { id:'semiconductor', name:'반도체·IT',   stocks:'삼성전자, SK하이닉스', themeColor:'#1d4ed8' },
-  { id:'battery',       name:'2차전지',      stocks:'LG에너지솔루션, 삼성SDI', themeColor:'#2563eb' },
-  { id:'auto',          name:'자동차',       stocks:'현대차, 기아', themeColor:'#3b82f6' },
-  { id:'bio',           name:'바이오·제약',  stocks:'삼성바이오, 셀트리온', themeColor:'#7c3aed' },
-  { id:'game',          name:'게임·엔터',   stocks:'HYBE, 엔씨소프트', themeColor:'#8b5cf6' },
-  { id:'finance',       name:'금융·보험',   stocks:'KB금융, 신한지주', themeColor:'#0891b2' },
-  { id:'energy',        name:'에너지',       stocks:'S-Oil, GS칼텍스', themeColor:'#16a34a' },
-  { id:'chemical',      name:'화학·소재',   stocks:'LG화학, 롯데케미칼', themeColor:'#15803d' },
-  { id:'telecom',       name:'통신',         stocks:'SKT, KT', themeColor:'#64748b' },
-  { id:'retail',        name:'유통·소비재', stocks:'이마트, 롯데쇼핑', themeColor:'#94a3b8' },
-  { id:'construct',     name:'건설·부동산', stocks:'현대건설, DL이앤씨', themeColor:'#0369a1' },
-  { id:'shipyard',      name:'조선·기계',   stocks:'HD한국조선해양, 두산에너빌', themeColor:'#0e7490' },
+  { id:'semiconductor', name:'반도체·IT',   stocks:'삼성전자, SK하이닉스', themeColor:'#1d4ed8', inds_cd:'013' },
+  { id:'battery',       name:'2차전지',      stocks:'LG에너지솔루션, 삼성SDI', themeColor:'#2563eb', inds_cd:'008' },
+  { id:'auto',          name:'자동차',       stocks:'현대차, 기아', themeColor:'#3b82f6', inds_cd:'015' },
+  { id:'bio',           name:'바이오·제약',  stocks:'삼성바이오, 셀트리온', themeColor:'#7c3aed', inds_cd:'009' },
+  { id:'game',          name:'게임·엔터',   stocks:'HYBE, 엔씨소프트', themeColor:'#8b5cf6', inds_cd:'026' },
+  { id:'finance',       name:'금융·보험',   stocks:'KB금융, 신한지주', themeColor:'#0891b2', inds_cd:'021' },
+  { id:'energy',        name:'에너지',       stocks:'S-Oil, GS칼텍스', themeColor:'#16a34a', inds_cd:'017' },
+  { id:'chemical',      name:'화학·소재',   stocks:'LG화학, 롯데케미칼', themeColor:'#15803d', inds_cd:'008' },
+  { id:'telecom',       name:'통신',         stocks:'SKT, KT', themeColor:'#64748b', inds_cd:'020' },
+  { id:'retail',        name:'유통·소비재', stocks:'이마트, 롯데쇼핑', themeColor:'#94a3b8', inds_cd:'016' },
+  { id:'construct',     name:'건설·부동산', stocks:'현대건설, DL이앤씨', themeColor:'#0369a1', inds_cd:'018' },
+  { id:'shipyard',      name:'조선·기계',   stocks:'HD한국조선해양, 두산에너빌', themeColor:'#0e7490', inds_cd:'012' },
 ]
 
 // 등락률 → 히트맵 배경색 계산

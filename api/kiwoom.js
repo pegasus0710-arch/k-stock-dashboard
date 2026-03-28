@@ -150,6 +150,11 @@ export default async function handler(req, res) {
     return relay('/index/all', { inds_cd: q.inds_cd || '001' }, res)
   }
 
+  // 업종 히트맵 등락률 — /api/kiwoom?type=sector-heatmap
+  if (q.type === 'sector-heatmap') {
+    return relay('/sector/heatmap', {}, res)
+  }
+
   // 업종별 종목 주가 — /api/kiwoom?type=sector-stocks&inds_cd=001&mrkt_tp=0
   if (q.type === 'sector-stocks') {
     return relay('/index/stocks', {
@@ -272,7 +277,7 @@ export default async function handler(req, res) {
       'price', 'hoga', 'stock-chart', 'index-chart', 'index-price', 'index-52week',
       'supply-foreign', 'supply-investor', 'supply-institution',
       'supply-short', 'supply-strength', 'market-flow',
-      'sector-all', 'sector-stocks',
+      'sector-all', 'sector-stocks', 'sector-heatmap',
       'etf-info', 'etf-list', 'etf-profit', 'etf-holdings',
       'account-balance', 'account-holdings', 'account-orders', 'account-returns',
     ],

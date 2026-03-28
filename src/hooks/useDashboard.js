@@ -9,6 +9,7 @@ const LS_FOREX  = 'db_forex_krw_v1'
 const LS_RATES  = 'db_central_rates_v1'
 const LS_FLOW   = 'db_flow_v1'
 const LS_WEEK   = 'db_52week_v1'
+const LS_HEATMAP = 'db_heatmap_v1'
 
 function lsRead(key, ttl) {
   try { const r=localStorage.getItem(key); if(!r)return null; const {data,ts}=JSON.parse(r); return Date.now()-ts<ttl?data:null } catch { return null }
@@ -25,7 +26,8 @@ export default function useDashboard() {
   const [forexData,     setForexData]     = useState(()=>lsRead(LS_FOREX,  300000))
   const [cbRates,       setCbRates]       = useState(()=>lsRead(LS_RATES,  3600000*6))
   const [flowData,      setFlowData]      = useState(()=>lsRead(LS_FLOW,   120000))  // 2분 캐시
-  const [weekData,      setWeekData]      = useState(()=>lsRead(LS_WEEK,   3600000*6)) // 6시간 캐시
+  const [weekData,      setWeekData]      = useState(()=>lsRead(LS_WEEK,    3600000*6))
+  const [heatmapData,   setHeatmapData]   = useState(()=>lsRead(LS_HEATMAP, 300000))  // 5분 캐시
   const [loading,       setLoading]       = useState(()=>!lsRead(LS_DASH,  getDashTTL()))
   const [globalLoading, setGlobalLoading] = useState(()=>!lsRead(LS_GLOBAL,300000))
   const [fetchError,    setFetchError]    = useState(false)
@@ -83,21 +85,32 @@ export default function useDashboard() {
     }catch{}
   },[])
 
+  // 업종 히트맵 등락률 — 5분 캐시
+  const fetchHeatmap = useCallback(async (force=false) => {
+    if(!force&&lsRead(LS_HEATMAP,300000)) return
+    try{
+      const j=await fetch('/api/kiwoom?type=sector-heatmap').then(r=>r.json())
+      if(j.rates){setHeatmapData(j.rates);lsWrite(LS_HEATMAP,j.rates)}
+    }catch{}
+  },[])
+
   const refresh = useCallback(() => {
     localStorage.removeItem(LS_DASH)
     localStorage.removeItem(LS_GLOBAL)
     localStorage.removeItem(LS_FOREX)
     localStorage.removeItem(LS_FLOW)
-    fetchDashboard(true);fetchGlobal(true);fetchForex(true);fetchFlow(true)
-  },[fetchDashboard,fetchGlobal,fetchForex,fetchFlow])
+    localStorage.removeItem(LS_HEATMAP)
+    fetchDashboard(true);fetchGlobal(true);fetchForex(true);fetchFlow(true);fetchHeatmap(true)
+  },[fetchDashboard,fetchGlobal,fetchForex,fetchFlow,fetchHeatmap])
 
   useEffect(()=>{
-    fetchDashboard(true);fetchGlobal(true);fetchForex(true);fetchCbRates();fetchFlow(true);fetchWeek()
+    fetchDashboard(true);fetchGlobal(true);fetchForex(true);fetchCbRates();fetchFlow(true);fetchWeek();fetchHeatmap(true)
     timerRef.current  = setInterval(()=>fetchDashboard(true), isMarketOpen()?30000:300000)
     globalRef.current = setInterval(()=>fetchGlobal(true),    isUSMarketOpen()?60000:300000)
-    const flowTimer = setInterval(()=>fetchFlow(true), isMarketOpen()?120000:600000)
-    return()=>{clearInterval(timerRef.current);clearInterval(globalRef.current);clearInterval(flowTimer)}
-  },[fetchDashboard,fetchGlobal,fetchForex,fetchCbRates,fetchFlow,fetchWeek])
+    const flowTimer    = setInterval(()=>fetchFlow(true),    isMarketOpen()?120000:600000)
+    const heatmapTimer = setInterval(()=>fetchHeatmap(true), isMarketOpen()?300000:600000)
+    return()=>{clearInterval(timerRef.current);clearInterval(globalRef.current);clearInterval(flowTimer);clearInterval(heatmapTimer)}
+  },[fetchDashboard,fetchGlobal,fetchForex,fetchCbRates,fetchFlow,fetchWeek,fetchHeatmap])
 
-  return { dashData, globalData, forexData, cbRates, flowData, weekData, loading, globalLoading, fetchError, setFetchError, lastFetch, refresh, fetchDashboard }
+  return { dashData, globalData, forexData, cbRates, flowData, weekData, heatmapData, loading, globalLoading, fetchError, setFetchError, lastFetch, refresh, fetchDashboard }
 }

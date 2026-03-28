@@ -107,7 +107,7 @@ const ST_MAP = {
 }
 
 export default function DashboardPage() {
-  const { dashData, globalData, forexData, cbRates, flowData, weekData: apiWeekData, loading, globalLoading,
+  const { dashData, globalData, forexData, cbRates, flowData, weekData: apiWeekData, heatmapData, loading, globalLoading,
           fetchError, setFetchError, lastFetch, refresh, fetchDashboard } = useDashboard()
 
   // 52주 고저 — HeroChart candles에서 계산 (별도 API 불필요)
@@ -444,14 +444,8 @@ export default function DashboardPage() {
         </div>
         <div className="db-heatmap-grid">
           {HEATMAP_SECTORS.map(sector=>{
-            // 실제 API 연동 전 임시 — globalData에서 섹터 등락률 주입 예정
-            const mockRates = {
-              semiconductor:-1.42, battery:-2.18, auto:-1.76,
-              bio:-3.21, game:-3.86, construct:-4.12,
-              finance:1.23, energy:3.82, chemical:2.41,
-              telecom:-0.08, retail:0.54, shipyard:0.92,
-            }
-            const rate = mockRates[sector.id] ?? null
+            // 실제 API 데이터 — 업종코드로 등락률 조회
+            const rate = heatmapData?.[sector.inds_cd] ?? null
             const { bg, neutral } = getHeatmapColor(rate)
             return (
               <div key={sector.id}
