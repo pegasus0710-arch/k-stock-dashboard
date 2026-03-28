@@ -73,7 +73,7 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData }) {
 
   const renderLine = () => {
     if (!candles.length) return <div className="db-hero-empty">데이터를 불러오는 중...</div>
-    const W=800,H=190,pL=68,pR=16,pT=10,pB=28
+    const W=800,H=260,pL=68,pR=16,pT=10,pB=28
     const cW=W-pL-pR,cH=H-pT-pB
     const closes=candles.map(c=>c.close)
     const rawMin=Math.min(...closes), rawMax=Math.max(...closes)

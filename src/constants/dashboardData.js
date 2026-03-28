@@ -100,4 +100,35 @@ export const GUIDE_DATA = {
   FX_JPY: { title:'JPY/KRW (원엔, 100엔 기준)', desc:'100엔을 원화로 환산. 한일 무역 경쟁력·일본 여행 비용에 영향.', up:'엔 강세(원 약세) → 일본 수출 기업 경쟁력 약화, 일본 여행 비용 증가', down:'엔 약세(원 강세) → 국내 수출 기업 대일 경쟁력 강화, 일본 여행 저렴', tip:'📌 엔/달러 150↑=BOJ 개입 경계. 한일 수출 구조 유사 → 엔 약세=원화도 약세 압력' },
   FX_CNY: { title:'CNY/KRW (원위안)', desc:'1위안을 원화로 환산. 한중 무역 비중이 크므로 위안화 동향은 국내 수출에 직접 영향.', up:'위안 강세 → 중국 수입 능력 향상, 대중 수출 유리', down:'위안 약세 → 중국 수입 감소 압력, 대중 수출 비중 높은 기업 부담', tip:'📌 위안/달러 7.2↑=위안 약세 심화. 미중 무역 갈등 시 위안 약세 가속' },
   FX_EUR: { title:'EUR/KRW (원유로)', desc:'1유로를 원화로 환산. 유럽 경기와 ECB 통화정책을 간접 반영.', up:'유로 강세 → 유럽 경기 상대적 호조, 대유럽 수출 유리', down:'유로 약세 → 유럽 경기 둔화, 에너지 위기·정치 리스크 반영 가능', tip:'📌 유로/달러 1.10↑=달러 약세 구간. DXY 하락과 함께 원화 강세 압력' },
+  HEATMAP: { title:'업종별 히트맵', desc:'오늘 각 업종의 등락률을 색상으로 표시합니다. 초록=상승, 파랑=하락, 색이 진할수록 변동폭이 큽니다.', tip:'📌 특정 업종만 초록이면 테마 장세. 반도체·2차전지 동반 하락 시 외국인 이탈 신호로 해석.' },
+}
+
+// ── 업종 히트맵 섹터 정의 ─────────────────────────────
+// changeRate는 API에서 받아 주입. 여기서는 섹터 메타만 정의.
+export const HEATMAP_SECTORS = [
+  { id:'semiconductor', name:'반도체·IT',   stocks:'삼성전자, SK하이닉스', themeColor:'#1d4ed8' },
+  { id:'battery',       name:'2차전지',      stocks:'LG에너지솔루션, 삼성SDI', themeColor:'#2563eb' },
+  { id:'auto',          name:'자동차',       stocks:'현대차, 기아', themeColor:'#3b82f6' },
+  { id:'bio',           name:'바이오·제약',  stocks:'삼성바이오, 셀트리온', themeColor:'#7c3aed' },
+  { id:'game',          name:'게임·엔터',   stocks:'HYBE, 엔씨소프트', themeColor:'#8b5cf6' },
+  { id:'finance',       name:'금융·보험',   stocks:'KB금융, 신한지주', themeColor:'#0891b2' },
+  { id:'energy',        name:'에너지',       stocks:'S-Oil, GS칼텍스', themeColor:'#16a34a' },
+  { id:'chemical',      name:'화학·소재',   stocks:'LG화학, 롯데케미칼', themeColor:'#15803d' },
+  { id:'telecom',       name:'통신',         stocks:'SKT, KT', themeColor:'#64748b' },
+  { id:'retail',        name:'유통·소비재', stocks:'이마트, 롯데쇼핑', themeColor:'#94a3b8' },
+  { id:'construct',     name:'건설·부동산', stocks:'현대건설, DL이앤씨', themeColor:'#0369a1' },
+  { id:'shipyard',      name:'조선·기계',   stocks:'HD한국조선해양, 두산에너빌', themeColor:'#0e7490' },
+]
+
+// 등락률 → 히트맵 배경색 계산
+// 상승: 초록 계열 / 하락: 파랑 계열 / 보합(-0.3~+0.3): 회색
+export function getHeatmapColor(rate) {
+  if (rate == null) return { bg: '#F1F5F9', neutral: true }
+  if (rate >=  3.0) return { bg: '#16a34a', neutral: false }
+  if (rate >=  1.5) return { bg: '#22c55e', neutral: false }
+  if (rate >=  0.3) return { bg: '#4ade80', neutral: false }
+  if (rate >= -0.3) return { bg: '#F1F5F9', neutral: true  }
+  if (rate >= -1.5) return { bg: '#93c5fd', neutral: false }
+  if (rate >= -3.0) return { bg: '#3b82f6', neutral: false }
+  return               { bg: '#1d4ed8', neutral: false }
 }

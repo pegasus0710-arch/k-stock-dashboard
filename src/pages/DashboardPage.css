@@ -104,9 +104,9 @@
 .db-period-btn.active { background:var(--accent-light); color:var(--accent-mid); border-color:var(--accent-mid); }
 .db-period-btn:hover:not(.active) { border-color:#CBD5E1; color:var(--text-primary); }
 
-.db-hero-chart   { min-height:190px; }
-.db-hero-loading { display:flex; align-items:center; justify-content:center; height:190px; }
-.db-hero-empty   { display:flex; align-items:center; justify-content:center; height:190px; color:var(--text-dim); font-size:13px; }
+.db-hero-chart   { min-height: 260px; }
+.db-hero-loading { display:flex; align-items:center; justify-content:center; height:260px; }
+.db-hero-empty   { display:flex; align-items:center; justify-content:center; height:260px; color:var(--text-dim); font-size:13px; }
 .db-hero-spinner { width:26px; height:26px; border:2px solid var(--border); border-top-color:var(--accent-mid); border-radius:50%; animation:spin .8s linear infinite; }
 @keyframes spin { to{transform:rotate(360deg)} }
 
@@ -612,4 +612,120 @@
 @media(max-width: 640px) {
   .ai-drawer { width: 100vw; }
   .db-briefing-btn { font-size: 12px; padding: 6px 10px; }
+}
+
+/* ══════════════════════════════════════════════════
+   신규 추가 — 1단계 (기존 클래스 무수정)
+══════════════════════════════════════════════════ */
+
+/* 기준일 배지 */
+.db-date-badge {
+  display: inline-block;
+  font-size: 9px;
+  color: var(--text-dim);
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 5px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* 툴팁 왼쪽 치우침 방지 — 오른쪽으로 열림 */
+.db-tooltip-wrap.tip-right .db-tooltip-box {
+  right: auto;
+  left: 0;
+}
+.db-tooltip-wrap.tip-right .db-tooltip-box::after {
+  right: auto;
+  left: 5px;
+}
+
+/* ── 업종 히트맵 섹션 ─────────────────────────── */
+.db-heatmap-section {
+  margin: 12px 20px 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+.db-heatmap-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.db-heatmap-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.db-heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+@media(max-width: 900px) {
+  .db-heatmap-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media(max-width: 640px) {
+  .db-heatmap-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.db-heatmap-cell {
+  border-radius: 9px;
+  padding: 9px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;       /* 가운데 정렬 */
+  justify-content: center;   /* 가운데 정렬 */
+  text-align: center;        /* 글자 가운데 */
+  gap: 2px;
+  cursor: pointer;
+  transition: opacity .12s;
+  min-height: 62px;
+}
+.db-heatmap-cell:hover { opacity: .85; }
+.db-heatmap-cell-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  line-height: 1.3;
+}
+.db-heatmap-cell-rate {
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+}
+.db-heatmap-cell-stocks {
+  font-size: 9px;
+  color: rgba(255,255,255,.72);
+  line-height: 1.3;
+}
+/* 보합 구간 — 흰 배경에 어두운 글자 */
+.db-heatmap-cell.neutral .db-heatmap-cell-name,
+.db-heatmap-cell.neutral .db-heatmap-cell-rate {
+  color: var(--text-secondary);
+}
+.db-heatmap-cell.neutral .db-heatmap-cell-stocks {
+  color: var(--text-dim);
+}
+/* 히트맵 범례 */
+.db-heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 9px;
+  color: var(--text-dim);
+}
+.db-heatmap-legend-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #1d4ed8, #93c5fd, #F1F5F9, #86efac, #16a34a);
 }

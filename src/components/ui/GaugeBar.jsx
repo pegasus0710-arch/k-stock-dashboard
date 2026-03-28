@@ -23,13 +23,17 @@ export function GaugeBar({ id, price }) {
   )
 }
 
-export function TooltipIcon({ id }) {
+export function TooltipIcon({ id, tipPosition = 'left' }) {
   const [show, setShow] = useState(false)
   const g = GUIDE_DATA[id]
   if (!g) return null   // GUIDE_DATA 없으면 ? 미표시
 
+  // tipPosition='right' → 왼쪽 카드에서 팝업이 오른쪽으로 열림 (잘림 방지)
+  // tipPosition='left'  → 기본값, 오른쪽 정렬 (왼쪽으로 열림)
+  const wrapClass = `db-tooltip-wrap${tipPosition === 'right' ? ' tip-right' : ''}`
+
   return (
-    <span className="db-tooltip-wrap"
+    <span className={wrapClass}
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
       onClick={e => e.stopPropagation()}>

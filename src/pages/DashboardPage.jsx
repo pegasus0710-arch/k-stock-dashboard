@@ -1,7 +1,7 @@
 // src/pages/DashboardPage.jsx — v5 (컴포넌트 분리 후 경량화)
 import { useState } from 'react'
 import { rateColor, getTodayStr, getKstStatus, isMarketOpen, isUSMarketOpen, getSymbolMarketStatus } from '../utils/format'
-import { SECTOR_GROUPS, ALL_ITEMS, GAUGE_CONFIG } from '../constants/dashboardData'
+import { SECTOR_GROUPS, ALL_ITEMS, GAUGE_CONFIG, HEATMAP_SECTORS, getHeatmapColor } from '../constants/dashboardData'
 import { GaugeBar, TooltipIcon } from '../components/ui/GaugeBar'
 import GuideModal        from '../components/dashboard/GuideModal'
 import GlobalChartModal  from '../components/GlobalChartModal'
@@ -35,6 +35,44 @@ function getMarketBadge(item, data) {
   if (status === 'pre')   return { label:'프리',  cls:'pre'   }
   if (status === 'after') return { label:'시간외', cls:'after' }
   return { label:'전일', cls:'closed' }
+}
+
+// 지수별 기준일 레이블 — 마켓별 마감 시간이 다름
+function getItemDateLabel(item, d) {
+  if (!d) return null
+  if (d.isCB && d.date) return d.date          // 기준금리: API 날짜
+  if (d.price == null)  return null
+  const now = new Date()
+  const kst = new Date(Date.now() + 9 * 3600000)
+  const pad = n => String(n).padStart(2,'0')
+  const kstStr = `${kst.getUTCMonth()+1}.${pad(kst.getUTCDate())} KST`
+  // 미국 EST (UTC-5, 서머타임 -4 근사)
+  const est = new Date(Date.now() - 4 * 3600000)
+  const estStr = `${est.getUTCMonth()+1}.${pad(est.getUTCDate())} EST`
+  // 유럽 CET (UTC+1)
+  const cet = new Date(Date.now() + 1 * 3600000)
+  const cetStr = `${cet.getUTCMonth()+1}.${pad(cet.getUTCDate())} CET`
+  // 일본 JST = KST
+  const jstStr = `${kst.getUTCMonth()+1}.${pad(kst.getUTCDate())} JST`
+  // 중국 CST = KST-1h (근사)
+  const cst = new Date(Date.now() + 8 * 3600000)
+  const cstStr = `${cst.getUTCMonth()+1}.${pad(cst.getUTCDate())} CST`
+
+  const KR_IDS  = ['KOSPI','KOSDAQ','KRX100','K200','KQ150']
+  const US_IDS  = ['SP500','NASDAQ','DOW','VIX','DXY','US10Y','US2Y','WTI','BRENT','GOLD','SILVER','COPPER']
+  const EU_IDS  = ['DAX']
+  const JP_IDS  = ['N225']
+  const CN_IDS  = ['HSI','SSE','TWI']
+  const FX_IDS  = ['FX_USD','FX_JPY','FX_CNY','FX_EUR']
+
+  if (KR_IDS.includes(item.id))  return kstStr
+  if (US_IDS.includes(item.id))  return estStr
+  if (EU_IDS.includes(item.id))  return cetStr
+  if (JP_IDS.includes(item.id))  return jstStr
+  if (CN_IDS.includes(item.id))  return cstStr
+  if (FX_IDS.includes(item.id))  return kstStr
+  if (item.type === 'spread')     return estStr
+  return null
 }
 
 function Skeleton({ w='60%', h=14 }) {
@@ -112,7 +150,10 @@ export default function DashboardPage() {
 
       {/* 영역 2: 중단 지수 카드 그리드 */}
       <div className="db-cards-section">
-        {SECTOR_GROUPS.map(group=>(
+        {SECTOR_GROUPS.map((group, gi)=>{
+          // 3열 그리드: 0,3,6=왼쪽열 → tip 오른쪽으로 열어야 잘 안 짤림
+          const tipPos = gi % 3 === 0 ? 'right' : 'left'
+          return (
           <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
             <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
             <div className="db-card-group-items">
@@ -127,6 +168,7 @@ export default function DashboardPage() {
                 const badge    = getMarketBadge(item, d)
                 const isClosed = badge?.cls === 'closed'
                 const active   = selId === item.id
+                const dateLabel = getItemDateLabel(item, d)
                 return (
                   <button key={item.id}
                     className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''} ${item.type==='spread'?'spread-card':''} ${item.type==='cb'?'cb-card':''}`}
@@ -134,7 +176,7 @@ export default function DashboardPage() {
                     <div className="db-idx-top-row">
                       <span className="db-idx-name">{item.label}</span>
                       <span style={{display:'flex',alignItems:'center',gap:3}}>
-                        <TooltipIcon id={item.id}/>
+                        <TooltipIcon id={item.id} tipPosition={tipPos}/>
                         {badge && (
                           <span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
                             {badge.cls==='live' && <span className="db-idx-live-dot"/>}
@@ -164,6 +206,8 @@ export default function DashboardPage() {
                             : null
                         }
                         {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
+                        {/* 기준일 배지 — 데이터 있는 카드에만 */}
+                        {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
                       </>
                     ) : <div className="db-idx-na">—</div>}
                   </button>
@@ -171,7 +215,48 @@ export default function DashboardPage() {
               })}
             </div>
           </div>
-        ))}
+          )
+        })}
+      </div>
+
+      {/* 영역 3: 업종 히트맵 */}
+      <div className="db-heatmap-section">
+        <div className="db-heatmap-header">
+          <span className="db-heatmap-title">📊 업종별 등락 히트맵</span>
+          <TooltipIcon id="HEATMAP" tipPosition="right"/>
+          <span style={{marginLeft:'auto'}} className="db-date-badge">
+            {(()=>{ const k=new Date(Date.now()+9*3600000); return `${k.getUTCMonth()+1}.${String(k.getUTCDate()).padStart(2,'0')} KST` })()}
+          </span>
+        </div>
+        <div className="db-heatmap-grid">
+          {HEATMAP_SECTORS.map(sector=>{
+            // 실제 API 연동 전 임시 — globalData에서 섹터 등락률 주입 예정
+            const mockRates = {
+              semiconductor:-1.42, battery:-2.18, auto:-1.76,
+              bio:-3.21, game:-3.86, construct:-4.12,
+              finance:1.23, energy:3.82, chemical:2.41,
+              telecom:-0.08, retail:0.54, shipyard:0.92,
+            }
+            const rate = mockRates[sector.id] ?? null
+            const { bg, neutral } = getHeatmapColor(rate)
+            return (
+              <div key={sector.id}
+                className={`db-heatmap-cell${neutral?' neutral':''}`}
+                style={{background: bg}}>
+                <span className="db-heatmap-cell-name">{sector.name}</span>
+                <span className="db-heatmap-cell-rate">
+                  {rate!=null ? `${rate>=0?'+':''}${rate.toFixed(2)}%` : '—'}
+                </span>
+                <span className="db-heatmap-cell-stocks">{sector.stocks}</span>
+              </div>
+            )
+          })}
+        </div>
+        <div className="db-heatmap-legend">
+          <span>약세</span>
+          <div className="db-heatmap-legend-bar"/>
+          <span>강세</span>
+        </div>
       </div>
 
       <div className="dash-footer-note">
