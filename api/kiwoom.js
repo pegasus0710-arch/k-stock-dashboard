@@ -45,24 +45,7 @@ export default async function handler(req, res) {
     return relay('/price', { stk_cd: q.code }, res)
   }
 
-  // 종목 기본정보 (PER/PBR/ROE 등) — /api/kiwoom?type=stockbasic&code=005930
-  if (q.type === 'stockbasic') {
-    if (!q.code) return res.status(400).json({ error: 'code required' })
-    return relay('/stockbasic', { stk_cd: q.code }, res)
-  }
-
-  // 종목 현재가 상세 — /api/kiwoom?type=stockinfo&code=005930
-  if (q.type === 'stockinfo') {
-    if (!q.code) return res.status(400).json({ error: 'code required' })
-    return relay('/stockinfo', { stk_cd: q.code }, res)
-  }
-
-  // 배치 현재가 (히트맵용) — /api/kiwoom?type=prices&codes=005930,000660,...
-  if (q.type === 'prices') {
-    const codes = (q.codes || '').split(',').map(c => c.trim()).filter(Boolean)
-    if (!codes.length) return res.status(400).json({ error: 'codes required' })
-    return relay('/prices', { codes }, res)
-  }
+  // 호가 — /api/kiwoom?type=hoga&code=005930
   if (q.type === 'hoga') {
     if (!q.code) return res.status(400).json({ error: 'code required' })
     return relay('/hoga', { stk_cd: q.code }, res)
@@ -117,6 +100,12 @@ export default async function handler(req, res) {
       mrkt_tp: q.market || '001',
       invsr:   q.invsr  || '6',
     }, res)
+  }
+
+  // 시장 전체 수급 집계 — 대시보드 플로우 바용
+  // /api/kiwoom?type=market-flow
+  if (q.type === 'market-flow') {
+    return relay('/supply/market-flow', {}, res)
   }
 
   // 일별 기관 매매 종목 — /api/kiwoom?type=supply-institution&market=001&trde_tp=2
@@ -275,10 +264,9 @@ export default async function handler(req, res) {
   return res.status(400).json({
     error: 'Invalid type',
     valid: [
-      'price', 'stockbasic', 'stockinfo', 'prices',
-      'hoga', 'stock-chart', 'index-chart', 'index-price',
+      'price', 'hoga', 'stock-chart', 'index-chart', 'index-price',
       'supply-foreign', 'supply-investor', 'supply-institution',
-      'supply-short', 'supply-strength',
+      'supply-short', 'supply-strength', 'market-flow',
       'sector-all', 'sector-stocks',
       'etf-info', 'etf-list', 'etf-profit', 'etf-holdings',
       'account-balance', 'account-holdings', 'account-orders', 'account-returns',

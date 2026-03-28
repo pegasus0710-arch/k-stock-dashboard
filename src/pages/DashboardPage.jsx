@@ -37,6 +37,25 @@ function getMarketBadge(item, data) {
   return { label:'전일', cls:'closed' }
 }
 
+// 카드 경고 클래스 — VIX 30↑, USD/KRW 1500↑
+function getWarnClass(item, d) {
+  if (!d || d.price == null) return ''
+  if (item.id === 'VIX'    && d.price >= 30)   return 'db-idx-card--warn-red'
+  if (item.id === 'FX_USD' && d.price >= 1500) return 'db-idx-card--warn-orange'
+  return ''
+}
+
+// 원자재 도트 색상 — 등락률 기반
+function getCommodityDotColor(rate) {
+  if (rate == null) return '#94a3b8'
+  if (rate >=  3.0) return '#16a34a'
+  if (rate >=  1.0) return '#22c55e'
+  if (rate >=  0.0) return '#4ade80'
+  if (rate >= -1.0) return '#60a5fa'
+  if (rate >= -3.0) return '#3b82f6'
+  return '#1d4ed8'
+}
+
 // 지수별 기준일 레이블 — 마켓별 마감 시간이 다름
 function getItemDateLabel(item, d) {
   if (!d) return null
@@ -88,7 +107,7 @@ const ST_MAP = {
 }
 
 export default function DashboardPage() {
-  const { dashData, globalData, forexData, cbRates, loading, globalLoading,
+  const { dashData, globalData, forexData, cbRates, flowData, loading, globalLoading,
           fetchError, setFetchError, lastFetch, refresh, fetchDashboard } = useDashboard()
 
   const [selId,       setSelId]       = useState('KOSPI')
@@ -151,14 +170,61 @@ export default function DashboardPage() {
       {/* 영역 2: 중단 지수 카드 그리드 */}
       <div className="db-cards-section">
         {SECTOR_GROUPS.map((group, gi)=>{
-          // 3열 그리드: 0,3,6=왼쪽열 → tip 오른쪽으로 열어야 잘 안 짤림
           const tipPos = gi % 3 === 0 ? 'right' : 'left'
+
+          // ── 원자재 그룹: 도트 히트맵 렌더링 ──
+          if (group.id === 'commodity') return (
+            <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
+              <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
+              <div className="db-commodity-grid">
+                {group.items.map(item=>{
+                  const d    = getItemData(item, dashData, globalData, forexData, cbRates)
+                  const rate = d?.changeRate
+                  const up   = (rate ?? 0) > 0
+                  const dotColor = getCommodityDotColor(rate)
+                  const dateLabel = getItemDateLabel(item, d)
+                  return (
+                    <div key={item.id} className="db-commodity-dot-card"
+                      onClick={()=>setSelId(item.id)} style={{cursor:'pointer'}}>
+                      <div className="db-commodity-tip">
+                        <TooltipIcon id={item.id} tipPosition="right"/>
+                      </div>
+                      <div className="db-commodity-circle" style={{background: dotColor}}>
+                        {item.label.slice(0,3).toUpperCase()}
+                      </div>
+                      <span className="db-commodity-name">{item.label}</span>
+                      {globalLoading&&!d
+                        ? <Skeleton w="50%" h={11}/>
+                        : d?.price!=null
+                          ? <>
+                              <span className="db-commodity-price">
+                                {item.unit==='$'||['WTI','BRENT','GOLD','SILVER','COPPER'].includes(item.id)
+                                  ? `$${d.price.toLocaleString(undefined,{maximumFractionDigits:2})}`
+                                  : `${d.price.toLocaleString(undefined,{maximumFractionDigits:2})}${item.unit||''}`
+                                }
+                              </span>
+                              {rate!=null && (
+                                <span className="db-commodity-rate" style={{color: up?'#DC2626':'#1D4ED8'}}>
+                                  {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
+                                </span>
+                              )}
+                              {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
+                            </>
+                          : <span style={{fontSize:10,color:'var(--text-dim)'}}>—</span>
+                      }
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+
+          // ── 나머지 그룹: 기존 카드 렌더링 ──
           return (
           <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
             <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
             <div className="db-card-group-items">
               {group.items.map(item=>{
-                // divider 렌더링
                 if (item.type==='divider') return (
                   <div key={item.id} className="db-card-group-divider">{item.label}</div>
                 )
@@ -169,9 +235,10 @@ export default function DashboardPage() {
                 const isClosed = badge?.cls === 'closed'
                 const active   = selId === item.id
                 const dateLabel = getItemDateLabel(item, d)
+                const warnClass = getWarnClass(item, d)
                 return (
                   <button key={item.id}
-                    className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''} ${item.type==='spread'?'spread-card':''} ${item.type==='cb'?'cb-card':''}`}
+                    className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''} ${item.type==='spread'?'spread-card':''} ${item.type==='cb'?'cb-card':''} ${warnClass}`}
                     onClick={()=>(item.type==='global'||item.type==='forex') && setSelId(item.id)}>
                     <div className="db-idx-top-row">
                       <span className="db-idx-name">{item.label}</span>
@@ -206,7 +273,6 @@ export default function DashboardPage() {
                             : null
                         }
                         {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
-                        {/* 기준일 배지 — 데이터 있는 카드에만 */}
                         {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
                       </>
                     ) : <div className="db-idx-na">—</div>}
@@ -214,6 +280,59 @@ export default function DashboardPage() {
                 )
               })}
             </div>
+            {/* 국내지수 그룹 하단 — 외인/기관 수급 플로우 바 */}
+            {group.id === 'domestic' && (
+              <div className="db-flow-section">
+                <div className="db-flow-header">
+                  <span className="db-flow-title">수급 (코스피+코스닥 합산)</span>
+                  <div className="tip-wrap" style={{position:'relative',display:'inline-flex'}}>
+                    <TooltipIcon id="FLOW" tipPosition="right"/>
+                  </div>
+                  {flowData && <span className="db-date-badge" style={{marginLeft:'auto'}}>장중 기준</span>}
+                </div>
+                {flowData ? (
+                  <div className="db-flow-rows">
+                    {[
+                      {label:'외국인', val:flowData.total?.foreign  ?? 0, color:'#2563eb'},
+                      {label:'기관',   val:flowData.total?.institution ?? 0, color:'#7c3aed'},
+                      {label:'개인',   val:flowData.total?.individual ?? 0, color:'#f59e0b'},
+                    ].map(({label, val, color})=>{
+                      const abs    = Math.abs(val)
+                      const maxAbs = Math.max(
+                        Math.abs(flowData.total?.foreign     ?? 0),
+                        Math.abs(flowData.total?.institution ?? 0),
+                        Math.abs(flowData.total?.individual  ?? 0),
+                        1
+                      )
+                      const pct  = Math.min(100, (abs / maxAbs) * 100)
+                      const isUp = val >= 0
+                      return (
+                        <div key={label} className="db-flow-row">
+                          <span className="db-flow-label">{label}</span>
+                          <div className="db-flow-bar-wrap">
+                            <div className="db-flow-bar"
+                              style={{
+                                width: `${pct}%`,
+                                background: isUp ? '#DC2626' : '#1D4ED8',
+                                marginLeft: isUp ? 'auto' : '0',
+                              }}/>
+                          </div>
+                          <span className="db-flow-val" style={{color: isUp?'#DC2626':'#1D4ED8'}}>
+                            {isUp?'+':''}{val >= 100 || val <= -100
+                              ? `${(val/100).toFixed(0)}백억`
+                              : `${val.toFixed(0)}억`}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="db-flow-empty">
+                    {isOpen ? '수급 데이터 로딩 중...' : '장 시작 후 표시됩니다'}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           )
         })}

@@ -729,3 +729,177 @@
   border-radius: 3px;
   background: linear-gradient(to right, #1d4ed8, #93c5fd, #F1F5F9, #86efac, #16a34a);
 }
+
+/* ── 경고 카드 스타일 (①②) ─────────────────────────── */
+/* VIX 30↑ 공포 구간 */
+.db-idx-card--warn-red {
+  border-color: #FCA5A5 !important;
+  background: #FFF5F5 !important;
+}
+.db-idx-card--warn-red .db-idx-price {
+  color: #DC2626 !important;
+}
+/* USD/KRW 1500↑ 경계 */
+.db-idx-card--warn-orange {
+  border-color: #FCD34D !important;
+  background: #FFFBEB !important;
+}
+.db-idx-card--warn-orange .db-idx-price {
+  color: #D97706 !important;
+}
+
+/* ── 원자재 도트 히트맵 (③) ────────────────────────── */
+.db-commodity-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+@media(max-width: 900px) {
+  .db-commodity-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.db-commodity-dot-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 4px 8px;
+  border-radius: 10px;
+  border: 0.5px solid var(--border);
+  background: var(--bg-base);
+  position: relative;
+  cursor: default;
+  transition: border-color .12s;
+}
+.db-commodity-dot-card:hover { border-color: #CBD5E1; }
+.db-commodity-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+.db-commodity-name  { font-size: 9px; color: var(--text-secondary); }
+.db-commodity-price { font-size: 11px; font-weight: 700; color: var(--text-primary); }
+.db-commodity-rate  { font-size: 10px; font-weight: 700; }
+.db-commodity-tip   { position: absolute; top: 4px; right: 4px; }
+
+/* ── 수급 플로우 바 ────────────────────────────────── */
+.db-flow-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+.db-flow-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.db-flow-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.db-flow-row:last-child { margin-bottom: 0; }
+.db-flow-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  width: 36px;
+  flex-shrink: 0;
+}
+.db-flow-bar-wrap {
+  flex: 1;
+  height: 7px;
+  background: var(--bg-base);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  border: 0.5px solid var(--border);
+}
+.db-flow-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width .4s ease;
+}
+.db-flow-bar.buy  { background: #1D4ED8; }
+.db-flow-bar.sell { background: #DC2626; margin-left: auto; }
+.db-flow-val {
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 60px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.db-flow-val.buy  { color: #1D4ED8; }
+.db-flow-val.sell { color: #DC2626; }
+.db-flow-loading {
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 4px 0;
+}
+
+/* ── 수급 플로우 바 ──────────────────────────────────── */
+.db-flow-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+.db-flow-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.db-flow-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.db-flow-rows { display: flex; flex-direction: column; gap: 5px; }
+.db-flow-row  {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.db-flow-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  width: 36px;
+  flex-shrink: 0;
+}
+.db-flow-bar-wrap {
+  flex: 1;
+  height: 7px;
+  background: var(--bg-base);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 0.5px solid var(--border);
+  position: relative;
+}
+.db-flow-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width .3s ease;
+}
+.db-flow-val {
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 52px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.db-flow-empty {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 6px 0;
+}

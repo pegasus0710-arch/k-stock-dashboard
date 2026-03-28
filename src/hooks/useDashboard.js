@@ -7,6 +7,7 @@ const LS_DASH   = 'db_cache_v3'
 const LS_GLOBAL = 'db_global_v4'
 const LS_FOREX  = 'db_forex_krw_v1'
 const LS_RATES  = 'db_central_rates_v1'
+const LS_FLOW   = 'db_flow_v1'
 
 function lsRead(key, ttl) {
   try { const r=localStorage.getItem(key); if(!r)return null; const {data,ts}=JSON.parse(r); return Date.now()-ts<ttl?data:null } catch { return null }
@@ -22,6 +23,7 @@ export default function useDashboard() {
   const [globalData,    setGlobalData]    = useState(()=>lsRead(LS_GLOBAL, 300000))
   const [forexData,     setForexData]     = useState(()=>lsRead(LS_FOREX,  300000))
   const [cbRates,       setCbRates]       = useState(()=>lsRead(LS_RATES,  3600000*6))
+  const [flowData,      setFlowData]      = useState(()=>lsRead(LS_FLOW,   120000))  // 2분 캐시
   const [loading,       setLoading]       = useState(()=>!lsRead(LS_DASH,  getDashTTL()))
   const [globalLoading, setGlobalLoading] = useState(()=>!lsRead(LS_GLOBAL,300000))
   const [fetchError,    setFetchError]    = useState(false)
@@ -61,19 +63,31 @@ export default function useDashboard() {
     catch{}
   },[])
 
+  // 장중 수급 데이터 — 장중에만 의미있고 2분 캐시
+  const fetchFlow = useCallback(async (force=false) => {
+    if(!force&&lsRead(LS_FLOW,120000)) return
+    try{
+      const j=await fetch('/api/kiwoom?type=market-flow').then(r=>r.json())
+      if(j.total){setFlowData(j);lsWrite(LS_FLOW,j)}
+    }catch{}
+  },[])
+
   const refresh = useCallback(() => {
     localStorage.removeItem(LS_DASH)
     localStorage.removeItem(LS_GLOBAL)
     localStorage.removeItem(LS_FOREX)
-    fetchDashboard(true);fetchGlobal(true);fetchForex(true)
-  },[fetchDashboard,fetchGlobal,fetchForex])
+    localStorage.removeItem(LS_FLOW)
+    fetchDashboard(true);fetchGlobal(true);fetchForex(true);fetchFlow(true)
+  },[fetchDashboard,fetchGlobal,fetchForex,fetchFlow])
 
   useEffect(()=>{
-    fetchDashboard(true);fetchGlobal(true);fetchForex(true);fetchCbRates()
+    fetchDashboard(true);fetchGlobal(true);fetchForex(true);fetchCbRates();fetchFlow(true)
     timerRef.current  = setInterval(()=>fetchDashboard(true), isMarketOpen()?30000:300000)
     globalRef.current = setInterval(()=>fetchGlobal(true),    isUSMarketOpen()?60000:300000)
-    return()=>{clearInterval(timerRef.current);clearInterval(globalRef.current)}
-  },[fetchDashboard,fetchGlobal,fetchForex,fetchCbRates])
+    // 수급 데이터: 장중 2분, 장외 10분
+    const flowTimer = setInterval(()=>fetchFlow(true), isMarketOpen()?120000:600000)
+    return()=>{clearInterval(timerRef.current);clearInterval(globalRef.current);clearInterval(flowTimer)}
+  },[fetchDashboard,fetchGlobal,fetchForex,fetchCbRates,fetchFlow])
 
-  return { dashData, globalData, forexData, cbRates, loading, globalLoading, fetchError, setFetchError, lastFetch, refresh, fetchDashboard }
+  return { dashData, globalData, forexData, cbRates, flowData, loading, globalLoading, fetchError, setFetchError, lastFetch, refresh, fetchDashboard }
 }
