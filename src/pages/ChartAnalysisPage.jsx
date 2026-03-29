@@ -293,10 +293,11 @@ function SubStoch({data,width}) {
 
 // ── FullscreenChart ───────────────────────────────────
 function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClose }) {
-  const [period, setPeriod] = useState(initPeriod||'day')
-  const [scope,  setScope]  = useState('5')
-  const [range,  setRange]  = useState(initRange||3)
-  const [showMA, setShowMA] = useState(initMA??true)
+  const [period,    setPeriod]  = useState(initPeriod||'day')
+  const [scope,     setScope]   = useState('5')
+  const [range,     setRange]   = useState(initRange||3)
+  const [minDays,   setMinDays] = useState(1)
+  const [showMA,    setShowMA]  = useState(initMA??true)
   const [enabledMA, setEnabledMA] = useState(initEMA||new Set([5,10,20,60,120]))
   const [drawTool, setDrawTool] = useState('none')
   const [drawState, setDrawState] = useState(null)
@@ -311,7 +312,7 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
   const [fsBasicInfo, setFsBasicInfo]   = useState(null)
   const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
 
-  const { allData, loading } = useStockChart({ code:stock.code, period, scope })
+  const { allData, loading } = useStockChart({ code:stock.code, period, scope, minDays })
   const candles = useMemo(()=>period==='min'?allData:filterByRange(allData,range),[allData,range,period])
   const chartH  = Math.max(400, window.innerHeight - 200)
 
@@ -334,7 +335,15 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
         <span className="cap-fs-code">{stock.code}</span>
         <div className="cap-fs-sep"/>
         <div className="cap-fs-group">{PERIODS.map(p=><button key={p.key} className={`cap-fs-btn ${period===p.key?'active':''}`} onClick={()=>setPeriod(p.key)}>{p.label}</button>)}</div>
-        {period==='min'&&<><div className="cap-fs-sep"/><div className="cap-fs-group">{MIN_SCOPES.map(s=><button key={s} className={`cap-fs-btn ${scope===s?'active':''}`} onClick={()=>setScope(s)}>{s}분</button>)}</div></>}
+        {period==='min'&&(<>
+          <div className="cap-fs-sep"/>
+          <div className="cap-fs-group">{MIN_SCOPES.map(s=><button key={s} className={`cap-fs-btn ${scope===s?'active':''}`} onClick={()=>setScope(s)}>{s}분</button>)}</div>
+          <div className="cap-fs-sep"/>
+          <div className="cap-fs-group">
+            {[{label:'당일',days:1},{label:'3일',days:3},{label:'5일',days:5},{label:'10일',days:10},{label:'20일',days:20},{label:'30일',days:30}]
+              .map(r=><button key={r.days} className={`cap-fs-btn ${minDays===r.days?'active':''}`} onClick={()=>setMinDays(r.days)}>{r.label}</button>)}
+          </div>
+        </>)}
         {period!=='min'&&<><div className="cap-fs-sep"/><div className="cap-fs-group">{RANGES.map(r=><button key={r.label} className={`cap-fs-btn ${range===r.months?'active':''}`} onClick={()=>setRange(r.months)}>{r.label}</button>)}</div></>}
         <div className="cap-fs-sep"/>
         <div className="cap-fs-group">
@@ -418,6 +427,7 @@ export default function ChartAnalysisPage() {
   const [period,    setPeriod]    = useState('day')
   const [scope,     setScope]     = useState('5')
   const [range,     setRange]     = useState(3)
+  const [minDays,   setMinDays]   = useState(1)   // 분봉 조회 일수
   const [showMA,    setShowMA]    = useState(true)
   const [enabledMA, setEnabledMA] = useState(new Set([5,10,20,60,120]))
   const [drawTool,  setDrawTool]  = useState('none')
@@ -452,7 +462,7 @@ export default function ChartAnalysisPage() {
   const etfMode = isEtf(selected?.code)
 
   // ── 차트 데이터 ───────────────────────────────────
-  const { allData, loading: chartLoading } = useStockChart({ code:selected?.code, period, scope, enabled:!!selected })
+  const { allData, loading: chartLoading } = useStockChart({ code:selected?.code, period, scope, minDays, enabled:!!selected })
   const candles = useMemo(()=>period==='min'?allData:filterByRange(allData,range),[allData,range,period])
 
   // 52주 고저
@@ -753,16 +763,35 @@ export default function ChartAnalysisPage() {
             <div className="cap-tb-row">
               {/* 봉종류 */}
               <div className="cap-tg">
-                {PERIODS.map(p=><button key={p.key} className={`cap-tg-btn ${period===p.key?'active':''}`} onClick={()=>{setPeriod(p.key);setDrawState(null)}}>{p.label}</button>)}
+                {PERIODS.map(p=><button key={p.key} className={`cap-tg-btn ${period===p.key?'active':''}`}
+                  onClick={()=>{setPeriod(p.key);setDrawState(null)}}>{p.label}</button>)}
               </div>
               <div className="cap-tb-sep"/>
-              {/* 기간/분봉 */}
-              <div className="cap-tg">
-                {period==='min'
-                  ? MIN_SCOPES.map(s=><button key={s} className={`cap-tg-btn ${scope===s?'active':''}`} onClick={()=>setScope(s)}>{s}분</button>)
-                  : RANGES.map(r=><button key={r.label} className={`cap-tg-btn ${range===r.months?'active':''}`} onClick={()=>setRange(r.months)}>{r.label}</button>)
-                }
-              </div>
+
+              {/* 분봉: 분단위 간격 + 일수 범위 / 일봉 이상: 기간 범위 */}
+              {period==='min' ? (<>
+                <div className="cap-tg">
+                  {MIN_SCOPES.map(s=><button key={s} className={`cap-tg-btn ${scope===s?'active':''}`}
+                    onClick={()=>setScope(s)}>{s}분</button>)}
+                </div>
+                <div className="cap-tb-sep"/>
+                <div className="cap-tg">
+                  {[
+                    {label:'당일', days:1},
+                    {label:'3일',  days:3},
+                    {label:'5일',  days:5},
+                    {label:'10일', days:10},
+                    {label:'20일', days:20},
+                    {label:'30일', days:30},
+                  ].map(r=><button key={r.days} className={`cap-tg-btn ${minDays===r.days?'active':''}`}
+                    onClick={()=>setMinDays(r.days)}>{r.label}</button>)}
+                </div>
+              </>) : (
+                <div className="cap-tg">
+                  {RANGES.map(r=><button key={r.label} className={`cap-tg-btn ${range===r.months?'active':''}`}
+                    onClick={()=>setRange(r.months)}>{r.label}</button>)}
+                </div>
+              )}
               <div className="cap-tb-sep"/>
               {/* MA */}
               <button className={`cap-ma-tog ${showMA?'on':''}`} onClick={()=>setShowMA(v=>!v)}>MA</button>

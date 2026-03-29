@@ -119,7 +119,7 @@ export function MarkdownView({ text, className }) {
 }
 
 // ── useStockChart 훅 ──────────────────────────────────────
-export function useStockChart({ code, period, scope, enabled=true }) {
+export function useStockChart({ code, period, scope, minDays=1, enabled=true }) {
   const [allData, setAllData] = useState([])
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState(null)
@@ -129,7 +129,10 @@ export function useStockChart({ code, period, scope, enabled=true }) {
     setLoading(true); setError(null)
     try {
       const params = new URLSearchParams({ type:'stock-chart', period, code })
-      if (period==='min') params.set('tic', scope||'5')
+      if (period==='min') {
+        params.set('tic', scope||'5')
+        params.set('min_days', String(minDays))  // 분봉 조회 일수
+      }
       const json = await fetch(`/api/kiwoom?${params}`).then(r=>r.json())
       if (json.error) throw new Error(json.error)
       const items = json.candles || json[DATA_KEY[period]] || []
@@ -137,7 +140,7 @@ export function useStockChart({ code, period, scope, enabled=true }) {
       setAllData(normalizeCandles(items, period, isKey))
     } catch(e) { setError(e.message) }
     finally   { setLoading(false) }
-  }, [code, period, scope, enabled])
+  }, [code, period, scope, minDays, enabled])
 
   useEffect(() => { fetch_() }, [fetch_])
   return { allData, loading, error, reload: fetch_ }
