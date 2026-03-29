@@ -134,11 +134,11 @@ function CandleSvg({ candles, chartType, range }) {
             <line
               x1={PAD.left} y1={toY(t)}
               x2={W - PAD.right} y2={toY(t)}
-              stroke="rgba(255,255,255,0.07)" strokeDasharray="4 4"
+              stroke="rgba(15,23,42,0.07)" strokeDasharray="4 4"
             />
             <text
               x={W - PAD.right + 6} y={toY(t) + 4}
-              fontSize="10" fill="#6b7280" textAnchor="start"
+              fontSize="10" fill="#94a3b8" textAnchor="start"
             >
               {fmtNum(t, t > 100 ? 0 : 2)}
             </text>
@@ -150,7 +150,7 @@ function CandleSvg({ candles, chartType, range }) {
           const idx2 = data.indexOf(c)
           const x = PAD.left + (idx2 / (data.length - 1)) * chartW
           return (
-            <text key={i} x={x} y={H - 6} fontSize="10" fill="#6b7280" textAnchor="middle">
+            <text key={i} x={x} y={H - 6} fontSize="10" fill="#94a3b8" textAnchor="middle">
               {fmtDate(c.date, range)}
             </text>
           )
@@ -228,7 +228,7 @@ function CandleSvg({ candles, chartType, range }) {
           <line
             x1={tooltip.x} y1={PAD.top}
             x2={tooltip.x} y2={PAD.top + chartH}
-            stroke="rgba(255,255,255,0.3)" strokeWidth="1" strokeDasharray="3 3"
+            stroke="rgba(15,23,42,0.25)" strokeWidth="1" strokeDasharray="3 3"
           />
         )}
       </svg>
