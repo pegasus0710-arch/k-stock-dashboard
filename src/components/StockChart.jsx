@@ -163,15 +163,15 @@ function SupplyBar({ title, data, color }) {
   return (
     <div className="sc-sup-row">
       <svg viewBox={`0 0 ${W} ${H}`} className="sc-sup-svg">
-        <text x={PL-5} y={PT+10} fontSize="9" fill="#64748b" textAnchor="end">{title}</text>
-        <line x1={PL} x2={PL+cW} y1={midY} y2={midY} stroke="rgba(255,255,255,0.08)" strokeWidth="0.5"/>
+        <text x={PL-5} y={PT+10} fontSize="9" fill="#94a3b8" textAnchor="end">{title}</text>
+        <line x1={PL} x2={PL+cW} y1={midY} y2={midY} stroke="rgba(15,23,42,0.08)" strokeWidth="0.5"/>
         {data.map((d,i)=>{
           const v=d.value||0, bH=Math.abs(v/maxA)*(cH/2-2)
           return <rect key={i} x={bx(i)-bw/2} y={v>=0?midY-bH:midY} width={bw} height={Math.max(1,bH)} fill={v>=0?'#22c55e':'#ef4444'} opacity="0.75"/>
         })}
         <polyline points={cumPts} fill="none" stroke="#f59e0b" strokeWidth="1.2" opacity="0.7"/>
-        <text x={PL} y={H-2} fontSize="8" fill="#475569" textAnchor="middle">{(data[0]?.date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>
-        <text x={PL+cW} y={H-2} fontSize="8" fill="#475569" textAnchor="middle">{(data[data.length-1]?.date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>
+        <text x={PL} y={H-2} fontSize="8" fill="#94a3b8" textAnchor="middle">{(data[0]?.date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>
+        <text x={PL+cW} y={H-2} fontSize="8" fill="#94a3b8" textAnchor="middle">{(data[data.length-1]?.date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>
         <text x={PL-5} y={PT+cH-4} fontSize="8" fill="#f59e0b" textAnchor="end">누계▶</text>
       </svg>
     </div>
@@ -190,11 +190,11 @@ function SupplyLine({ title, data, color, baseline }) {
   return (
     <div className="sc-sup-row">
       <svg viewBox={`0 0 ${W} ${H}`} className="sc-sup-svg">
-        <text x={PL-5} y={PT+10} fontSize="9" fill="#64748b" textAnchor="end">{title}</text>
-        {baseline!=null && <line x1={PL} x2={PL+cW} y1={py(baseline)} y2={py(baseline)} stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" strokeDasharray="3,3"/>}
+        <text x={PL-5} y={PT+10} fontSize="9" fill="#94a3b8" textAnchor="end">{title}</text>
+        {baseline!=null && <line x1={PL} x2={PL+cW} y1={py(baseline)} y2={py(baseline)} stroke="rgba(15,23,42,0.08)" strokeWidth="0.5" strokeDasharray="3,3"/>}
         <polyline points={pts} fill="none" stroke={color} strokeWidth="1.3" opacity="0.85"/>
-        <text x={PL} y={H-2} fontSize="8" fill="#475569" textAnchor="middle">{(data[0]?.date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>
-        <text x={PL+cW} y={H-2} fontSize="8" fill="#475569" textAnchor="middle">{(data[data.length-1]?.date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>
+        <text x={PL} y={H-2} fontSize="8" fill="#94a3b8" textAnchor="middle">{(data[0]?.date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>
+        <text x={PL+cW} y={H-2} fontSize="8" fill="#94a3b8" textAnchor="middle">{(data[data.length-1]?.date||'').slice(4,8)?.replace(/(\d{2})(\d{2})/,'$1/$2')}</text>
       </svg>
     </div>
   )
@@ -385,8 +385,8 @@ export function CandleSvg({
 
   const n = data.length
   if (!n) return (
-    <svg width={W} height={totalH} style={{display:'block',background:'#0f172a',borderRadius:8}}>
-      <text x={W/2} y={totalH/2} textAnchor="middle" fontSize="13" fill="#475569">데이터가 없습니다</text>
+    <svg width={W} height={totalH} style={{display:'block',background:'#F1F5F9',borderRadius:8}}>
+      <text x={W/2} y={totalH/2} textAnchor="middle" fontSize="13" fill="#94a3b8">데이터가 없습니다</text>
     </svg>
   )
 
@@ -446,21 +446,21 @@ export function CandleSvg({
 
   return (
     <svg ref={svgRef} width={W} height={totalH}
-      style={{display:'block',background:'#0f172a',borderRadius:8,cursor:drawTool!=='none'?'crosshair':'default'}}
+      style={{display:'block',background:'#F1F5F9',borderRadius:8,cursor:drawTool!=='none'?'crosshair':'default'}}
       onMouseMove={handleMouseMove} onMouseLeave={()=>setTooltip(null)}
       onClick={handleClick}>
 
       {/* Y축 눈금 */}
       {yTicks.map((v,i)=>(
         <g key={i}>
-          <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(v)} y2={toY(v)} stroke="rgba(255,255,255,0.07)" strokeWidth={0.5} strokeDasharray="3,3"/>
-          <text x={PAD.left-5} y={toY(v)+4} textAnchor="end" fontSize={10} fill="#64748b">{fmtN(Math.round(v))}</text>
+          <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(v)} y2={toY(v)} stroke="rgba(15,23,42,0.07)" strokeWidth={0.5} strokeDasharray="3,3"/>
+          <text x={PAD.left-5} y={toY(v)+4} textAnchor="end" fontSize={10} fill="#94a3b8">{fmtN(Math.round(v))}</text>
         </g>
       ))}
 
       {/* X축 날짜 */}
       {data.filter((_,i)=>i%xStep===0).map((c,i)=>(
-        <text key={i} x={bx(data.indexOf(c))} y={PAD.top+PRICE_H+VOL_GAP+VOL_H+20} textAnchor="middle" fontSize={10} fill="#64748b">{c.label}</text>
+        <text key={i} x={bx(data.indexOf(c))} y={PAD.top+PRICE_H+VOL_GAP+VOL_H+20} textAnchor="middle" fontSize={10} fill="#94a3b8">{c.label}</text>
       ))}
 
       {/* MA 라인 */}
@@ -484,8 +484,8 @@ export function CandleSvg({
 
       {/* 거래량 */}
       {showVolume && (<>
-        <line x1={PAD.left} x2={PAD.left+chartW} y1={volTop} y2={volTop} stroke="rgba(255,255,255,0.08)" strokeWidth={0.5}/>
-        <text x={PAD.left-5} y={volTop+12} textAnchor="end" fontSize={9} fill="#475569">거래량</text>
+        <line x1={PAD.left} x2={PAD.left+chartW} y1={volTop} y2={volTop} stroke="rgba(15,23,42,0.08)" strokeWidth={0.5}/>
+        <text x={PAD.left-5} y={volTop+12} textAnchor="end" fontSize={9} fill="#94a3b8">거래량</text>
         {data.map((c,i)=>{
           const up=c.close>=c.open, col=up?'#fca5a5':'#93c5fd'
           const vh=Math.max(1,(c.volume/maxVol)*VOL_H)
@@ -507,8 +507,8 @@ export function CandleSvg({
 
         return (
           <g key={key}>
-            <line x1={PAD.left} x2={PAD.left+chartW} y1={sTop} y2={sTop} stroke="rgba(255,255,255,0.08)" strokeWidth={0.5}/>
-            <line x1={PAD.left} x2={PAD.left+chartW} y1={midY} y2={midY} stroke="rgba(255,255,255,0.05)" strokeWidth={0.5} strokeDasharray="2,4"/>
+            <line x1={PAD.left} x2={PAD.left+chartW} y1={sTop} y2={sTop} stroke="rgba(15,23,42,0.08)" strokeWidth={0.5}/>
+            <line x1={PAD.left} x2={PAD.left+chartW} y1={midY} y2={midY} stroke="rgba(15,23,42,0.05)" strokeWidth={0.5} strokeDasharray="2,4"/>
             <text x={PAD.left-5} y={sTop+12} fontSize={9} fill="#94a3b8" textAnchor="end">{supplyLabels[si]}</text>
             {supplyLoading && (
               <text x={PAD.left+chartW/2} y={midY+4} fontSize={10} fill="#94a3b8" textAnchor="middle">로딩 중...</text>
@@ -539,7 +539,7 @@ export function CandleSvg({
           return (
             <g key={i} style={{cursor:'pointer'}} onClick={e=>{e.stopPropagation();onSelectDrawing?.(i)}}>
               <line x1={PAD.left} x2={PAD.left+chartW} y1={y} y2={y} stroke={lineColor} strokeWidth={isSelected?2:1.5} strokeDasharray="6,3"/>
-              <rect x={PAD.left+chartW} y={y-9} width={64} height={18} fill={isSelected?'#1e293b':'rgba(30,41,59,0.8)'} stroke={lineColor} rx={3}/>
+              <rect x={PAD.left+chartW} y={y-9} width={64} height={18} fill={isSelected?'rgba(37,99,235,0.15)':'rgba(241,245,249,0.95)'} stroke={lineColor} rx={3}/>
               <text x={PAD.left+chartW+4} y={y+4} fontSize={9} fill={lineColor}>{fmtN(Math.round(d.price))}</text>
             </g>
           )
@@ -565,8 +565,8 @@ export function CandleSvg({
           const x=d.bxVal??PAD.left+50, y=toY(d.price)
           if(y<PAD.top||y>PAD.top+PRICE_H) return null
           return <g key={i} style={{cursor:'pointer'}} onClick={e=>{e.stopPropagation();onSelectDrawing?.(i)}}>
-            <rect x={x-2} y={y-13} width={d.text.length*7+8} height={16} fill="rgba(30,41,59,0.9)" stroke={isSelected?'#f59e0b':'#475569'} rx={3}/>
-            <text x={x+2} y={y} fontSize={11} fill="#e2e8f0">{d.text}</text>
+            <rect x={x-2} y={y-13} width={d.text.length*7+8} height={16} fill="rgba(255,255,255,0.92)" stroke={isSelected?'#f59e0b':'#94a3b8'} rx={3}/>
+            <text x={x+2} y={y} fontSize={11} fill="#0f172a">{d.text}</text>
           </g>
         }
         return null
@@ -574,21 +574,21 @@ export function CandleSvg({
 
       {/* 크로스헤어 */}
       {td && tooltip.svgY>=PAD.top && tooltip.svgY<=PAD.top+PRICE_H && (<>
-        <line x1={tooltip.svgX} x2={tooltip.svgX} y1={PAD.top} y2={PAD.top+PRICE_H} stroke="rgba(255,255,255,0.3)" strokeWidth={0.8} strokeDasharray="4,2"/>
-        <line x1={PAD.left} x2={PAD.left+chartW} y1={tooltip.svgY} y2={tooltip.svgY} stroke="rgba(255,255,255,0.2)" strokeWidth={0.8} strokeDasharray="4,2"/>
+        <line x1={tooltip.svgX} x2={tooltip.svgX} y1={PAD.top} y2={PAD.top+PRICE_H} stroke="rgba(15,23,42,0.25)" strokeWidth={0.8} strokeDasharray="4,2"/>
+        <line x1={PAD.left} x2={PAD.left+chartW} y1={tooltip.svgY} y2={tooltip.svgY} stroke="rgba(15,23,42,0.18)" strokeWidth={0.8} strokeDasharray="4,2"/>
         {/* Y축 가격 레이블 */}
-        <rect x={PAD.left+chartW} y={tooltip.svgY-8} width={PAD.right-2} height={16} fill="#1e293b" rx={3}/>
-        <text x={PAD.left+chartW+36} y={tooltip.svgY+4} fontSize={9} fill="#e2e8f0" textAnchor="middle">{fmtN(Math.round(fromY(tooltip.svgY)))}</text>
+        <rect x={PAD.left+chartW} y={tooltip.svgY-8} width={PAD.right-2} height={16} fill="#2563eb" rx={3}/>
+        <text x={PAD.left+chartW+36} y={tooltip.svgY+4} fontSize={9} fill="white" textAnchor="middle">{fmtN(Math.round(fromY(tooltip.svgY)))}</text>
         {/* 툴팁 */}
         {(() => {
           const tx = tooltip.svgX > W/2 ? tooltip.svgX-148 : tooltip.svgX+10
           return <>
-            <rect x={tx} y={PAD.top+4} width={140} height={112} fill="#1e293b" stroke="#334155" rx={6}/>
-            <text x={tx+8} y={PAD.top+18} fontSize={10} fill="#94a3b8" fontWeight="600">{td.label}</text>
+            <rect x={tx} y={PAD.top+4} width={140} height={112} fill="white" stroke="#e2e8f0" rx={6} style={{filter:'drop-shadow(0 2px 8px rgba(15,23,42,0.12))'}}/>
+            <text x={tx+8} y={PAD.top+18} fontSize={10} fill="#64748b" fontWeight="600">{td.label}</text>
             {[['시가',td.open,null],['고가',td.high,'#ef4444'],['저가',td.low,'#3b82f6'],['종가',td.close,rateColor(td.close-td.open)],['거래량',td.volume,null]].map(([lbl,val,col],j)=>(
               <g key={j}>
-                <text x={tx+8}   y={PAD.top+34+j*15} fontSize={10} fill="#64748b">{lbl}</text>
-                <text x={tx+134} y={PAD.top+34+j*15} textAnchor="end" fontSize={10} fill={col||'#e2e8f0'}>{j===4?fmtShort(val):fmtN(Math.round(val))}</text>
+                <text x={tx+8}   y={PAD.top+34+j*15} fontSize={10} fill="#94a3b8">{lbl}</text>
+                <text x={tx+134} y={PAD.top+34+j*15} textAnchor="end" fontSize={10} fill={col||'#0f172a'}>{j===4?fmtShort(val):fmtN(Math.round(val))}</text>
               </g>
             ))}
           </>
