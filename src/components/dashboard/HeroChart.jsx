@@ -61,10 +61,9 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
         const lows  = valid.map(c=>c.low||c.close||0).filter(v=>v>0)
         if(highs.length && lows.length) onWeekRange(it.id, Math.max(...highs), Math.min(...lows))
       }
-      // 스파크라인
+      // 스파크라인 — 전체 데이터 저장 (주봉 기준 1년치)
       if(isSparkLoad && valid.length && onSparkData) {
-        const recent = valid.slice(-20).map(c=>c.close)
-        onSparkData(it.id, recent)
+        onSparkData(it.id, valid.map(c=>c.close))
       }
     } catch(e){console.error(e)}
     finally{ if (!isSparkLoad) setLoading(false) }
