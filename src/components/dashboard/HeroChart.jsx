@@ -29,6 +29,9 @@ function getMarketBadge(item, data) {
   return { label:'전일', color:'#64748b' }
 }
 
+// ── EC2 릴레이 베이스 URL ────────────────────────────
+const EC2_URL = import.meta.env.VITE_RELAY_URL || 'http://3.38.37.78:8000'
+
 function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeekRange, onSparkData }) {
   const [range,   setRange]   = useState('3mo')
   const [candles, setCandles] = useState([])
@@ -69,13 +72,43 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
     finally{ if (!isSparkLoad) setLoading(false) }
   },[])
 
+  // ── 국내지수 주봉 스파크 로드 (ka20007) ──────────────
+  const loadDomesticSpark = useCallback(async () => {
+    try {
+      const j = await fetch(`${EC2_URL}/index/spark`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }).then(r => r.json())
+
+      for (const [id, payload] of Object.entries(j)) {
+        const candles = (payload?.candles || []).filter(c => (c.close || 0) > 0)
+        if (!candles.length) continue
+        // 스파크라인 closes
+        if (onSparkData) onSparkData(id, candles.map(c => c.close))
+        // 52주 고저
+        if (onWeekRange) {
+          const highs = candles.map(c => c.high || c.close || 0).filter(v => v > 0)
+          const lows  = candles.map(c => c.low  || c.close || 0).filter(v => v > 0)
+          if (highs.length && lows.length)
+            onWeekRange(id, Math.max(...highs), Math.min(...lows))
+        }
+      }
+    } catch(e) {
+      console.warn('[HeroChart] 국내 주봉 스파크 실패, Yahoo Finance 폴백:', e)
+      // 폴백: Yahoo Finance 일봉 1년
+      fetchChart('KOSPI',  '1y', true)
+      fetchChart('KOSDAQ', '1y', true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchChart])
+
   useEffect(()=>{ fetchChart(selId, range) },[selId, range])
 
   // 초기 마운트 시 자동 로드
   useEffect(()=>{
-    // 국내지수 1년치
-    fetchChart('KOSPI',  '1y', true)
-    fetchChart('KOSDAQ', '1y', true)
+    // 국내지수 — EC2 ka20007 주봉 (실패 시 Yahoo Finance 폴백)
+    loadDomesticSpark()
     // 해외 주요지수 1년치 (스파크라인 + 52주 게이지)
     fetchChart('SP500',  '1y', true)
     fetchChart('NASDAQ', '1y', true)
