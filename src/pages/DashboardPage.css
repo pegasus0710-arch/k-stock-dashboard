@@ -1170,11 +1170,30 @@
   gap: 6px;
 }
 
-/* ── 심리·달러 레이아웃 (VIX 넓게 + DXY 게이지) ──── */
+/* ── 심리·달러 레이아웃 (VIX + DXY 동일 5:5) ──── */
 .db-sentiment-grid {
   display: grid;
-  grid-template-columns: 3fr 2fr;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
 .db-sentiment-vix { min-height: 0; }
 .db-sentiment-dxy { min-height: 0; }
+
+/* ── 반원 게이지 공통 (VIX + DXY) ───────────────── */
+.db-semi-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  overflow: visible;
+}
+.db-semi-wrap svg {
+  overflow: visible;
+  max-width: 100%;
+}
+/* 원자재 카드 스파크라인 영역 */
+.db-commodity-dot-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}

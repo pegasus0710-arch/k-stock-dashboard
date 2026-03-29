@@ -2,14 +2,12 @@
 import { useState } from 'react'
 import { GAUGE_CONFIG, GUIDE_DATA } from '../../constants/dashboardData'
 
-// ── VIX 반원 게이지 ───────────────────────────────────
-function SemiGauge({ price }) {
-  const min=0, max=60
+// ── 반원 게이지 (VIX + DXY 공통) ─────────────────────
+function SemiGauge({ price, config }) {
+  const { min=0, max=60, safe, caution, labels=['안정','주의','위험'], unit='' } = config || {}
   const pct   = Math.min(100, Math.max(0, (price-min)/(max-min)*100))
-  const angle = -180 + pct * 1.8   // -180 ~ 0deg
+  const angle = -180 + pct * 1.8
   const toRad = a => a * Math.PI / 180
-
-  // SVG 좌표: cx=60, cy=60, r=46 → viewBox "0 0 120 70"
   const cx=60, cy=60, r=46
 
   const arcPath = (startDeg, endDeg, color, sw=10) => {
@@ -26,40 +24,37 @@ function SemiGauge({ price }) {
   const nx = cx + (r-6) * Math.cos(needleAngle)
   const ny = cy + (r-6) * Math.sin(needleAngle)
 
-  const level = price<=15 ? {label:'안정', color:'#22c55e'}
-              : price<=30 ? {label:'주의', color:'#f59e0b'}
-              : {label:'공포', color:'#ef4444'}
+  const levelColor = price <= safe ? '#22c55e'
+                   : price <= caution ? '#f59e0b'
+                   : '#ef4444'
+  const levelLabel = price <= safe ? labels[0]
+                   : price <= caution ? labels[1]
+                   : labels[2]
+  const isWarn = price > caution
 
   return (
     <div className="db-semi-wrap">
-      {/* 배지 — 우측 상단 */}
       <div className="db-semi-badge-row">
         <span className="db-semi-badge"
-          style={{background:level.color+'22', color:level.color, borderColor:level.color+'55'}}>
-          {price>=30 ? '⚠ ' : '● '}{level.label}
+          style={{background:levelColor+'22', color:levelColor, borderColor:levelColor+'55'}}>
+          {isWarn ? '⚠ ' : '● '}{levelLabel}
         </span>
       </div>
-      {/* 반원 SVG — 숫자 포함 */}
       <svg viewBox="0 0 120 68" width="100%" style={{display:'block'}}>
-        {/* 배경 */}
         {arcPath(-180, 0, '#E2E8F0', 10)}
-        {/* 구간: 안정(녹)/주의(황)/공포(적) */}
         {arcPath(-180, -120, '#22c55e', 10)}
         {arcPath(-120, -60,  '#f59e0b', 10)}
         {arcPath(-60,  0,    '#ef4444', 10)}
-        {/* 바늘 */}
         <line x1={cx} y1={cy} x2={nx.toFixed(2)} y2={ny.toFixed(2)}
           stroke="var(--text-primary,#1e293b)" strokeWidth="2.5" strokeLinecap="round"/>
         <circle cx={cx} cy={cy} r="4" fill="var(--text-primary,#1e293b)"/>
-        {/* 현재값 — 반원 중앙 하단 */}
         <text x={cx} y={cy+14} textAnchor="middle"
-          fontSize="15" fontWeight="700" fill={level.color}>
-          {price.toFixed(2)}
+          fontSize="14" fontWeight="700" fill={levelColor}>
+          {Math.round(price)}{unit}
         </text>
       </svg>
-      {/* 레이블 */}
       <div className="db-semi-labels">
-        <span>안정</span><span>주의</span><span>공포</span>
+        <span>{labels[0]}</span><span>{labels[1]}</span><span>{labels[2]}</span>
       </div>
     </div>
   )
@@ -120,8 +115,8 @@ export function GaugeBar({ id, price }) {
   const cfg = GAUGE_CONFIG[id]
   if (!cfg || price == null) return null
 
-  // VIX → 반원 게이지
-  if (id === 'VIX') return <SemiGauge price={price}/>
+  // VIX, DXY → 반원 게이지
+  if (id === 'VIX' || id === 'DXY') return <SemiGauge price={price} config={cfg}/>
 
   // FX_USD → 컬러 레인지 바
   if (id === 'FX_USD') return <ForexRangeBar price={price}/>

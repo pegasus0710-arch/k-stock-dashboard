@@ -46,7 +46,7 @@ export const GAUGE_CONFIG = {
   US2Y:   { min:0,    max:7,    safe:3.5, caution:4.5, labels:['저금리','보통','고금리'],   unit:'%' },
   WTI:    { min:50,   max:140,  safe:75,  caution:95,  labels:['저유가','보통','고유가'],   unit:'$' },
   BRENT:  { min:55,   max:145,  safe:80,  caution:100, labels:['저유가','보통','고유가'],   unit:'$' },
-  DXY:    { min:85,   max:115,  safe:95,  caution:105, labels:['약달러','보통','강달러'],   unit:''  },
+  DXY:    { min:85,   max:115,  safe:95,  caution:105, labels:['약달러','보통','강달러'], unit:''  },
   SPREAD: { min:-2, max:3, safe:0.5, caution:-0.5, labels:['역전(위험)','중립','정상'], unit:'%' },
   FX_USD: { min:1200, max:1700, safe:1400, caution:1500, labels:['원화강세','보통','원화약세'], unit:'' },
 }

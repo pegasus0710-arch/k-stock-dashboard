@@ -74,14 +74,20 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
 
   // 초기 마운트 시 자동 로드
   useEffect(()=>{
-    // 국내지수 1년치 (스파크라인 + 52주) — isSparkLoad=true
+    // 국내지수 1년치
     fetchChart('KOSPI',  '1y', true)
     fetchChart('KOSDAQ', '1y', true)
-    // 해외 주요지수 3개월치 (스파크라인) — isSparkLoad=true
+    // 해외지수 3개월치
     fetchChart('SP500',  '3m', true)
     fetchChart('NASDAQ', '3m', true)
     fetchChart('DOW',    '3m', true)
     fetchChart('DAX',    '3m', true)
+    // 원자재 3개월치 (스파크라인용)
+    fetchChart('WTI',    '3m', true)
+    fetchChart('GOLD',   '3m', true)
+    fetchChart('BRENT',  '3m', true)
+    fetchChart('SILVER', '3m', true)
+    fetchChart('COPPER', '3m', true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[])
 

@@ -247,7 +247,7 @@ export default function DashboardPage() {
                          d?.price!=null ? (
                           <>
                             <div className="db-idx-price">
-                              {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}
+                              {Math.round(d.price).toLocaleString()}
                             </div>
                             {rate!=null&&<div className={`db-idx-rate-badge ${up?'up':'down'}`}>
                               {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
@@ -285,7 +285,7 @@ export default function DashboardPage() {
                     {usdData?.price!=null ? (
                       <>
                         <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:2}}>
-                          <div className="db-idx-price">{usdData.price.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
+                          <div className="db-idx-price">{Math.round(usdData.price).toLocaleString()}</div>
                           {usdData.changeRate!=null && (
                             <div className={`db-idx-rate-badge ${usdData.changeRate>=0?'up':'down'}`}>
                               {usdData.changeRate>=0?'▲':'▼'} {Math.abs(usdData.changeRate).toFixed(2)}%
@@ -320,7 +320,7 @@ export default function DashboardPage() {
                         {d?.price!=null ? (
                           <>
                             <div className="db-idx-price" style={{fontSize:14}}>
-                              {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}
+                              {Math.round(d.price).toLocaleString()}
                             </div>
                             {rate!=null && (
                               <div className={`db-idx-rate-badge ${up?'up':'down'}`}>
@@ -349,6 +349,25 @@ export default function DashboardPage() {
                   const up   = (rate ?? 0) > 0
                   const dotColor = getCommodityDotColor(rate)
                   const dateLabel = getItemDateLabel(item, d)
+                  // 스파크라인
+                  const makeCommoditySpark = () => {
+                    const raw = sparkData?.[item.id]
+                    if (!raw || raw.length < 2) return null
+                    const closes = raw.filter(v => typeof v === 'number' && isFinite(v))
+                    if (closes.length < 2) return null
+                    const W=80, H=20, pad=1
+                    const mn=Math.min(...closes), mx=Math.max(...closes), rng=mx-mn||1
+                    const px=i => pad+(i/(closes.length-1))*(W-pad*2)
+                    const py=v  => H-pad-(v-mn)/rng*(H-pad*2)
+                    const validPts = closes.map((v,i)=>{const x=px(i),y=py(v);return isFinite(x)&&isFinite(y)?`${x.toFixed(1)},${y.toFixed(1)}`:null}).filter(Boolean)
+                    if (validPts.length < 2) return null
+                    const color = up ? '#DC2626' : '#1D4ED8'
+                    return (
+                      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',marginTop:4}}>
+                        <polyline points={validPts.join(' ')} fill="none" stroke={color} strokeWidth="1.2" strokeLinejoin="round" opacity="0.8"/>
+                      </svg>
+                    )
+                  }
                   return (
                     <div key={item.id} className="db-commodity-dot-card"
                       onClick={()=>setSelId(item.id)} style={{cursor:'pointer'}}>
@@ -364,16 +383,17 @@ export default function DashboardPage() {
                         : d?.price!=null
                           ? <>
                               <span className="db-commodity-price">
-                                {item.unit==='$'||['WTI','BRENT','GOLD','SILVER','COPPER'].includes(item.id)
-                                  ? `$${d.price.toLocaleString(undefined,{maximumFractionDigits:2})}`
-                                  : `${d.price.toLocaleString(undefined,{maximumFractionDigits:2})}${item.unit||''}`
+                                {['WTI','BRENT','GOLD','SILVER','COPPER'].includes(item.id)
+                                  ? `$${Math.round(d.price).toLocaleString()}`
+                                  : `${Math.round(d.price).toLocaleString()}${item.unit||''}`
                                 }
                               </span>
                               {rate!=null && (
-                                <span className="db-commodity-rate" style={{color: up?'#DC2626':'#1D4ED8'}}>
+                                <span className="db-commodity-rate" style={{color: up?'var(--color-up)':'var(--color-down)'}}>
                                   {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
                                 </span>
                               )}
+                              {makeCommoditySpark()}
                               {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
                             </>
                           : <span style={{fontSize:10,color:'var(--text-dim)'}}>—</span>
@@ -415,7 +435,7 @@ export default function DashboardPage() {
                        d?.price!=null ? (
                         <>
                           <div className="db-idx-price">
-                            {d.price.toLocaleString(undefined,{maximumFractionDigits:2})}{item.unit||''}
+                            {Math.round(d.price).toLocaleString()}{item.unit||''}
                           </div>
                           {rate!=null&&<div className={`db-idx-rate-badge ${up?'up':'down'}`}>
                             {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
@@ -470,7 +490,7 @@ export default function DashboardPage() {
                         <div className="db-idx-price" style={d.isSpread?{color:d.inverted?'var(--color-down)':d.price<0.5?'#d97706':'var(--color-up)'}:{}}>
                           {d.isSpread
                             ? `${d.price>=0?'+':''}${d.price.toFixed(2)}%`
-                            : `${d.price.toLocaleString(undefined,{maximumFractionDigits:2})}${item.unit||''}`
+                            : `${Math.round(d.price).toLocaleString()}${item.unit||''}`
                           }
                         </div>
                         {d.isSpread
