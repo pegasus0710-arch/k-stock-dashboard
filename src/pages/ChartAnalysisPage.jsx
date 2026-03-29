@@ -82,74 +82,139 @@ function capStoch(data,k=14,d=3) {
 
 // ── 보조지표 서브차트 컴포넌트 ────────────────────────
 function SubRSI({data,width}) {
-  const H=76,PAD={t:12,r:8,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
+  const H=80, PAD={t:14,r:36,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
   const rsi=capRSI(data)
-  const bx=i=>PAD.l+(i+0.5)*(W/data.length), py=v=>PAD.t+iH*(1-v/100)
-  const pts=rsi.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  const bx=i=>PAD.l+(i+0.5)*(W/data.length)
+  // 클리핑: RSI 0~100 범위로 제한
+  const py=v=>PAD.t+iH*(1-Math.max(0,Math.min(100,v))/100)
   const h70=py(70),h50=py(50),h30=py(30)
-  const cur=rsi[rsi.length-1]
+  const cur=rsi.filter(v=>v!=null).at(-1)
+  // 연속 세그먼트로 분리 (null 구간 건너뜀)
+  const segs=[], cur_seg=[]
+  rsi.forEach((v,i)=>{
+    if(v!=null) cur_seg.push(`${bx(i)},${py(v)}`)
+    else if(cur_seg.length){ segs.push([...cur_seg]); cur_seg.length=0 }
+  })
+  if(cur_seg.length) segs.push(cur_seg)
+  const clipId=`rsi-clip-${width}`
   return (
     <svg width={width} height={H} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
+      <defs>
+        <clipPath id={clipId}>
+          <rect x={PAD.l} y={PAD.t} width={W} height={iH}/>
+        </clipPath>
+      </defs>
       <rect x={PAD.l} y={PAD.t} width={W} height={h70-PAD.t} fill="rgba(239,68,68,0.04)"/>
       <rect x={PAD.l} y={h30}   width={W} height={PAD.t+iH-h30} fill="rgba(59,130,246,0.04)"/>
       <line x1={PAD.l} x2={PAD.l+W} y1={h70} y2={h70} stroke="#ef4444" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.5}/>
-      <line x1={PAD.l} x2={PAD.l+W} y1={h50} y2={h50} stroke="#94a3b8" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.3}/>
+      <line x1={PAD.l} x2={PAD.l+W} y1={h50} y2={h50} stroke="#94a3b8" strokeWidth={0.5} strokeDasharray="2,4" opacity={0.25}/>
       <line x1={PAD.l} x2={PAD.l+W} y1={h30} y2={h30} stroke="#3b82f6" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.5}/>
-      {pts&&<polyline points={pts} fill="none" stroke="#8b5cf6" strokeWidth={1.4}/>}
-      <text x={5} y={PAD.t+8} fontSize={9} fill="#94a3b8" fontWeight="700">RSI(14)</text>
-      <text x={PAD.l+W+2} y={h70+3} fontSize={8} fill="#ef4444">70</text>
-      <text x={PAD.l+W+2} y={h30+3} fontSize={8} fill="#3b82f6">30</text>
-      {cur!=null&&<text x={PAD.l+W+2} y={py(cur)+4} fontSize={9} fill={cur>=70?'#ef4444':cur<=30?'#3b82f6':'#8b5cf6'} fontWeight="700">{cur.toFixed(1)}</text>}
+      <g clipPath={`url(#${clipId})`}>
+        {segs.map((seg,i)=><polyline key={i} points={seg.join(' ')} fill="none" stroke="#8b5cf6" strokeWidth={1.5}/>)}
+      </g>
+      <text x={6} y={PAD.t-2} fontSize={9} fill="#94a3b8" fontWeight="700">RSI(14)</text>
+      <text x={PAD.l+W+3} y={h70+3} fontSize={8} fill="#ef4444">70</text>
+      <text x={PAD.l+W+3} y={h50+3} fontSize={8} fill="#94a3b8">50</text>
+      <text x={PAD.l+W+3} y={h30+3} fontSize={8} fill="#3b82f6">30</text>
+      {cur!=null&&(
+        <g>
+          <rect x={PAD.l+W+1} y={py(cur)-6} width={33} height={12} rx={3}
+            fill={cur>=70?'#ef4444':cur<=30?'#3b82f6':'#8b5cf6'} opacity={0.9}/>
+          <text x={PAD.l+W+4} y={py(cur)+3} fontSize={9} fill="white" fontWeight="700">{cur.toFixed(1)}</text>
+        </g>
+      )}
     </svg>
   )
 }
 function SubMACD({data,width}) {
-  const H=76,PAD={t:12,r:8,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
+  const H=90, PAD={t:14,r:36,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
   const {macd,sig,hist}=capMACD(data)
   const bx=i=>PAD.l+(i+0.5)*(W/data.length)
-  const bW=Math.max(1,Math.min(8,W/data.length*0.6))
+  const bW=Math.max(1,Math.min(6,W/data.length*0.55))
   const vals=[...macd,...sig,...hist].filter(v=>v!=null)
   if(!vals.length) return null
-  const aMax=Math.max(...vals.map(Math.abs),0.01)
-  const midY=PAD.t+iH/2, py=v=>midY-(v/aMax)*(iH/2-2)
-  const mPts=macd.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
-  const sPts=sig.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
-  const cur=hist[hist.length-1]
+  const aMax=Math.max(...vals.map(Math.abs),0.01)*1.05 // 5% 여유
+  const midY=PAD.t+iH/2
+  const py=v=>midY-(Math.max(-aMax,Math.min(aMax,v))/aMax)*(iH/2-2)
+  const clipId=`macd-clip-${width}`
+  const mPts=macd.reduce((acc,v,i)=>{ if(v!=null) acc.push(`${bx(i)},${py(v)}`); return acc },[])
+  const sPts=sig.reduce((acc,v,i)=>{ if(v!=null) acc.push(`${bx(i)},${py(v)}`); return acc },[])
+  const cur=hist.filter(v=>v!=null).at(-1)
+  const curMacd=macd.filter(v=>v!=null).at(-1)
   return (
     <svg width={width} height={H} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
-      <line x1={PAD.l} x2={PAD.l+W} y1={midY} y2={midY} stroke="#94a3b8" strokeWidth={0.5} opacity={0.4}/>
-      {hist.map((v,i)=>{ if(v==null) return null; const bH=Math.abs(v/aMax)*(iH/2-2)
-        return <rect key={i} x={bx(i)-bW/2} y={v>=0?midY-bH:midY} width={bW} height={Math.max(1,bH)} fill={v>=0?'#fca5a5':'#93c5fd'} opacity={0.8}/>
-      })}
-      {mPts&&<polyline points={mPts} fill="none" stroke="#ef4444" strokeWidth={1.3}/>}
-      {sPts&&<polyline points={sPts} fill="none" stroke="#3b82f6" strokeWidth={1.3}/>}
-      <text x={5} y={PAD.t+8} fontSize={9} fill="#94a3b8" fontWeight="700">MACD(12,26,9)</text>
-      <text x={50} y={PAD.t+8} fontSize={8} fill="#ef4444">— MACD</text>
-      <text x={95} y={PAD.t+8} fontSize={8} fill="#3b82f6">— Signal</text>
-      {cur!=null&&<text x={PAD.l+W+2} y={midY+4} fontSize={9} fill={cur>=0?'#ef4444':'#3b82f6'} fontWeight="700">{cur.toFixed(2)}</text>}
+      <defs>
+        <clipPath id={clipId}>
+          <rect x={PAD.l} y={PAD.t} width={W} height={iH}/>
+        </clipPath>
+      </defs>
+      <line x1={PAD.l} x2={PAD.l+W} y1={midY} y2={midY} stroke="#94a3b8" strokeWidth={0.5} opacity={0.35}/>
+      <g clipPath={`url(#${clipId})`}>
+        {hist.map((v,i)=>{
+          if(v==null) return null
+          const bH=Math.max(1,Math.abs(v/aMax)*(iH/2-2))
+          const isUp=v>=0
+          return <rect key={i} x={bx(i)-bW/2} y={isUp?midY-bH:midY} width={bW} height={bH}
+            fill={isUp?'rgba(239,68,68,0.7)':'rgba(59,130,246,0.7)'}/>
+        })}
+        {mPts.length>1&&<polyline points={mPts.join(' ')} fill="none" stroke="#ef4444" strokeWidth={1.4}/>}
+        {sPts.length>1&&<polyline points={sPts.join(' ')} fill="none" stroke="#3b82f6" strokeWidth={1.4}/>}
+      </g>
+      <text x={6} y={PAD.t-2} fontSize={9} fill="#94a3b8" fontWeight="700">MACD(12,26,9)</text>
+      <text x={60} y={PAD.t-2} fontSize={8} fill="#ef4444">— MACD</text>
+      <text x={98} y={PAD.t-2} fontSize={8} fill="#3b82f6">— Signal</text>
+      {curMacd!=null&&(
+        <g>
+          <rect x={PAD.l+W+1} y={py(curMacd)-6} width={33} height={12} rx={3}
+            fill={curMacd>=0?'#ef4444':'#3b82f6'} opacity={0.9}/>
+          <text x={PAD.l+W+4} y={py(curMacd)+3} fontSize={8} fill="white" fontWeight="700">
+            {curMacd>0?'+':''}{curMacd.toFixed(1)}
+          </text>
+        </g>
+      )}
     </svg>
   )
 }
 function SubStoch({data,width}) {
-  const H=70,PAD={t:12,r:8,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
+  const H=74, PAD={t:14,r:36,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
   const {kl,dl}=capStoch(data)
-  const bx=i=>PAD.l+(i+0.5)*(W/data.length), py=v=>PAD.t+iH*(1-v/100)
-  const kPts=kl.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
-  const dPts=dl.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  const bx=i=>PAD.l+(i+0.5)*(W/data.length)
+  const py=v=>PAD.t+iH*(1-Math.max(0,Math.min(100,v))/100)
   const h80=py(80),h20=py(20)
+  const clipId=`stoch-clip-${width}`
+  const kSegs=[], dSegs=[], ks=[], ds=[]
+  kl.forEach((v,i)=>{ if(v!=null) ks.push(`${bx(i)},${py(v)}`); else if(ks.length){kSegs.push([...ks]);ks.length=0} })
+  if(ks.length) kSegs.push(ks)
+  dl.forEach((v,i)=>{ if(v!=null) ds.push(`${bx(i)},${py(v)}`); else if(ds.length){dSegs.push([...ds]);ds.length=0} })
+  if(ds.length) dSegs.push(ds)
+  const curK=kl.filter(v=>v!=null).at(-1)
   return (
     <svg width={width} height={H} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
+      <defs>
+        <clipPath id={clipId}>
+          <rect x={PAD.l} y={PAD.t} width={W} height={iH}/>
+        </clipPath>
+      </defs>
       <rect x={PAD.l} y={PAD.t} width={W} height={h80-PAD.t} fill="rgba(239,68,68,0.04)"/>
       <rect x={PAD.l} y={h20}   width={W} height={PAD.t+iH-h20} fill="rgba(59,130,246,0.04)"/>
       <line x1={PAD.l} x2={PAD.l+W} y1={h80} y2={h80} stroke="#ef4444" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.5}/>
       <line x1={PAD.l} x2={PAD.l+W} y1={h20} y2={h20} stroke="#3b82f6" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.5}/>
-      {kPts&&<polyline points={kPts} fill="none" stroke="#f59e0b" strokeWidth={1.3}/>}
-      {dPts&&<polyline points={dPts} fill="none" stroke="#8b5cf6" strokeWidth={1.3}/>}
-      <text x={5} y={PAD.t+8} fontSize={9} fill="#94a3b8" fontWeight="700">Stoch(14,3)</text>
-      <text x={55} y={PAD.t+8} fontSize={8} fill="#f59e0b">— %K</text>
-      <text x={83} y={PAD.t+8} fontSize={8} fill="#8b5cf6">— %D</text>
-      <text x={PAD.l+W+2} y={h80+3} fontSize={8} fill="#ef4444">80</text>
-      <text x={PAD.l+W+2} y={h20+3} fontSize={8} fill="#3b82f6">20</text>
+      <g clipPath={`url(#${clipId})`}>
+        {kSegs.map((seg,i)=><polyline key={`k${i}`} points={seg.join(' ')} fill="none" stroke="#f59e0b" strokeWidth={1.4}/>)}
+        {dSegs.map((seg,i)=><polyline key={`d${i}`} points={seg.join(' ')} fill="none" stroke="#8b5cf6" strokeWidth={1.4}/>)}
+      </g>
+      <text x={6} y={PAD.t-2} fontSize={9} fill="#94a3b8" fontWeight="700">Stoch(14,3)</text>
+      <text x={58} y={PAD.t-2} fontSize={8} fill="#f59e0b">— %K</text>
+      <text x={80} y={PAD.t-2} fontSize={8} fill="#8b5cf6">— %D</text>
+      <text x={PAD.l+W+3} y={h80+3} fontSize={8} fill="#ef4444">80</text>
+      <text x={PAD.l+W+3} y={h20+3} fontSize={8} fill="#3b82f6">20</text>
+      {curK!=null&&(
+        <g>
+          <rect x={PAD.l+W+1} y={py(curK)-6} width={33} height={12} rx={3}
+            fill={curK>=80?'#ef4444':curK<=20?'#3b82f6':'#f59e0b'} opacity={0.9}/>
+          <text x={PAD.l+W+4} y={py(curK)+3} fontSize={9} fill="white" fontWeight="700">{curK.toFixed(1)}</text>
+        </g>
+      )}
     </svg>
   )
 }
@@ -729,19 +794,21 @@ export default function ChartAnalysisPage() {
                       {showMACD &&<div className="cap-sub"><SubMACD  data={candles} width={chartW}/></div>}
                       {showStoch&&<div className="cap-sub"><SubStoch data={candles} width={chartW}/></div>}
                     </>)}
-                    {/* 수급 패널 */}
+                    {/* 수급 패널 — 인라인 (오버레이 제거) */}
                     {showSup&&(
-                      <div className="cap-sup-overlay" onClick={e=>e.target===e.currentTarget&&setShowSup(false)}>
-                        <div className="cap-sup-panel">
-                          <div className="cap-sup-hdr">
-                            <span>📊 {selected.name} — 수급 현황</span>
-                            <button className="cap-sup-close" onClick={()=>setShowSup(false)}>✕</button>
-                          </div>
-                          <div className="cap-sup-body">
-                            {supplyLoad&&<div className="cap-sup-loading">⟳ 로딩 중...</div>}
-                            {!supplyLoad&&supplyData&&<SupplySubChart supplyData={supplyData}/>}
-                            {!supplyLoad&&!supplyData&&<div className="cap-sup-loading"><button style={{padding:'7px 16px',background:'var(--accent-mid)',color:'white',border:'none',borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:12}} onClick={loadSupply}>📡 수급 데이터 불러오기</button></div>}
-                          </div>
+                      <div className="cap-sup-inline">
+                        <div className="cap-sup-hdr">
+                          <span>📊 {selected.name} — 수급 현황</span>
+                          <button className="cap-sup-close" onClick={()=>setShowSup(false)}>✕</button>
+                        </div>
+                        <div className="cap-sup-body">
+                          {supplyLoad&&<div className="cap-sup-loading"><div className="cap-spinner" style={{width:14,height:14,borderWidth:2,display:'inline-block',verticalAlign:'middle',marginRight:6}}/>로딩 중...</div>}
+                          {!supplyLoad&&supplyData&&<SupplySubChart supplyData={supplyData}/>}
+                          {!supplyLoad&&!supplyData&&(
+                            <div className="cap-sup-loading">
+                              <button style={{padding:'6px 14px',background:'var(--accent-mid)',color:'white',border:'none',borderRadius:6,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}} onClick={loadSupply}>📡 수급 데이터 불러오기</button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}

@@ -299,11 +299,16 @@
    ══════════════════════════════════════════════════ */
 .cap-canvas {
   flex: 1; min-height: 0; display: flex; flex-direction: column;
-  overflow: hidden; background: #F8FAFF; position: relative;
+  overflow-y: auto; overflow-x: hidden;  /* hidden→auto: 서브차트 스크롤 허용 */
+  background: #F8FAFF; position: relative;
 }
 .cap-chart-loading { flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--text-secondary); font-size: 13px; }
-.cap-chart-wrap { flex: 1; min-height: 0; overflow: hidden; }
-.cap-chart-wrap svg { display: block; }
+.cap-chart-wrap {
+  flex-shrink: 0;          /* 서브차트에 의해 압축되지 않도록 */
+  min-height: 380px;       /* 최소 차트 높이 보장 */
+  overflow: hidden;
+}
+.cap-chart-wrap svg { display: block; width: 100%; }
 .cap-spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent-mid); border-radius: 50%; animation: capspin .8s linear infinite; flex-shrink: 0; }
 @keyframes capspin { to { transform: rotate(360deg); } }
 
@@ -333,12 +338,18 @@
 /* ══════════════════════════════════════════════════
    8. 수급 패널
    ══════════════════════════════════════════════════ */
-.cap-sup-overlay { position: absolute; inset: 0; background: rgba(15,23,42,.25); display: flex; align-items: flex-end; z-index: 30; }
-.cap-sup-panel { width: 100%; background: var(--bg-panel); border-top: 1px solid var(--border); border-radius: 10px 10px 0 0; box-shadow: var(--shadow-lg); max-height: 45%; display: flex; flex-direction: column; }
-.cap-sup-hdr { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; font-size: 13px; font-weight: 700; color: var(--text-primary); }
-.cap-sup-close { background: none; border: 1px solid var(--border); border-radius: 5px; color: var(--text-secondary); cursor: pointer; padding: 3px 7px; font-size: 11px; }
-.cap-sup-body { flex: 1; overflow-y: auto; }
-.cap-sup-loading { padding: 18px; text-align: center; color: var(--text-secondary); font-size: 12px; }
+/* 수급 패널 — 인라인 (차트 하단에 붙음, 오버레이 없음) */
+.cap-sup-inline {
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-top: 2px solid var(--accent-mid);
+  display: flex; flex-direction: column;
+  max-height: 220px;
+}
+.cap-sup-hdr { display: flex; align-items: center; justify-content: space-between; padding: 6px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--text-primary); background: var(--bg-base); }
+.cap-sup-close { background: none; border: 1px solid var(--border); border-radius: 5px; color: var(--text-secondary); cursor: pointer; padding: 2px 7px; font-size: 11px; }
+.cap-sup-body { flex: 1; overflow-y: auto; min-height: 0; }
+.cap-sup-loading { padding: 16px; text-align: center; color: var(--text-secondary); font-size: 12px; }
 
 /* ══════════════════════════════════════════════════
    9. 팝업 (공시/뉴스/종목정보)
