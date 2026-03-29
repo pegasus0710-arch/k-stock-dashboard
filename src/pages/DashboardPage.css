@@ -121,7 +121,8 @@
   align-items: start;
 }
 @media(max-width:1200px) { .db-cards-section { grid-template-columns: repeat(2, 1fr); } }
-@media(max-width:768px)  { .db-cards-section { grid-template-columns: 1fr; margin: 10px 12px 0; } }
+@media(max-width:768px)  { .db-cards-section { grid-template-columns: repeat(2, 1fr); margin: 10px 12px 0; } }
+@media(max-width:480px)  { .db-cards-section { grid-template-columns: 1fr; } }
 
 /* 그룹 박스 — 왼쪽 섹터 강조선 */
 .db-card-group {
@@ -490,13 +491,62 @@
 /* ── 하단 ─────────────────────────────────────────── */
 .dash-footer-note { margin:12px 20px 0; font-size:11px; color:var(--text-dim); }
 
-/* ── 반응형 ──────────────────────────────────────── */
-@media(max-width:768px){
-  .dash-section, .db-chart-section, .db-heatmap-section { margin:10px 12px 0; padding:12px; }
-  .db-cards-section { margin:10px 12px 0; }
-  .dash-header { padding:12px 12px 0; }
-  .db-card-group-items { grid-template-columns: repeat(auto-fill, minmax(130px,1fr)); }
-  .db-heatmap-grid { grid-template-columns: repeat(auto-fill, minmax(90px,1fr)); }
+/* ══════════════════════════════════════════════════
+   반응형 — 통일 브레이크포인트
+   480px / 768px / 1024px / 1440px
+══════════════════════════════════════════════════ */
+
+/* 태블릿 (768px 이하) */
+@media (max-width: 768px) {
+  .dash-section,
+  .db-chart-section,
+  .db-heatmap-section  { margin: 10px 12px 0; padding: 12px; }
+  .db-cards-section    { margin: 10px 12px 0; grid-template-columns: repeat(2, 1fr); }
+  .dash-header         { padding: 12px 12px 0; }
+  .db-card-group-items { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .db-heatmap-grid     { grid-template-columns: repeat(3, 1fr); }
+  .db-commodity-grid   { grid-template-columns: repeat(3, 1fr); }
+  .db-sentiment-grid   { grid-template-columns: 1fr 1fr; }
+}
+
+/* 모바일 (480px 이하) */
+@media (max-width: 480px) {
+  .dash-header         { padding: 10px 10px 0; }
+  .dash-title          { font-size: 16px; }
+  .db-chart-section,
+  .db-heatmap-section  { margin: 8px 10px 0; padding: 10px; }
+  .db-cards-section    { margin: 8px 10px 0; grid-template-columns: 1fr; gap: 8px; }
+  .dash-footer-note    { margin: 8px 10px 0; }
+
+  /* 히어로 차트 높이 축소 */
+  .db-hero-chart       { min-height: 180px; }
+  .db-hero-empty       { height: 180px; }
+  .db-hero-loading     { height: 180px; }
+  .db-hero-price       { font-size: 20px; }
+
+  /* 히트맵 2열 */
+  .db-heatmap-grid     { grid-template-columns: repeat(2, 1fr); gap: 4px; }
+  .db-heatmap-cell     { min-height: 52px; padding: 7px 4px; }
+  .db-heatmap-cell-stocks { display: none; } /* 모바일: 종목명 숨김 */
+
+  /* 원자재 2열 */
+  .db-commodity-grid   { grid-template-columns: repeat(2, 1fr); }
+  .db-commodity-dot-card { min-height: 100px; }
+
+  /* 해외지수 미니행 숨김 (핵심 4개만 노출) */
+  .db-global-mini-row  { display: none; }
+
+  /* 수급 — 모바일에서 최소화 */
+  .db-flow-section     { margin-top: 6px; padding-top: 6px; }
+
+  /* 선택 버튼 행 스크롤 */
+  .db-selector-row     { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
+  .db-selector-row::-webkit-scrollbar { display: none; }
+
+  /* 헤더 버튼 축소 */
+  .db-guide-btn        { padding: 4px 8px; font-size: 10px; }
+  .db-briefing-btn     { padding: 5px 10px; font-size: 11px; }
+  .db-status-badge     { font-size: 10px; padding: 3px 7px; }
 }
 
 /* ══════════════════════════════════════════════════
@@ -830,15 +880,15 @@
 
 /* ── 수급 플로우 바 ──────────────────────────────────── */
 .db-flow-section {
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px dashed var(--border);
 }
 .db-flow-header {
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 .db-flow-title {
   font-size: 10px;
@@ -879,10 +929,10 @@
   flex-shrink: 0;
 }
 .db-flow-empty {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-dim);
   text-align: center;
-  padding: 6px 0;
+  padding: 3px 0;
 }
 
 /* ── 52주 고저 게이지 ────────────────────────────────── */
@@ -972,10 +1022,9 @@
 .db-semi-labels {
   display: flex; justify-content: space-between;
   font-size: 9px; color: var(--text-dim);
-  margin-top: 2px; padding: 0 2px;
-  gap: 2px;
+  margin-top: 2px; padding: 0 4px;
 }
-.db-semi-labels span { flex: 1; text-align: center; }
+.db-semi-labels span { text-align: center; }
 
 /* ── USD/KRW 컬러 레인지 바 ─────────────────────────── */
 .db-forex-range-wrap { padding: 2px 0; }
@@ -1177,14 +1226,25 @@
 .db-card-group-items.bond-items .spread-card {
   grid-column: 1 / -1;
 }
-/* 채권 게이지 트랙 — 단계 그라데이션으로 공백 시각 개선 */
+/* 채권 카드 — 너비 100% 확실히 채우기 */
+.db-card-group-items.bond-items .db-idx-card {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+/* 채권 게이지 트랙 — 단계 그라데이션 + 전체 너비 */
 .db-card-group-items.bond-items .db-gauge-track {
+  width: 100%;
   background: linear-gradient(to right,
-    rgba(34,197,94,.18)  0%,
-    rgba(245,158,11,.18) 50%,
-    rgba(239,68,68,.18)  100%
+    rgba(34,197,94,.2)   0%,
+    rgba(245,158,11,.2)  50%,
+    rgba(239,68,68,.2)   100%
   );
   border: 0.5px solid var(--border);
+}
+/* 채권 게이지 fill — 위에 선명하게 */
+.db-card-group-items.bond-items .db-gauge-fill {
+  opacity: 0.9;
 }
 
 /* ── 심리·달러 VIX/DXY 게이지 크기 제한 ─────────── */

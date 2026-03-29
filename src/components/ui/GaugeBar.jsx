@@ -65,7 +65,7 @@ function SemiGauge({ price, config, id }) {
       </svg>
       <div className="db-semi-labels">
         {isVix
-          ? <><span>{labels[0]}</span><span>{labels[1]}</span><span>{labels[2]}</span><span style={{color:'#7c3aed'}}>패닉</span></>
+          ? <><span style={{color:'#22c55e'}}>안전</span><span style={{color:'#7c3aed'}}>패닉</span></>
           : <><span>{labels[0]}</span><span>{labels[1]}</span><span>{labels[2]}</span></>
         }
       </div>
