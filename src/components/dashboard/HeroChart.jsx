@@ -81,12 +81,12 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
     fetchChart('NASDAQ', '1y', true)
     fetchChart('DOW',    '1y', true)
     fetchChart('N225',   '1y', true)
-    // 원자재 3개월치
-    fetchChart('WTI',    '3m', true)
-    fetchChart('GOLD',   '3m', true)
-    fetchChart('BRENT',  '3m', true)
-    fetchChart('SILVER', '3m', true)
-    fetchChart('COPPER', '3m', true)
+    // 원자재 1년치 (Yahoo Finance 1y = 주봉 자동 적용 → 52주 스파크라인 + 고저 게이지)
+    fetchChart('WTI',    '1y', true)
+    fetchChart('GOLD',   '1y', true)
+    fetchChart('BRENT',  '1y', true)
+    fetchChart('SILVER', '1y', true)
+    fetchChart('COPPER', '1y', true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[])
 

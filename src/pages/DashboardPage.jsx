@@ -36,9 +36,10 @@ function getMarketBadge(item, data) {
   return { label:'전일', cls:'closed' }
 }
 
-// 카드 경고 클래스 — VIX 30↑, USD/KRW 1500↑
+// 카드 경고 클래스 — VIX 40↑ 패닉 / VIX 30↑ 공포, USD/KRW 1500↑
 function getWarnClass(item, d) {
   if (!d || d.price == null) return ''
+  if (item.id === 'VIX'    && d.price >= 40)   return 'db-idx-card--warn-panic'
   if (item.id === 'VIX'    && d.price >= 30)   return 'db-idx-card--warn-red'
   if (item.id === 'FX_USD' && d.price >= 1500) return 'db-idx-card--warn-orange'
   return ''
@@ -95,6 +96,21 @@ function getItemDateLabel(item, d) {
 
 function Skeleton({ w='60%', h=14 }) {
   return <div className="db-skeleton" style={{width:w,height:h,borderRadius:3}}/>
+}
+
+// 전 거래일 계산 (주말 스킵)
+function getPrevTradingDay() {
+  const kst = new Date(Date.now() + 9 * 3600000)
+  // 장중/시간외엔 오늘이 기준
+  const h = kst.getUTCHours(), m = kst.getUTCMinutes()
+  const t = h * 60 + m
+  const isMarket = t >= 9*60 && t < 18*60
+  const d = isMarket ? kst : new Date(kst.getTime() - 86400000)
+  // 일요일→금요일, 토요일→금요일
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) {
+    d.setTime(d.getTime() - 86400000)
+  }
+  return `${d.getUTCMonth()+1}.${String(d.getUTCDate()).padStart(2,'0')} KST`
 }
 
 const ST_MAP = {
@@ -676,8 +692,15 @@ export default function DashboardPage() {
         <div className="db-heatmap-header">
           <span className="db-heatmap-title">📊 업종별 등락 히트맵</span>
           <TooltipIcon id="HEATMAP" tipPosition="right"/>
-          <span style={{marginLeft:'auto'}} className="db-date-badge">
-            {(()=>{ const k=new Date(Date.now()+9*3600000); return `${k.getUTCMonth()+1}.${String(k.getUTCDate()).padStart(2,'0')} KST` })()}
+          <span style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:6}}>
+            {isOpen && <span className="db-heatmap-live-dot"/>}
+            <span className="db-date-badge" style={{
+              background: isOpen ? 'rgba(34,197,94,.1)' : isAfter ? 'rgba(124,58,237,.1)' : 'var(--bg-base)',
+              borderColor: isOpen ? 'rgba(34,197,94,.4)' : isAfter ? 'rgba(124,58,237,.3)' : 'var(--border)',
+              color: isOpen ? '#15803d' : isAfter ? '#6d28d9' : 'var(--text-dim)',
+            }}>
+              {isOpen ? '실시간' : isAfter ? '시간외' : '전일 종가'} · {getPrevTradingDay()}
+            </span>
           </span>
         </div>
         <div className="db-heatmap-grid">

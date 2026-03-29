@@ -733,6 +733,12 @@
   padding-top: 6px;
   border-top: 1px solid var(--border);
 }
+/* 히트맵 헤더 라이브 닷 */
+.db-heatmap-live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #16a34a; flex-shrink: 0;
+  animation: livePulse 1.5s ease-in-out infinite;
+}
 /* 히트맵 범례 */
 .db-heatmap-legend {
   display: flex;
@@ -759,6 +765,19 @@
 }
 .db-idx-card--warn-red .db-idx-price {
   color: #DC2626 !important;
+}
+/* VIX 40↑ 패닉 구간 — 보라 */
+.db-idx-card--warn-panic {
+  border-color: #C4B5FD !important;
+  background: #F5F3FF !important;
+  animation: panicPulse 2s ease-in-out infinite;
+}
+.db-idx-card--warn-panic .db-idx-price {
+  color: #6d28d9 !important;
+}
+@keyframes panicPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124,58,237,0); }
+  50%       { box-shadow: 0 0 0 3px rgba(124,58,237,.2); }
 }
 /* USD/KRW 1500↑ 경계 */
 .db-idx-card--warn-orange {
@@ -954,7 +973,9 @@
   display: flex; justify-content: space-between;
   font-size: 9px; color: var(--text-dim);
   margin-top: 2px; padding: 0 2px;
+  gap: 2px;
 }
+.db-semi-labels span { flex: 1; text-align: center; }
 
 /* ── USD/KRW 컬러 레인지 바 ─────────────────────────── */
 .db-forex-range-wrap { padding: 2px 0; }
