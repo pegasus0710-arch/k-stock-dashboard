@@ -31,9 +31,17 @@ function lsGet(k,d){ try{return JSON.parse(localStorage.getItem(k))??d}catch{ret
 function capEMA(data, p) {
   const k=2/(p+1), r=new Array(data.length).fill(null); let ema=null
   for(let i=0;i<data.length;i++){
-    const v=data[i]?.close??data[i]; if(v==null) continue
-    if(ema===null){ if(i>=p-1){ const s=data.slice(i-p+1,i+1).reduce((a,d)=>a+(d?.close??d??0),0); ema=s/p; r[i]=ema } }
-    else { ema=v*k+ema*(1-k); r[i]=ema }
+    const raw=data[i]; if(raw==null) continue
+    const v=typeof raw==='object'?raw.close:raw; if(v==null||isNaN(v)) continue
+    if(ema===null){
+      if(i>=p-1){
+        // null/NaN 제외한 실제 값만 평균
+        const sl=data.slice(i-p+1,i+1)
+        const vals=sl.map(d=>d==null?null:(typeof d==='object'?d.close:d)).filter(v=>v!=null&&!isNaN(v))
+        if(vals.length===0) continue
+        ema=vals.reduce((a,v)=>a+v,0)/vals.length; r[i]=ema
+      }
+    } else { ema=v*k+ema*(1-k); r[i]=ema }
   }
   return r
 }
@@ -52,7 +60,8 @@ function capRSI(data, p=14) {
 function capMACD(data) {
   const e12=capEMA(data,12), e26=capEMA(data,26)
   const macd=e12.map((v,i)=>v!=null&&e26[i]!=null?v-e26[i]:null)
-  const sig=capEMA(macd.map(v=>({close:v})),9)
+  // null은 null 그대로 유지 (capEMA가 null 객체를 처리 못함)
+  const sig=capEMA(macd.map(v=>v!=null?{close:v}:null),9)
   const hist=macd.map((v,i)=>v!=null&&sig[i]!=null?v-sig[i]:null)
   return {macd,sig,hist}
 }
@@ -113,16 +122,21 @@ function SubRSI({data,width}) {
         {segs.map((seg,i)=><polyline key={i} points={seg.join(' ')} fill="none" stroke="#8b5cf6" strokeWidth={1.5}/>)}
       </g>
       <text x={6} y={PAD.t-2} fontSize={9} fill="#94a3b8" fontWeight="700">RSI(14)</text>
-      <text x={PAD.l+W+3} y={h70+3} fontSize={8} fill="#ef4444">70</text>
-      <text x={PAD.l+W+3} y={h50+3} fontSize={8} fill="#94a3b8">50</text>
-      <text x={PAD.l+W+3} y={h30+3} fontSize={8} fill="#3b82f6">30</text>
-      {cur!=null&&(
-        <g>
-          <rect x={PAD.l+W+1} y={py(cur)-6} width={33} height={12} rx={3}
-            fill={cur>=70?'#ef4444':cur<=30?'#3b82f6':'#8b5cf6'} opacity={0.9}/>
-          <text x={PAD.l+W+4} y={py(cur)+3} fontSize={9} fill="white" fontWeight="700">{cur.toFixed(1)}</text>
-        </g>
-      )}
+      {/* 기준선 숫자 — 차트 우측 끝에 고정 */}
+      <text x={PAD.l+W+2} y={h70+3} fontSize={7} fill="#ef4444" opacity={0.7}>70</text>
+      <text x={PAD.l+W+2} y={h50+3} fontSize={7} fill="#94a3b8" opacity={0.5}>50</text>
+      <text x={PAD.l+W+2} y={h30+3} fontSize={7} fill="#3b82f6" opacity={0.7}>30</text>
+      {/* 현재값 박스 — 클램핑으로 경계 안에 유지 */}
+      {cur!=null&&(()=>{
+        const cy=Math.max(PAD.t+6, Math.min(PAD.t+iH-6, py(cur)))
+        const col=cur>=70?'#ef4444':cur<=30?'#3b82f6':'#8b5cf6'
+        return (
+          <g>
+            <rect x={PAD.l+W+1} y={cy-6} width={34} height={13} rx={3} fill={col} opacity={0.9}/>
+            <text x={PAD.l+W+4} y={cy+4} fontSize={9} fill="white" fontWeight="700">{cur.toFixed(1)}</text>
+          </g>
+        )
+      })()}
     </svg>
   )
 }

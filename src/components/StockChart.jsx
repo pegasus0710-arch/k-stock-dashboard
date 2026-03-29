@@ -431,10 +431,11 @@ export function CandleSvg({
     const midPts=mid.map((v,i)=>v!=null?`${bx(i)},${toY(v)}`:null).filter(Boolean).join(' ')
     const upPts =up.map((v,i)=>v!=null?`${bx(i)},${toY(v)}`:null).filter(Boolean).join(' ')
     const loPts =lo.map((v,i)=>v!=null?`${bx(i)},${toY(v)}`:null).filter(Boolean).join(' ')
-    // 현재 %b 계산
     const lastUp=up[n-1], lastLo=lo[n-1], lastClose=data[n-1]?.close
     const pctB=lastUp&&lastLo&&lastClose!=null?(lastClose-lastLo)/(lastUp-lastLo):null
-    return { midPts, upPts, loPts, up, lo, pctB }
+    // BB 계산 시작 인덱스 (좌측 공백 구간 표시용)
+    const startIdx=p-1
+    return { midPts, upPts, loPts, up, lo, pctB, startIdx }
   })() : null
 
   // 수급 데이터 날짜 정렬
@@ -516,6 +517,14 @@ export function CandleSvg({
 
       {/* 볼린저밴드 */}
       {bollBands&&(<>
+        {/* BB 계산 전 구간 구분선 */}
+        {bollBands.startIdx>0&&bollBands.startIdx<n&&(
+          <line
+            x1={bx(bollBands.startIdx)} x2={bx(bollBands.startIdx)}
+            y1={PAD.top} y2={PAD.top+PRICE_H}
+            stroke="#6366f1" strokeWidth={0.8} strokeDasharray="2,4" opacity={0.35}
+          />
+        )}
         {bollBands.up.map((u,i)=>{
           if(u==null||bollBands.lo[i]==null||i===0) return null
           const pu=bollBands.up[i-1], pl=bollBands.lo[i-1]
