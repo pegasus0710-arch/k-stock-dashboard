@@ -416,7 +416,8 @@ export function CandleSvg({
   ]
   const maxP=Math.max(...allPrices), minP=Math.min(...allPrices)
   const pad5=(maxP-minP)*0.05||1
-  const yMax=maxP+pad5, yMin=minP-pad5, yRng=yMax-yMin  const toY   = v => PAD.top + PRICE_H - ((v-yMin)/yRng)*PRICE_H
+  const yMax=maxP+pad5, yMin=minP-pad5, yRng=yMax-yMin
+  const toY   = v => PAD.top + PRICE_H - ((v-yMin)/yRng)*PRICE_H
   const fromY = y => yMin + (PAD.top+PRICE_H-y)/PRICE_H*yRng
   const barW  = Math.max(2, Math.floor(chartW/n*0.72))
   const bx    = i => PAD.left + (i+0.5)*(chartW/n)
