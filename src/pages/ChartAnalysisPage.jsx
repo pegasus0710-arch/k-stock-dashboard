@@ -355,6 +355,8 @@ export default function ChartAnalysisPage() {
   const [textInput, setTextInput] = useState(null)
   const [chartWrap, setChartWrap] = useState(null)
   const [chartW,    setChartW]    = useState(900)
+  const [chartH,    setChartH]    = useState(500)  // 동적 높이
+  const canvasRef = useRef(null)
 
   // ── 지표 토글 ─────────────────────────────────────
   const [showBB,    setShowBB]    = useState(true)
@@ -395,12 +397,26 @@ export default function ChartAnalysisPage() {
   const { prices }   = useStockPrices(priceCodes, getKstStatus()==='open'?30000:300000)
   const price        = selected?prices[selected.code]:null
 
-  // ResizeObserver
+  // ResizeObserver — 너비
   useEffect(()=>{
     if(!chartWrap) return
     const ro=new ResizeObserver(([e])=>setChartW(e.contentRect.width))
     ro.observe(chartWrap); setChartW(chartWrap.clientWidth); return()=>ro.disconnect()
   },[chartWrap])
+
+  // 캔버스 전체 높이에서 서브차트 높이 빼서 메인 차트 동적 높이 계산
+  useEffect(()=>{
+    const canvas=canvasRef.current
+    if(!canvas) return
+    const calcH=()=>{
+      const totalH=canvas.clientHeight
+      const subH=(showRSI?80:0)+(showMACD?90:0)+(showStoch?74:0)+(showSup?180:0)
+      setChartH(Math.max(300, totalH-subH-56)) // 56=거래량 영역 최소
+    }
+    calcH()
+    const ro=new ResizeObserver(calcH)
+    ro.observe(canvas); return()=>ro.disconnect()
+  },[canvasRef, showRSI, showMACD, showStoch, showSup])
 
   // 팝업 외부 클릭 닫기
   useEffect(()=>{
@@ -775,13 +791,13 @@ export default function ChartAnalysisPage() {
 
           {/* ── 차트 캔버스 ── */}
           {activeView==='chart'&&(
-            <div className="cap-canvas" style={{position:'relative'}}>
+            <div className="cap-canvas" ref={canvasRef}>
               {chartLoading
                 ? <div className="cap-chart-loading"><div className="cap-spinner"/>차트 불러오는 중...</div>
                 : (<>
                     <div className="cap-chart-wrap" ref={setChartWrap}>
                       <CandleSvg
-                        data={candles} width={chartW} height={500}
+                        data={candles} width={chartW} height={chartH}
                         showMA={showMA} enabledMA={enabledMA}
                         drawings={drawings} onSvgClick={handleInlineClick}
                         drawTool={drawTool} selectedIdx={selIdx} onSelectDrawing={setSelIdx}

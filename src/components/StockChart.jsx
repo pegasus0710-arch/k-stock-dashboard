@@ -392,29 +392,7 @@ export function CandleSvg({
   )
 
   const prices = data.flatMap(c=>[c.high,c.low]).filter(Boolean)
-
-  // 볼린저밴드 계산 (Y범위 포함)
-  const bb = showBollinger ? (() => {
-    const period=20, mult=2
-    const mid=new Array(data.length).fill(null)
-    const upper=new Array(data.length).fill(null)
-    const lower=new Array(data.length).fill(null)
-    for (let i=period-1; i<data.length; i++) {
-      const sl=data.slice(i-period+1,i+1).map(d=>d?.close??0)
-      const avg=sl.reduce((s,v)=>s+v,0)/period
-      const std=Math.sqrt(sl.reduce((s,v)=>s+(v-avg)**2,0)/period)
-      mid[i]=avg; upper[i]=avg+mult*std; lower[i]=avg-mult*std
-    }
-    return { mid, upper, lower }
-  })() : null
-
-  // 52주 + BB 포함 Y범위
-  const allPrices = [
-    ...prices,
-    ...(bb ? [...bb.upper.filter(Boolean), ...bb.lower.filter(Boolean)] : []),
-    ...(week52 ? [week52.high, week52.low].filter(Boolean) : [])
-  ]
-  const maxP=Math.max(...allPrices), minP=Math.min(...allPrices)
+  const maxP=Math.max(...prices), minP=Math.min(...prices)
   const pad5=(maxP-minP)*0.05||1
   const yMax=maxP+pad5, yMin=minP-pad5, yRng=yMax-yMin
   const toY   = v => PAD.top + PRICE_H - ((v-yMin)/yRng)*PRICE_H
@@ -439,6 +417,25 @@ export function CandleSvg({
     const pts=vals.map((v,i)=>v?`${bx(i)},${toY(v)}`:null).filter(Boolean).join(' ')
     return pts.length>1?{p,color,pts}:null
   }).filter(Boolean) : []
+
+  // 볼린저밴드 계산 (20,2)
+  const bollBands = showBollinger ? (() => {
+    const p=20, m=2
+    const mid=new Array(n).fill(null), up=new Array(n).fill(null), lo=new Array(n).fill(null)
+    for(let i=p-1;i<n;i++){
+      const sl=data.slice(i-p+1,i+1).map(d=>d.close||0)
+      const avg=sl.reduce((s,v)=>s+v,0)/p
+      const std=Math.sqrt(sl.reduce((s,v)=>s+(v-avg)**2,0)/p)
+      mid[i]=avg; up[i]=avg+m*std; lo[i]=avg-m*std
+    }
+    const midPts=mid.map((v,i)=>v!=null?`${bx(i)},${toY(v)}`:null).filter(Boolean).join(' ')
+    const upPts =up.map((v,i)=>v!=null?`${bx(i)},${toY(v)}`:null).filter(Boolean).join(' ')
+    const loPts =lo.map((v,i)=>v!=null?`${bx(i)},${toY(v)}`:null).filter(Boolean).join(' ')
+    // 현재 %b 계산
+    const lastUp=up[n-1], lastLo=lo[n-1], lastClose=data[n-1]?.close
+    const pctB=lastUp&&lastLo&&lastClose!=null?(lastClose-lastLo)/(lastUp-lastLo):null
+    return { midPts, upPts, loPts, up, lo, pctB }
+  })() : null
 
   // 수급 데이터 날짜 정렬
   const supplyLabels = ['외국인 순매수', '공매도 비중', '체결강도']
@@ -481,40 +478,6 @@ export function CandleSvg({
         </g>
       ))}
 
-      {/* 볼린저밴드 */}
-      {bb && (() => {
-        const bx2 = i => PAD.left+(i+0.5)*(chartW/data.length)
-        const uPts = bb.upper.map((v,i)=>v!=null?`${bx2(i)},${toY(v)}`:null).filter(Boolean).join(' ')
-        const mPts = bb.mid.map((v,i)=>v!=null?`${bx2(i)},${toY(v)}`:null).filter(Boolean).join(' ')
-        const lPts = bb.lower.map((v,i)=>v!=null?`${bx2(i)},${toY(v)}`:null).filter(Boolean).join(' ')
-        const fill = [
-          ...bb.upper.map((v,i)=>v!=null?[bx2(i),toY(v)]:null).filter(Boolean),
-          ...bb.lower.map((v,i)=>v!=null?[bx2(i),toY(v)]:null).filter(Boolean).reverse()
-        ].map(p=>p.join(',')).join(' ')
-        return (<>
-          {fill&&<polygon points={fill} fill="rgba(99,102,241,0.07)"/>}
-          {uPts&&<polyline points={uPts} fill="none" stroke="#6366f1" strokeWidth={1} strokeDasharray="4,3" opacity={0.6}/>}
-          {mPts&&<polyline points={mPts} fill="none" stroke="#6366f1" strokeWidth={1} opacity={0.45}/>}
-          {lPts&&<polyline points={lPts} fill="none" stroke="#6366f1" strokeWidth={1} strokeDasharray="4,3" opacity={0.6}/>}
-        </>)
-      })()}
-
-      {/* 52주 고저선 */}
-      {week52?.high && toY(week52.high)>=PAD.top && toY(week52.high)<=PAD.top+PRICE_H && (<>
-        <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(week52.high)} y2={toY(week52.high)}
-          stroke="#ef4444" strokeWidth={1} strokeDasharray="6,4" opacity={0.5}/>
-        <rect x={PAD.left+chartW+2} y={toY(week52.high)-9} width={68} height={16} fill="#FEF2F2" stroke="#FCA5A5" rx={3}/>
-        <text x={PAD.left+chartW+5} y={toY(week52.high)+2} fontSize={8} fill="#DC2626" fontWeight="700">52주高</text>
-        <text x={PAD.left+chartW+5} y={toY(week52.high)+10} fontSize={8} fill="#DC2626">{fmtN(Math.round(week52.high))}</text>
-      </>)}
-      {week52?.low && toY(week52.low)>=PAD.top && toY(week52.low)<=PAD.top+PRICE_H && (<>
-        <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(week52.low)} y2={toY(week52.low)}
-          stroke="#1d4ed8" strokeWidth={1} strokeDasharray="6,4" opacity={0.5}/>
-        <rect x={PAD.left+chartW+2} y={toY(week52.low)-9} width={68} height={16} fill="#EFF6FF" stroke="#93C5FD" rx={3}/>
-        <text x={PAD.left+chartW+5} y={toY(week52.low)+2} fontSize={8} fill="#1D4ED8" fontWeight="700">52주低</text>
-        <text x={PAD.left+chartW+5} y={toY(week52.low)+10} fontSize={8} fill="#1D4ED8">{fmtN(Math.round(week52.low))}</text>
-      </>)}
-
       {/* X축 날짜 */}
       {data.filter((_,i)=>i%xStep===0).map((c,i)=>(
         <text key={i} x={bx(data.indexOf(c))} y={PAD.top+PRICE_H+VOL_GAP+VOL_H+20} textAnchor="middle" fontSize={10} fill="#94a3b8">{c.label}</text>
@@ -525,20 +488,56 @@ export function CandleSvg({
         <polyline key={ma.p} points={ma.pts} fill="none" stroke={ma.color} strokeWidth={1.3} opacity={0.85}/>
       ))}
 
+      {/* 볼린저밴드 */}
+      {bollBands&&(<>
+        {/* 밴드 채우기 */}
+        {bollBands.up.map((u,i)=>{
+          if(u==null||bollBands.lo[i]==null||i===0) return null
+          const pu=bollBands.up[i-1], pl=bollBands.lo[i-1]
+          if(pu==null||pl==null) return null
+          return <polygon key={i}
+            points={`${bx(i-1)},${toY(pu)} ${bx(i)},${toY(u)} ${bx(i)},${toY(bollBands.lo[i])} ${bx(i-1)},${toY(pl)}`}
+            fill="rgba(99,102,241,0.06)"
+          />
+        })}
+        <polyline points={bollBands.upPts}  fill="none" stroke="#6366f1" strokeWidth={1} opacity={0.6} strokeDasharray="3,2"/>
+        <polyline points={bollBands.midPts} fill="none" stroke="#6366f1" strokeWidth={0.8} opacity={0.35} strokeDasharray="2,3"/>
+        <polyline points={bollBands.loPts}  fill="none" stroke="#6366f1" strokeWidth={1} opacity={0.6} strokeDasharray="3,2"/>
+        {/* %b 현재값 표시 */}
+        {bollBands.pctB!=null&&(()=>{
+          const pctB=bollBands.pctB
+          const isHot=pctB>=1, isCold=pctB<=0
+          const col=isHot?'#ef4444':isCold?'#3b82f6':'#6366f1'
+          const label=`%b ${(pctB*100).toFixed(0)}`
+          return (
+            <g>
+              <rect x={PAD.left+chartW+2} y={toY(data[n-1]?.close||0)-8} width={44} height={14} rx={3} fill={col} opacity={0.9}/>
+              <text x={PAD.left+chartW+4} y={toY(data[n-1]?.close||0)+3} fontSize={9} fill="white" fontWeight="700">{label}</text>
+            </g>
+          )
+        })()}
+      </>)}
+
+      {/* 52주 고저선 */}
+      {week52&&(<>
+        <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(week52.high)} y2={toY(week52.high)}
+          stroke="#dc2626" strokeWidth={1} strokeDasharray="5,4" opacity={0.5}/>
+        <text x={PAD.left+chartW+3} y={toY(week52.high)+4} fontSize={9} fill="#dc2626" fontWeight="700">52H</text>
+        <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(week52.low)} y2={toY(week52.low)}
+          stroke="#2563eb" strokeWidth={1} strokeDasharray="5,4" opacity={0.5}/>
+        <text x={PAD.left+chartW+3} y={toY(week52.low)+4} fontSize={9} fill="#2563eb" fontWeight="700">52L</text>
+      </>)}
+
       {/* 캔들 */}
       {data.map((c,i)=>{
-        const up=c.close>=c.open
-        const col=up?'#ef4444':'#1D4ED8'  // 하락: 더 진한 파랑 (라이트 배경 대비)
+        const up=c.close>=c.open, col=up?'#ef4444':'#3b82f6'
         const x=bx(i)
         const bTop=toY(Math.max(c.open,c.close))
         const bH=Math.max(1,toY(Math.min(c.open,c.close))-bTop)
         return (
           <g key={i}>
             <line x1={x} x2={x} y1={toY(c.high)} y2={toY(c.low)} stroke={col} strokeWidth={1}/>
-            {/* 하락 캔들: 빈 캔들(테두리만) */}
-            <rect x={x-barW/2} y={bTop} width={barW} height={bH}
-              fill={up?col:'none'} stroke={col} strokeWidth={0.8}
-              opacity={tooltip?.idx===i?1:0.9}/>
+            <rect x={x-barW/2} y={bTop} width={barW} height={bH} fill={col} opacity={tooltip?.idx===i?1:0.85}/>
           </g>
         )
       })}
@@ -547,19 +546,39 @@ export function CandleSvg({
       {showVolume && (<>
         <line x1={PAD.left} x2={PAD.left+chartW} y1={volTop} y2={volTop} stroke="rgba(15,23,42,0.08)" strokeWidth={0.5}/>
         <text x={PAD.left-5} y={volTop+12} textAnchor="end" fontSize={9} fill="#94a3b8">거래량</text>
-        {data.map((c,i)=>{
-          const up=c.close>=c.open, col=up?'#fca5a5':'#93c5fd'
-          const vh=Math.max(1,(c.volume/maxVol)*VOL_H)
-          return <rect key={i} x={bx(i)-barW/2} y={volTop+VOL_H-vh} width={barW} height={vh} fill={col} opacity={0.75}/>
-        })}
-        {/* 거래량 MA20 노란선 */}
         {(() => {
-          const vma = data.map((_,i)=>{
+          // 거래량 MA20 계산
+          const volMA20 = data.map((_,i) => {
             if(i<19) return null
-            return data.slice(i-19,i+1).reduce((s,c)=>s+(c.volume||0),0)/20
+            const sl=data.slice(i-19,i+1).map(d=>d.volume||0)
+            return sl.reduce((s,v)=>s+v,0)/20
           })
-          const pts = vma.map((v,i)=>v!=null?`${bx(i)},${toVolY(v)}`:null).filter(Boolean).join(' ')
-          return pts ? <polyline points={pts} fill="none" stroke="#f59e0b" strokeWidth={1.3} opacity={0.85}/> : null
+          return (<>
+            {data.map((c,i)=>{
+              const up=c.close>=c.open
+              const vh=Math.max(1,(c.volume/maxVol)*VOL_H)
+              const y=volTop+VOL_H-vh
+              const ma=volMA20[i]
+              // 거래량 급등: MA20 대비 2배 이상 → 강조 표시
+              const isSurge=ma&&c.volume>=ma*2
+              return (
+                <g key={i}>
+                  <rect x={bx(i)-barW/2} y={y} width={barW} height={vh}
+                    fill={isSurge?(up?'#ef4444':'#2563eb'):(up?'#fca5a5':'#93c5fd')}
+                    opacity={isSurge?0.95:0.7}/>
+                  {isSurge&&<rect x={bx(i)-barW/2} y={y} width={barW} height={vh}
+                    fill="none" stroke={up?'#b91c1c':'#1d4ed8'} strokeWidth={1}/>}
+                </g>
+              )
+            })}
+            {/* 거래량 MA20 라인 */}
+            {volMA20.some(v=>v!=null)&&(
+              <polyline
+                points={volMA20.map((v,i)=>v!=null?`${bx(i)},${volTop+VOL_H-(v/maxVol)*VOL_H}`:null).filter(Boolean).join(' ')}
+                fill="none" stroke="#f59e0b" strokeWidth={1.5} opacity={0.9} strokeLinejoin="round"
+              />
+            )}
+          </>)
         })()}
       </>)}
 
