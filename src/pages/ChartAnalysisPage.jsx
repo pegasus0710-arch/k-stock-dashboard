@@ -21,7 +21,7 @@ ALL_THEMES.forEach(t => {
   t.stocks.forEach(s => { THEME_MAP[s.code] = { theme: t.label, market: 'KOSPI'  } })
 })
 
-const LS_RECENT    = 'cap_recent_v2'
+const LS_RECENT    = 'cap_recent_v3'  // v2→v3: 중복 캐시 클리어
 const LS_WATCHLIST = 'cap_watch_v2'
 const LS_DRAWINGS  = 'cap_drawings_v2'
 
@@ -32,16 +32,16 @@ function capEMA(data, p) {
   const k=2/(p+1), r=new Array(data.length).fill(null); let ema=null
   for(let i=0;i<data.length;i++){
     const raw=data[i]; if(raw==null) continue
-    const v=typeof raw==='object'?raw.close:raw; if(v==null||isNaN(v)) continue
+    const v=typeof raw==='object'?raw.close:raw
+    if(v==null||!isFinite(v)) continue
     if(ema===null){
       if(i>=p-1){
-        // null/NaN 제외한 실제 값만 평균
         const sl=data.slice(i-p+1,i+1)
-        const vals=sl.map(d=>d==null?null:(typeof d==='object'?d.close:d)).filter(v=>v!=null&&!isNaN(v))
-        if(vals.length===0) continue
+        const vals=sl.map(d=>d==null?null:(typeof d==='object'?d.close:d)).filter(v=>v!=null&&isFinite(v))
+        if(vals.length<Math.floor(p*0.5)) continue  // 절반 이상 유효 데이터 필요
         ema=vals.reduce((a,v)=>a+v,0)/vals.length; r[i]=ema
       }
-    } else { ema=v*k+ema*(1-k); r[i]=ema }
+    } else { ema=v*k+ema*(1-k); r[i]=isFinite(ema)?ema:null }
   }
   return r
 }
@@ -49,20 +49,31 @@ function capRSI(data, p=14) {
   const r=new Array(data.length).fill(null); if(data.length<p+1) return r
   let g=0,l=0
   for(let i=1;i<=p;i++){ const d=(data[i]?.close??0)-(data[i-1]?.close??0); if(d>0)g+=d; else l+=Math.abs(d) }
-  g/=p; l/=p; r[p]=l===0?100:100-100/(1+g/l)
+  g/=p; l/=p
+  const v0=l===0?100:100-100/(1+g/l)
+  r[p]=isFinite(v0)?v0:null
   for(let i=p+1;i<data.length;i++){
     const d=(data[i]?.close??0)-(data[i-1]?.close??0)
     g=(g*(p-1)+(d>0?d:0))/p; l=(l*(p-1)+(d<0?Math.abs(d):0))/p
-    r[i]=l===0?100:100-100/(1+g/l)
+    const v=l===0?100:100-100/(1+g/l)
+    r[i]=isFinite(v)?v:null
   }
   return r
 }
 function capMACD(data) {
   const e12=capEMA(data,12), e26=capEMA(data,26)
-  const macd=e12.map((v,i)=>v!=null&&e26[i]!=null?v-e26[i]:null)
-  // null은 null 그대로 유지 (capEMA가 null 객체를 처리 못함)
-  const sig=capEMA(macd.map(v=>v!=null?{close:v}:null),9)
-  const hist=macd.map((v,i)=>v!=null&&sig[i]!=null?v-sig[i]:null)
+  // NaN/null 모두 null로 통일
+  const macd=e12.map((v,i)=>{
+    const a=v, b=e26[i]
+    if(a==null||b==null||!isFinite(a)||!isFinite(b)) return null
+    const r=a-b; return isFinite(r)?r:null
+  })
+  const sig=capEMA(macd.map(v=>(v!=null&&isFinite(v))?{close:v}:null),9)
+  const hist=macd.map((v,i)=>{
+    const s=sig[i]
+    if(v==null||s==null||!isFinite(v)||!isFinite(s)) return null
+    const r=v-s; return isFinite(r)?r:null
+  })
   return {macd,sig,hist}
 }
 function capBoll(data,p=20,m=2) {
@@ -145,16 +156,32 @@ function SubMACD({data,width}) {
   const {macd,sig,hist}=capMACD(data)
   const bx=i=>PAD.l+(i+0.5)*(W/data.length)
   const bW=Math.max(1,Math.min(6,W/data.length*0.55))
-  const vals=[...macd,...sig,...hist].filter(v=>v!=null)
+  // NaN까지 완전 제거
+  const isVal=v=>v!=null&&isFinite(v)
+  const vals=[...macd,...sig,...hist].filter(isVal)
   if(!vals.length) return null
-  const aMax=Math.max(...vals.map(Math.abs),0.01)*1.05 // 5% 여유
+  const aMax=Math.max(...vals.map(Math.abs),0.01)*1.1
   const midY=PAD.t+iH/2
-  const py=v=>midY-(Math.max(-aMax,Math.min(aMax,v))/aMax)*(iH/2-2)
+  // py: NaN/Infinity 방어, 경계 클램핑
+  const py=v=>{
+    if(!isFinite(v)) return midY
+    const raw=midY-(Math.max(-aMax,Math.min(aMax,v))/aMax)*(iH/2-2)
+    return Math.max(PAD.t, Math.min(PAD.t+iH, raw))
+  }
   const clipId=`macd-clip-${width}`
-  const mPts=macd.reduce((acc,v,i)=>{ if(v!=null) acc.push(`${bx(i)},${py(v)}`); return acc },[])
-  const sPts=sig.reduce((acc,v,i)=>{ if(v!=null) acc.push(`${bx(i)},${py(v)}`); return acc },[])
-  const cur=hist.filter(v=>v!=null).at(-1)
-  const curMacd=macd.filter(v=>v!=null).at(-1)
+  // 연속 세그먼트로 분리 (null/NaN 구간 건너뜀)
+  const buildSegs=(arr)=>{
+    const segs=[]; let cur=[]
+    arr.forEach((v,i)=>{
+      if(isVal(v)) cur.push(`${bx(i)},${py(v)}`)
+      else if(cur.length){segs.push([...cur]);cur=[]}
+    })
+    if(cur.length) segs.push(cur)
+    return segs
+  }
+  const mSegs=buildSegs(macd)
+  const sSegs=buildSegs(sig)
+  const curMacd=macd.filter(isVal).at(-1)
   return (
     <svg width={width} height={H} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
       <defs>
@@ -165,27 +192,30 @@ function SubMACD({data,width}) {
       <line x1={PAD.l} x2={PAD.l+W} y1={midY} y2={midY} stroke="#94a3b8" strokeWidth={0.5} opacity={0.35}/>
       <g clipPath={`url(#${clipId})`}>
         {hist.map((v,i)=>{
-          if(v==null) return null
+          if(!isVal(v)) return null
           const bH=Math.max(1,Math.abs(v/aMax)*(iH/2-2))
           const isUp=v>=0
-          return <rect key={i} x={bx(i)-bW/2} y={isUp?midY-bH:midY} width={bW} height={bH}
+          return <rect key={i} x={bx(i)-bW/2} y={isUp?midY-bH:midY} width={bW} height={Math.min(bH,iH/2-1)}
             fill={isUp?'rgba(239,68,68,0.7)':'rgba(59,130,246,0.7)'}/>
         })}
-        {mPts.length>1&&<polyline points={mPts.join(' ')} fill="none" stroke="#ef4444" strokeWidth={1.4}/>}
-        {sPts.length>1&&<polyline points={sPts.join(' ')} fill="none" stroke="#3b82f6" strokeWidth={1.4}/>}
+        {mSegs.map((seg,i)=>seg.length>1&&<polyline key={`m${i}`} points={seg.join(' ')} fill="none" stroke="#ef4444" strokeWidth={1.5}/>)}
+        {sSegs.map((seg,i)=>seg.length>1&&<polyline key={`s${i}`} points={seg.join(' ')} fill="none" stroke="#3b82f6" strokeWidth={1.5}/>)}
       </g>
       <text x={6} y={PAD.t-2} fontSize={9} fill="#94a3b8" fontWeight="700">MACD(12,26,9)</text>
       <text x={60} y={PAD.t-2} fontSize={8} fill="#ef4444">— MACD</text>
       <text x={98} y={PAD.t-2} fontSize={8} fill="#3b82f6">— Signal</text>
-      {curMacd!=null&&(
-        <g>
-          <rect x={PAD.l+W+1} y={py(curMacd)-6} width={33} height={12} rx={3}
-            fill={curMacd>=0?'#ef4444':'#3b82f6'} opacity={0.9}/>
-          <text x={PAD.l+W+4} y={py(curMacd)+3} fontSize={8} fill="white" fontWeight="700">
-            {curMacd>0?'+':''}{curMacd.toFixed(1)}
-          </text>
-        </g>
-      )}
+      {curMacd!=null&&isFinite(curMacd)&&(()=>{
+        const cy=Math.max(PAD.t+6, Math.min(PAD.t+iH-6, py(curMacd)))
+        const col=curMacd>=0?'#ef4444':'#3b82f6'
+        return (
+          <g>
+            <rect x={PAD.l+W+1} y={cy-6} width={34} height={13} rx={3} fill={col} opacity={0.9}/>
+            <text x={PAD.l+W+4} y={cy+4} fontSize={8} fill="white" fontWeight="700">
+              {curMacd>0?'+':''}{curMacd.toFixed(0)}
+            </text>
+          </g>
+        )
+      })()}
     </svg>
   )
 }
