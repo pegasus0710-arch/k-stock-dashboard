@@ -47,8 +47,110 @@ function lsGet(k,d){ try{ return JSON.parse(localStorage.getItem(k))??d }catch{r
 function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)) }catch{} }
 function rateColor(r){ return r>0?'#ef4444':r<0?'#3b82f6':'#94a3b8' }
 
+// ── 보조지표 계산 함수 ────────────────────────────────────
+
+// EMA (지수이동평균)
+function calcEMA(data, period) {
+  const k = 2 / (period + 1)
+  const result = new Array(data.length).fill(null)
+  let ema = null
+  for (let i = 0; i < data.length; i++) {
+    const v = data[i]?.close ?? data[i]
+    if (v == null) continue
+    if (ema === null) {
+      // 초기값: SMA
+      if (i >= period - 1) {
+        const sum = data.slice(i - period + 1, i + 1).reduce((s, d) => s + (d?.close ?? d ?? 0), 0)
+        ema = sum / period
+        result[i] = ema
+      }
+    } else {
+      ema = v * k + ema * (1 - k)
+      result[i] = ema
+    }
+  }
+  return result
+}
+
+// RSI(14) — 과매수(70↑)/과매도(30↓) 판단
+function calcRSI(data, period = 14) {
+  const result = new Array(data.length).fill(null)
+  if (data.length < period + 1) return result
+  let avgGain = 0, avgLoss = 0
+  for (let i = 1; i <= period; i++) {
+    const d = (data[i]?.close ?? 0) - (data[i-1]?.close ?? 0)
+    if (d > 0) avgGain += d; else avgLoss += Math.abs(d)
+  }
+  avgGain /= period; avgLoss /= period
+  result[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss)
+  for (let i = period + 1; i < data.length; i++) {
+    const d = (data[i]?.close ?? 0) - (data[i-1]?.close ?? 0)
+    const gain = d > 0 ? d : 0
+    const loss = d < 0 ? Math.abs(d) : 0
+    avgGain = (avgGain * (period - 1) + gain) / period
+    avgLoss = (avgLoss * (period - 1) + loss) / period
+    result[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss)
+  }
+  return result
+}
+
+// MACD(12,26,9) — 추세 전환 시그널
+function calcMACD(data) {
+  const ema12  = calcEMA(data, 12)
+  const ema26  = calcEMA(data, 26)
+  const macd   = ema12.map((v,i) => v != null && ema26[i] != null ? v - ema26[i] : null)
+  // 시그널: MACD의 9일 EMA
+  const macdObjs = macd.map(v => ({ close: v }))
+  const signal = calcEMA(macdObjs, 9)
+  const hist   = macd.map((v,i) => v != null && signal[i] != null ? v - signal[i] : null)
+  return { macd, signal, hist }
+}
+
+// 볼린저밴드(20,2) — 변동성·돌파 판단
+function calcBollinger(data, period = 20, mult = 2) {
+  const mid  = new Array(data.length).fill(null)
+  const upper = new Array(data.length).fill(null)
+  const lower = new Array(data.length).fill(null)
+  for (let i = period - 1; i < data.length; i++) {
+    const slice = data.slice(i - period + 1, i + 1).map(d => d?.close ?? 0)
+    const avg   = slice.reduce((s,v) => s + v, 0) / period
+    const std   = Math.sqrt(slice.reduce((s,v) => s + (v-avg)**2, 0) / period)
+    mid[i]   = avg
+    upper[i] = avg + mult * std
+    lower[i] = avg - mult * std
+  }
+  return { mid, upper, lower }
+}
+
+// 스토캐스틱(14,3)
+function calcStochastic(data, kPeriod = 14, dPeriod = 3) {
+  const kLine = new Array(data.length).fill(null)
+  const dLine = new Array(data.length).fill(null)
+  for (let i = kPeriod - 1; i < data.length; i++) {
+    const slice = data.slice(i - kPeriod + 1, i + 1)
+    const low   = Math.min(...slice.map(d => d?.low  ?? d?.close ?? 0))
+    const high  = Math.max(...slice.map(d => d?.high ?? d?.close ?? 0))
+    const close = data[i]?.close ?? 0
+    kLine[i] = high === low ? 50 : ((close - low) / (high - low)) * 100
+  }
+  // %D = %K의 dPeriod 단순이동평균
+  for (let i = kPeriod + dPeriod - 2; i < data.length; i++) {
+    const slice = kLine.slice(i - dPeriod + 1, i + 1).filter(v => v != null)
+    if (slice.length === dPeriod) dLine[i] = slice.reduce((s,v) => s+v, 0) / dPeriod
+  }
+  return { kLine, dLine }
+}
+
+// 거래량 MA
+function calcVolumeMA(data, period = 20) {
+  return data.map((_, i) => {
+    if (i < period - 1) return null
+    return data.slice(i - period + 1, i + 1).reduce((s, d) => s + (d.volume || 0), 0) / period
+  })
+}
+
 // ── CandleChart ────────────────────────────────────────
-function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgClick, drawTool, splitState }) {
+function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgClick, drawTool, splitState, showBollinger }) {
   const [tooltip, setTooltip] = useState(null)
   const svgRef = useRef(null)
   if (!data||data.length===0) return null
@@ -57,7 +159,15 @@ function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgCl
   const W = width-PAD.left-PAD.right
   const H = height-PAD.top-PAD.bottom
 
-  const prices = data.flatMap(d=>[d.high,d.low]).filter(Boolean)
+  // 볼린저밴드 포함해서 Y범위 계산
+  const bb = showBollinger ? calcBollinger(data) : null
+  const bbUpper = bb ? bb.upper.filter(Boolean) : []
+  const bbLower = bb ? bb.lower.filter(Boolean) : []
+
+  const prices = [
+    ...data.flatMap(d=>[d.high,d.low]).filter(Boolean),
+    ...bbUpper, ...bbLower
+  ]
   const rawMin = Math.min(...prices), rawMax = Math.max(...prices)
   const margin = (rawMax-rawMin)*0.06||rawMin*0.005
   const minP = rawMin-margin, maxP = rawMax+margin, rangeP = maxP-minP||1
@@ -74,6 +184,19 @@ function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgCl
     const pts = calcMA(data,period).map((v,i)=>v?`${bx(i)},${py(v)}`:null).filter(Boolean)
     return pts.length>=2 ? {period,color,pts:pts.join(' ')} : null
   }).filter(Boolean) : []
+
+  // 볼린저밴드 포인트
+  const bbPts = bb ? {
+    upper: bb.upper.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' '),
+    mid:   bb.mid.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' '),
+    lower: bb.lower.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' '),
+    // fill polygon: upper → (reverse) lower
+    fill:  (() => {
+      const up = bb.upper.map((v,i)=>v!=null?[bx(i),py(v)]:null).filter(Boolean)
+      const lo = bb.lower.map((v,i)=>v!=null?[bx(i),py(v)]:null).filter(Boolean).reverse()
+      return [...up,...lo].map(p=>p.join(',')).join(' ')
+    })()
+  } : null
 
   function handleMouseMove(e){
     const rect=svgRef.current?.getBoundingClientRect(); if(!rect) return
@@ -110,7 +233,7 @@ function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgCl
         const col = li===0?'#94a3b8':li===n?'#94a3b8':'#06b6d4'
         return <g key={li}>
           <line x1={PAD.left} x2={PAD.left+W} y1={y2} y2={y2} stroke={col} strokeWidth={li===0||li===n?1.2:1} strokeDasharray={li===0||li===n?'':'6,3'} opacity={0.85}/>
-          <rect x={PAD.left+W+2} y={y2-9} width={68} height={18} fill="#0f172a" rx={3}/>
+          <rect x={PAD.left+W+2} y={y2-9} width={68} height={18} fill="white" stroke={col} rx={3}/>
           <text x={PAD.left+W+6} y={y2+3} fontSize={9} fill={col}>{fmt(Math.round(price))}</text>
           {li>0&&<text x={PAD.left+W+38} y={y2+3} fontSize={9} fill={rate>0?'#ef4444':rate<0?'#3b82f6':'#94a3b8'}>{rate>0?'+':''}{rate}%</text>}
         </g>
@@ -123,33 +246,45 @@ function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgCl
       <svg ref={svgRef} width={width} height={height}
         onMouseMove={handleMouseMove} onMouseLeave={()=>setTooltip(null)}
         onClick={handleClick}
-        style={{display:'block', background:'#0f172a', cursor:drawTool!=='none'?'crosshair':'default'}}>
+        style={{display:'block', background:'#F8FAFF', cursor:drawTool!=='none'?'crosshair':'default'}}>
 
         {/* 그리드 */}
         {yTicks.map((v,i)=>(
           <g key={i}>
-            <line x1={PAD.left} y1={py(v)} x2={PAD.left+W} y2={py(v)} stroke="rgba(255,255,255,0.07)" strokeWidth={0.5} strokeDasharray="3,3"/>
-            <text x={PAD.left+W+5} y={py(v)+4} fontSize={10} fill="#64748b">{fmt(Math.round(v))}</text>
+            <line x1={PAD.left} y1={py(v)} x2={PAD.left+W} y2={py(v)} stroke="rgba(15,23,42,0.06)" strokeWidth={0.5} strokeDasharray="3,3"/>
+            <text x={PAD.left+W+5} y={py(v)+4} fontSize={10} fill="#94a3b8">{fmt(Math.round(v))}</text>
           </g>
         ))}
         {data.filter((_,i)=>i%xStep===0).map((d,i)=>(
-          <text key={i} x={bx(data.indexOf(d))} y={PAD.top+H+16} textAnchor="middle" fontSize={10} fill="#64748b">{d.dateLabel}</text>
+          <text key={i} x={bx(data.indexOf(d))} y={PAD.top+H+16} textAnchor="middle" fontSize={10} fill="#94a3b8">{d.dateLabel}</text>
+        ))}
+
+        {/* 볼린저밴드 */}
+        {bbPts && (<>
+          <polygon points={bbPts.fill} fill="rgba(99,102,241,0.07)"/>
+          <polyline points={bbPts.upper} fill="none" stroke="#6366f1" strokeWidth={1} strokeDasharray="4,3" opacity={0.6}/>
+          <polyline points={bbPts.mid}   fill="none" stroke="#6366f1" strokeWidth={1} opacity={0.45}/>
+          <polyline points={bbPts.lower} fill="none" stroke="#6366f1" strokeWidth={1} strokeDasharray="4,3" opacity={0.6}/>
+        </>)}
+
+        {/* MA 라인 */}
+        {maLines.map(ma=>(
+          <polyline key={ma.period} points={ma.pts} fill="none" stroke={ma.color} strokeWidth={1.2} opacity={0.85}/>
         ))}
 
         {/* 캔들 */}
         {data.map((d,i)=>{
-          const isUp=d.close>=d.open, color=isUp?'#ef4444':'#3b82f6', cx=bx(i)
+          const isUp=d.close>=d.open
+          const upCol='#EF4444', dnCol='#1D4ED8'
+          const color=isUp?upCol:dnCol
+          const cx=bx(i)
           const bodyTop=py(Math.max(d.open,d.close)), bodyH=Math.max(1,py(Math.min(d.open,d.close))-bodyTop)
           return <g key={i}>
             <line x1={cx} y1={py(d.high)} x2={cx} y2={py(d.low)} stroke={color} strokeWidth={1}/>
-            <rect x={cx-barW/2} y={bodyTop} width={barW} height={bodyH} fill={color} opacity={0.9}/>
+            <rect x={cx-barW/2} y={bodyTop} width={barW} height={bodyH}
+              fill={isUp?color:'none'} stroke={color} strokeWidth={0.8} opacity={0.9}/>
           </g>
         })}
-
-        {/* MA */}
-        {maLines.map(ma=>(
-          <polyline key={ma.period} points={ma.pts} fill="none" stroke={ma.color} strokeWidth={1.2} opacity={0.85}/>
-        ))}
 
         {/* 드로잉 */}
         {drawings?.map((d,i)=>{
@@ -157,7 +292,7 @@ function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgCl
             const y2=py(d.price); if(y2<PAD.top||y2>PAD.top+H) return null
             return <g key={i}>
               <line x1={PAD.left} x2={PAD.left+W} y1={y2} y2={y2} stroke={d.color||'#f59e0b'} strokeWidth={1.5} strokeDasharray="6,3"/>
-              <rect x={PAD.left+W+2} y={y2-9} width={68} height={18} fill="#0f172a" rx={3}/>
+              <rect x={PAD.left+W+2} y={y2-9} width={68} height={18} fill="white" stroke={d.color||'#f59e0b'} rx={3}/>
               <text x={PAD.left+W+6} y={y2+3} fontSize={10} fill={d.color||'#f59e0b'}>{Math.round(d.price).toLocaleString()}</text>
             </g>
           }
@@ -180,14 +315,14 @@ function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgCl
           if (d.type==='text') {
             const y2=py(d.price); if(y2<PAD.top||y2>PAD.top+H) return null
             return <g key={i}>
-              <rect x={d.bxVal-2} y={y2-13} width={d.text.length*7+8} height={16} fill="#1e293b" stroke="#334155" rx={3}/>
-              <text x={d.bxVal+2} y={y2} fontSize={11} fill="#e2e8f0">{d.text}</text>
+              <rect x={d.bxVal-2} y={y2-13} width={d.text.length*7+8} height={16} fill="rgba(255,255,255,0.92)" stroke="#94a3b8" rx={3}/>
+              <text x={d.bxVal+2} y={y2} fontSize={11} fill="#0f172a">{d.text}</text>
             </g>
           }
           return null
         })}
 
-        {/* 진행 중인 split 선택 */}
+        {/* 진행 중인 split */}
         {splitState?.price1 && (() => {
           const y2=py(splitState.price1)
           return <line x1={PAD.left} x2={PAD.left+W} y1={y2} y2={y2} stroke="#06b6d4" strokeWidth={1} strokeDasharray="4,3" opacity={0.6}/>
@@ -196,8 +331,11 @@ function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgCl
         {/* 크로스헤어 */}
         {tooltip&&td&&(
           <>
-            <line x1={bx(tooltip.idx)} y1={PAD.top} x2={bx(tooltip.idx)} y2={PAD.top+H} stroke="rgba(255,255,255,0.25)" strokeWidth={0.8} strokeDasharray="4,2"/>
-            <line x1={PAD.left} y1={tooltip.y} x2={PAD.left+W} y2={tooltip.y} stroke="rgba(255,255,255,0.25)" strokeWidth={0.8} strokeDasharray="4,2"/>
+            <line x1={bx(tooltip.idx)} y1={PAD.top} x2={bx(tooltip.idx)} y2={PAD.top+H} stroke="rgba(15,23,42,0.2)" strokeWidth={0.8} strokeDasharray="4,2"/>
+            <line x1={PAD.left} y1={tooltip.y} x2={PAD.left+W} y2={tooltip.y} stroke="rgba(15,23,42,0.15)" strokeWidth={0.8} strokeDasharray="4,2"/>
+            {/* Y축 가격 레이블 */}
+            <rect x={PAD.left+W+2} y={tooltip.y-8} width={68} height={16} fill="#2563eb" rx={3}/>
+            <text x={PAD.left+W+36} y={tooltip.y+4} fontSize={9} fill="white" textAnchor="middle">{fmt(Math.round(fromY(tooltip.y)))}</text>
           </>
         )}
       </svg>
@@ -208,8 +346,8 @@ function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgCl
           <div className="smc-tt-date">{td.dateLabel}</div>
           <div className="smc-tt-row"><span>시가</span><b>{fmt(td.open)}</b></div>
           <div className="smc-tt-row"><span>고가</span><b style={{color:'#ef4444'}}>{fmt(td.high)}</b></div>
-          <div className="smc-tt-row"><span>저가</span><b style={{color:'#3b82f6'}}>{fmt(td.low)}</b></div>
-          <div className="smc-tt-row"><span>종가</span><b style={{color:td.close>=td.open?'#ef4444':'#3b82f6'}}>{fmt(td.close)}</b></div>
+          <div className="smc-tt-row"><span>저가</span><b style={{color:'#1d4ed8'}}>{fmt(td.low)}</b></div>
+          <div className="smc-tt-row"><span>종가</span><b style={{color:td.close>=td.open?'#ef4444':'#1d4ed8'}}>{fmt(td.close)}</b></div>
           <div className="smc-tt-row"><span>거래량</span><b>{fmtShort(td.volume)}</b></div>
           {maValues.map(({period,color,v})=>(
             <div key={period} className="smc-tt-row"><span style={{color}}>MA{period}</span><b>{fmt(v)}</b></div>
@@ -228,14 +366,21 @@ function VolumeChart({ data, width, height }) {
   const maxV=Math.max(...data.map(d=>d.volume||0),1)
   const barW=Math.max(1,Math.min(12,W/data.length-1))
   const bx=i=>PAD.left+(i+0.5)*(W/data.length)
+  const py=v=>PAD.top+H-(v/maxV)*H
+  // 거래량 MA20
+  const vma = calcVolumeMA(data, 20)
+  const vmaPts = vma.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
   return (
-    <svg width={width} height={height} style={{display:'block',background:'#0a0f1a'}}>
-      <text x={PAD.left+W+5} y={PAD.top+10} fontSize={9} fill="#475569">거래량</text>
+    <svg width={width} height={height} style={{display:'block',background:'#F8FAFF'}}>
+      <text x={PAD.left+W+5} y={PAD.top+10} fontSize={9} fill="#94a3b8">거래량</text>
       {data.map((d,i)=>{
         const barH=maxV>0?(d.volume/maxV)*H:0
+        const isUp=d.close>=d.open
         return <rect key={i} x={bx(i)-barW/2} y={PAD.top+H-barH} width={barW} height={Math.max(1,barH)}
-          fill={d.close>=d.open?'#fca5a5':'#93c5fd'} opacity={0.75}/>
+          fill={isUp?'#FCA5A5':'#93C5FD'} opacity={0.8}/>
       })}
+      {/* 거래량 MA20 (노란선) */}
+      {vmaPts&&<polyline points={vmaPts} fill="none" stroke="#f59e0b" strokeWidth={1.2} opacity={0.85}/>}
     </svg>
   )
 }
@@ -255,7 +400,7 @@ function LineChart({ data, width, height }) {
   const px=i=>PAD.left+(i/(data.length-1||1))*W
   const yTicks=Array.from({length:5},(_,i)=>minP+(rangeP/4)*i)
   const xStep=Math.max(1,Math.floor(data.length/7))
-  const isUp=prices[prices.length-1]>=prices[0], lc=isUp?'#ef4444':'#3b82f6'
+  const isUp=prices[prices.length-1]>=prices[0], lc=isUp?'#ef4444':'#1d4ed8'
   const points=data.map((d,i)=>`${px(i)},${py(d.close)}`).join(' ')
   const handleMouseMove=e=>{
     const rect=svgRef.current?.getBoundingClientRect(); if(!rect) return
@@ -267,19 +412,19 @@ function LineChart({ data, width, height }) {
   return (
     <div style={{position:'relative'}}>
       <svg ref={svgRef} width={width} height={height} onMouseMove={handleMouseMove}
-        onMouseLeave={()=>setTooltip(null)} style={{display:'block',background:'#0f172a',cursor:'crosshair'}}>
+        onMouseLeave={()=>setTooltip(null)} style={{display:'block',background:'#F8FAFF',cursor:'crosshair'}}>
         {yTicks.map((v,i)=>(
           <g key={i}>
-            <line x1={PAD.left} y1={py(v)} x2={PAD.left+W} y2={py(v)} stroke="rgba(255,255,255,0.07)" strokeWidth={0.5} strokeDasharray="3,3"/>
-            <text x={PAD.left+W+5} y={py(v)+4} fontSize={10} fill="#64748b">{fmt(Math.round(v))}</text>
+            <line x1={PAD.left} y1={py(v)} x2={PAD.left+W} y2={py(v)} stroke="rgba(15,23,42,0.06)" strokeWidth={0.5} strokeDasharray="3,3"/>
+            <text x={PAD.left+W+5} y={py(v)+4} fontSize={10} fill="#94a3b8">{fmt(Math.round(v))}</text>
           </g>
         ))}
         {data.filter((_,i)=>i%xStep===0).map((d,i)=>(
-          <text key={i} x={px(data.indexOf(d))} y={PAD.top+H+16} textAnchor="middle" fontSize={10} fill="#64748b">{d.dateLabel}</text>
+          <text key={i} x={px(data.indexOf(d))} y={PAD.top+H+16} textAnchor="middle" fontSize={10} fill="#94a3b8">{d.dateLabel}</text>
         ))}
         <defs>
           <linearGradient id="lg-smc" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={lc} stopOpacity="0.25"/>
+            <stop offset="0%" stopColor={lc} stopOpacity="0.2"/>
             <stop offset="100%" stopColor={lc} stopOpacity="0"/>
           </linearGradient>
         </defs>
@@ -287,7 +432,7 @@ function LineChart({ data, width, height }) {
         <polyline points={points} fill="none" stroke={lc} strokeWidth={1.8}/>
         {tooltip&&td&&(
           <>
-            <line x1={px(tooltip.idx)} y1={PAD.top} x2={px(tooltip.idx)} y2={PAD.top+H} stroke="rgba(255,255,255,0.25)" strokeWidth={0.8} strokeDasharray="4,2"/>
+            <line x1={px(tooltip.idx)} y1={PAD.top} x2={px(tooltip.idx)} y2={PAD.top+H} stroke="rgba(15,23,42,0.2)" strokeWidth={0.8} strokeDasharray="4,2"/>
             <circle cx={px(tooltip.idx)} cy={py(td.close)} r={3} fill={lc}/>
           </>
         )}
@@ -300,6 +445,119 @@ function LineChart({ data, width, height }) {
         </div>
       )}
     </div>
+  )
+}
+
+// ── RSI 서브차트 ───────────────────────────────────────
+function RSIChart({ data, width }) {
+  const H=80, PAD={top:14,right:72,bottom:4,left:8}
+  const W=width-PAD.left-PAD.right
+  const rsi = calcRSI(data)
+  const bx  = i => PAD.left+(i+0.5)*(W/data.length)
+  const py  = v => PAD.top+(H-PAD.top-PAD.bottom)*(1-v/100)
+  const pts = rsi.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  const midH = py(50), h70 = py(70), h30 = py(30)
+  const innerH = H-PAD.top-PAD.bottom
+  return (
+    <svg width={width} height={H} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
+      {/* 기준선 */}
+      <line x1={PAD.left} x2={PAD.left+W} y1={h70} y2={h70} stroke="#ef4444" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.6}/>
+      <line x1={PAD.left} x2={PAD.left+W} y1={midH} y2={midH} stroke="#94a3b8" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.4}/>
+      <line x1={PAD.left} x2={PAD.left+W} y1={h30} y2={h30} stroke="#3b82f6" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.6}/>
+      {/* 70/30 영역 채우기 */}
+      <rect x={PAD.left} y={PAD.top} width={W} height={h70-PAD.top} fill="rgba(239,68,68,0.04)"/>
+      <rect x={PAD.left} y={h30} width={W} height={PAD.top+innerH-h30} fill="rgba(59,130,246,0.04)"/>
+      {/* RSI 선 */}
+      {pts&&<polyline points={pts} fill="none" stroke="#8b5cf6" strokeWidth={1.4}/>}
+      {/* 레이블 */}
+      <text x={4} y={PAD.top+8} fontSize={9} fill="#94a3b8" fontWeight="700">RSI(14)</text>
+      <text x={PAD.left+W+5} y={h70+3} fontSize={8} fill="#ef4444">70</text>
+      <text x={PAD.left+W+5} y={midH+3} fontSize={8} fill="#94a3b8">50</text>
+      <text x={PAD.left+W+5} y={h30+3} fontSize={8} fill="#3b82f6">30</text>
+      {/* 현재값 */}
+      {(() => { const v=rsi[rsi.length-1]; if(!v) return null
+        const col = v>=70?'#ef4444':v<=30?'#3b82f6':'#8b5cf6'
+        return <text x={PAD.left+W+5} y={py(v)+4} fontSize={9} fill={col} fontWeight="700">{v.toFixed(1)}</text>
+      })()}
+    </svg>
+  )
+}
+
+// ── MACD 서브차트 ──────────────────────────────────────
+function MACDChart({ data, width }) {
+  const H=85, PAD={top:14,right:72,bottom:4,left:8}
+  const W=width-PAD.left-PAD.right
+  const innerH = H-PAD.top-PAD.bottom
+  const { macd, signal, hist } = calcMACD(data)
+  const bx = i => PAD.left+(i+0.5)*(W/data.length)
+  const barW = Math.max(1,Math.min(8,W/data.length*0.6))
+  const vals = [...macd,...signal,...hist].filter(v=>v!=null)
+  if (!vals.length) return null
+  const absMax = Math.max(...vals.map(Math.abs),0.01)
+  const midY = PAD.top+innerH/2
+  const py = v => midY - (v/absMax)*(innerH/2-2)
+  const macdPts   = macd.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  const signalPts = signal.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  return (
+    <svg width={width} height={H} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
+      {/* 기준선(0) */}
+      <line x1={PAD.left} x2={PAD.left+W} y1={midY} y2={midY} stroke="#94a3b8" strokeWidth={0.5} opacity={0.5}/>
+      {/* 히스토그램 */}
+      {hist.map((v,i)=>{ if(v==null) return null
+        const bH=Math.abs(v/absMax)*(innerH/2-2)
+        return <rect key={i} x={bx(i)-barW/2} y={v>=0?midY-bH:midY} width={barW} height={Math.max(1,bH)}
+          fill={v>=0?'#fca5a5':'#93c5fd'} opacity={0.8}/>
+      })}
+      {/* MACD 선 */}
+      {macdPts&&<polyline points={macdPts} fill="none" stroke="#ef4444" strokeWidth={1.3} opacity={0.9}/>}
+      {/* 시그널 선 */}
+      {signalPts&&<polyline points={signalPts} fill="none" stroke="#3b82f6" strokeWidth={1.3} opacity={0.9}/>}
+      {/* 레이블 */}
+      <text x={4} y={PAD.top+8} fontSize={9} fill="#94a3b8" fontWeight="700">MACD(12,26,9)</text>
+      <text x={PAD.left+12} y={PAD.top+8} fontSize={8} fill="#ef4444">— MACD</text>
+      <text x={PAD.left+56} y={PAD.top+8} fontSize={8} fill="#3b82f6">— Signal</text>
+      {/* 현재값 */}
+      {(() => {
+        const mv=macd[macd.length-1], sv=signal[signal.length-1], hv=hist[hist.length-1]
+        if(mv==null) return null
+        const col=hv>=0?'#ef4444':'#3b82f6'
+        return <text x={PAD.left+W+5} y={midY+4} fontSize={9} fill={col} fontWeight="700">{hv?.toFixed(2)}</text>
+      })()}
+    </svg>
+  )
+}
+
+// ── 스토캐스틱 서브차트 ────────────────────────────────
+function StochasticChart({ data, width }) {
+  const H=75, PAD={top:14,right:72,bottom:4,left:8}
+  const W=width-PAD.left-PAD.right
+  const innerH=H-PAD.top-PAD.bottom
+  const { kLine, dLine } = calcStochastic(data)
+  const bx = i => PAD.left+(i+0.5)*(W/data.length)
+  const py = v => PAD.top+innerH*(1-v/100)
+  const kPts = kLine.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  const dPts = dLine.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  const h80=py(80), h20=py(20)
+  return (
+    <svg width={width} height={H} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
+      <rect x={PAD.left} y={PAD.top} width={W} height={h80-PAD.top} fill="rgba(239,68,68,0.04)"/>
+      <rect x={PAD.left} y={h20} width={W} height={PAD.top+innerH-h20} fill="rgba(59,130,246,0.04)"/>
+      <line x1={PAD.left} x2={PAD.left+W} y1={h80} y2={h80} stroke="#ef4444" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.6}/>
+      <line x1={PAD.left} x2={PAD.left+W} y1={h20} y2={h20} stroke="#3b82f6" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.6}/>
+      {kPts&&<polyline points={kPts} fill="none" stroke="#f59e0b" strokeWidth={1.3}/>}
+      {dPts&&<polyline points={dPts} fill="none" stroke="#8b5cf6" strokeWidth={1.3} opacity={0.8}/>}
+      <text x={4} y={PAD.top+8} fontSize={9} fill="#94a3b8" fontWeight="700">Stoch(14,3)</text>
+      <text x={PAD.left+12} y={PAD.top+8} fontSize={8} fill="#f59e0b">— %K</text>
+      <text x={PAD.left+40} y={PAD.top+8} fontSize={8} fill="#8b5cf6">— %D</text>
+      <text x={PAD.left+W+5} y={h80+3} fontSize={8} fill="#ef4444">80</text>
+      <text x={PAD.left+W+5} y={h20+3} fontSize={8} fill="#3b82f6">20</text>
+      {(() => {
+        const kv=kLine[kLine.length-1]
+        if(kv==null) return null
+        const col=kv>=80?'#ef4444':kv<=20?'#3b82f6':'#f59e0b'
+        return <text x={PAD.left+W+5} y={py(kv)+4} fontSize={9} fill={col} fontWeight="700">{kv.toFixed(1)}</text>
+      })()}
+    </svg>
   )
 }
 
@@ -395,6 +653,10 @@ export default function StockChartModal({ stock, onClose }) {
   const [showSupply,    setShowSupply]    = useState(false)  // ← 기본 OFF
   const [supplyData,    setSupplyData]    = useState(null)
   const [supplyLoading, setSupplyLoading] = useState(false)
+  const [showBollinger,  setShowBollinger]  = useState(true)   // 볼린저밴드 기본 ON
+  const [showRSI,        setShowRSI]        = useState(true)   // RSI 기본 ON
+  const [showMACD,       setShowMACD]       = useState(false)  // MACD 기본 OFF
+  const [showStochastic, setShowStochastic] = useState(false)  // 스토캐스틱 기본 OFF
   const [showFinancial, setShowFinancial] = useState(false) // 재무제표 팝업
   // 드로잉
   const [drawings,   setDrawings]  = useState(()=>stock?.code?lsGet(`smc_draw_${stock.code}`,[]):[])
@@ -632,6 +894,23 @@ export default function StockChartModal({ stock, onClose }) {
             )}
 
             <div style={{marginLeft:'auto',display:'flex',gap:4}}>
+              {/* 지표 토글 */}
+              <button className={`smc-scope-btn ${showBollinger?'active':''}`}
+                onClick={()=>setShowBollinger(v=>!v)} title="볼린저밴드(20,2)">
+                BB
+              </button>
+              <button className={`smc-scope-btn ${showRSI?'active':''}`}
+                onClick={()=>setShowRSI(v=>!v)} title="RSI(14)">
+                RSI
+              </button>
+              <button className={`smc-scope-btn ${showMACD?'active':''}`}
+                onClick={()=>setShowMACD(v=>!v)} title="MACD(12,26,9)">
+                MACD
+              </button>
+              <button className={`smc-scope-btn ${showStochastic?'active':''}`}
+                onClick={()=>setShowStochastic(v=>!v)} title="스토캐스틱(14,3)">
+                Stoch
+              </button>
               {/* 수급 버튼 */}
               <button className={`smc-scope-btn ${showSupply?'active':''}`}
                 onClick={()=>setShowSupply(v=>!v)}>
@@ -673,9 +952,15 @@ export default function StockChartModal({ stock, onClose }) {
                 : <CandleChart data={chartData} width={chartWidth} height={CHART_H}
                     showMA={showMA} enabledMA={enabledMA}
                     drawings={drawings} onSvgClick={handleSvgClick}
-                    drawTool={drawTool} splitState={splitState}/>
+                    drawTool={drawTool} splitState={splitState}
+                    showBollinger={showBollinger}/>
               }
               <VolumeChart data={chartData} width={chartWidth} height={VOL_H}/>
+
+              {/* 보조지표 서브차트 */}
+              {showRSI        && <RSIChart        data={chartData} width={chartWidth}/>}
+              {showMACD       && <MACDChart       data={chartData} width={chartWidth}/>}
+              {showStochastic && <StochasticChart data={chartData} width={chartWidth}/>}
 
               {/* 수급 서브차트 */}
               {showSupply&&(
@@ -746,9 +1031,9 @@ function SupplyMiniChart({ title, data, color, type, width }) {
   const barW=Math.max(1,Math.floor(W/data.length*0.7))
   const pts=data.map((d,i)=>`${bx(i)},${py(d.value)}`).join(' ')
   return (
-    <svg width={width} height={PAD.top+H+4} style={{display:'block',background:'#0a0f1a',borderTop:'1px solid #1e293b'}}>
-      <text x={4} y={PAD.top+H/2+4} fontSize={9} fill="#64748b">{title}</text>
-      <line x1={PAD.left} x2={PAD.left+W} y1={PAD.top+H/2} y2={PAD.top+H/2} stroke="rgba(255,255,255,0.06)" strokeWidth={0.5}/>
+    <svg width={width} height={PAD.top+H+4} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
+      <text x={4} y={PAD.top+H/2+4} fontSize={9} fill="#94a3b8">{title}</text>
+      <line x1={PAD.left} x2={PAD.left+W} y1={PAD.top+H/2} y2={PAD.top+H/2} stroke="rgba(15,23,42,0.06)" strokeWidth={0.5}/>
       {type==='bar'&&data.map((d,i)=>{
         const v=d.value, bH=Math.abs(v/maxV)*(H/2-2)
         return <rect key={i} x={bx(i)-barW/2} y={v>=0?PAD.top+H/2-bH:PAD.top+H/2} width={barW} height={Math.max(1,bH)} fill={v>=0?'#22c55e':'#ef4444'} opacity={0.75}/>
