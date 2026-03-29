@@ -27,6 +27,160 @@ const LS_DRAWINGS  = 'cap_drawings_v2'
 
 function lsGet(k,d){ try{return JSON.parse(localStorage.getItem(k))??d}catch{return d} }
 
+// ── 보조지표 계산 ─────────────────────────────────────
+function capCalcEMA(data, period) {
+  const k = 2 / (period + 1), result = new Array(data.length).fill(null)
+  let ema = null
+  for (let i = 0; i < data.length; i++) {
+    const v = data[i]?.close ?? data[i]
+    if (v == null) continue
+    if (ema === null) {
+      if (i >= period - 1) {
+        const s = data.slice(i-period+1,i+1).reduce((a,d)=>a+(d?.close??d??0),0)
+        ema = s/period; result[i] = ema
+      }
+    } else { ema = v*k + ema*(1-k); result[i] = ema }
+  }
+  return result
+}
+function capCalcRSI(data, period=14) {
+  const result = new Array(data.length).fill(null)
+  if (data.length < period+1) return result
+  let avgG=0, avgL=0
+  for (let i=1; i<=period; i++) {
+    const d=(data[i]?.close??0)-(data[i-1]?.close??0)
+    if (d>0) avgG+=d; else avgL+=Math.abs(d)
+  }
+  avgG/=period; avgL/=period
+  result[period] = avgL===0?100:100-100/(1+avgG/avgL)
+  for (let i=period+1; i<data.length; i++) {
+    const d=(data[i]?.close??0)-(data[i-1]?.close??0)
+    avgG=(avgG*(period-1)+(d>0?d:0))/period
+    avgL=(avgL*(period-1)+(d<0?Math.abs(d):0))/period
+    result[i]=avgL===0?100:100-100/(1+avgG/avgL)
+  }
+  return result
+}
+function capCalcMACD(data) {
+  const ema12=capCalcEMA(data,12), ema26=capCalcEMA(data,26)
+  const macd=ema12.map((v,i)=>v!=null&&ema26[i]!=null?v-ema26[i]:null)
+  const signal=capCalcEMA(macd.map(v=>({close:v})),9)
+  const hist=macd.map((v,i)=>v!=null&&signal[i]!=null?v-signal[i]:null)
+  return { macd, signal, hist }
+}
+function capCalcBollinger(data, period=20, mult=2) {
+  const mid=new Array(data.length).fill(null)
+  const upper=new Array(data.length).fill(null)
+  const lower=new Array(data.length).fill(null)
+  for (let i=period-1; i<data.length; i++) {
+    const sl=data.slice(i-period+1,i+1).map(d=>d?.close??0)
+    const avg=sl.reduce((s,v)=>s+v,0)/period
+    const std=Math.sqrt(sl.reduce((s,v)=>s+(v-avg)**2,0)/period)
+    mid[i]=avg; upper[i]=avg+mult*std; lower[i]=avg-mult*std
+  }
+  return { mid, upper, lower }
+}
+function capCalcStoch(data, k=14, d=3) {
+  const kLine=new Array(data.length).fill(null)
+  const dLine=new Array(data.length).fill(null)
+  for (let i=k-1; i<data.length; i++) {
+    const sl=data.slice(i-k+1,i+1)
+    const lo=Math.min(...sl.map(d=>d?.low??d?.close??0))
+    const hi=Math.max(...sl.map(d=>d?.high??d?.close??0))
+    kLine[i]=hi===lo?50:((data[i]?.close??0)-lo)/(hi-lo)*100
+  }
+  for (let i=k+d-2; i<data.length; i++) {
+    const sl=kLine.slice(i-d+1,i+1).filter(v=>v!=null)
+    if (sl.length===d) dLine[i]=sl.reduce((s,v)=>s+v,0)/d
+  }
+  return { kLine, dLine }
+}
+
+// ── 보조지표 서브차트 컴포넌트 ────────────────────────
+function CapRSIChart({ data, width }) {
+  const H=80, PAD={top:14,right:8,bottom:4,left:8}
+  const W=width-PAD.left-PAD.right, innerH=H-PAD.top-PAD.bottom
+  const rsi=capCalcRSI(data)
+  const bx=i=>PAD.left+(i+0.5)*(W/data.length)
+  const py=v=>PAD.top+innerH*(1-v/100)
+  const pts=rsi.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  const h70=py(70), h50=py(50), h30=py(30)
+  return (
+    <svg width={width} height={H} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
+      <rect x={PAD.left} y={PAD.top} width={W} height={h70-PAD.top} fill="rgba(239,68,68,0.04)"/>
+      <rect x={PAD.left} y={h30} width={W} height={PAD.top+innerH-h30} fill="rgba(59,130,246,0.04)"/>
+      <line x1={PAD.left} x2={PAD.left+W} y1={h70} y2={h70} stroke="#ef4444" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.6}/>
+      <line x1={PAD.left} x2={PAD.left+W} y1={h50} y2={h50} stroke="#94a3b8" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.4}/>
+      <line x1={PAD.left} x2={PAD.left+W} y1={h30} y2={h30} stroke="#3b82f6" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.6}/>
+      {pts&&<polyline points={pts} fill="none" stroke="#8b5cf6" strokeWidth={1.4}/>}
+      <text x={6} y={PAD.top+9} fontSize={9} fill="#94a3b8" fontWeight="700">RSI(14)</text>
+      <text x={PAD.left+W+2} y={h70+3} fontSize={8} fill="#ef4444">70</text>
+      <text x={PAD.left+W+2} y={h30+3} fontSize={8} fill="#3b82f6">30</text>
+      {(()=>{ const v=rsi[rsi.length-1]; if(!v) return null
+        const col=v>=70?'#ef4444':v<=30?'#3b82f6':'#8b5cf6'
+        return <text x={PAD.left+W+2} y={py(v)+4} fontSize={9} fill={col} fontWeight="700">{v.toFixed(1)}</text>
+      })()}
+    </svg>
+  )
+}
+function CapMACDChart({ data, width }) {
+  const H=85, PAD={top:14,right:8,bottom:4,left:8}
+  const W=width-PAD.left-PAD.right, innerH=H-PAD.top-PAD.bottom
+  const { macd, signal, hist }=capCalcMACD(data)
+  const bx=i=>PAD.left+(i+0.5)*(W/data.length)
+  const barW=Math.max(1,Math.min(8,W/data.length*0.6))
+  const vals=[...macd,...signal,...hist].filter(v=>v!=null)
+  if (!vals.length) return null
+  const absMax=Math.max(...vals.map(Math.abs),0.01)
+  const midY=PAD.top+innerH/2
+  const py=v=>midY-(v/absMax)*(innerH/2-2)
+  const macdPts=macd.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  const sigPts =signal.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  return (
+    <svg width={width} height={H} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
+      <line x1={PAD.left} x2={PAD.left+W} y1={midY} y2={midY} stroke="#94a3b8" strokeWidth={0.5} opacity={0.5}/>
+      {hist.map((v,i)=>{ if(v==null) return null
+        const bH=Math.abs(v/absMax)*(innerH/2-2)
+        return <rect key={i} x={bx(i)-barW/2} y={v>=0?midY-bH:midY} width={barW} height={Math.max(1,bH)}
+          fill={v>=0?'#fca5a5':'#93c5fd'} opacity={0.8}/>
+      })}
+      {macdPts&&<polyline points={macdPts} fill="none" stroke="#ef4444" strokeWidth={1.3}/>}
+      {sigPts&&<polyline points={sigPts} fill="none" stroke="#3b82f6" strokeWidth={1.3}/>}
+      <text x={6} y={PAD.top+9} fontSize={9} fill="#94a3b8" fontWeight="700">MACD(12,26,9)</text>
+      <text x={50} y={PAD.top+9} fontSize={8} fill="#ef4444">— MACD</text>
+      <text x={95} y={PAD.top+9} fontSize={8} fill="#3b82f6">— Signal</text>
+      {(()=>{ const hv=hist[hist.length-1]; if(hv==null) return null
+        return <text x={PAD.left+W+2} y={midY+4} fontSize={9} fill={hv>=0?'#ef4444':'#3b82f6'} fontWeight="700">{hv?.toFixed(2)}</text>
+      })()}
+    </svg>
+  )
+}
+function CapStochChart({ data, width }) {
+  const H=75, PAD={top:14,right:8,bottom:4,left:8}
+  const W=width-PAD.left-PAD.right, innerH=H-PAD.top-PAD.bottom
+  const { kLine, dLine }=capCalcStoch(data)
+  const bx=i=>PAD.left+(i+0.5)*(W/data.length)
+  const py=v=>PAD.top+innerH*(1-v/100)
+  const kPts=kLine.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  const dPts=dLine.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  const h80=py(80), h20=py(20)
+  return (
+    <svg width={width} height={H} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
+      <rect x={PAD.left} y={PAD.top} width={W} height={h80-PAD.top} fill="rgba(239,68,68,0.04)"/>
+      <rect x={PAD.left} y={h20} width={W} height={PAD.top+innerH-h20} fill="rgba(59,130,246,0.04)"/>
+      <line x1={PAD.left} x2={PAD.left+W} y1={h80} y2={h80} stroke="#ef4444" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.6}/>
+      <line x1={PAD.left} x2={PAD.left+W} y1={h20} y2={h20} stroke="#3b82f6" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.6}/>
+      {kPts&&<polyline points={kPts} fill="none" stroke="#f59e0b" strokeWidth={1.3}/>}
+      {dPts&&<polyline points={dPts} fill="none" stroke="#8b5cf6" strokeWidth={1.3}/>}
+      <text x={6} y={PAD.top+9} fontSize={9} fill="#94a3b8" fontWeight="700">Stoch(14,3)</text>
+      <text x={60} y={PAD.top+9} fontSize={8} fill="#f59e0b">— %K</text>
+      <text x={90} y={PAD.top+9} fontSize={8} fill="#8b5cf6">— %D</text>
+      <text x={PAD.left+W+2} y={h80+3} fontSize={8} fill="#ef4444">80</text>
+      <text x={PAD.left+W+2} y={h20+3} fontSize={8} fill="#3b82f6">20</text>
+    </svg>
+  )
+}
+
 // ── 전체화면 FullscreenChart ─────────────────────────
 function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClose }) {
   const [period,    setPeriod]    = useState(initPeriod||'day')
@@ -242,6 +396,12 @@ export default function ChartAnalysisPage() {
   const [strData,       setStrData]       = useState(null)
   const [supplyLoading, setSupplyLoading] = useState(false)
 
+  // 보조지표 토글
+  const [showBB,    setShowBB]    = useState(true)   // 볼린저밴드 기본 ON
+  const [showRSI,   setShowRSI]   = useState(true)   // RSI 기본 ON
+  const [showMACD,  setShowMACD]  = useState(false)
+  const [showStoch, setShowStoch] = useState(false)
+
   // ETF
   const [showEtf, setShowEtf] = useState(false)
   const [showFinancial, setShowFinancial] = useState(false)
@@ -277,6 +437,16 @@ export default function ChartAnalysisPage() {
     code: selected?.code, period, scope, enabled: !!selected
   })
   const candles = useMemo(()=>period==='min'?allData:filterByRange(allData,range),[allData,range,period])
+
+  // 52주 고저 (전체 데이터 기준)
+  const week52 = useMemo(()=>{
+    if (!allData.length) return null
+    const highs = allData.map(c=>c.high).filter(v=>v>0)
+    const lows  = allData.map(c=>c.low).filter(v=>v>0)
+    return highs.length && lows.length
+      ? { high: Math.max(...highs), low: Math.min(...lows) }
+      : null
+  }, [allData])
 
   // 선택 종목 + 관심종목 패널 종목 가격 조회
   const selCatStocksForPrice = wlCats.find(cat=>cat.id===selCatId)?.stocks||[]
@@ -681,6 +851,12 @@ export default function ChartAnalysisPage() {
                     onClick={()=>toggleMA(m.p)}>{m.label}</button>
                 ))}
                 <div style={{marginLeft:'auto',display:'flex',gap:4,alignItems:'center'}}>
+                  {/* 보조지표 토글 */}
+                  <button className={`cap-period-btn ${showBB   ?'active':''}`} onClick={()=>setShowBB   (v=>!v)} title="볼린저밴드(20,2)">BB</button>
+                  <button className={`cap-period-btn ${showRSI  ?'active':''}`} onClick={()=>setShowRSI  (v=>!v)} title="RSI(14)">RSI</button>
+                  <button className={`cap-period-btn ${showMACD ?'active':''}`} onClick={()=>setShowMACD (v=>!v)} title="MACD(12,26,9)">MACD</button>
+                  <button className={`cap-period-btn ${showStoch?'active':''}`} onClick={()=>setShowStoch(v=>!v)} title="스토캐스틱(14,3)">Stoch</button>
+                  <div className="cap-sep"/>
                   {/* 수급 */}
                   <button className={`cap-period-btn ${showSupply?'active':''}`}
                     onClick={()=>{ const n=!showSupply; setShowSupply(n); if(n) { setSupplyPopup(true); if(!foreignData) loadSupply() } else { setSupplyPopup(false) } }}>
@@ -807,9 +983,17 @@ export default function ChartAnalysisPage() {
                       showMA={showMA} enabledMA={enabledMA}
                       drawings={drawings} onSvgClick={handleInlineClick} drawTool={drawTool}
                       selectedIdx={selIdx} onSelectDrawing={setSelIdx}
+                      showBollinger={showBB} week52={week52}
                     />
                 }
               </div>
+
+              {/* 보조지표 서브차트 — 데이터 있을 때만 */}
+              {!chartLoading && candles.length > 0 && (<>
+                {showRSI   && <CapRSIChart   data={candles} width={chartWidth}/>}
+                {showMACD  && <CapMACDChart  data={candles} width={chartWidth}/>}
+                {showStoch && <CapStochChart data={candles} width={chartWidth}/>}
+              </>)}
 
               {/* 텍스트 메모 */}
               {textInput&&(
@@ -834,7 +1018,7 @@ export default function ChartAnalysisPage() {
                       <span>📊 {selected.name} — 수급 현황</span>
                       <button className="cap-supply-popup-close" onClick={()=>setSupplyPopup(false)}>✕</button>
                     </div>
-                    {supplyLoading&&<div style={{padding:24,textAlign:'center',color:'#64748b'}}>⟳ 로딩 중...</div>}
+                    {supplyLoading&&<div style={{padding:24,textAlign:'center',color:'var(--text-secondary)'}}>⟳ 로딩 중...</div>}
                     {!supplyLoading&&supplyDataObj&&<SupplySubChart supplyData={supplyDataObj}/>}
                     {!supplyLoading&&!supplyDataObj&&(
                       <div style={{padding:24,textAlign:'center'}}>
