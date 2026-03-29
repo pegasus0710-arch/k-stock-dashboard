@@ -457,9 +457,10 @@ export default function DashboardPage() {
                   const isClosed = badge?.cls === 'closed'
                   const active   = selId === item.id
                   const dateLabel = getItemDateLabel(item, d)
+                  const warnClass = getWarnClass(item, d)
                   return (
                     <button key={item.id}
-                      className={`db-idx-card ${item.id==='VIX'?'db-sentiment-vix':'db-sentiment-dxy'} ${active?'active':''} ${isClosed?'closed':''}`}
+                      className={`db-idx-card ${item.id==='VIX'?'db-sentiment-vix':'db-sentiment-dxy'} ${active?'active':''} ${isClosed?'closed':''} ${warnClass}`}
                       onClick={()=>setSelId(item.id)}>
                       <div className="db-idx-top-row">
                         <span className="db-idx-name">{item.label}</span>
@@ -621,45 +622,48 @@ export default function DashboardPage() {
                   </div>
                   {flowData && <span className="db-date-badge" style={{marginLeft:'auto'}}>장중 기준</span>}
                 </div>
-                {flowData ? (
-                  <div className="db-flow-rows">
-                    {[
-                      {label:'외국인', val:flowData.total?.foreign  ?? 0, color:'#2563eb'},
-                      {label:'기관',   val:flowData.total?.institution ?? 0, color:'#7c3aed'},
-                      {label:'개인',   val:flowData.total?.individual ?? 0, color:'#f59e0b'},
-                    ].map(({label, val, color})=>{
-                      const abs    = Math.abs(val)
-                      const maxAbs = Math.max(
-                        Math.abs(flowData.total?.foreign     ?? 0),
-                        Math.abs(flowData.total?.institution ?? 0),
-                        Math.abs(flowData.total?.individual  ?? 0),
-                        1
-                      )
-                      const pct  = Math.min(100, (abs / maxAbs) * 100)
-                      const isUp = val >= 0
-                      return (
-                        <div key={label} className="db-flow-row">
-                          <span className="db-flow-label">{label}</span>
-                          <div className="db-flow-bar-wrap">
-                            {isUp
-                              ? <div className="db-flow-bar" style={{width:`${pct}%`,background:'#DC2626',marginLeft:'auto'}}/>
-                              : <div className="db-flow-bar" style={{width:`${pct}%`,background:'#1D4ED8',marginLeft:'0'}}/>
-                            }
+                {(()=>{
+                  const f = flowData?.total
+                  const allZero = f && f.foreign===0 && f.institution===0 && f.individual===0
+                  if (!flowData || allZero) return (
+                    <div className="db-flow-empty">
+                      {isOpen ? '수급 데이터 로딩 중...' : isAfter ? '장 마감 · 전일 수급 없음' : '장 시작 후 표시됩니다'}
+                    </div>
+                  )
+                  return (
+                    <div className="db-flow-rows">
+                      {[
+                        {label:'외국인', val:f?.foreign     ?? 0},
+                        {label:'기관',   val:f?.institution ?? 0},
+                        {label:'개인',   val:f?.individual  ?? 0},
+                      ].map(({label, val})=>{
+                        const abs    = Math.abs(val)
+                        const maxAbs = Math.max(
+                          Math.abs(f?.foreign     ?? 0),
+                          Math.abs(f?.institution ?? 0),
+                          Math.abs(f?.individual  ?? 0),
+                          1
+                        )
+                        const pct  = Math.min(100, (abs / maxAbs) * 100)
+                        const isBuy = val >= 0
+                        return (
+                          <div key={label} className="db-flow-row">
+                            <span className="db-flow-label">{label}</span>
+                            <div className="db-flow-bar-wrap">
+                              <div className="db-flow-bar"
+                                style={{width:`${pct}%`, background: isBuy?'#DC2626':'#1D4ED8'}}/>
+                            </div>
+                            <span className="db-flow-val" style={{color:isBuy?'#DC2626':'#1D4ED8'}}>
+                              {isBuy?'+':''}{Math.abs(val)>=100
+                                ? `${(val/100).toFixed(0)}백억`
+                                : `${val.toFixed(0)}억`}
+                            </span>
                           </div>
-                          <span className="db-flow-val" style={{color:isUp?'#DC2626':'#1D4ED8'}}>
-                            {isUp?'+':''}{Math.abs(val)>=100
-                              ? `${(val/100).toFixed(0)}백억`
-                              : `${val.toFixed(0)}억`}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div className="db-flow-empty">
-                    {isOpen ? '수급 데이터 로딩 중...' : '장 시작 후 표시됩니다'}
-                  </div>
-                )}
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
               </div>
             )}
           </div>
@@ -680,14 +684,16 @@ export default function DashboardPage() {
           {HEATMAP_SECTORS.map(sector=>{
             // 실제 API 데이터 — 업종코드로 등락률 조회
             const rate = heatmapData?.[sector.inds_cd] ?? null
-            const { bg, neutral } = getHeatmapColor(rate)
+            // 장외 시간에 0% 값은 의미 없으므로 null 처리
+            const effectiveRate = (!isOpen && !isAfter && rate === 0) ? null : rate
+            const { bg, neutral } = getHeatmapColor(effectiveRate)
             return (
               <div key={sector.id}
                 className={`db-heatmap-cell${neutral?' neutral':''}`}
-                style={{background: bg}}>
+                style={{background: bg, opacity: (!isOpen && effectiveRate==null) ? 0.55 : 1}}>
                 <span className="db-heatmap-cell-name">{sector.name}</span>
                 <span className="db-heatmap-cell-rate">
-                  {rate!=null ? `${rate>=0?'+':''}${rate.toFixed(2)}%` : '—'}
+                  {effectiveRate!=null ? `${effectiveRate>=0?'+':''}${effectiveRate.toFixed(2)}%` : '—'}
                 </span>
                 <span className="db-heatmap-cell-stocks">{sector.stocks}</span>
               </div>
@@ -699,6 +705,11 @@ export default function DashboardPage() {
           <div className="db-heatmap-legend-bar"/>
           <span>강세</span>
         </div>
+        {!isOpen && !isAfter && (
+          <div className="db-heatmap-footer-note">
+            📌 장 마감 시간 · 다음 거래일 시작 시 업데이트됩니다
+          </div>
+        )}
       </div>
 
       <div className="dash-footer-note">

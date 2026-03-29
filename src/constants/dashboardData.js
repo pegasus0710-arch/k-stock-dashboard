@@ -39,7 +39,7 @@ export const SECTOR_GROUPS = [
   ]},
   { id:'forex',     label:'💱 환율',         accent:'#d97706', items:[
     { id:'FX_USD', label:'USD/KRW', type:'forex', pair:'USD', color:'#3b82f6' },
-    { id:'FX_JPY', label:'JPY/KRW', type:'forex', pair:'JPY', color:'#ef4444' },
+    { id:'FX_JPY', label:'JPY/KRW', type:'forex', pair:'JPY', color:'#ef4444', unit:'(100엔)' },
     { id:'FX_CNY', label:'CNY/KRW', type:'forex', pair:'CNY', color:'#f59e0b' },
     { id:'FX_EUR', label:'EUR/KRW', type:'forex', pair:'EUR', color:'#8b5cf6' },
   ]},

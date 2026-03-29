@@ -118,6 +118,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
+  align-items: start;
 }
 @media(max-width:1200px) { .db-cards-section { grid-template-columns: repeat(2, 1fr); } }
 @media(max-width:768px)  { .db-cards-section { grid-template-columns: 1fr; margin: 10px 12px 0; } }
@@ -723,6 +724,15 @@
 .db-heatmap-cell.neutral .db-heatmap-cell-stocks {
   color: var(--text-dim);
 }
+/* 장외 빈 셀 안내 */
+.db-heatmap-footer-note {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: center;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
 /* 히트맵 범례 */
 .db-heatmap-legend {
   display: flex;
@@ -798,65 +808,6 @@
 .db-commodity-price { font-size: 11px; font-weight: 700; color: var(--text-primary); }
 .db-commodity-rate  { font-size: 10px; font-weight: 700; }
 .db-commodity-tip   { position: absolute; top: 4px; right: 4px; }
-
-/* ── 수급 플로우 바 ────────────────────────────────── */
-.db-flow-section {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--border);
-}
-.db-flow-title {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  margin-bottom: 7px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.db-flow-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 5px;
-}
-.db-flow-row:last-child { margin-bottom: 0; }
-.db-flow-label {
-  font-size: 10px;
-  color: var(--text-secondary);
-  width: 36px;
-  flex-shrink: 0;
-}
-.db-flow-bar-wrap {
-  flex: 1;
-  height: 7px;
-  background: var(--bg-base);
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
-  border: 0.5px solid var(--border);
-}
-.db-flow-bar {
-  height: 100%;
-  border-radius: 4px;
-  transition: width .4s ease;
-}
-.db-flow-bar.buy  { background: #1D4ED8; }
-.db-flow-bar.sell { background: #DC2626; margin-left: auto; }
-.db-flow-val {
-  font-size: 11px;
-  font-weight: 700;
-  min-width: 60px;
-  text-align: right;
-  flex-shrink: 0;
-}
-.db-flow-val.buy  { color: #1D4ED8; }
-.db-flow-val.sell { color: #DC2626; }
-.db-flow-loading {
-  font-size: 10px;
-  color: var(--text-dim);
-  padding: 4px 0;
-}
 
 /* ── 수급 플로우 바 ──────────────────────────────────── */
 .db-flow-section {
@@ -1204,6 +1155,15 @@
 }
 .db-card-group-items.bond-items .spread-card {
   grid-column: 1 / -1;
+}
+/* 채권 게이지 트랙 — 단계 그라데이션으로 공백 시각 개선 */
+.db-card-group-items.bond-items .db-gauge-track {
+  background: linear-gradient(to right,
+    rgba(34,197,94,.18)  0%,
+    rgba(245,158,11,.18) 50%,
+    rgba(239,68,68,.18)  100%
+  );
+  border: 0.5px solid var(--border);
 }
 
 /* ── 심리·달러 VIX/DXY 게이지 크기 제한 ─────────── */
