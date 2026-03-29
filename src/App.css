@@ -1120,3 +1120,19 @@ html body .sidebar-user-email { color: var(--text-dim) !important; }
 .dash-title       { color: var(--text-primary) !important; }
 .dash-date        { color: var(--text-secondary) !important; }
 .dashboard        { background: var(--bg-base) !important; color: var(--text-primary) !important; }
+
+/* ── 대시보드 버튼/배지 라이트 강제 (최우선) ─────── */
+.db-guide-btn,
+.db-refresh-btn { background: var(--accent-light) !important; color: var(--accent-mid) !important; border-color: #BFDBFE !important; }
+.db-briefing-btn { background: var(--accent-mid) !important; color: white !important; border-color: var(--accent-mid) !important; }
+.db-status-badge { background: transparent !important; }
+/* 수급 행 텍스트 */
+.db-flow-label  { color: var(--text-secondary) !important; }
+.db-flow-val    { color: var(--text-primary) !important; }
+.db-flow-title  { color: var(--text-secondary) !important; }
+/* 히트맵 neutral 셀 글자 */
+.db-heatmap-cell.neutral .db-heatmap-cell-name,
+.db-heatmap-cell.neutral .db-heatmap-cell-rate { color: var(--text-secondary) !important; }
+.db-heatmap-cell.neutral .db-heatmap-cell-stocks { color: var(--text-dim) !important; }
+/* 기준일 배지 */
+.db-date-badge  { background: var(--bg-base) !important; color: var(--text-dim) !important; border-color: var(--border) !important; }

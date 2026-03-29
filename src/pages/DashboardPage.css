@@ -1162,3 +1162,19 @@
   font-size: 13px !important;
   margin: 2px 0;
 }
+
+/* ── 해외지수 2×2 그리드 ──────────────────────────── */
+.db-global-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+/* ── 심리·달러 레이아웃 (VIX 넓게 + DXY 게이지) ──── */
+.db-sentiment-grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 6px;
+}
+.db-sentiment-vix { min-height: 0; }
+.db-sentiment-dxy { min-height: 0; }
