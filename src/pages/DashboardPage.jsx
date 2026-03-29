@@ -269,7 +269,7 @@ export default function DashboardPage() {
                             </div>}
                             {spark}
                             {week52}
-                            {dateLabel&&<span className="db-date-badge">{dateLabel}</span>}
+                            {dateLabel&&<div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
                           </>
                         ) : <div className="db-idx-na">—</div>}
                       </button>
