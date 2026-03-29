@@ -150,7 +150,7 @@ function calcVolumeMA(data, period = 20) {
 }
 
 // ── CandleChart ────────────────────────────────────────
-function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgClick, drawTool, splitState, showBollinger }) {
+function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgClick, drawTool, splitState, showBollinger, week52 }) {
   const [tooltip, setTooltip] = useState(null)
   const svgRef = useRef(null)
   if (!data||data.length===0) return null
@@ -159,14 +159,15 @@ function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgCl
   const W = width-PAD.left-PAD.right
   const H = height-PAD.top-PAD.bottom
 
-  // 볼린저밴드 포함해서 Y범위 계산
+  // 볼린저밴드 + 52주 고저 포함 Y범위 계산
   const bb = showBollinger ? calcBollinger(data) : null
   const bbUpper = bb ? bb.upper.filter(Boolean) : []
   const bbLower = bb ? bb.lower.filter(Boolean) : []
+  const w52prices = week52 ? [week52.high, week52.low].filter(Boolean) : []
 
   const prices = [
     ...data.flatMap(d=>[d.high,d.low]).filter(Boolean),
-    ...bbUpper, ...bbLower
+    ...bbUpper, ...bbLower, ...w52prices
   ]
   const rawMin = Math.min(...prices), rawMax = Math.max(...prices)
   const margin = (rawMax-rawMin)*0.06||rawMin*0.005
@@ -265,6 +266,22 @@ function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgCl
           <polyline points={bbPts.upper} fill="none" stroke="#6366f1" strokeWidth={1} strokeDasharray="4,3" opacity={0.6}/>
           <polyline points={bbPts.mid}   fill="none" stroke="#6366f1" strokeWidth={1} opacity={0.45}/>
           <polyline points={bbPts.lower} fill="none" stroke="#6366f1" strokeWidth={1} strokeDasharray="4,3" opacity={0.6}/>
+        </>)}
+
+        {/* 52주 고저 표시선 */}
+        {week52?.high && py(week52.high) >= PAD.top && py(week52.high) <= PAD.top+H && (<>
+          <line x1={PAD.left} x2={PAD.left+W} y1={py(week52.high)} y2={py(week52.high)}
+            stroke="#ef4444" strokeWidth={1} strokeDasharray="6,4" opacity={0.55}/>
+          <rect x={PAD.left+W+2} y={py(week52.high)-9} width={68} height={16} fill="#FEF2F2" stroke="#FCA5A5" rx={3}/>
+          <text x={PAD.left+W+5} y={py(week52.high)+2} fontSize={8} fill="#DC2626" fontWeight="700">52주高</text>
+          <text x={PAD.left+W+5} y={py(week52.high)+10} fontSize={8} fill="#DC2626">{fmt(Math.round(week52.high))}</text>
+        </>)}
+        {week52?.low && py(week52.low) >= PAD.top && py(week52.low) <= PAD.top+H && (<>
+          <line x1={PAD.left} x2={PAD.left+W} y1={py(week52.low)} y2={py(week52.low)}
+            stroke="#1d4ed8" strokeWidth={1} strokeDasharray="6,4" opacity={0.55}/>
+          <rect x={PAD.left+W+2} y={py(week52.low)-9} width={68} height={16} fill="#EFF6FF" stroke="#93C5FD" rx={3}/>
+          <text x={PAD.left+W+5} y={py(week52.low)+2} fontSize={8} fill="#1D4ED8" fontWeight="700">52주低</text>
+          <text x={PAD.left+W+5} y={py(week52.low)+10} fontSize={8} fill="#1D4ED8">{fmt(Math.round(week52.low))}</text>
         </>)}
 
         {/* MA 라인 */}
@@ -430,6 +447,25 @@ function LineChart({ data, width, height }) {
         </defs>
         <polygon points={`${PAD.left},${PAD.top+H} ${points} ${PAD.left+W},${PAD.top+H}`} fill="url(#lg-smc)"/>
         <polyline points={points} fill="none" stroke={lc} strokeWidth={1.8}/>
+
+        {/* 분봉 장 구분선 (09:00 / 12:00 / 15:30) */}
+        {(() => {
+          const sessions = ['0900','1200','1530']
+          const colors   = ['#16a34a','#94a3b8','#dc2626']
+          const labels   = ['장시작','점심','마감']
+          return sessions.map((t, si) => {
+            const idx = data.findIndex(d => (d.dateLabel||'').replace(':','') >= t)
+            if (idx < 0) return null
+            const x = px(idx)
+            return (
+              <g key={t}>
+                <line x1={x} x2={x} y1={PAD.top} y2={PAD.top+H}
+                  stroke={colors[si]} strokeWidth={0.8} strokeDasharray="3,3" opacity={0.5}/>
+                <text x={x+2} y={PAD.top+10} fontSize={8} fill={colors[si]} opacity={0.7}>{labels[si]}</text>
+              </g>
+            )
+          })
+        })()}
         {tooltip&&td&&(
           <>
             <line x1={px(tooltip.idx)} y1={PAD.top} x2={px(tooltip.idx)} y2={PAD.top+H} stroke="rgba(15,23,42,0.2)" strokeWidth={0.8} strokeDasharray="4,2"/>
@@ -741,15 +777,17 @@ export default function StockChartModal({ stock, onClose }) {
     if (!stock?.code||supplyData) return
     setSupplyLoading(true)
     try {
-      const [f,sh,st]=await Promise.allSettled([
+      const [f,sh,st,inst]=await Promise.allSettled([
         fetch(`/api/kiwoom?type=supply-foreign&code=${stock.code}`).then(r=>r.json()),
         fetch(`/api/kiwoom?type=supply-short&code=${stock.code}&days=30`).then(r=>r.json()),
         fetch(`/api/kiwoom?type=supply-strength&code=${stock.code}`).then(r=>r.json()),
+        fetch(`/api/kiwoom?type=supply-institution-stock&code=${stock.code}`).then(r=>r.json()),
       ])
       setSupplyData({
-        foreign:  f.status==='fulfilled'&&!f.value?.error  ? f.value.data||[]  : [],
-        short:    sh.status==='fulfilled'&&!sh.value?.error ? sh.value.data||[] : [],
-        strength: st.status==='fulfilled'&&!st.value?.error ? st.value.data||[] : [],
+        foreign:     f.status==='fulfilled'&&!f.value?.error    ? f.value.data||[]    : [],
+        short:       sh.status==='fulfilled'&&!sh.value?.error  ? sh.value.data||[]   : [],
+        strength:    st.status==='fulfilled'&&!st.value?.error  ? st.value.data||[]   : [],
+        institution: inst.status==='fulfilled'&&!inst.value?.error ? inst.value.data||[] : [],
       })
     } catch {} finally { setSupplyLoading(false) }
   },[stock?.code, supplyData])
@@ -804,20 +842,34 @@ export default function StockChartModal({ stock, onClose }) {
     {label:'거래량', value:priceInfo?.volume?fmtShort(priceInfo.volume)+'주':'-'},
     {label:'시가',   value:priceInfo?.open?fmt(priceInfo.open)+'원':'-'},
     {label:'고가',   value:priceInfo?.high?fmt(priceInfo.high)+'원':'-', color:'#ef4444'},
-    {label:'저가',   value:priceInfo?.low?fmt(priceInfo.low)+'원':'-',  color:'#3b82f6'},
+    {label:'저가',   value:priceInfo?.low?fmt(priceInfo.low)+'원':'-',  color:'#1d4ed8'},
+    {label:'52주高', value:week52?.high?fmt(Math.round(week52.high))+'원':'-', color:'#DC2626'},
+    {label:'52주低', value:week52?.low ?fmt(Math.round(week52.low ))+'원':'-', color:'#1D4ED8'},
     {label:'시가총액',value:bi.mac?fmt(parseN(bi.mac))+'억':'-'},
     {label:'PER',   value:bi.per&&bi.per!=='0'?Number(bi.per).toFixed(1)+'배':'-'},
     {label:'PBR',   value:bi.pbr&&bi.pbr!=='0'?Number(bi.pbr).toFixed(2)+'배':'-'},
     {label:'EPS',   value:bi.eps&&bi.eps!=='0'?fmt(parseN(bi.eps))+'원':'-'},
     {label:'ROE',   value:bi.roe&&bi.roe!=='0'?Number(bi.roe).toFixed(1)+'%':'-'},
     {label:'외국인', value:bi.for_exh_rt?bi.for_exh_rt+'%':'-'},
-    {label:'유통비율',value:bi.dstr_rt?bi.dstr_rt+'%':'-'},
     {label:'업종',   value:si.upName||'-'},
   ]
+
+  // 52주 신고가 근접 배지 (현재가가 52주 고가의 98% 이상)
+  const isNearHigh = week52?.high && priceInfo?.current &&
+    (priceInfo.current / week52.high) >= 0.98
 
   const CHART_H = 340
   const VOL_H   = 70
   const chartTotalH = showSupply ? CHART_H+VOL_H+160 : CHART_H+VOL_H
+
+  // 52주 고저 — 전체 데이터(1년치) 기준
+  const week52 = allData.length > 0 ? (() => {
+    const highs = allData.map(c=>c.high).filter(v=>v>0)
+    const lows  = allData.map(c=>c.low).filter(v=>v>0)
+    return highs.length && lows.length
+      ? { high: Math.max(...highs), low: Math.min(...lows) }
+      : null
+  })() : null
 
   return (
     <>
@@ -830,6 +882,13 @@ export default function StockChartModal({ stock, onClose }) {
           <div className="smc-title-wrap">
             <span className="smc-name">{stock.name}</span>
             <span className="smc-code">{stock.code}</span>
+            {isNearHigh && (
+              <span style={{
+                fontSize:10, fontWeight:700, padding:'2px 7px',
+                background:'rgba(239,68,68,.1)', color:'#DC2626',
+                border:'1px solid rgba(239,68,68,.3)', borderRadius:6
+              }}>🚀 52주 신고가 근접</span>
+            )}
             {priceInfo?.current&&(
               <div className="smc-price-wrap">
                 <span className="smc-cur-price" style={{color:pc}}>{fmt(priceInfo.current)}원</span>
@@ -953,7 +1012,8 @@ export default function StockChartModal({ stock, onClose }) {
                     showMA={showMA} enabledMA={enabledMA}
                     drawings={drawings} onSvgClick={handleSvgClick}
                     drawTool={drawTool} splitState={splitState}
-                    showBollinger={showBollinger}/>
+                    showBollinger={showBollinger}
+                    week52={week52}/>
               }
               <VolumeChart data={chartData} width={chartWidth} height={VOL_H}/>
 
@@ -968,8 +1028,9 @@ export default function StockChartModal({ stock, onClose }) {
                   {supplyLoading&&<div className="smc-supply-loading">⟳ 수급 데이터 불러오는 중...</div>}
                   {!supplyLoading&&supplyData&&(<>
                     <SupplyMiniChart title="🌐 외국인 순매수" data={(supplyData.foreign||[]).map(r=>({date:r.dt,value:Number(r.chg_qty||0)}))} color="#3b82f6" type="bar" width={chartWidth}/>
-                    <SupplyMiniChart title="📉 공매도 비중" data={(supplyData.short||[]).map(r=>({date:r.dt,value:parseFloat(r.trde_wght||0)}))} color="#7c3aed" type="line" width={chartWidth}/>
-                    <SupplyMiniChart title="⚡ 체결강도" data={(supplyData.strength||[]).map(r=>({date:r.dt,value:parseFloat(r.cntr_str||100)-100}))} color="#10b981" type="line" width={chartWidth}/>
+                    <SupplyMiniChart title="🏦 기관 순매수"   data={(supplyData.institution||[]).map(r=>({date:r.dt,value:Number(r.netprps_qty||0)}))} color="#7c3aed" type="bar" width={chartWidth}/>
+                    <SupplyMiniChart title="📉 공매도 비중"   data={(supplyData.short||[]).map(r=>({date:r.dt,value:parseFloat(r.trde_wght||0)}))} color="#f59e0b" type="line" width={chartWidth}/>
+                    <SupplyMiniChart title="⚡ 체결강도"      data={(supplyData.strength||[]).map(r=>({date:r.dt,value:parseFloat(r.cntr_str||100)-100}))} color="#10b981" type="line" width={chartWidth}/>
                   </>)}
                 </div>
               )}
