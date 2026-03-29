@@ -230,150 +230,149 @@
 .theme-slate  { --accent:#334155; --accent-mid:#64748b; --accent-light:#F1F5F9; }
 
 /* ══════════════════════════════════════════════════
-   MarketPage (mp-)
+   MarketPage (mp-) — 라이트 테마
    ══════════════════════════════════════════════════ */
-.mp-wrap { background:#0a0f1a !important; color:#e2e8f0 !important; }
-.mp-card { background:#111827 !important; border-color:#1e293b !important; color:#e2e8f0 !important; }
-.mp-header { background:#0f172a !important; border-color:#1e293b !important; color:#f1f5f9 !important; }
-.mp-body { background:#0f172a !important; border-color:#1e293b !important; }
-.mp-row:hover { background:rgba(255,255,255,.03) !important; }
-.mp-table-header { background:#111827 !important; border-color:#1e293b !important; color:#64748b !important; }
-.mp-table-row { border-color:#1e293b !important; color:#94a3b8 !important; }
-.mp-table-row:hover { background:rgba(255,255,255,.04) !important; }
-.mp-tab { background:transparent !important; border-color:#334155 !important; color:#94a3b8 !important; }
-.mp-tab.active { background:#2563eb !important; border-color:#2563eb !important; color:white !important; }
-.mp-btn { background:#1e293b !important; border-color:#334155 !important; color:#94a3b8 !important; }
-.mp-btn:hover { border-color:#2563eb !important; color:#60a5fa !important; }
-.mp-input, .mp-search { background:#0f172a !important; border-color:#334155 !important; color:#f1f5f9 !important; }
-.mp-label, .mp-title { color:#f1f5f9 !important; }
-.mp-sub, .mp-meta { color:#94a3b8 !important; }
-.mp-empty { color:#64748b !important; }
-.mp-loading { color:#64748b !important; }
-[class^="mp-section"] { background:#0f172a !important; border-color:#1e293b !important; }
-[class^="mp-index"]   { background:#111827 !important; border-color:#1e293b !important; color:#f1f5f9 !important; }
-[class^="mp-chart"]   { background:#0a0f1a !important; }
+.mp-wrap    { background: var(--bg-base)  !important; color: var(--text-primary) !important; }
+.mp-card    { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.mp-header  { background: var(--bg-base)  !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.mp-body    { background: var(--bg-panel) !important; border-color: var(--border) !important; }
+.mp-row:hover { background: var(--bg-hover) !important; }
+.mp-table-header { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.mp-table-row { border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.mp-table-row:hover { background: var(--bg-hover) !important; }
+.mp-tab { background: transparent !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.mp-tab.active { background: var(--accent-mid) !important; border-color: var(--accent-mid) !important; color: white !important; }
+.mp-btn { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.mp-btn:hover { border-color: var(--accent-mid) !important; color: var(--accent-mid) !important; }
+.mp-input, .mp-search { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.mp-label, .mp-title { color: var(--text-primary) !important; }
+.mp-sub, .mp-meta { color: var(--text-secondary) !important; }
+.mp-empty, .mp-loading { color: var(--text-secondary) !important; }
+[class^="mp-section"] { background: var(--bg-panel) !important; border-color: var(--border) !important; }
+[class^="mp-index"]   { background: var(--bg-base)  !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+[class^="mp-chart"]   { background: var(--bg-base)  !important; }
 
 /* ══════════════════════════════════════════════════
-   ETFPage (ep-/etf-)
+   ETFPage (ep-/etf-) — 라이트 테마
    ══════════════════════════════════════════════════ */
-.ep-body, .ep-detail, .ep-panel, .ep-right { background:#0f172a !important; border-color:#1e293b !important; color:#e2e8f0 !important; }
-.ep-card, .etf-card { background:#111827 !important; border-color:#1e293b !important; }
-.ep-card:hover, .etf-card:hover { border-color:#334155 !important; }
-.ep-header, .etf-header { background:#0f172a !important; border-color:#1e293b !important; color:#f1f5f9 !important; }
-.ep-row, .etf-row { border-color:#1e293b !important; color:#94a3b8 !important; }
-.ep-row:hover, .etf-row:hover { background:rgba(255,255,255,.04) !important; }
-.ep-tab, .etf-tab { background:transparent !important; border-color:#334155 !important; color:#94a3b8 !important; }
-.ep-tab.active, .etf-tab.active { background:#2563eb !important; color:white !important; border-color:#2563eb !important; }
-.ep-title, .etf-title { color:#f1f5f9 !important; }
-.ep-name, .etf-name { color:#e2e8f0 !important; }
-.ep-price, .etf-price { color:#f1f5f9 !important; }
-.ep-info, .etf-info { background:#111827 !important; border-color:#1e293b !important; }
-.ep-empty { color:#64748b !important; background:transparent !important; }
-.ep-placeholder { background:#0f172a !important; color:#64748b !important; }
-[class*="ep-right"],[class*="ep-detail"],[class*="etf-detail"],[class*="ep-holdings"] { background:#0f172a !important; border-color:#1e293b !important; color:#e2e8f0 !important; }
-[class*="etf-holdings-row"]:hover { background:rgba(255,255,255,.04) !important; }
+.ep-body, .ep-detail, .ep-panel, .ep-right { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.ep-card, .etf-card { background: var(--bg-base) !important; border-color: var(--border) !important; }
+.ep-card:hover, .etf-card:hover { border-color: #CBD5E1 !important; }
+.ep-header, .etf-header { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.ep-row, .etf-row { border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.ep-row:hover, .etf-row:hover { background: var(--bg-hover) !important; }
+.ep-tab, .etf-tab { background: transparent !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.ep-tab.active, .etf-tab.active { background: var(--accent-mid) !important; color: white !important; border-color: var(--accent-mid) !important; }
+.ep-title, .etf-title { color: var(--text-primary) !important; }
+.ep-name, .etf-name   { color: var(--text-primary) !important; }
+.ep-price, .etf-price { color: var(--text-primary) !important; }
+.ep-info, .etf-info   { background: var(--bg-base) !important; border-color: var(--border) !important; }
+.ep-empty { color: var(--text-secondary) !important; background: transparent !important; }
+.ep-placeholder { background: var(--bg-base) !important; color: var(--text-secondary) !important; }
+[class*="ep-right"],[class*="ep-detail"],[class*="etf-detail"],[class*="ep-holdings"] { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+[class*="etf-holdings-row"]:hover { background: var(--bg-hover) !important; }
 
 /* ══════════════════════════════════════════════════
-   WatchlistPage (wl-)
+   WatchlistPage (wl-) — 라이트 테마
    ══════════════════════════════════════════════════ */
-.wl-wrap { background:#0a0f1a !important; }
-.wl-body, .wl-card, .wl-panel { background:#0f172a !important; border-color:#1e293b !important; color:#e2e8f0 !important; }
-.wl-empty { background:#0f172a !important; border-color:#1e293b !important; color:#64748b !important; }
-.wl-empty p, .wl-empty span { color:#64748b !important; }
-.wl-row { border-color:#1e293b !important; color:#94a3b8 !important; }
-.wl-row:hover { background:rgba(255,255,255,.04) !important; }
-.wl-header { background:#111827 !important; border-color:#1e293b !important; color:#64748b !important; }
-.wl-name { color:#f1f5f9 !important; }
-.wl-price { color:#f1f5f9 !important; }
-.wl-btn { background:#1e293b !important; border-color:#334155 !important; color:#94a3b8 !important; }
-.wl-btn:hover { border-color:#2563eb !important; color:#60a5fa !important; }
-.wl-btn.primary { background:#2563eb !important; border-color:#2563eb !important; color:white !important; }
-.wl-tab { background:transparent !important; border-color:#334155 !important; color:#94a3b8 !important; }
-.wl-tab.active { background:#2563eb !important; color:white !important; border-color:#2563eb !important; }
-.wl-chip { background:#1e293b !important; border-color:#334155 !important; color:#94a3b8 !important; }
-.wl-chip.active { background:rgba(37,99,235,.15) !important; border-color:#2563eb !important; color:#60a5fa !important; }
-.wl-input, .wl-search { background:#0f172a !important; border-color:#334155 !important; color:#f1f5f9 !important; }
+.wl-wrap { background: var(--bg-base)  !important; }
+.wl-body, .wl-card, .wl-panel { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.wl-empty { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.wl-empty p, .wl-empty span { color: var(--text-secondary) !important; }
+.wl-row { border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.wl-row:hover { background: var(--bg-hover) !important; }
+.wl-header { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.wl-name  { color: var(--text-primary)   !important; }
+.wl-price { color: var(--text-primary)   !important; }
+.wl-btn { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.wl-btn:hover { border-color: var(--accent-mid) !important; color: var(--accent-mid) !important; }
+.wl-btn.primary { background: var(--accent-mid) !important; border-color: var(--accent-mid) !important; color: white !important; }
+.wl-tab { background: transparent !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.wl-tab.active { background: var(--accent-mid) !important; color: white !important; border-color: var(--accent-mid) !important; }
+.wl-chip { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.wl-chip.active { background: var(--accent-light) !important; border-color: var(--accent-mid) !important; color: var(--accent-mid) !important; }
+.wl-input, .wl-search { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
 
 /* ══════════════════════════════════════════════════
-   PortfolioPage (pp-)
+   PortfolioPage (pp-) — 라이트 테마
    ══════════════════════════════════════════════════ */
-.pp-wrap { background:#0a0f1a !important; }
-.pp-card, .pp-panel { background:#111827 !important; border-color:#1e293b !important; color:#e2e8f0 !important; }
-.pp-header { background:#0f172a !important; border-color:#1e293b !important; color:#f1f5f9 !important; }
-.pp-row { border-color:#1e293b !important; color:#94a3b8 !important; }
-.pp-row:hover { background:rgba(255,255,255,.04) !important; }
-.pp-summary-card { background:#111827 !important; border-color:#1e293b !important; }
-.pp-summary-label { color:#64748b !important; }
-.pp-summary-val { color:#f1f5f9 !important; font-weight:700 !important; }
-.pp-table-row:hover { background:rgba(255,255,255,.04) !important; }
-.pp-stock-name { color:#e2e8f0 !important; }
-.pp-stock-code { color:#64748b !important; }
-.pp-buy-price, .pp-cur-price { color:#e2e8f0 !important; }
-.pp-profit.plus  { color:#ef4444 !important; }
-.pp-profit.minus { color:#3b82f6 !important; }
-.pp-bar { background:#334155 !important; }
-.pp-bar-fill { background:#2563eb !important; }
-.pp-tab { background:transparent !important; border-color:#334155 !important; color:#94a3b8 !important; }
-.pp-tab.active { background:#2563eb !important; color:white !important; }
-.pp-btn { background:#1e293b !important; border-color:#334155 !important; color:#94a3b8 !important; }
-.pp-input { background:#0f172a !important; border-color:#334155 !important; color:#f1f5f9 !important; }
-.pp-empty { color:#64748b !important; }
+.pp-wrap { background: var(--bg-base)  !important; }
+.pp-card, .pp-panel { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.pp-header { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.pp-row { border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.pp-row:hover { background: var(--bg-hover) !important; }
+.pp-summary-card  { background: var(--bg-base)  !important; border-color: var(--border) !important; }
+.pp-summary-label { color: var(--text-secondary) !important; }
+.pp-summary-val   { color: var(--text-primary)   !important; font-weight: 700 !important; }
+.pp-table-row:hover { background: var(--bg-hover) !important; }
+.pp-stock-name  { color: var(--text-primary)   !important; }
+.pp-stock-code  { color: var(--text-secondary) !important; }
+.pp-buy-price, .pp-cur-price { color: var(--text-primary) !important; }
+.pp-profit.plus  { color: var(--color-up)   !important; }
+.pp-profit.minus { color: var(--color-down) !important; }
+.pp-bar      { background: var(--border)     !important; }
+.pp-bar-fill { background: var(--accent-mid) !important; }
+.pp-tab { background: transparent !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.pp-tab.active { background: var(--accent-mid) !important; color: white !important; }
+.pp-btn   { background: var(--bg-base)  !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.pp-input { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary)   !important; }
+.pp-empty { color: var(--text-secondary) !important; }
 
 /* ══════════════════════════════════════════════════
-   TradingLogPage (tl-)
+   TradingLogPage (tl-) — 라이트 테마
    ══════════════════════════════════════════════════ */
-.tl-wrap { background:#0a0f1a !important; }
-.tl-card, .tl-panel { background:#111827 !important; border-color:#1e293b !important; color:#e2e8f0 !important; }
-.tl-header { background:#111827 !important; border-color:#1e293b !important; }
-.tl-row { border-color:#1e293b !important; color:#94a3b8 !important; }
-.tl-table-header { background:#111827 !important; border-color:#1e293b !important; color:#64748b !important; }
-.tl-btn { background:#1e293b !important; border-color:#334155 !important; color:#94a3b8 !important; }
-.tl-input, .tl-date-input { background:#0f172a !important; border-color:#334155 !important; color:#f1f5f9 !important; }
-input[type="date"] { background:#0f172a !important; border:1px solid #334155 !important; color:#f1f5f9 !important; padding:6px 10px !important; border-radius:8px !important; }
-input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(1) !important; }
+.tl-wrap { background: var(--bg-base) !important; }
+.tl-card, .tl-panel { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+.tl-header { background: var(--bg-base) !important; border-color: var(--border) !important; }
+.tl-row { border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.tl-table-header { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.tl-btn   { background: var(--bg-base)  !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.tl-input, .tl-date-input { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+input[type="date"] { background: var(--bg-panel) !important; border: 1px solid var(--border) !important; color: var(--text-primary) !important; padding: 6px 10px !important; border-radius: 8px !important; }
+input[type="date"]::-webkit-calendar-picker-indicator { filter: none !important; }
 
 /* ══════════════════════════════════════════════════
-   MemoPage (mp-wrap 은 MarketPage와 구분)
+   MemoPage — 라이트 테마
    ══════════════════════════════════════════════════ */
-.memo-wrap, .mp-page-wrap { background:#0a0f1a !important; }
+.memo-wrap, .mp-page-wrap { background: var(--bg-base) !important; }
 
 /* ══════════════════════════════════════════════════
-   NewsPage (np-/news-)
+   NewsPage (np-/news-) — 라이트 테마
    ══════════════════════════════════════════════════ */
-[class*="news-card"],[class*="news-item"],[class*="np-card"],[class*="np-item"] { background:#111827 !important; border-color:#1e293b !important; color:#e2e8f0 !important; }
-[class*="news-title"],[class*="np-title"] { color:#f1f5f9 !important; }
-[class*="news-body"],[class*="np-body"] { background:#0f172a !important; border-color:#1e293b !important; }
-[class*="news-section"],[class*="np-section"],[class*="news-wrap"],[class*="np-wrap"] { background:#0a0f1a !important; }
-[class*="news-ai"],[class*="np-ai"] { background:rgba(37,99,235,.06) !important; border-color:rgba(37,99,235,.2) !important; color:#94a3b8 !important; }
-[class*="news-link"],[class*="np-link"] { background:#111827 !important; border-color:#1e293b !important; color:#60a5fa !important; }
-[class*="news-link"]:hover { background:rgba(37,99,235,.1) !important; }
+[class*="news-card"],[class*="news-item"],[class*="np-card"],[class*="np-item"] { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+[class*="news-title"],[class*="np-title"] { color: var(--text-primary) !important; }
+[class*="news-body"],[class*="np-body"] { background: var(--bg-panel) !important; border-color: var(--border) !important; }
+[class*="news-section"],[class*="np-section"],[class*="news-wrap"],[class*="np-wrap"] { background: var(--bg-base) !important; }
+[class*="news-ai"],[class*="np-ai"] { background: var(--accent-light) !important; border-color: rgba(37,99,235,.2) !important; color: var(--text-secondary) !important; }
+[class*="news-link"],[class*="np-link"] { background: var(--bg-base) !important; border-color: var(--border) !important; color: var(--accent-mid) !important; }
+[class*="news-link"]:hover { background: var(--bg-hover) !important; }
 
 /* ══════════════════════════════════════════════════
-   ChartAnalysisPage (cap-/smc-/fc-)
+   ChartAnalysisPage (cap-/smc-) — 라이트 테마
    ══════════════════════════════════════════════════ */
-.cap-search-box { background:#0f172a !important; border-color:#1e293b !important; }
-.cap-search-input { color:#f1f5f9 !important; }
-.cap-body { background:#0f172a !important; border-color:#1e293b !important; }
-.cap-dropdown { background:#0f172a !important; border-color:#334155 !important; }
-.cap-dd-item:hover { background:rgba(255,255,255,.05) !important; }
-.cap-dd-name { color:#f1f5f9 !important; }
-.cap-chip { background:#0f172a !important; border-color:#334155 !important; color:#94a3b8 !important; }
-.cap-stock-name { color:#f1f5f9 !important; }
-.cap-stock-header { background:rgba(255,255,255,.02) !important; border-color:#1e293b !important; }
-.smc-modal { background:#0f172a !important; border-color:#1e293b !important; }
-.smc-header { background:#0f172a !important; border-color:#1e293b !important; }
-.smc-name { color:#f1f5f9 !important; }
-.smc-controls,.smc-ctrl-row1,.smc-ctrl-row2 { background:#0f172a !important; border-color:#1e293b !important; }
-.smc-tab { background:#1e293b !important; border-color:#334155 !important; color:#94a3b8 !important; }
-.smc-tab.active { background:#2563eb !important; border-color:#2563eb !important; color:white !important; }
-.smc-info-bar { background:#080d17 !important; border-color:#1e293b !important; }
-.smc-info-label { color:#475569 !important; }
-.smc-info-value { color:#e2e8f0 !important; }
-.smc-news-panel { background:#0f172a !important; }
-.smc-news-item { border-color:#1a2540 !important; }
-.smc-news-item:hover { background:rgba(255,255,255,.03) !important; }
-.smc-news-item-title { color:#e2e8f0 !important; }
-.smc-news-popup { background:#0f172a !important; }
+.cap-search-box   { background: var(--bg-panel) !important; border-color: var(--border) !important; }
+.cap-search-input { color: var(--text-primary)  !important; }
+.cap-body         { background: var(--bg-panel) !important; border-color: var(--border) !important; }
+.cap-dropdown     { background: var(--bg-panel) !important; border-color: var(--border) !important; }
+.cap-dd-item:hover{ background: var(--bg-hover) !important; }
+.cap-dd-name      { color: var(--text-primary)  !important; }
+.cap-chip         { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.cap-stock-name   { color: var(--text-primary)  !important; }
+.cap-stock-header { background: var(--bg-base)  !important; border-color: var(--border) !important; }
+.smc-modal        { background: var(--bg-panel) !important; border-color: var(--border) !important; }
+.smc-header       { background: var(--bg-base)  !important; border-color: var(--border) !important; }
+.smc-name         { color: var(--text-primary)  !important; }
+.smc-controls, .smc-ctrl-row1, .smc-ctrl-row2 { background: var(--bg-panel) !important; border-color: var(--border) !important; }
+.smc-tab          { background: var(--bg-base)  !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.smc-tab.active   { background: var(--accent-mid) !important; border-color: var(--accent-mid) !important; color: white !important; }
+.smc-info-bar     { background: var(--bg-base)  !important; border-color: var(--border) !important; }
+.smc-info-label   { color: var(--text-dim)      !important; }
+.smc-info-value   { color: var(--text-primary)  !important; }
+.smc-news-panel   { background: var(--bg-panel) !important; }
+.smc-news-item    { border-color: var(--border) !important; }
+.smc-news-item:hover       { background: var(--bg-hover)  !important; }
+.smc-news-item-title       { color: var(--text-primary)   !important; }
+.smc-news-popup            { background: var(--bg-panel)  !important; }
 
 /* ══════════════════════════════════════════════════
    사이드바 하단 유저정보 + 바로가기
