@@ -57,20 +57,11 @@ export function useStockList() {
       return
     }
 
-    // EC2에서 전체 종목 로드
-    const EC2_URL = import.meta.env.VITE_RELAY_URL || 'http://3.38.37.78:3001'
-
+    // Vercel 프록시 경유 (HTTPS → HTTP Mixed Content 방지)
+    // EC2 직접 호출 불가: Vercel=HTTPS, EC2=HTTP → 브라우저 차단
     Promise.allSettled([
-      fetch(`${EC2_URL}/stocks/list`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ market: 'kospi' }),
-      }).then(r => r.json()),
-      fetch(`${EC2_URL}/stocks/list`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ market: 'kosdaq' }),
-      }).then(r => r.json()),
+      fetch(`/api/kiwoom?type=stocks-list&market=kospi`).then(r => r.json()),
+      fetch(`/api/kiwoom?type=stocks-list&market=kosdaq`).then(r => r.json()),
     ]).then(([kospiRes, kosdaqRes]) => {
       const merged = new Map()
 

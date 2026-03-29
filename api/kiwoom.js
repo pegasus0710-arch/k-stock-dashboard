@@ -271,6 +271,12 @@ export default async function handler(req, res) {
     }, res)
   }
 
+  // 전체 종목 리스트 — /api/kiwoom?type=stocks-list&market=kospi
+  // market: kospi | kosdaq
+  if (q.type === 'stocks-list') {
+    return relay('/stocks/list', { market: q.market || 'kospi' }, res)
+  }
+
   return res.status(400).json({
     error: 'Invalid type',
     valid: [
