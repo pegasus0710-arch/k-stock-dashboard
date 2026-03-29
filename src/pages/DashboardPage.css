@@ -205,6 +205,10 @@
 .db-card-group-items.domestic-items {
   grid-template-columns: repeat(2, 1fr);
 }
+/* 국내지수 그룹 전체 — 높이 내용물에 맞춤 */
+.db-card-group:has(.domestic-items) {
+  align-self: start;
+}
 /* 해외지수 그룹 — 4개 카드 2×2 */
 .db-card-group-items.global-items {
   grid-template-columns: repeat(2, 1fr);
@@ -1021,10 +1025,10 @@
 }
 .db-semi-labels {
   display: flex; justify-content: space-between;
-  font-size: 9px; color: var(--text-dim);
+  font-size: 8px; color: var(--text-dim);
   margin-top: 2px; padding: 0 4px;
 }
-.db-semi-labels span { text-align: center; }
+.db-semi-labels span { text-align: center; font-size: 8px; font-weight: 700; }
 
 /* ── USD/KRW 컬러 레인지 바 ─────────────────────────── */
 .db-forex-range-wrap { padding: 2px 0; }
@@ -1251,9 +1255,6 @@
 .db-semi-wrap svg {
   max-height: 80px;
 }
-.db-semi-labels {
-  font-size: 8px !important;
-}
 
 /* ── 원자재 카드 높이 균등 + 스파크라인 하단 채움 ── */
 .db-commodity-grid {
@@ -1326,7 +1327,6 @@
 .db-commodity-price  { font-size: 11px; font-weight: 800; color: var(--text-primary) !important; }
 .db-commodity-rate   { font-size: 10px; font-weight: 700; }
 .db-idx-price        { font-size: 16px; font-weight: 800; color: var(--text-primary) !important; }
-.db-semi-labels span { font-size: 8px; color: var(--text-secondary) !important; font-weight: 700; }
 
 /* ── 해외지수 카드 높이 국내지수와 맞추기 ─────────── */
 .db-global-grid .db-idx-card {

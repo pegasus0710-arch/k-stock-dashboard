@@ -509,7 +509,9 @@ export default function DashboardPage() {
 
           // ── 나머지 그룹: 기존 카드 렌더링 ──
           return (
-          <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
+          <div key={group.id}
+            className="db-card-group"
+            style={{'--group-accent':group.accent, ...(group.id==='domestic'?{alignSelf:'start'}:{})}}>
             <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
             <div className={`db-card-group-items ${group.id==='domestic'?'domestic-items':group.id==='bond'?'bond-items':''}`}>
               {group.items.map(item=>{
