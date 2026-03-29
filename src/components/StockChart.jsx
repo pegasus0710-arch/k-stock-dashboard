@@ -470,13 +470,29 @@ export function CandleSvg({
       onMouseMove={handleMouseMove} onMouseLeave={()=>setTooltip(null)}
       onClick={handleClick}>
 
-      {/* Y축 눈금 */}
+      {/* Y축 눈금 (좌) */}
       {yTicks.map((v,i)=>(
         <g key={i}>
           <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(v)} y2={toY(v)} stroke="rgba(15,23,42,0.07)" strokeWidth={0.5} strokeDasharray="3,3"/>
           <text x={PAD.left-5} y={toY(v)+4} textAnchor="end" fontSize={10} fill="#94a3b8">{fmtN(Math.round(v))}</text>
         </g>
       ))}
+
+      {/* Y축 우측 현재가 레이블 */}
+      {data[n-1]?.close&&(()=>{
+        const lastClose=data[n-1].close
+        const lastOpen=data[n-1].open
+        const isUp=lastClose>=lastOpen
+        const y=toY(lastClose)
+        if(y<PAD.top||y>PAD.top+PRICE_H) return null
+        return (
+          <g>
+            <line x1={PAD.left+chartW} x2={PAD.left+chartW+4} y1={y} y2={y} stroke={isUp?'#ef4444':'#2563eb'} strokeWidth={1}/>
+            <rect x={PAD.left+chartW+4} y={y-8} width={PAD.right-6} height={16} rx={3} fill={isUp?'#ef4444':'#2563eb'}/>
+            <text x={PAD.left+chartW+7} y={y+4} fontSize={9} fill="white" fontWeight="700">{fmtN(Math.round(lastClose))}</text>
+          </g>
+        )
+      })()}
 
       {/* X축 날짜 */}
       {data.filter((_,i)=>i%xStep===0).map((c,i)=>(
@@ -503,16 +519,17 @@ export function CandleSvg({
         <polyline points={bollBands.upPts}  fill="none" stroke="#6366f1" strokeWidth={1} opacity={0.6} strokeDasharray="3,2"/>
         <polyline points={bollBands.midPts} fill="none" stroke="#6366f1" strokeWidth={0.8} opacity={0.35} strokeDasharray="2,3"/>
         <polyline points={bollBands.loPts}  fill="none" stroke="#6366f1" strokeWidth={1} opacity={0.6} strokeDasharray="3,2"/>
-        {/* %b 현재값 표시 */}
+        {/* %b 현재값 — 우상단 고정 표시 */}
         {bollBands.pctB!=null&&(()=>{
           const pctB=bollBands.pctB
           const isHot=pctB>=1, isCold=pctB<=0
           const col=isHot?'#ef4444':isCold?'#3b82f6':'#6366f1'
-          const label=`%b ${(pctB*100).toFixed(0)}`
           return (
             <g>
-              <rect x={PAD.left+chartW+2} y={toY(data[n-1]?.close||0)-8} width={44} height={14} rx={3} fill={col} opacity={0.9}/>
-              <text x={PAD.left+chartW+4} y={toY(data[n-1]?.close||0)+3} fontSize={9} fill="white" fontWeight="700">{label}</text>
+              <rect x={PAD.left+chartW-52} y={PAD.top+2} width={50} height={16} rx={3} fill={col} opacity={0.88}/>
+              <text x={PAD.left+chartW-50} y={PAD.top+13} fontSize={10} fill="white" fontWeight="700">
+                {`%b ${(pctB*100).toFixed(0)}`}
+              </text>
             </g>
           )
         })()}
@@ -520,12 +537,20 @@ export function CandleSvg({
 
       {/* 52주 고저선 */}
       {week52&&(<>
-        <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(week52.high)} y2={toY(week52.high)}
-          stroke="#dc2626" strokeWidth={1} strokeDasharray="5,4" opacity={0.5}/>
-        <text x={PAD.left+chartW+3} y={toY(week52.high)+4} fontSize={9} fill="#dc2626" fontWeight="700">52H</text>
-        <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(week52.low)} y2={toY(week52.low)}
-          stroke="#2563eb" strokeWidth={1} strokeDasharray="5,4" opacity={0.5}/>
-        <text x={PAD.left+chartW+3} y={toY(week52.low)+4} fontSize={9} fill="#2563eb" fontWeight="700">52L</text>
+        {/* 52주 최고가 — Y축 범위 내에 있을 때만 표시 */}
+        {week52.high>=yMin&&week52.high<=yMax&&(<>
+          <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(week52.high)} y2={toY(week52.high)}
+            stroke="#dc2626" strokeWidth={1} strokeDasharray="5,4" opacity={0.55}/>
+          <rect x={PAD.left} y={toY(week52.high)-9} width={28} height={12} rx={2} fill="#dc2626" opacity={0.85}/>
+          <text x={PAD.left+4} y={toY(week52.high)+1} fontSize={8} fill="white" fontWeight="700">52H</text>
+        </>)}
+        {/* 52주 최저가 */}
+        {week52.low>=yMin&&week52.low<=yMax&&(<>
+          <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(week52.low)} y2={toY(week52.low)}
+            stroke="#2563eb" strokeWidth={1} strokeDasharray="5,4" opacity={0.55}/>
+          <rect x={PAD.left} y={toY(week52.low)-1} width={28} height={12} rx={2} fill="#2563eb" opacity={0.85}/>
+          <text x={PAD.left+4} y={toY(week52.low)+9} fontSize={8} fill="white" fontWeight="700">52L</text>
+        </>)}
       </>)}
 
       {/* 캔들 */}
