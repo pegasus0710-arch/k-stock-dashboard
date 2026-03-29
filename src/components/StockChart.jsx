@@ -75,17 +75,45 @@ export function calcMA(data, p) {
 
 function fmtDateLabel(s, period) {
   const d = String(s||'')
-  if (period==='min') return d.length>=4 ? d.slice(0,2)+':'+d.slice(2,4) : d
-  if (d.length===8) return d.slice(4,6)+'/'+d.slice(6,8)
-  return d
+  if (!d || d.length < 4) return d
+  if (period === 'min')   return d.length >= 12 ? d.slice(8,10)+':'+d.slice(10,12) : d.slice(0,2)+':'+d.slice(2,4)
+  if (period === 'year')  return d.slice(0, 4)                      // 2023
+  if (period === 'month') return d.slice(2,4)+'/'+d.slice(4,6)      // 24/03
+  if (period === 'week')  return d.slice(4,6)+'/'+d.slice(6,8)      // 03/24
+  if (period === 'day')   return d.slice(4,6)+'/'+d.slice(6,8)      // 03/24
+  return d.slice(4,6)+'/'+d.slice(6,8)
 }
 
 export function normalizeCandles(items, period, isDataKey) {
   const raw = items.map(c => {
     const dateStr = String(c.date||c.dt||c.cntr_tm||c.time||'')
+    let dayKey = '', timeLabel = '', label = ''
+
+    if (period === 'min') {
+      // cntr_tm = "YYYYMMDDHHMMSS" (14자리) 또는 "HHMMSS" (6자리)
+      if (dateStr.length >= 12) {
+        // 14자리: 20260328092500 → dayKey=20260328, time=09:25
+        dayKey    = dateStr.slice(0, 8)
+        timeLabel = dateStr.slice(8, 10) + ':' + dateStr.slice(10, 12)
+      } else if (dateStr.length === 8) {
+        // 8자리 = 날짜만 YYYYMMDD → 시간 없음
+        dayKey    = dateStr
+        timeLabel = '--:--'
+      } else if (dateStr.length >= 4) {
+        // 6자리: HHMMSS → 092500 → 09:25
+        dayKey    = ''
+        timeLabel = dateStr.slice(0, 2) + ':' + dateStr.slice(2, 4)
+      }
+      label = timeLabel
+    } else {
+      label = fmtDateLabel(dateStr, period)
+    }
+
     return {
-      date:   dateStr,
-      label:  fmtDateLabel(dateStr, period),
+      date:      dateStr,
+      dayKey,
+      timeLabel,
+      label,
       open:   Math.abs(parseN(c.open   ?? c.open_pric  ?? 0)),
       high:   Math.abs(parseN(c.high   ?? c.high_pric  ?? 0)),
       low:    Math.abs(parseN(c.low    ?? c.low_pric   ?? 0)),
@@ -371,6 +399,7 @@ export function CandleSvg({
   showSupply=false, supplyData, supplyLoading,
   showVolume=true,
   showBollinger=false, week52=null,
+  period='day',
 }) {
   const svgRef = useRef(null)
   const [tooltip, setTooltip] = useState(null)
@@ -413,7 +442,11 @@ export function CandleSvg({
   let ytick = Math.ceil(yMin/yStep)*yStep
   while(ytick<=yMax){yTicks.push(ytick);ytick+=yStep}
 
-  const xStep = Math.max(1, Math.ceil(n/8))
+  // 기간별 X축 간격 조정
+  const xStep = period==='year'  ? Math.max(1, Math.ceil(n/6))   // 년봉: 최대 6개
+              : period==='month' ? Math.max(1, Math.ceil(n/10))  // 월봉: 최대 10개
+              : period==='week'  ? Math.max(1, Math.ceil(n/10))  // 주봉: 최대 10개
+              : Math.max(1, Math.ceil(n/8))                      // 일봉: 최대 8개
 
   const maLines = showMA ? MA_SETTINGS.filter(m=>enabledMA.has(m.p)).map(({p,color})=>{
     const vals=calcMA(data,p)
@@ -510,10 +543,39 @@ export function CandleSvg({
         )
       })()}
 
-      {/* X축 날짜 */}
-      {data.filter((_,i)=>i%xStep===0).map((c,i)=>(
-        <text key={i} x={bx(data.indexOf(c))} y={PAD.top+PRICE_H+VOL_GAP+VOL_H+20} textAnchor="middle" fontSize={10} fill="#94a3b8">{c.label}</text>
-      ))}
+      {/* X축 날짜/시간 */}
+      {period==='min' ? (
+        // 분봉: 날짜 경계 = 날짜 표시, 같은 날 = 시간 표시
+        data.map((c,i)=>{
+          if(i%xStep!==0) return null
+          const prevDay=i>0?data[i-1].dayKey:null
+          const isNewDay=c.dayKey&&c.dayKey!==prevDay
+          const txt=isNewDay
+            ? (c.dayKey.slice(4,6)+'/'+c.dayKey.slice(6,8))
+            : c.timeLabel
+          return (
+            <g key={i}>
+              {isNewDay&&<line x1={bx(i)} x2={bx(i)} y1={PAD.top} y2={PAD.top+PRICE_H+VOL_H+VOL_GAP}
+                stroke="rgba(15,23,42,0.12)" strokeWidth={0.8} strokeDasharray="2,3"/>}
+              <text x={bx(i)} y={PAD.top+PRICE_H+VOL_GAP+VOL_H+20} textAnchor="middle"
+                fontSize={isNewDay?10:9} fill={isNewDay?'#475569':'#94a3b8'}
+                fontWeight={isNewDay?'700':'400'}>{txt}</text>
+            </g>
+          )
+        })
+      ) : (
+        // 일봉/주봉/월봉/년봉: period에 맞는 레이블
+        data.filter((_,i)=>i%xStep===0).map((c,i)=>{
+          const lbl = fmtDateLabel(c.date, period)
+          const isYear = period==='year'
+          return (
+            <text key={i} x={bx(data.indexOf(c))} y={PAD.top+PRICE_H+VOL_GAP+VOL_H+20}
+              textAnchor="middle" fontSize={isYear?11:10}
+              fill={isYear?'#475569':'#94a3b8'}
+              fontWeight={isYear?'600':'400'}>{lbl}</text>
+          )
+        })
+      )}
 
       {/* ── 차트 영역 클리핑 그룹 ── */}
       <g clipPath="url(#price-area)">
@@ -557,24 +619,34 @@ export function CandleSvg({
         <polyline points={bollBands.loPts}  fill="none" stroke="#6366f1" strokeWidth={1} opacity={0.6} strokeDasharray="3,2"/>
       </>)}
 
-      {/* 52주 고저선 (클립 안) */}
+      {/* 차트 구간 고저가 선 */}
       {week52&&(<>
         {week52.high>=yMin&&week52.high<=yMax&&(()=>{
           const y=toY(week52.high)
           const ry=Math.max(PAD.top+1, y-9)
+          const priceStr=fmtN(Math.round(week52.high))
+          const bw=Math.max(36, priceStr.length*6+10)
           return (<>
-            <line x1={PAD.left} x2={PAD.left+chartW} y1={y} y2={y} stroke="#dc2626" strokeWidth={1} strokeDasharray="5,4" opacity={0.55}/>
-            <rect x={PAD.left+2} y={ry} width={28} height={12} rx={2} fill="#dc2626" opacity={0.85}/>
-            <text x={PAD.left+6} y={ry+9} fontSize={8} fill="white" fontWeight="700">52H</text>
+            <line x1={PAD.left} x2={PAD.left+chartW} y1={y} y2={y}
+              stroke="#dc2626" strokeWidth={1} strokeDasharray="5,4" opacity={0.55}/>
+            <rect x={PAD.left+2} y={ry} width={bw} height={12} rx={2} fill="#dc2626" opacity={0.85}/>
+            <text x={PAD.left+6} y={ry+9} fontSize={8} fill="white" fontWeight="700">
+              ▲ {priceStr}
+            </text>
           </>)
         })()}
         {week52.low>=yMin&&week52.low<=yMax&&(()=>{
           const y=toY(week52.low)
           const ry=Math.min(PAD.top+PRICE_H-13, y-1)
+          const priceStr=fmtN(Math.round(week52.low))
+          const bw=Math.max(36, priceStr.length*6+10)
           return (<>
-            <line x1={PAD.left} x2={PAD.left+chartW} y1={y} y2={y} stroke="#2563eb" strokeWidth={1} strokeDasharray="5,4" opacity={0.55}/>
-            <rect x={PAD.left+2} y={ry} width={28} height={12} rx={2} fill="#2563eb" opacity={0.85}/>
-            <text x={PAD.left+6} y={ry+9} fontSize={8} fill="white" fontWeight="700">52L</text>
+            <line x1={PAD.left} x2={PAD.left+chartW} y1={y} y2={y}
+              stroke="#2563eb" strokeWidth={1} strokeDasharray="5,4" opacity={0.55}/>
+            <rect x={PAD.left+2} y={ry} width={bw} height={12} rx={2} fill="#2563eb" opacity={0.85}/>
+            <text x={PAD.left+6} y={ry+9} fontSize={8} fill="white" fontWeight="700">
+              ▼ {priceStr}
+            </text>
           </>)
         })()}
       </>)}

@@ -313,8 +313,14 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
   const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
 
   const { allData, loading } = useStockChart({ code:stock.code, period, scope, minDays })
-  const candles = useMemo(()=>period==='min'?allData:filterByRange(allData,range),[allData,range,period])
-  const chartH  = Math.max(400, window.innerHeight - 200)
+  const candles = useMemo(()=>{
+    if(period!=='min') return filterByRange(allData,range)
+    // 분봉: dayKey 기준으로 최근 minDays 영업일만 필터
+    const days=[...new Set(allData.map(c=>c.dayKey).filter(Boolean))].sort()
+    if(!days.length) return allData
+    const cutDay=days.at(-minDays)||days[0]
+    return allData.filter(c=>!c.dayKey||(c.dayKey>=cutDay))
+  },[allData,range,period,minDays])
 
   useEffect(()=>{ if(!wrapEl) return; const ro=new ResizeObserver(([e])=>setWidth(e.contentRect.width)); ro.observe(wrapEl); setWidth(wrapEl.clientWidth); return()=>ro.disconnect() },[wrapEl])
   useEffect(()=>{ const fn=e=>e.key==='Escape'&&onClose(); window.addEventListener('keydown',fn); return()=>window.removeEventListener('keydown',fn) },[onClose])
@@ -378,7 +384,7 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
       )}
       <div className="cap-fs-body" ref={setWrapEl}>
         {loading&&<div className="cap-fs-loading"><div className="cap-spinner"/>불러오는 중...</div>}
-        {!loading&&candles.length>0&&<CandleSvg data={candles} width={width} height={chartH} showMA={showMA} enabledMA={enabledMA} drawings={drawings} onSvgClick={handleSvgClick} drawTool={drawTool} selectedIdx={selIdx} onSelectDrawing={setSelIdx}/>}
+        {!loading&&candles.length>0&&<CandleSvg data={candles} width={width} height={chartH} showMA={showMA} enabledMA={enabledMA} drawings={drawings} onSvgClick={handleSvgClick} drawTool={drawTool} selectedIdx={selIdx} onSelectDrawing={setSelIdx} period={period}/>}
         {!loading&&!candles.length&&<div style={{padding:80,textAlign:'center',color:'var(--text-secondary)'}}>데이터가 없습니다</div>}
         {fsShowSupply&&fsSupplyData&&<SupplySubChart supplyData={fsSupplyData} candles={candles}/>}
         {fsShowSupply&&fsSupplyLoad&&<div style={{padding:12,textAlign:'center',background:'var(--bg-base)',color:'var(--text-secondary)',fontSize:12}}><div className="cap-spinner" style={{display:'inline-block',marginRight:6}}/>수급 로딩 중...</div>}
@@ -463,12 +469,36 @@ export default function ChartAnalysisPage() {
 
   // ── 차트 데이터 ───────────────────────────────────
   const { allData, loading: chartLoading } = useStockChart({ code:selected?.code, period, scope, minDays, enabled:!!selected })
-  const candles = useMemo(()=>period==='min'?allData:filterByRange(allData,range),[allData,range,period])
+  const candles = useMemo(()=>{
+    if(period!=='min') return filterByRange(allData,range)
+    const days=[...new Set(allData.map(c=>c.dayKey).filter(Boolean))].sort()
+    if(!days.length) return allData
+    const cutDay=days.at(-minDays)||days[0]
+    return allData.filter(c=>!c.dayKey||(c.dayKey>=cutDay))
+  },[allData,range,period,minDays])
 
   // 52주 고저
+  // 차트 표시 구간 기준 고저가 (allData 전체가 아닌 현재 candles 기준)
+  const chartHighLow = useMemo(()=>{
+    if(!candles.length) return null
+    const hi=candles.map(c=>c.high).filter(v=>v>0)
+    const lo=candles.map(c=>c.low).filter(v=>v>0)
+    return hi.length&&lo.length?{high:Math.max(...hi),low:Math.min(...lo)}:null
+  },[candles])
+
+  // 진짜 52주 고저 — 날짜 기준 1년 필터 (period 무관)
   const week52 = useMemo(()=>{
     if(!allData.length) return null
-    const hi=allData.map(c=>c.high).filter(v=>v>0), lo=allData.map(c=>c.low).filter(v=>v>0)
+    const oneYearAgo=new Date(); oneYearAgo.setFullYear(oneYearAgo.getFullYear()-1)
+    const cutStr=oneYearAgo.toISOString().slice(0,10).replace(/-/g,'')
+    // date 필드 기준 최근 1년치 봉만
+    const recent=allData.filter(c=>{
+      const d=String(c.date||'').slice(0,8)
+      return d.length===8&&d>=cutStr
+    })
+    const src=recent.length>=10?recent:allData  // 1년치 없으면 전체 사용
+    const hi=src.map(c=>c.high).filter(v=>v>0)
+    const lo=src.map(c=>c.low).filter(v=>v>0)
     return hi.length&&lo.length?{high:Math.max(...hi),low:Math.min(...lo)}:null
   },[allData])
 
@@ -898,7 +928,7 @@ export default function ChartAnalysisPage() {
                         showMA={showMA} enabledMA={enabledMA}
                         drawings={drawings} onSvgClick={handleInlineClick}
                         drawTool={drawTool} selectedIdx={selIdx} onSelectDrawing={setSelIdx}
-                        showBollinger={showBB} week52={week52}
+                        showBollinger={showBB} week52={chartHighLow} period={period}
                       />
                     </div>
                     {/* 보조지표 서브차트 */}
