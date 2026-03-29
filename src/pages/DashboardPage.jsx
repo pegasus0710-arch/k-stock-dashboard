@@ -117,8 +117,7 @@ export default function DashboardPage() {
     if(key) setWeekData(prev => ({...prev, [key]: {high52: high, low52: low}}))
   }, [])
   const handleSparkData = useCallback((id, closes) => {
-    const key = id === 'KOSPI' ? 'KOSPI' : id === 'KOSDAQ' ? 'KOSDAQ' : null
-    if(key) setSparkData(prev => ({...prev, [key]: closes}))
+    if(id && closes?.length) setSparkData(prev => ({...prev, [id]: closes}))
   }, [])
 
   const [selId,       setSelId]       = useState('KOSPI')
@@ -455,7 +454,7 @@ export default function DashboardPage() {
           return (
           <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
             <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-            <div className={`db-card-group-items ${group.id==='domestic'?'domestic-items':''}`}>
+            <div className={`db-card-group-items ${group.id==='domestic'?'domestic-items':group.id==='bond'?'bond-items':''}`}>
               {group.items.map(item=>{
                 if (item.type==='divider') return (
                   <div key={item.id} className="db-card-group-divider">{item.label}</div>

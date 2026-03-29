@@ -1197,3 +1197,32 @@
   flex-direction: column;
   align-items: center;
 }
+
+/* ── 채권·금리 — bond 그룹 2열 고정, SPREAD 전체 너비 ── */
+.db-card-group-items.bond-items {
+  grid-template-columns: repeat(2, 1fr);
+}
+.db-card-group-items.bond-items .spread-card {
+  grid-column: 1 / -1;
+}
+
+/* ── 심리·달러 VIX/DXY 게이지 크기 제한 ─────────── */
+.db-semi-wrap svg {
+  max-height: 80px;
+}
+.db-semi-labels {
+  font-size: 8px !important;
+}
+
+/* ── 원자재 카드 높이 균등 + 스파크라인 하단 채움 ── */
+.db-commodity-grid {
+  align-items: stretch;
+}
+.db-commodity-dot-card {
+  justify-content: space-between;
+  min-height: 120px;
+}
+.db-commodity-dot-card svg {
+  width: 100%;
+  margin-top: auto;
+}

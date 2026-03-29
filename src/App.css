@@ -1136,3 +1136,21 @@ html body .sidebar-user-email { color: var(--text-dim) !important; }
 .db-heatmap-cell.neutral .db-heatmap-cell-stocks { color: var(--text-dim) !important; }
 /* 기준일 배지 */
 .db-date-badge  { background: var(--bg-base) !important; color: var(--text-dim) !important; border-color: var(--border) !important; }
+
+/* ── 최종 라이트 강제 — 파일 맨 끝 (최우선) ─────── */
+.dash-date,
+.dash-title,
+.dash-header,
+.dash-header-row { background: transparent !important; color: var(--text-primary) !important; }
+.dash-date        { color: var(--text-secondary) !important; font-size: 11px !important; }
+
+/* 툴팁 아이콘 — 모든 다크 override 무효화 */
+.db-tooltip-icon {
+  background: var(--border) !important;
+  color: var(--text-secondary) !important;
+  border: 0.5px solid var(--border-dim) !important;
+}
+.db-tooltip-wrap:hover .db-tooltip-icon {
+  background: var(--accent-light) !important;
+  color: var(--accent-mid) !important;
+}
