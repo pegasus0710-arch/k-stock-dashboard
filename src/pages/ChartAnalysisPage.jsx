@@ -6,6 +6,7 @@ import {
 } from '../components/StockChart'
 import '../components/StockChart.css'
 import { useStockPrices } from '../hooks/useKiwoomPrice'
+import { useStockList }   from '../hooks/useStockList'
 import { fmt, fmtRate, getKstStatus } from '../utils/format'
 import { ALL_THEMES } from '../constants/themes'
 import './ChartAnalysisPage.css'
@@ -13,12 +14,12 @@ import FinancialChart from '../components/FinancialChart'
 
 const CLAUDE_KEY = import.meta.env.VITE_CLAUDE_API_KEY
 
-const STOCK_LIST = [...new Map(
-  ALL_THEMES.flatMap(t => [
-    ...t.etf.map(e   => ({ name:e.name, code:e.code, theme:t.label })),
-    ...t.stocks.map(s => ({ name:s.name, code:s.code, theme:t.label })),
-  ]).map(s => [s.code, s])
-).values()]
+// 테마 종목 맵 (market badge용)
+const THEME_LABEL_MAP = {}
+ALL_THEMES.forEach(t => {
+  t.etf.forEach(e    => { THEME_LABEL_MAP[e.code] = { theme: t.label, market: 'ETF'    } })
+  t.stocks.forEach(s => { THEME_LABEL_MAP[s.code] = { theme: t.label, market: 'KOSPI'  } })
+})
 
 const LS_RECENT    = 'cap_recent_v2'
 const LS_WATCHLIST = 'cap_watch_v2'
@@ -207,9 +208,14 @@ export default function ChartAnalysisPage() {
   const [query,     setQuery]     = useState('')
   const [results,   setResults]   = useState([])
   const [showDrop,  setShowDrop]  = useState(false)
+  const [dropIdx,   setDropIdx]   = useState(-1)   // 키보드 탐색 인덱스
   const [selected,  setSelected]  = useState(null)
   const [recent,    setRecent]    = useState(()=>lsGet(LS_RECENT,[]))
   const [watchlist, setWatchlist] = useState(()=>lsGet(LS_WATCHLIST,[]))
+  const searchInputRef = useRef(null)
+
+  // 전체 종목 리스트 (useStockList 훅)
+  const { stockList, loading: stockListLoading } = useStockList()
 
   // 차트 컨트롤
   const [period,    setPeriod]    = useState('day')
@@ -288,16 +294,55 @@ export default function ChartAnalysisPage() {
     ro.observe(chartWrap); setChartWidth(chartWrap.clientWidth); return ()=>ro.disconnect()
   },[chartWrap])
 
-  const search=q=>{
+  const search = q => {
     setQuery(q)
-    if (!q.trim()){setResults([]);setShowDrop(false);return}
-    const kw=q.toLowerCase()
-    setResults(STOCK_LIST.filter(s=>s.name.toLowerCase().includes(kw)||s.code.includes(kw)).slice(0,10))
+    setDropIdx(-1)
+    if (!q.trim()) { setResults([]); setShowDrop(false); return }
+    const kw = q.toLowerCase().replace(/\s/g,'')
+
+    const matched = stockList.filter(s =>
+      s.name.toLowerCase().replace(/\s/g,'').includes(kw) ||
+      s.code.includes(kw)
+    )
+
+    // 우선순위 정렬: 코드 정확일치 > 이름 시작 > 테마종목 > 나머지
+    const scored = matched.map(s => {
+      let score = 0
+      if (s.code === kw)                                          score = 100
+      else if (s.code.startsWith(kw))                            score = 80
+      else if (s.name.toLowerCase().startsWith(kw))              score = 60
+      else if (THEME_LABEL_MAP[s.code])                          score = 40
+      return { ...s, _score: score }
+    }).sort((a,b) => b._score - a._score).slice(0, 12)
+
+    setResults(scored)
     setShowDrop(true)
   }
 
-  const select=stock=>{
-    setSelected(stock); setQuery(stock.name); setShowDrop(false)
+  // 키보드 탐색 핸들러
+  const handleSearchKeyDown = e => {
+    if (!showDrop || !results.length) {
+      if (e.key === 'Escape') { setShowDrop(false); setDropIdx(-1) }
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setDropIdx(i => Math.min(i + 1, results.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setDropIdx(i => Math.max(i - 1, -1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (dropIdx >= 0 && results[dropIdx]) select(results[dropIdx])
+      else if (results.length > 0) select(results[0])
+    } else if (e.key === 'Escape') {
+      setShowDrop(false); setDropIdx(-1)
+    }
+  }
+
+  const select = stock => {
+    setSelected(stock); setQuery(stock.name)
+    setShowDrop(false); setDropIdx(-1)
     setAiResult(''); setAiError(''); setForeignData(null); setBasicInfo(null); setNewsData([])
     const d=lsGet(`${LS_DRAWINGS}_${stock.code}`,[])
     setDrawings(d); setDrawTool('none'); setDrawState(null)
@@ -429,7 +474,7 @@ export default function ChartAnalysisPage() {
                 const sign2=(p?.changeRate??0)>0?'+':''
                 const isSelected=selected?.code===code
                 // 종목명 찾기
-                const stockName = STOCK_LIST.find(s=>s.code===code)?.name||code
+                const stockName = stockList.find(s=>s.code===code)?.name||code
                 return (
                   <button key={code} className={`cap-wl-stock-item ${isSelected?'active':''}`}
                     onClick={()=>select({code,name:stockName,theme:'보유종목'})}>
@@ -482,31 +527,103 @@ export default function ChartAnalysisPage() {
       <div className="cap-search-section">
         <div className="cap-search-box">
           <span className="cap-search-icon">🔍</span>
-          <input className="cap-search-input" placeholder="종목명 또는 코드 검색 (예: 삼성전자, 005930)"
-            value={query} onChange={e=>search(e.target.value)}
-            onFocus={()=>query&&setShowDrop(true)}
-            onKeyDown={e=>e.key==='Escape'&&setShowDrop(false)}/>
-          {query&&<button className="cap-clear" onClick={()=>{setQuery('');setResults([]);setShowDrop(false)}}>✕</button>}
-          {showDrop&&results.length>0&&(
+          <input
+            ref={searchInputRef}
+            className="cap-search-input"
+            placeholder={stockListLoading ? '종목 목록 로딩 중...' : '종목명 또는 코드 검색 (예: 삼성전자, 005930)'}
+            value={query}
+            onChange={e => search(e.target.value)}
+            onFocus={() => query && setShowDrop(true)}
+            onKeyDown={handleSearchKeyDown}
+            onBlur={() => setTimeout(()=>setShowDrop(false), 150)}
+          />
+          {query && <button className="cap-clear" onClick={()=>{setQuery('');setResults([]);setShowDrop(false);setDropIdx(-1);searchInputRef.current?.focus()}}>✕</button>}
+
+          {showDrop && results.length > 0 && (
             <div className="cap-dropdown">
-              {results.map(s=>(
-                <button key={s.code} className="cap-dd-item" onClick={()=>select(s)}>
-                  <span className="cap-dd-name">{s.name}</span>
-                  <span className="cap-dd-code">{s.code}</span>
-                  <span className="cap-dd-theme">{s.theme}</span>
-                </button>
-              ))}
+              {/* 테마종목 그룹 */}
+              {results.filter(s => THEME_LABEL_MAP[s.code]).length > 0 && (
+                <>
+                  <div style={{padding:'4px 12px',fontSize:10,fontWeight:700,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:'.06em',background:'var(--bg-base)',borderBottom:'1px solid var(--border-dim)'}}>
+                    ⭐ 테마 종목
+                  </div>
+                  {results.filter(s => THEME_LABEL_MAP[s.code]).map((s,i) => {
+                    const idx = results.indexOf(s)
+                    const info = THEME_LABEL_MAP[s.code]
+                    return (
+                      <button key={s.code} className={`cap-dd-item ${dropIdx===idx?'hovered':''}`}
+                        style={dropIdx===idx?{background:'var(--bg-hover)'}:{}}
+                        onMouseEnter={()=>setDropIdx(idx)}
+                        onClick={()=>select(s)}>
+                        <span className="cap-dd-name">{s.name}</span>
+                        <span className="cap-dd-code">{s.code}</span>
+                        <span className="cap-dd-theme">{info.theme}</span>
+                        <span style={{fontSize:10,padding:'1px 6px',borderRadius:6,fontWeight:700,
+                          background: info.market==='ETF'?'rgba(124,58,237,.1)':'rgba(37,99,235,.1)',
+                          color: info.market==='ETF'?'#7c3aed':'var(--accent-mid)',
+                          border: `1px solid ${info.market==='ETF'?'rgba(124,58,237,.3)':'rgba(37,99,235,.2)'}`,
+                          marginLeft:'auto', flexShrink:0
+                        }}>{info.market}</span>
+                      </button>
+                    )
+                  })}
+                </>
+              )}
+              {/* 전체 종목 그룹 */}
+              {results.filter(s => !THEME_LABEL_MAP[s.code]).length > 0 && (
+                <>
+                  <div style={{padding:'4px 12px',fontSize:10,fontWeight:700,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:'.06em',background:'var(--bg-base)',borderBottom:'1px solid var(--border-dim)',borderTop:'1px solid var(--border-dim)'}}>
+                    📋 전체 종목
+                  </div>
+                  {results.filter(s => !THEME_LABEL_MAP[s.code]).map((s,i) => {
+                    const idx = results.indexOf(s)
+                    return (
+                      <button key={s.code} className="cap-dd-item"
+                        style={dropIdx===idx?{background:'var(--bg-hover)'}:{}}
+                        onMouseEnter={()=>setDropIdx(idx)}
+                        onClick={()=>select(s)}>
+                        <span className="cap-dd-name">{s.name}</span>
+                        <span className="cap-dd-code">{s.code}</span>
+                        <span style={{fontSize:10,padding:'1px 6px',borderRadius:6,fontWeight:700,
+                          background:'var(--bg-base)', color:'var(--text-dim)',
+                          border:'1px solid var(--border)', marginLeft:'auto', flexShrink:0
+                        }}>{s.market||'KRX'}</span>
+                      </button>
+                    )
+                  })}
+                </>
+              )}
+              {/* 키보드 안내 */}
+              <div style={{padding:'5px 12px',fontSize:10,color:'var(--text-dim)',borderTop:'1px solid var(--border-dim)',background:'var(--bg-base)',display:'flex',gap:12}}>
+                <span>↑↓ 탐색</span><span>Enter 선택</span><span>Esc 닫기</span>
+                <span style={{marginLeft:'auto'}}>{stockList.length.toLocaleString()}개 종목</span>
+              </div>
+            </div>
+          )}
+
+          {/* 검색결과 없을 때 */}
+          {showDrop && query && results.length === 0 && (
+            <div className="cap-dropdown">
+              <div style={{padding:'20px',textAlign:'center',color:'var(--text-dim)',fontSize:13}}>
+                <div style={{fontSize:20,marginBottom:8}}>🔍</div>
+                <div>'{query}' 검색 결과 없음</div>
+                <div style={{fontSize:11,marginTop:4,color:'var(--text-dim)'}}>종목명 또는 6자리 코드로 검색해보세요</div>
+              </div>
             </div>
           )}
         </div>
-        {!selected&&recent.length>0&&(
-          <div className="cap-chips-row"><span className="cap-chip-label">최근</span>
-            {recent.map(r=><button key={r.code} className="cap-chip" onClick={()=>select(r)}>{r.name}</button>)}
+
+        {/* 최근/즐겨찾기 칩 */}
+        {!selected && recent.length > 0 && (
+          <div className="cap-chips-row">
+            <span className="cap-chip-label">최근</span>
+            {recent.map(r => <button key={r.code} className="cap-chip" onClick={()=>select(r)}>{r.name}</button>)}
           </div>
         )}
-        {!selected&&watchlist.length>0&&(
-          <div className="cap-chips-row"><span className="cap-chip-label">⭐ 즐겨찾기</span>
-            {watchlist.map(w=><button key={w.code} className="cap-chip cap-chip-star" onClick={()=>select(w)}>{w.name}</button>)}
+        {!selected && watchlist.length > 0 && (
+          <div className="cap-chips-row">
+            <span className="cap-chip-label">⭐ 즐겨찾기</span>
+            {watchlist.map(w => <button key={w.code} className="cap-chip cap-chip-star" onClick={()=>select(w)}>{w.name}</button>)}
           </div>
         )}
       </div>
@@ -759,7 +876,28 @@ export default function ChartAnalysisPage() {
       )}
 
       {!selected&&watchlist.length===0&&recent.length===0&&(
-        <div className="cap-empty"><div className="cap-empty-icon">📈</div><p>종목명 또는 코드를 검색해 차트 분석을 시작하세요</p><p className="cap-empty-sub">예: 삼성전자, SK하이닉스, 005930</p></div>
+        <div className="cap-empty">
+          <div className="cap-empty-icon">📈</div>
+          <p style={{fontSize:15,fontWeight:700,color:'var(--text-primary)',marginBottom:6}}>종목 차트 분석</p>
+          <p>종목명 또는 코드를 검색해 차트 분석을 시작하세요</p>
+          <p className="cap-empty-sub">예: 삼성전자, SK하이닉스, 005930</p>
+          <div style={{display:'flex',gap:8,justifyContent:'center',marginTop:16,flexWrap:'wrap'}}>
+            {['삼성전자','SK하이닉스','POSCO홀딩스','현대차','LG에너지솔루션'].map(name => {
+              const s = stockList.find(x => x.name === name)
+              if (!s) return null
+              return (
+                <button key={name} className="cap-chip"
+                  style={{fontSize:12,padding:'5px 14px'}}
+                  onClick={()=>select(s)}>
+                  {name}
+                </button>
+              )
+            })}
+          </div>
+          {stockListLoading && (
+            <p style={{fontSize:11,color:'var(--text-dim)',marginTop:12}}>⟳ 전체 종목 목록 로딩 중...</p>
+          )}
+        </div>
       )}
       {/* ETF 구성종목 팝업 */}
       {showEtf&&selected&&(
