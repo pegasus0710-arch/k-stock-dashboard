@@ -134,7 +134,7 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
         </div>
         <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
           {drawState&&<div className="cap-fs-hint">{drawTool==='trend'?'2번째 점 클릭':'끝점 클릭'}</div>}
-          {fsSupplyLoad&&<span style={{fontSize:11,color:'#64748b'}}>⟳</span>}
+          {fsSupplyLoad&&<span style={{fontSize:11,color:'var(--text-secondary)'}}>⟳</span>}
           <button className={`cap-fs-btn ${fsShowSupply?'active':''}`}
             onClick={()=>setFsShowSupply(v=>!v)}>📊 수급</button>
           <button className="cap-fs-close" onClick={onClose}>✕ 닫기</button>
@@ -172,13 +172,13 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
             selectedIdx={selIdx} onSelectDrawing={setSelIdx}
           />
         )}
-        {!loading&&!candles.length&&<div style={{padding:80,textAlign:'center',color:'#475569'}}>데이터가 없습니다</div>}
+        {!loading&&!candles.length&&<div style={{padding:80,textAlign:'center',color:'var(--text-secondary)'}}>데이터가 없습니다</div>}
         {/* 수급 서브차트 */}
         {fsShowSupply&&fsSupplyData&&(
           <SupplySubChart supplyData={fsSupplyData} candles={candles}/>
         )}
         {fsShowSupply&&fsSupplyLoad&&(
-          <div style={{padding:12,textAlign:'center',background:'#0a0f1a',color:'#475569',fontSize:12}}>
+          <div style={{padding:12,textAlign:'center',background:'var(--bg-base)',color:'var(--text-secondary)',fontSize:12}}>
             <div className="cap-spinner" style={{display:'inline-block',marginRight:6}}/>수급 로딩 중...
           </div>
         )}
