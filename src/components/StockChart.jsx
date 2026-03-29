@@ -400,6 +400,7 @@ export function CandleSvg({
   showVolume=true,
   showBollinger=false, week52=null,
   period='day',
+  volHeight=56,   // 거래량 영역 높이 (드래그 리사이즈)
 }) {
   const svgRef = useRef(null)
   const [tooltip, setTooltip] = useState(null)
@@ -410,7 +411,7 @@ export function CandleSvg({
   const SUPPLY_ROWS = showSupply ? 3 : 0
   const SUPPLY_H    = showSupply ? 75 : 0
   const SUPPLY_GAP  = showSupply ? 6  : 0
-  const VOL_H       = showVolume ? 56 : 0
+  const VOL_H       = showVolume ? Math.max(30, volHeight) : 0
   const VOL_GAP     = showVolume ? 6  : 0
   const PRICE_H     = height - PAD.top - PAD.bottom - VOL_H - VOL_GAP - SUPPLY_ROWS*(SUPPLY_H+SUPPLY_GAP)
   const totalH      = height

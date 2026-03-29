@@ -487,10 +487,13 @@ export default function ChartAnalysisPage() {
 
   // ── 서브차트 높이 (드래그 리사이즈) ──────────────
   const [subHeights, setSubHeights] = useState({ rsi:80, macd:96, stoch:74 })
+  const [volH, setVolH] = useState(56)  // 거래량 바 높이
+
   const updateSubH = (key, delta) => setSubHeights(prev => ({
     ...prev,
     [key]: Math.max(50, Math.min(200, prev[key] + delta))
   }))
+  const updateVolH = delta => setVolH(prev => Math.max(30, Math.min(150, prev + delta)))
 
   // ── 데이터 ────────────────────────────────────────
   const [basicInfo,   setBasicInfo]   = useState(null)
@@ -558,8 +561,7 @@ export default function ChartAnalysisPage() {
       if(!parent) return
       const totalH=parent.clientHeight
       const subH=(showRSI?subHeights.rsi:0)+(showMACD?subHeights.macd:0)+(showStoch?subHeights.stoch:0)+(showSup?200:0)
-      setChartH(Math.max(300, totalH-subH-2))
-    }
+      setChartH(Math.max(300, totalH-subH-2))    }
     calc()
     const ro=new ResizeObserver(calc)
     ro.observe(chartWrap.parentElement||chartWrap)
@@ -992,14 +994,52 @@ export default function ChartAnalysisPage() {
               {chartLoading
                 ? <div className="cap-chart-loading"><div className="cap-spinner"/>차트 불러오는 중...</div>
                 : (<>
-                    <div className="cap-chart-wrap" ref={setChartWrap}>
+                    <div className="cap-chart-wrap" ref={setChartWrap} style={{position:'relative'}}>
                       <CandleSvg
                         data={candles} width={chartW} height={chartH}
                         showMA={showMA} enabledMA={enabledMA}
                         drawings={drawings} onSvgClick={handleInlineClick}
                         drawTool={drawTool} selectedIdx={selIdx} onSelectDrawing={setSelIdx}
                         showBollinger={showBB} week52={chartHighLow} period={period}
+                        volHeight={volH}
                       />
+                      {/* 거래량/캔들 경계 핸들 — SVG 내부 거래량 영역 상단에 오버레이 */}
+                      <div
+                        style={{
+                          position:'absolute',
+                          left:72, right:72,
+                          bottom: 32 + volH - 3,  // PAD.bottom + volH
+                          height:6,
+                          cursor:'row-resize',
+                          zIndex:20,
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                        }}
+                        title="거래량 높이 조절"
+                        onMouseDown={e=>{
+                          e.preventDefault()
+                          let lastY=e.clientY
+                          const onMove=e=>{
+                            const delta=e.clientY-lastY
+                            lastY=e.clientY
+                            updateVolH(delta)
+                          }
+                          const onUp=()=>{
+                            window.removeEventListener('mousemove',onMove)
+                            window.removeEventListener('mouseup',onUp)
+                          }
+                          window.addEventListener('mousemove',onMove)
+                          window.addEventListener('mouseup',onUp)
+                        }}
+                      >
+                        <div style={{
+                          width:60, height:2, borderRadius:2,
+                          background:'rgba(100,116,139,0.35)',
+                          transition:'all .15s',
+                        }}
+                          onMouseEnter={e=>{e.currentTarget.style.width='120px';e.currentTarget.style.background='#2563eb'}}
+                          onMouseLeave={e=>{e.currentTarget.style.width='60px';e.currentTarget.style.background='rgba(100,116,139,0.35)'}}
+                        />
+                      </div>
                     </div>
                     {/* 보조지표 서브차트 + 드래그 핸들 */}
                     {candles.length>0&&(<>
