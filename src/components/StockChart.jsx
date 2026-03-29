@@ -433,9 +433,14 @@ export function CandleSvg({
     const loPts =lo.map((v,i)=>v!=null?`${bx(i)},${toY(v)}`:null).filter(Boolean).join(' ')
     const lastUp=up[n-1], lastLo=lo[n-1], lastClose=data[n-1]?.close
     const pctB=lastUp&&lastLo&&lastClose!=null?(lastClose-lastLo)/(lastUp-lastLo):null
-    // BB 계산 시작 인덱스 (좌측 공백 구간 표시용)
+    // BB 스퀴즈 감지: 최근 20봉 중 밴드폭이 최저 수준 → 급등락 전 신호
+    const bandWidths=up.map((u,i)=>u&&lo[i]&&mid[i]?(u-lo[i])/mid[i]:null).filter(v=>v!=null)
+    const recentBW=bandWidths.slice(-20)
+    const minBW=recentBW.length?Math.min(...recentBW):null
+    const curBW=bandWidths.at(-1)
+    const isSqueeze=minBW!=null&&curBW!=null&&curBW<=minBW*1.05  // 최근 20봉 최저 밴드폭의 105% 이내
     const startIdx=p-1
-    return { midPts, upPts, loPts, up, lo, pctB, startIdx }
+    return { midPts, upPts, loPts, up, lo, pctB, startIdx, isSqueeze }
   })() : null
 
   // 수급 데이터 날짜 정렬
@@ -517,6 +522,16 @@ export function CandleSvg({
 
       {/* 볼린저밴드 */}
       {bollBands&&(<>
+        {/* 스퀴즈 감지 — 우측 끝 강조 배지 */}
+        {bollBands.isSqueeze&&(
+          <g>
+            <rect x={PAD.left+chartW-62} y={PAD.top+20} width={60} height={16} rx={3}
+              fill="rgba(217,119,6,0.12)" stroke="rgba(217,119,6,0.5)" strokeWidth={1}/>
+            <text x={PAD.left+chartW-59} y={PAD.top+31} fontSize={9} fill="#d97706" fontWeight="800">
+              🔥 BB스퀴즈
+            </text>
+          </g>
+        )}
         {/* BB 계산 전 구간 구분선 */}
         {bollBands.startIdx>0&&bollBands.startIdx<n&&(
           <line

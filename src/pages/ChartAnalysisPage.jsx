@@ -152,36 +152,51 @@ function SubRSI({data,width}) {
   )
 }
 function SubMACD({data,width}) {
-  const H=90, PAD={t:14,r:36,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
+  const H=96, PAD={t:14,r:36,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
   const {macd,sig,hist}=capMACD(data)
   const bx=i=>PAD.l+(i+0.5)*(W/data.length)
-  const bW=Math.max(1,Math.min(6,W/data.length*0.55))
-  // NaN까지 완전 제거
+  const bW=Math.max(1.5, Math.min(8, W/data.length*0.7))
   const isVal=v=>v!=null&&isFinite(v)
-  const vals=[...macd,...sig,...hist].filter(isVal)
-  if(!vals.length) return null
-  const aMax=Math.max(...vals.map(Math.abs),0.01)*1.1
+
+  // ★ 히스토그램과 선을 별도 스케일로 분리
+  const histVals=hist.filter(isVal)
+  const lineVals=[...macd,...sig].filter(isVal)
+  if(!histVals.length&&!lineVals.length) return null
+
+  // 히스토그램 스케일 (hist 값만)
+  const hMax=histVals.length?Math.max(...histVals.map(Math.abs),0.01)*1.15:1
+  // 선 스케일 (MACD/Signal)
+  const lMax=lineVals.length?Math.max(...lineVals.map(Math.abs),0.01)*1.15:1
+
   const midY=PAD.t+iH/2
-  // py: NaN/Infinity 방어, 경계 클램핑
-  const py=v=>{
+
+  // 히스토그램용 py
+  const pyH=v=>{
     if(!isFinite(v)) return midY
-    const raw=midY-(Math.max(-aMax,Math.min(aMax,v))/aMax)*(iH/2-2)
-    return Math.max(PAD.t, Math.min(PAD.t+iH, raw))
+    return Math.max(PAD.t, Math.min(PAD.t+iH, midY-(v/hMax)*(iH/2-2)))
   }
+  // 선용 py (MACD/Signal)
+  const pyL=v=>{
+    if(!isFinite(v)) return midY
+    return Math.max(PAD.t, Math.min(PAD.t+iH, midY-(v/lMax)*(iH/2-2)))
+  }
+
   const clipId=`macd-clip-${width}`
-  // 연속 세그먼트로 분리 (null/NaN 구간 건너뜀)
-  const buildSegs=(arr)=>{
+  const buildSegs=(arr,pyFn)=>{
     const segs=[]; let cur=[]
     arr.forEach((v,i)=>{
-      if(isVal(v)) cur.push(`${bx(i)},${py(v)}`)
+      if(isVal(v)) cur.push(`${bx(i)},${pyFn(v)}`)
       else if(cur.length){segs.push([...cur]);cur=[]}
     })
     if(cur.length) segs.push(cur)
     return segs
   }
-  const mSegs=buildSegs(macd)
-  const sSegs=buildSegs(sig)
+  const mSegs=buildSegs(macd,pyL)
+  const sSegs=buildSegs(sig,pyL)
   const curMacd=macd.filter(isVal).at(-1)
+  const curHist=hist.filter(isVal).at(-1)
+  const prevHist=hist.filter(isVal).at(-2)
+
   return (
     <svg width={width} height={H} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
       <defs>
@@ -189,29 +204,42 @@ function SubMACD({data,width}) {
           <rect x={PAD.l} y={PAD.t} width={W} height={iH}/>
         </clipPath>
       </defs>
-      <line x1={PAD.l} x2={PAD.l+W} y1={midY} y2={midY} stroke="#94a3b8" strokeWidth={0.5} opacity={0.35}/>
+      <line x1={PAD.l} x2={PAD.l+W} y1={midY} y2={midY} stroke="#94a3b8" strokeWidth={0.5} opacity={0.3}/>
       <g clipPath={`url(#${clipId})`}>
+        {/* 히스토그램 — 별도 스케일 */}
         {hist.map((v,i)=>{
           if(!isVal(v)) return null
-          const bH=Math.max(1,Math.abs(v/aMax)*(iH/2-2))
+          const bH=Math.max(1.5, Math.abs(v/hMax)*(iH/2-2))
           const isUp=v>=0
-          return <rect key={i} x={bx(i)-bW/2} y={isUp?midY-bH:midY} width={bW} height={Math.min(bH,iH/2-1)}
-            fill={isUp?'rgba(239,68,68,0.7)':'rgba(59,130,246,0.7)'}/>
+          // 이전 봉 대비 증가/감소로 색상 구분
+          const prev=hist[i-1]
+          const grow=isVal(prev)?(isUp?v>prev:v<prev):true
+          return <rect key={i} x={bx(i)-bW/2}
+            y={isUp?midY-bH:midY} width={bW}
+            height={Math.min(bH, iH/2-1)}
+            fill={isUp?(grow?'#ef4444':'#fca5a5'):(grow?'#2563eb':'#93c5fd')}
+            opacity={0.85}/>
         })}
-        {mSegs.map((seg,i)=>seg.length>1&&<polyline key={`m${i}`} points={seg.join(' ')} fill="none" stroke="#ef4444" strokeWidth={1.5}/>)}
-        {sSegs.map((seg,i)=>seg.length>1&&<polyline key={`s${i}`} points={seg.join(' ')} fill="none" stroke="#3b82f6" strokeWidth={1.5}/>)}
+        {/* MACD/Signal 선 — 별도 스케일 */}
+        {mSegs.map((seg,i)=>seg.length>1&&<polyline key={`m${i}`} points={seg.join(' ')} fill="none" stroke="#ef4444" strokeWidth={1.4} opacity={0.8}/>)}
+        {sSegs.map((seg,i)=>seg.length>1&&<polyline key={`s${i}`} points={seg.join(' ')} fill="none" stroke="#3b82f6" strokeWidth={1.4} opacity={0.8}/>)}
       </g>
       <text x={6} y={PAD.t-2} fontSize={9} fill="#94a3b8" fontWeight="700">MACD(12,26,9)</text>
       <text x={60} y={PAD.t-2} fontSize={8} fill="#ef4444">— MACD</text>
       <text x={98} y={PAD.t-2} fontSize={8} fill="#3b82f6">— Signal</text>
+      {/* 골든크로스/데드크로스 표시 */}
       {curMacd!=null&&isFinite(curMacd)&&(()=>{
-        const cy=Math.max(PAD.t+6, Math.min(PAD.t+iH-6, py(curMacd)))
+        const cy=Math.max(PAD.t+6, Math.min(PAD.t+iH-6, pyL(curMacd)))
         const col=curMacd>=0?'#ef4444':'#3b82f6'
+        const cross=isVal(curHist)&&isVal(prevHist)&&((prevHist<0&&curHist>=0)||(prevHist>=0&&curHist<0))
         return (
           <g>
+            {cross&&<text x={PAD.l+W-40} y={PAD.t+iH-2} fontSize={9} fill={curHist>=0?'#ef4444':'#3b82f6'} fontWeight="800">
+              {curHist>=0?'▲GC':'▼DC'}
+            </text>}
             <rect x={PAD.l+W+1} y={cy-6} width={34} height={13} rx={3} fill={col} opacity={0.9}/>
             <text x={PAD.l+W+4} y={cy+4} fontSize={8} fill="white" fontWeight="700">
-              {curMacd>0?'+':''}{curMacd.toFixed(0)}
+              {curMacd>0?'+':''}{Math.abs(curMacd)>=1000?Math.round(curMacd/100)/10+'k':curMacd.toFixed(1)}
             </text>
           </g>
         )
