@@ -780,8 +780,30 @@ export default function ChartAnalysisPage() {
               {basicInfo?.pbr&&basicInfo.pbr!=='0'&&<div className="cap-metric"><span className="cap-ml">PBR</span><span className="cap-mv">{Number(basicInfo.pbr).toFixed(2)}배</span></div>}
               {basicInfo?.roe&&basicInfo.roe!=='0'&&<div className="cap-metric"><span className="cap-ml">ROE</span><span className="cap-mv">{Number(basicInfo.roe).toFixed(1)}%</span></div>}
               {basicInfo?.eps&&basicInfo.eps!=='0'&&<div className="cap-metric"><span className="cap-ml">EPS</span><span className="cap-mv">{Number(basicInfo.eps).toLocaleString()}원</span></div>}
-              {week52?.high&&<div className="cap-metric"><span className="cap-ml">52주高</span><span className="cap-mv h52">{Math.round(week52.high).toLocaleString()}</span></div>}
-              {week52?.low &&<div className="cap-metric"><span className="cap-ml">52주低</span><span className="cap-mv l52">{Math.round(week52.low).toLocaleString()}</span></div>}
+              {/* 52주 고저 — 항상 진짜 52주 기준 */}
+              {week52?.high&&<div className="cap-metric">
+                <span className="cap-ml">52주高</span>
+                <span className="cap-mv h52">{Math.round(week52.high).toLocaleString()}</span>
+              </div>}
+              {week52?.low&&<div className="cap-metric">
+                <span className="cap-ml">52주低</span>
+                <span className="cap-mv l52">{Math.round(week52.low).toLocaleString()}</span>
+              </div>}
+              {/* 차트 구간 고저 — 현재 선택 기간 기준 (52주와 다를 때만 표시) */}
+              {chartHighLow?.high&&week52?.high&&Math.round(chartHighLow.high)!==Math.round(week52.high)&&(()=>{
+                // 기간 레이블
+                const rangeLabel=period==='min'?`${minDays}일`:period==='year'?'전체':period==='month'?`${range}개월봉`:period==='week'?`${range}개월주`:RANGES.find(r=>r.months===range)?.label||`${range}M`
+                return (<>
+                  <div className="cap-metric" style={{borderLeft:'2px solid var(--border)'}}>
+                    <span className="cap-ml" style={{color:'#dc2626'}}>구간高({rangeLabel})</span>
+                    <span className="cap-mv" style={{color:'#dc2626',fontWeight:800}}>{Math.round(chartHighLow.high).toLocaleString()}</span>
+                  </div>
+                  <div className="cap-metric">
+                    <span className="cap-ml" style={{color:'#2563eb'}}>구간低</span>
+                    <span className="cap-mv" style={{color:'#2563eb',fontWeight:800}}>{Math.round(chartHighLow.low).toLocaleString()}</span>
+                  </div>
+                </>)
+              })()}
               {basicInfo?.for_exh_rt&&<div className="cap-metric"><span className="cap-ml">외국인</span><span className="cap-mv">{basicInfo.for_exh_rt}%</span></div>}
               {basicInfo?.upName&&<div className="cap-metric"><span className="cap-ml">업종</span><span className="cap-mv" style={{fontSize:10}}>{basicInfo.upName}</span></div>}
             </div>
@@ -794,7 +816,15 @@ export default function ChartAnalysisPage() {
               {/* 봉종류 */}
               <div className="cap-tg">
                 {PERIODS.map(p=><button key={p.key} className={`cap-tg-btn ${period===p.key?'active':''}`}
-                  onClick={()=>{setPeriod(p.key);setDrawState(null)}}>{p.label}</button>)}
+                  onClick={()=>{
+                    setPeriod(p.key)
+                    setDrawState(null)
+                    // 봉 전환 시 기본 기간 자동 조정
+                    if(p.key==='month') setRange(12)   // 월봉 → 기본 1년
+                    if(p.key==='week')  setRange(6)    // 주봉 → 기본 6개월
+                    if(p.key==='day')   setRange(3)    // 일봉 → 기본 3개월
+                    if(p.key==='year')  setRange(0)    // 년봉 → 전체
+                  }}>{p.label}</button>)}
               </div>
               <div className="cap-tb-sep"/>
 
