@@ -299,7 +299,7 @@
    ══════════════════════════════════════════════════ */
 .cap-canvas {
   flex: 1; min-height: 0; display: flex; flex-direction: column;
-  overflow: hidden; background: #F8FAFF;
+  overflow-y: auto; overflow-x: hidden; background: #F8FAFF;
 }
 .cap-chart-loading { flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--text-secondary); font-size: 13px; }
 .cap-chart-wrap {

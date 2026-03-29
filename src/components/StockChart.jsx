@@ -470,6 +470,13 @@ export function CandleSvg({
       onMouseMove={handleMouseMove} onMouseLeave={()=>setTooltip(null)}
       onClick={handleClick}>
 
+      <defs>
+        {/* 캔들/볼린저밴드가 차트 영역 밖으로 나가지 않도록 클리핑 */}
+        <clipPath id="price-area">
+          <rect x={PAD.left} y={PAD.top} width={chartW} height={PRICE_H}/>
+        </clipPath>
+      </defs>
+
       {/* Y축 눈금 (좌) */}
       {yTicks.map((v,i)=>(
         <g key={i}>
@@ -499,6 +506,9 @@ export function CandleSvg({
         <text key={i} x={bx(data.indexOf(c))} y={PAD.top+PRICE_H+VOL_GAP+VOL_H+20} textAnchor="middle" fontSize={10} fill="#94a3b8">{c.label}</text>
       ))}
 
+      {/* ── 차트 영역 클리핑 그룹 ── */}
+      <g clipPath="url(#price-area)">
+
       {/* MA 라인 */}
       {maLines.map(ma=>(
         <polyline key={ma.p} points={ma.pts} fill="none" stroke={ma.color} strokeWidth={1.3} opacity={0.85}/>
@@ -506,7 +516,6 @@ export function CandleSvg({
 
       {/* 볼린저밴드 */}
       {bollBands&&(<>
-        {/* 밴드 채우기 */}
         {bollBands.up.map((u,i)=>{
           if(u==null||bollBands.lo[i]==null||i===0) return null
           const pu=bollBands.up[i-1], pl=bollBands.lo[i-1]
@@ -519,38 +528,28 @@ export function CandleSvg({
         <polyline points={bollBands.upPts}  fill="none" stroke="#6366f1" strokeWidth={1} opacity={0.6} strokeDasharray="3,2"/>
         <polyline points={bollBands.midPts} fill="none" stroke="#6366f1" strokeWidth={0.8} opacity={0.35} strokeDasharray="2,3"/>
         <polyline points={bollBands.loPts}  fill="none" stroke="#6366f1" strokeWidth={1} opacity={0.6} strokeDasharray="3,2"/>
-        {/* %b 현재값 — 우상단 고정 표시 */}
-        {bollBands.pctB!=null&&(()=>{
-          const pctB=bollBands.pctB
-          const isHot=pctB>=1, isCold=pctB<=0
-          const col=isHot?'#ef4444':isCold?'#3b82f6':'#6366f1'
-          return (
-            <g>
-              <rect x={PAD.left+chartW-52} y={PAD.top+2} width={50} height={16} rx={3} fill={col} opacity={0.88}/>
-              <text x={PAD.left+chartW-50} y={PAD.top+13} fontSize={10} fill="white" fontWeight="700">
-                {`%b ${(pctB*100).toFixed(0)}`}
-              </text>
-            </g>
-          )
-        })()}
       </>)}
 
-      {/* 52주 고저선 */}
+      {/* 52주 고저선 (클립 안) */}
       {week52&&(<>
-        {/* 52주 최고가 — Y축 범위 내에 있을 때만 표시 */}
-        {week52.high>=yMin&&week52.high<=yMax&&(<>
-          <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(week52.high)} y2={toY(week52.high)}
-            stroke="#dc2626" strokeWidth={1} strokeDasharray="5,4" opacity={0.55}/>
-          <rect x={PAD.left} y={toY(week52.high)-9} width={28} height={12} rx={2} fill="#dc2626" opacity={0.85}/>
-          <text x={PAD.left+4} y={toY(week52.high)+1} fontSize={8} fill="white" fontWeight="700">52H</text>
-        </>)}
-        {/* 52주 최저가 */}
-        {week52.low>=yMin&&week52.low<=yMax&&(<>
-          <line x1={PAD.left} x2={PAD.left+chartW} y1={toY(week52.low)} y2={toY(week52.low)}
-            stroke="#2563eb" strokeWidth={1} strokeDasharray="5,4" opacity={0.55}/>
-          <rect x={PAD.left} y={toY(week52.low)-1} width={28} height={12} rx={2} fill="#2563eb" opacity={0.85}/>
-          <text x={PAD.left+4} y={toY(week52.low)+9} fontSize={8} fill="white" fontWeight="700">52L</text>
-        </>)}
+        {week52.high>=yMin&&week52.high<=yMax&&(()=>{
+          const y=toY(week52.high)
+          const ry=Math.max(PAD.top+1, y-9)
+          return (<>
+            <line x1={PAD.left} x2={PAD.left+chartW} y1={y} y2={y} stroke="#dc2626" strokeWidth={1} strokeDasharray="5,4" opacity={0.55}/>
+            <rect x={PAD.left+2} y={ry} width={28} height={12} rx={2} fill="#dc2626" opacity={0.85}/>
+            <text x={PAD.left+6} y={ry+9} fontSize={8} fill="white" fontWeight="700">52H</text>
+          </>)
+        })()}
+        {week52.low>=yMin&&week52.low<=yMax&&(()=>{
+          const y=toY(week52.low)
+          const ry=Math.min(PAD.top+PRICE_H-13, y-1)
+          return (<>
+            <line x1={PAD.left} x2={PAD.left+chartW} y1={y} y2={y} stroke="#2563eb" strokeWidth={1} strokeDasharray="5,4" opacity={0.55}/>
+            <rect x={PAD.left+2} y={ry} width={28} height={12} rx={2} fill="#2563eb" opacity={0.85}/>
+            <text x={PAD.left+6} y={ry+9} fontSize={8} fill="white" fontWeight="700">52L</text>
+          </>)
+        })()}
       </>)}
 
       {/* 캔들 */}
@@ -566,6 +565,22 @@ export function CandleSvg({
           </g>
         )
       })}
+
+      </g>{/* end price-area clip */}
+
+      {/* %b 현재값 — 클립 밖 우상단 고정 */}
+      {bollBands?.pctB!=null&&(()=>{
+        const pctB=bollBands.pctB
+        const col=pctB>=1?'#ef4444':pctB<=0?'#3b82f6':'#6366f1'
+        return (
+          <g>
+            <rect x={PAD.left+chartW-52} y={PAD.top+2} width={50} height={16} rx={3} fill={col} opacity={0.88}/>
+            <text x={PAD.left+chartW-50} y={PAD.top+13} fontSize={10} fill="white" fontWeight="700">
+              {`%b ${(pctB*100).toFixed(0)}`}
+            </text>
+          </g>
+        )
+      })()}
 
       {/* 거래량 */}
       {showVolume && (<>
