@@ -1226,3 +1226,56 @@
   width: 100%;
   margin-top: auto;
 }
+
+/* ── 해외지수 미니 아이콘 행 ─────────────────────── */
+.db-global-mini-row {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.db-global-mini-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 4px;
+  background: var(--bg-base);
+  border: 0.5px solid var(--border);
+  border-radius: 7px;
+}
+.db-global-mini-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.db-global-mini-price {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.db-global-mini-rate {
+  font-size: 9px;
+  font-weight: 700;
+}
+.db-global-mini-na {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* ── 가독성 개선 — 작은 텍스트 진하게 ────────────── */
+.db-52w-labels span        { font-size: 9px; color: var(--text-secondary) !important; font-weight: 500; }
+.db-date-badge             { font-size: 9px; color: var(--text-secondary) !important; font-weight: 500; }
+.db-idx-name               { font-size: 11px; color: var(--text-secondary) !important; font-weight: 600; }
+.db-commodity-name         { font-size: 9px; color: var(--text-secondary) !important; font-weight: 600; }
+.db-flow-label             { font-size: 10px; color: var(--text-secondary) !important; font-weight: 600; }
+.db-card-group-label       { font-size: 11px; font-weight: 700; }
+.db-idx-rate-badge         { font-size: 10px; font-weight: 700; }
+
+/* ── 해외지수 카드 높이 국내지수와 맞추기 ─────────── */
+.db-global-grid .db-idx-card {
+  min-height: 0;
+  justify-content: space-between;
+}

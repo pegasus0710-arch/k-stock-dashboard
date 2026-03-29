@@ -77,12 +77,12 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
     // 국내지수 1년치
     fetchChart('KOSPI',  '1y', true)
     fetchChart('KOSDAQ', '1y', true)
-    // 해외지수 3개월치
-    fetchChart('SP500',  '3m', true)
-    fetchChart('NASDAQ', '3m', true)
-    fetchChart('DOW',    '3m', true)
-    fetchChart('DAX',    '3m', true)
-    // 원자재 3개월치 (스파크라인용)
+    // 해외 주요지수 1년치 (스파크라인 + 52주 게이지)
+    fetchChart('SP500',  '1y', true)
+    fetchChart('NASDAQ', '1y', true)
+    fetchChart('DOW',    '1y', true)
+    fetchChart('N225',   '1y', true)
+    // 원자재 3개월치
     fetchChart('WTI',    '3m', true)
     fetchChart('GOLD',   '3m', true)
     fetchChart('BRENT',  '3m', true)

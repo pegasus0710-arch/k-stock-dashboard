@@ -446,3 +446,6 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(1) !import
 .db-idx-rate-badge.up   { color:var(--color-up) !important; }
 .db-idx-rate-badge.down { color:var(--color-down) !important; }
 
+.db-global-mini-item  { background:var(--bg-base) !important; border-color:var(--border) !important; }
+.db-global-mini-price { color:var(--text-primary) !important; }
+.db-global-mini-label { color:var(--text-secondary) !important; }

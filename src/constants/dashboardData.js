@@ -1,19 +1,26 @@
 // src/constants/dashboardData.js
 // DashboardPage 전용 상수 — SECTOR_GROUPS, GUIDE_DATA, GAUGE_CONFIG
 
-export const BATCH_SYMBOLS = ['KS11','KQ11','SP500','NASDAQ','DOW','DAX','US10Y','US2Y','WTI','BRENT','GOLD','SILVER','COPPER','VIX','DXY']
+export const BATCH_SYMBOLS = ['KS11','KQ11','SP500','NASDAQ','DOW','N225','SSE','TWI','DAX','US10Y','US2Y','WTI','BRENT','GOLD','SILVER','COPPER','VIX','DXY']
 
 export const SECTOR_GROUPS = [
   { id:'domestic',  label:'🇰🇷 국내 지수',   accent:'#2563eb', items:[
     { id:'KOSPI',   label:'KOSPI',  type:'global', sym:'KS11', color:'#3b82f6' },
     { id:'KOSDAQ',  label:'KOSDAQ', type:'global', sym:'KQ11', color:'#22c55e' },
   ]},
-  { id:'global',    label:'🌍 해외 지수',    accent:'#64748b', items:[
-    { id:'SP500',  label:'S&P 500', type:'global', sym:'SP500',  color:'#ef4444' },
-    { id:'NASDAQ', label:'NASDAQ',  type:'global', sym:'NASDAQ', color:'#0d9488' },
-    { id:'DOW',    label:'DOW',     type:'global', sym:'DOW',    color:'#2563eb' },
-    { id:'DAX',    label:'DAX',     type:'global', sym:'DAX',    color:'#7c3aed' },
-  ]},
+  { id:'global',    label:'🌍 해외 지수',    accent:'#64748b',
+    items:[
+      { id:'SP500',  label:'S&P 500', type:'global', sym:'SP500',  color:'#ef4444' },
+      { id:'NASDAQ', label:'NASDAQ',  type:'global', sym:'NASDAQ', color:'#0d9488' },
+      { id:'DOW',    label:'DOW',     type:'global', sym:'DOW',    color:'#2563eb' },
+      { id:'N225',   label:'닛케이',  type:'global', sym:'N225',   color:'#f59e0b' },
+    ],
+    miniItems:[
+      { id:'SSE',  label:'상해',    sym:'SSE',  color:'#dc2626' },
+      { id:'TWI',  label:'대만가권', sym:'TWI',  color:'#0891b2' },
+      { id:'DAX',  label:'DAX',     sym:'DAX',  color:'#7c3aed' },
+    ]
+  },
   { id:'bond',      label:'📈 채권·금리',    accent:'#7c3aed', items:[
     { id:'US10Y',  label:'미국 10Y',       type:'global', sym:'US10Y', unit:'%', color:'#7c3aed' },
     { id:'US2Y',   label:'미국 2Y',        type:'global', sym:'US2Y',  unit:'%', color:'#6d28d9' },
@@ -52,6 +59,7 @@ export const GAUGE_CONFIG = {
 }
 
 export const GUIDE_DATA = {
+  N225:   { title:'닛케이 225 (일본)', desc:'일본 225개 대표 종목. 엔화 환율과 역상관 — 엔 약세 시 수출주 수혜로 상승. BOJ 금리 정책이 글로벌 엔 캐리 트레이드에 직접 영향.', up:'엔 약세·일본 수출 호조 → 원/엔 환율 하락(원화 강세) 가능성', down:'엔 강세·BOJ 긴축 → 엔 캐리 청산 → 신흥국 동반 하락 위험', tip:'📌 BOJ 금리 인상 = 엔 캐리 청산 신호. 한국 시장 동반 급락 가능. 40,000↑ 강세 (2026년 기준)' },
   DAX:    { title:'DAX 40 (독일)', desc:'독일 40개 대형주. 자동차·산업재·화학 비중이 높아 유럽 제조업 경기 대표.', up:'유럽 경기 회복·에너지 안정 → 국내 자동차·부품 수출주 긍정', down:'에너지 위기·러시아 리스크·유럽 경기 둔화 → 글로벌 제조업 전반 부정', tip:'📌 유로/달러 환율과 함께 확인. 유로 강세=DAX 수출주 부담' },
   US10Y:  { title:'미국 10년 국채 금리', desc:'전 세계 모든 자산의 기준금리. 주식 밸류에이션(PER)에 직접 영향.', up:'금리 상승 → 성장주·바이오·IT 하락 압력. 고PER 종목 매도, 금융·가치주 방어', down:'금리 하락 → 성장주 재평가. 바이오·2차전지·게임 등 고PER 섹터 긍정', tip:'📌 4.5%↑=성장주 위험 / 3.5%↓=성장주 환경 개선 / 5%↑=전면 하락 압력' },
   US2Y:   { title:'미국 단기금리 (2Y)', desc:'미국 2년물 국채. 연준 금리 정책 방향을 가장 빠르게 반영. 10Y-2Y 스프레드의 기준선.', up:'연준 긴축 지속 → 주식 하락 압력, 달러 강세', down:'연준 피벗 기대 → 위험자산 선호, 성장주 긍정', tip:'📌 10Y-2Y 역전(음수) = 경기침체 경보. 현재 스프레드와 함께 확인' },

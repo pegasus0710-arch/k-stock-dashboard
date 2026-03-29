@@ -113,8 +113,7 @@ export default function DashboardPage() {
   const [weekData,  setWeekData]  = useState({})
   const [sparkData, setSparkData] = useState({})
   const handleWeekRange = useCallback((id, high, low) => {
-    const key = id === 'KOSPI' ? 'KOSPI' : id === 'KOSDAQ' ? 'KOSDAQ' : null
-    if(key) setWeekData(prev => ({...prev, [key]: {high52: high, low52: low}}))
+    if(id) setWeekData(prev => ({...prev, [id]: {high52: high, low52: low}}))
   }, [])
   const handleSparkData = useCallback((id, closes) => {
     if(id && closes?.length) setSparkData(prev => ({...prev, [id]: closes}))
@@ -183,7 +182,7 @@ export default function DashboardPage() {
         {SECTOR_GROUPS.map((group, gi)=>{
           const tipPos = gi % 3 === 0 ? 'right' : 'left'
 
-          // ── 해외지수 그룹: 2×2 스파크라인 카드 ──
+          // ── 해외지수 그룹: 2×2 메인 카드(52주 게이지) + 미니 아이콘 행 ──
           if (group.id === 'global') {
             const makeSparkSvg = (id, color) => {
               const raw = sparkData?.[id]
@@ -219,6 +218,7 @@ export default function DashboardPage() {
             return (
               <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
                 <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
+                {/* 메인 2×2 카드 */}
                 <div className="db-global-grid">
                   {group.items.map(item=>{
                     const d         = getItemData(item, dashData, globalData, forexData)
@@ -229,6 +229,24 @@ export default function DashboardPage() {
                     const dateLabel = getItemDateLabel(item, d)
                     const active    = selId === item.id
                     const spark     = makeSparkSvg(item.id, up ? '#DC2626' : '#1D4ED8')
+                    // 52주 고저 게이지
+                    const wk = weekData?.[item.id]
+                    const week52 = wk && d?.price && wk.high52 > wk.low52 ? (() => {
+                      const pct = Math.min(100, Math.max(0, (d.price - wk.low52) / (wk.high52 - wk.low52) * 100))
+                      return (
+                        <div className="db-52w-wrap">
+                          <div className="db-52w-track">
+                            <div className="db-52w-fill" style={{width:`${pct}%`}}/>
+                            <div className="db-52w-thumb" style={{left:`${pct}%`}}/>
+                          </div>
+                          <div className="db-52w-labels">
+                            <span>저 {Math.round(wk.low52).toLocaleString()}</span>
+                            <span style={{color:'var(--accent-mid)'}}>▲ 52주 {Math.round(pct)}%</span>
+                            <span>고 {Math.round(wk.high52).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      )
+                    })() : null
                     return (
                       <button key={item.id}
                         className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''}`}
@@ -245,13 +263,12 @@ export default function DashboardPage() {
                         {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
                          d?.price!=null ? (
                           <>
-                            <div className="db-idx-price">
-                              {Math.round(d.price).toLocaleString()}
-                            </div>
+                            <div className="db-idx-price">{Math.round(d.price).toLocaleString()}</div>
                             {rate!=null&&<div className={`db-idx-rate-badge ${up?'up':'down'}`}>
                               {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
                             </div>}
                             {spark}
+                            {week52}
                             {dateLabel&&<span className="db-date-badge">{dateLabel}</span>}
                           </>
                         ) : <div className="db-idx-na">—</div>}
@@ -259,6 +276,29 @@ export default function DashboardPage() {
                     )
                   })}
                 </div>
+                {/* 미니 아이콘 행 — 상해/대만/DAX */}
+                {group.miniItems && (
+                  <div className="db-global-mini-row">
+                    {group.miniItems.map(mini=>{
+                      const d    = globalData?.[mini.sym]
+                      const rate = d?.changeRate
+                      const up   = (rate??0) > 0
+                      return (
+                        <div key={mini.id} className="db-global-mini-item">
+                          <span className="db-global-mini-label" style={{color: mini.color}}>{mini.label}</span>
+                          {d?.price!=null ? (
+                            <>
+                              <span className="db-global-mini-price">{Math.round(d.price).toLocaleString()}</span>
+                              {rate!=null&&<span className="db-global-mini-rate" style={{color: up?'var(--color-up)':'var(--color-down)'}}>
+                                {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
+                              </span>}
+                            </>
+                          ) : <span className="db-global-mini-na">—</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )
           }
@@ -550,9 +590,9 @@ export default function DashboardPage() {
                                     <div className="db-52w-thumb" style={{left:`${pct}%`}}/>
                                   </div>
                                   <div className="db-52w-labels">
-                                    <span>저 {low.toLocaleString()}</span>
+                                    <span>저 {Math.round(low).toLocaleString()}</span>
                                     <span style={{color:'var(--accent-mid)'}}>▲ 52주 {Math.round(pct)}%</span>
-                                    <span>고 {high.toLocaleString()}</span>
+                                    <span>고 {Math.round(high).toLocaleString()}</span>
                                   </div>
                                 </div>
                               )
