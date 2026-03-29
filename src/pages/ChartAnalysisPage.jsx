@@ -101,8 +101,8 @@ function capStoch(data,k=14,d=3) {
 }
 
 // ── 보조지표 서브차트 컴포넌트 ────────────────────────
-function SubRSI({data,width}) {
-  const H=80, PAD={t:14,r:36,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
+function SubRSI({data, width, height=80}) {
+  const H=height, PAD={t:14,r:36,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
   const rsi=capRSI(data)
   const bx=i=>PAD.l+(i+0.5)*(W/data.length)
   // 클리핑: RSI 0~100 범위로 제한
@@ -151,8 +151,8 @@ function SubRSI({data,width}) {
     </svg>
   )
 }
-function SubMACD({data,width}) {
-  const H=96, PAD={t:14,r:36,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
+function SubMACD({data, width, height=96}) {
+  const H=height, PAD={t:14,r:36,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
   const {macd,sig,hist}=capMACD(data)
   const bx=i=>PAD.l+(i+0.5)*(W/data.length)
   const bW=Math.max(1.5, Math.min(8, W/data.length*0.7))
@@ -247,8 +247,8 @@ function SubMACD({data,width}) {
     </svg>
   )
 }
-function SubStoch({data,width}) {
-  const H=74, PAD={t:14,r:36,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
+function SubStoch({data, width, height=74}) {
+  const H=height, PAD={t:14,r:36,b:4,l:8}, W=width-PAD.l-PAD.r, iH=H-PAD.t-PAD.b
   const {kl,dl}=capStoch(data)
   const bx=i=>PAD.l+(i+0.5)*(W/data.length)
   const py=v=>PAD.t+iH*(1-Math.max(0,Math.min(100,v))/100)
@@ -288,6 +288,39 @@ function SubStoch({data,width}) {
         </g>
       )}
     </svg>
+  )
+}
+
+// ── 드래그 리사이즈 핸들 ──────────────────────────────
+function ResizeDivider({ onDrag, label }) {
+  const [dragging, setDragging] = useState(false)
+
+  const handleMouseDown = e => {
+    e.preventDefault()
+    setDragging(true)
+    const startY = e.clientY
+    let lastY = startY
+
+    const onMove = e => {
+      const delta = e.clientY - lastY
+      lastY = e.clientY
+      onDrag(delta)
+    }
+    const onUp = () => {
+      setDragging(false)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup',   onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup',   onUp)
+  }
+
+  return (
+    <div
+      className={`cap-resize-handle ${dragging?'dragging':''}`}
+      onMouseDown={handleMouseDown}
+      title={label||'드래그하여 높이 조절'}
+    />
   )
 }
 
@@ -452,6 +485,13 @@ export default function ChartAnalysisPage() {
   const [showStoch, setShowStoch] = useState(false)
   const [showSup,   setShowSup]   = useState(false)
 
+  // ── 서브차트 높이 (드래그 리사이즈) ──────────────
+  const [subHeights, setSubHeights] = useState({ rsi:80, macd:96, stoch:74 })
+  const updateSubH = (key, delta) => setSubHeights(prev => ({
+    ...prev,
+    [key]: Math.max(50, Math.min(200, prev[key] + delta))
+  }))
+
   // ── 데이터 ────────────────────────────────────────
   const [basicInfo,   setBasicInfo]   = useState(null)
   const [supplyData,  setSupplyData]  = useState(null)
@@ -517,14 +557,14 @@ export default function ChartAnalysisPage() {
       const parent=chartWrap.parentElement
       if(!parent) return
       const totalH=parent.clientHeight
-      const subH=(showRSI?80:0)+(showMACD?90:0)+(showStoch?74:0)+(showSup?200:0)
+      const subH=(showRSI?subHeights.rsi:0)+(showMACD?subHeights.macd:0)+(showStoch?subHeights.stoch:0)+(showSup?200:0)
       setChartH(Math.max(300, totalH-subH-2))
     }
     calc()
     const ro=new ResizeObserver(calc)
     ro.observe(chartWrap.parentElement||chartWrap)
     return()=>ro.disconnect()
-  },[chartWrap, showRSI, showMACD, showStoch, showSup])
+  },[chartWrap, showRSI, showMACD, showStoch, showSup, subHeights])
 
   // 팝업 외부 클릭 닫기
   useEffect(()=>{
@@ -961,11 +1001,37 @@ export default function ChartAnalysisPage() {
                         showBollinger={showBB} week52={chartHighLow} period={period}
                       />
                     </div>
-                    {/* 보조지표 서브차트 */}
+                    {/* 보조지표 서브차트 + 드래그 핸들 */}
                     {candles.length>0&&(<>
-                      {showRSI  &&<div className="cap-sub"><SubRSI   data={candles} width={chartW}/></div>}
-                      {showMACD &&<div className="cap-sub"><SubMACD  data={candles} width={chartW}/></div>}
-                      {showStoch&&<div className="cap-sub"><SubStoch data={candles} width={chartW}/></div>}
+                      {showRSI&&(<>
+                        <ResizeDivider
+                          label="RSI 패널 높이 조절"
+                          onDrag={delta=>{
+                            updateSubH('rsi', delta)
+                          }}
+                        />
+                        <div className="cap-sub">
+                          <SubRSI data={candles} width={chartW} height={subHeights.rsi}/>
+                        </div>
+                      </>)}
+                      {showMACD&&(<>
+                        <ResizeDivider
+                          label="MACD 패널 높이 조절"
+                          onDrag={delta=>updateSubH('macd', delta)}
+                        />
+                        <div className="cap-sub">
+                          <SubMACD data={candles} width={chartW} height={subHeights.macd}/>
+                        </div>
+                      </>)}
+                      {showStoch&&(<>
+                        <ResizeDivider
+                          label="Stoch 패널 높이 조절"
+                          onDrag={delta=>updateSubH('stoch', delta)}
+                        />
+                        <div className="cap-sub">
+                          <SubStoch data={candles} width={chartW} height={subHeights.stoch}/>
+                        </div>
+                      </>)}
                     </>)}
                     {/* 수급 패널 — 인라인 (오버레이 제거) */}
                     {showSup&&(
