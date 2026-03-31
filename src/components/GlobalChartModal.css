@@ -45,21 +45,49 @@
 .gcm-range-btn:hover  { background: var(--bg-hover); color: var(--text-primary); }
 .gcm-range-btn.active { background: var(--accent-mid); color: white; font-weight: 700; }
 
-/* 차트 타입 탭 */
-.gcm-type-tabs {
-  display: flex; gap: 4px;
-  background: var(--bg-base); border-radius: 8px; padding: 3px;
-  border: 1px solid var(--border);
+/* 차트 타입 탭 — 제거됨 (캔들 전용) */
+
+/* ── 드로잉 툴바 ── */
+.gcm-draw-toolbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px 20px; border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
 }
-.gcm-type-btn {
-  padding: 5px 10px; border-radius: 6px; border: none;
-  background: transparent; color: var(--text-secondary);
-  font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+.gcm-draw-tools { display: flex; gap: 4px; }
+.gcm-draw-btn {
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-base); color: var(--text-secondary);
+  font-size: 11px; font-weight: 500; cursor: pointer; transition: all .12s;
+  white-space: nowrap;
 }
-.gcm-type-btn:hover  { background: var(--bg-hover); color: var(--text-primary); }
-.gcm-type-btn.active {
-  background: var(--accent-light); color: var(--accent-mid);
-  font-weight: 700; border: 1px solid rgba(37,99,235,.3);
+.gcm-draw-btn:hover  { border-color: var(--accent-mid); color: var(--accent-mid); }
+.gcm-draw-btn.active {
+  background: var(--accent-mid); color: white;
+  border-color: var(--accent-mid); font-weight: 700;
+}
+.gcm-color-picks { display: flex; gap: 5px; align-items: center; }
+.gcm-color-dot {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer;
+  transition: transform .12s; flex-shrink: 0; padding: 0;
+}
+.gcm-color-dot:hover  { transform: scale(1.2); }
+.gcm-color-dot.active { border-color: var(--text-primary); transform: scale(1.15); }
+.gcm-draw-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.gcm-draw-act-btn {
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-base); color: var(--text-secondary);
+  font-size: 11px; cursor: pointer; transition: all .12s;
+}
+.gcm-draw-act-btn:hover:not(:disabled) { border-color: #94a3b8; color: var(--text-primary); }
+.gcm-draw-act-btn:disabled { opacity: .4; cursor: not-allowed; }
+.gcm-draw-clear:hover:not(:disabled) { border-color: #ef4444; color: #ef4444; }
+.gcm-draw-count { font-size: 10px; color: var(--accent-mid); font-weight: 700; white-space: nowrap; }
+.gcm-draw-hint {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  background: rgba(15,23,42,.75); color: white;
+  font-size: 11px; padding: 4px 12px; border-radius: 12px;
+  pointer-events: none; white-space: nowrap;
 }
 
 .gcm-close {
