@@ -1320,3 +1320,142 @@
   min-height: 0;
   justify-content: space-between;
 }
+
+/* ══════════════════════════════════════════════════════
+   업종별 종목 팝업
+══════════════════════════════════════════════════════ */
+.db-sector-popup-overlay {
+  position: fixed; inset: 0; z-index: 1100;
+  background: rgba(15,23,42,.45);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.db-sector-popup-modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: 100%; max-width: 360px;
+  box-shadow: 0 20px 60px rgba(15,23,42,.2);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+
+/* 헤더 */
+.db-sector-popup-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-base);
+}
+.db-sector-popup-title-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.db-sector-popup-title {
+  font-size: 15px; font-weight: 800; color: var(--text-primary);
+}
+.db-sector-popup-rate {
+  font-size: 13px; font-weight: 700;
+  padding: 2px 8px; border-radius: 8px;
+}
+.db-sector-popup-rate.up   { background: rgba(239,68,68,.1);  color: #DC2626; }
+.db-sector-popup-rate.down { background: rgba(37,99,235,.1);  color: #1D4ED8; }
+.db-sector-popup-close {
+  width: 28px; height: 28px;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--bg-panel); color: var(--text-secondary);
+  font-size: 12px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all .12s;
+}
+.db-sector-popup-close:hover {
+  background: rgba(239,68,68,.08); color: #DC2626;
+  border-color: rgba(239,68,68,.2);
+}
+
+/* 바디 */
+.db-sector-popup-body { padding: 12px 16px 14px; }
+
+/* 로딩/빈 상태 */
+.db-sector-popup-loading {
+  display: flex; align-items: center; gap: 10px;
+  padding: 20px 0; font-size: 13px; color: var(--text-dim);
+  justify-content: center;
+}
+.db-sector-popup-spinner {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent-mid);
+  animation: spin .7s linear infinite;
+  flex-shrink: 0;
+}
+.db-sector-popup-empty {
+  text-align: center; padding: 20px 0;
+  font-size: 12px; color: var(--text-dim);
+}
+
+/* 리스트 헤더 */
+.db-sector-popup-list-header {
+  display: grid;
+  grid-template-columns: 1fr 80px 70px;
+  font-size: 10px; font-weight: 700;
+  color: var(--text-dim);
+  padding: 0 4px 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.db-sector-popup-list-header span:nth-child(2),
+.db-sector-popup-list-header span:nth-child(3) {
+  text-align: right;
+}
+
+/* 종목 행 */
+.db-sector-popup-list { display: flex; flex-direction: column; gap: 2px; }
+.db-sector-popup-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 70px;
+  align-items: center;
+  padding: 7px 4px;
+  border-radius: 8px;
+  transition: background .1s;
+}
+.db-sector-popup-row:hover { background: var(--bg-hover); }
+.db-sector-popup-stock-info {
+  display: flex; align-items: center; gap: 8px;
+  min-width: 0;
+}
+.db-sector-popup-rank {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent-light); color: var(--accent-mid);
+  font-size: 9px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.db-sector-popup-stock-name {
+  font-size: 12px; font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.db-sector-popup-stock-code {
+  font-size: 9px; color: var(--text-dim);
+  font-family: var(--font-mono, monospace);
+}
+.db-sector-popup-price {
+  font-size: 12px; font-weight: 700;
+  color: var(--text-primary);
+  text-align: right;
+}
+.db-sector-popup-flu {
+  font-size: 11px; font-weight: 700;
+  text-align: right;
+}
+.db-sector-popup-flu.up   { color: #DC2626; }
+.db-sector-popup-flu.down { color: #1D4ED8; }
+
+/* 하단 노트 */
+.db-sector-popup-note {
+  margin-top: 10px; padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 10px; color: var(--text-dim);
+  text-align: right;
+}

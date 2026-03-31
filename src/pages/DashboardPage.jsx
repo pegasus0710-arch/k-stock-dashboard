@@ -139,6 +139,23 @@ export default function DashboardPage() {
   const [showGuide,   setShowGuide]   = useState(false)
   const [showBriefing,setShowBriefing]= useState(false)
   const [chartItem,   setChartItem]   = useState(null)
+  const [sectorPopup, setSectorPopup] = useState(null)   // { sector, stocks, loading }
+
+  const openSectorPopup = useCallback(async (sector) => {
+    setSectorPopup({ sector, stocks: [], loading: true })
+    try {
+      const res  = await fetch(`/api/kiwoom?type=sector-stocks&inds_cd=${sector.inds_cd}&mrkt_tp=0`)
+      const data = await res.json()
+      // 등락률 절댓값 기준 상위 5개 (주도주: 가장 크게 움직이는 종목)
+      const sorted = (data.data || [])
+        .filter(s => s.cur_prc > 0)
+        .sort((a, b) => Math.abs(b.flu_rt) - Math.abs(a.flu_rt))
+        .slice(0, 5)
+      setSectorPopup({ sector, stocks: sorted, loading: false })
+    } catch {
+      setSectorPopup({ sector, stocks: [], loading: false, error: true })
+    }
+  }, [])
 
   const kstStatus = getKstStatus()
   const isOpen    = kstStatus === 'open'
@@ -731,7 +748,8 @@ export default function DashboardPage() {
             return (
               <div key={sector.id}
                 className={`db-heatmap-cell${neutral?' neutral':''}`}
-                style={{background: bg, opacity: (!isOpen && effectiveRate==null) ? 0.55 : 1}}>
+                style={{background: bg, opacity: (!isOpen && effectiveRate==null) ? 0.55 : 1}}
+                onClick={()=>openSectorPopup(sector)}>
                 <span className="db-heatmap-cell-name">{sector.name}</span>
                 <span className="db-heatmap-cell-rate">
                   {effectiveRate!=null ? `${effectiveRate>=0?'+':''}${effectiveRate.toFixed(2)}%` : '—'}
@@ -785,6 +803,77 @@ export default function DashboardPage() {
         symbol={chartItem.type==='forex'?chartItem.pair:chartItem.sym}
         name={chartItem.label} currentPrice={chartItem.price} changeRate={chartItem.changeRate}
         onClose={()=>setChartItem(null)}/>}
+
+      {/* 업종별 종목 팝업 */}
+      {sectorPopup && (
+        <div className="db-sector-popup-overlay"
+          onMouseDown={e=>{ if(e.target===e.currentTarget) setSectorPopup(null) }}>
+          <div className="db-sector-popup-modal">
+            {/* 헤더 */}
+            <div className="db-sector-popup-header">
+              <div className="db-sector-popup-title-row">
+                <span className="db-sector-popup-title">{sectorPopup.sector.name}</span>
+                {heatmapData?.[sectorPopup.sector.inds_cd] != null && (() => {
+                  const r = heatmapData[sectorPopup.sector.inds_cd]
+                  const up = r >= 0
+                  return (
+                    <span className={`db-sector-popup-rate ${up?'up':'down'}`}>
+                      {up?'▲':'▼'} {Math.abs(r).toFixed(2)}%
+                    </span>
+                  )
+                })()}
+              </div>
+              <button className="db-sector-popup-close"
+                onClick={()=>setSectorPopup(null)}>✕</button>
+            </div>
+
+            {/* 대표 종목 리스트 */}
+            <div className="db-sector-popup-body">
+              {sectorPopup.loading ? (
+                <div className="db-sector-popup-loading">
+                  <div className="db-sector-popup-spinner"/>
+                  종목 조회 중...
+                </div>
+              ) : sectorPopup.error || sectorPopup.stocks.length === 0 ? (
+                <div className="db-sector-popup-empty">종목 데이터를 불러올 수 없습니다</div>
+              ) : (
+                <>
+                  <div className="db-sector-popup-list-header">
+                    <span>종목명</span>
+                    <span>현재가</span>
+                    <span>등락률</span>
+                  </div>
+                  <div className="db-sector-popup-list">
+                    {sectorPopup.stocks.map((s, i) => {
+                      const up = s.flu_rt >= 0
+                      return (
+                        <div key={s.stk_cd || i} className="db-sector-popup-row">
+                          <div className="db-sector-popup-stock-info">
+                            <span className="db-sector-popup-rank">{i+1}</span>
+                            <div>
+                              <div className="db-sector-popup-stock-name">{s.stk_nm}</div>
+                              <div className="db-sector-popup-stock-code">{s.stk_cd}</div>
+                            </div>
+                          </div>
+                          <span className="db-sector-popup-price">
+                            {s.cur_prc?.toLocaleString()}
+                          </span>
+                          <span className={`db-sector-popup-flu ${up?'up':'down'}`}>
+                            {up?'▲':'▼'} {Math.abs(s.flu_rt).toFixed(2)}%
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="db-sector-popup-note">
+                    당일 등락률 상위 종목 기준
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
