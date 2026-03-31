@@ -413,9 +413,13 @@ export default function GlobalChartModal({
     }
   }, [drawTool, drawPhase, drawPoint1, candles, range, selectedColor])
 
+  const handleMouseMove = useCallback((c) => setMousePos(c), [])
+  const handleLeave     = useCallback(() => setMousePos(null), [])
+
   return (
-    <div className="gcm-overlay" onClick={onClose}>
-      <div className="gcm-modal" onClick={e => e.stopPropagation()}>
+    <div className="gcm-overlay"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="gcm-modal">
 
         {/* 헤더 */}
         <div className="gcm-header">
@@ -511,8 +515,8 @@ export default function GlobalChartModal({
               drawPhase={drawPhase} drawPoint1={drawPoint1}
               mousePos={mousePos} selectedColor={selectedColor}
               onChartClick={handleChartClick}
-              onChartMouseMove={useCallback(c => setMousePos(c), [])}
-              onChartMouseLeave={useCallback(() => setMousePos(null), [])}
+              onChartMouseMove={handleMouseMove}
+              onChartMouseLeave={handleLeave}
             />
           )}
         </div>
