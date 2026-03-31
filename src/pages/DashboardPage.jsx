@@ -491,7 +491,7 @@ export default function DashboardPage() {
                        d?.price!=null ? (
                         <>
                           <div className="db-idx-price">
-                            {Math.round(d.price).toLocaleString()}{item.unit||''}
+                            {d.price.toFixed(2)}{item.unit||''}
                           </div>
                           {rate!=null&&<div className={`db-idx-rate-badge ${up?'up':'down'}`}>
                             {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
@@ -548,7 +548,9 @@ export default function DashboardPage() {
                         <div className="db-idx-price" style={d.isSpread?{color:d.inverted?'var(--color-down)':d.price<0.5?'#d97706':'var(--color-up)'}:{}}>
                           {d.isSpread
                             ? `${d.price>=0?'+':''}${d.price.toFixed(2)}%`
-                            : `${Math.round(d.price).toLocaleString()}${item.unit||''}`
+                            : item.unit==='%'
+                              ? `${d.price.toFixed(2)}${item.unit}`
+                              : `${Math.round(d.price).toLocaleString()}${item.unit||''}`
                           }
                         </div>
                         {d.isSpread
@@ -662,16 +664,30 @@ export default function DashboardPage() {
                           Math.abs(f?.individual  ?? 0),
                           1
                         )
-                        const pct  = Math.min(100, (abs / maxAbs) * 100)
+                        const pct   = Math.min(100, (abs / maxAbs) * 100)
                         const isBuy = val >= 0
                         return (
                           <div key={label} className="db-flow-row">
                             <span className="db-flow-label">{label}</span>
                             <div className="db-flow-bar-wrap">
-                              <div className="db-flow-bar"
-                                style={{width:`${pct}%`, background: isBuy?'#DC2626':'#1D4ED8'}}/>
+                              {/* 좌측 절반: 매도(빨강) — 오른쪽에서 채워짐 */}
+                              <div className="db-flow-half db-flow-half-left">
+                                {!isBuy && (
+                                  <div className="db-flow-fill"
+                                    style={{width:`${pct}%`, background:'#DC2626'}}/>
+                                )}
+                              </div>
+                              {/* 중앙 0 기준선 */}
+                              <div className="db-flow-center-line"/>
+                              {/* 우측 절반: 매수(파랑) — 왼쪽에서 채워짐 */}
+                              <div className="db-flow-half db-flow-half-right">
+                                {isBuy && (
+                                  <div className="db-flow-fill"
+                                    style={{width:`${pct}%`, background:'#1D4ED8'}}/>
+                                )}
+                              </div>
                             </div>
-                            <span className="db-flow-val" style={{color:isBuy?'#DC2626':'#1D4ED8'}}>
+                            <span className="db-flow-val" style={{color:isBuy?'#1D4ED8':'#DC2626'}}>
                               {isBuy?'+':''}{Math.abs(val)>=100
                                 ? `${(val/100).toFixed(0)}백억`
                                 : `${val.toFixed(0)}억`}
@@ -748,7 +764,6 @@ export default function DashboardPage() {
       <AiBriefing
         open={showBriefing}
         onClose={()=>setShowBriefing(false)}
-        flowData={flowData}
         marketData={{
           kospi:  globalData?.['KS11'],
           kosdaq: globalData?.['KQ11'],
