@@ -394,6 +394,7 @@
 .cap-news-refresh { background: none; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--text-secondary); padding: 1px 5px; font-size: 10px; }
 .cap-news-loading, .cap-news-empty { padding: 14px; text-align: center; color: var(--text-dim); font-size: 12px; }
 .cap-news-popup { max-height: 380px; overflow-y: auto; max-width: 360px; }
+.cap-supply-popup { max-height: 440px; overflow: hidden; min-width: 420px; max-width: 480px; display:flex; flex-direction:column; }
 .cap-si-row { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid var(--border-dim); font-size: 11px; }
 .cap-si-key { color: var(--text-secondary); }
 .cap-si-val { font-weight: 600; color: var(--text-primary); font-family: monospace; }

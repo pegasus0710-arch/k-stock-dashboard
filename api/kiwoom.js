@@ -271,10 +271,11 @@ export default async function handler(req, res) {
     }, res)
   }
 
-  // 전체 종목 리스트 — /api/kiwoom?type=stocks-list&market=kospi
-  // market: kospi | kosdaq
-  if (q.type === 'stocks-list') {
-    return relay('/stocks/list', { market: q.market || 'kospi' }, res)
+  // 종목별 투자자기관별 차트 (ka10060) — 외인/기관계/투신 일별 순매수
+  // /api/kiwoom?type=supply-invsr-chart&code=005930
+  if (q.type === 'supply-invsr-chart') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/supply/invsr-chart', { stk_cd: q.code }, res)
   }
 
   return res.status(400).json({

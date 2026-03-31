@@ -618,13 +618,16 @@ export default function ChartAnalysisPage() {
     if(!selected?.code||supplyData) return
     setSupplyLoad(true)
     try {
-      const [f,sh,st]=await Promise.all([
+      const [f, iv] = await Promise.all([
         fetch(`/api/kiwoom?type=supply-foreign&code=${selected.code}`).then(r=>r.json()),
-        fetch(`/api/kiwoom?type=supply-short&code=${selected.code}&days=30`).then(r=>r.json()),
-        fetch(`/api/kiwoom?type=supply-strength&code=${selected.code}`).then(r=>r.json()),
+        fetch(`/api/kiwoom?type=supply-invsr-chart&code=${selected.code}`).then(r=>r.json()),
       ])
-      setSupplyData({foreign:f.data?.slice(0,30)||[],short:sh.data?.slice(0,30)||[],strength:st.data?.slice(0,30)||[]})
-    } catch{} finally{setSupplyLoad(false)}
+      setSupplyData({
+        foreign:  f.data?.slice(0,30)||[],    // 외국인 일별 순매수
+        invsr:    iv.data?.slice(0,30)||[],   // 기관/투신 일별 (ka10060)
+      })
+    } catch(e){ console.error('[loadSupply]', e) }
+    finally { setSupplyLoad(false) }
   },[selected?.code,supplyData])
 
   const loadNews = useCallback(async()=>{
@@ -923,7 +926,6 @@ export default function ChartAnalysisPage() {
                 <button className={`cap-ind-btn rsi ${showRSI?'on':''}`}  onClick={()=>setShowRSI(v=>!v)}>RSI</button>
                 <button className={`cap-ind-btn macd ${showMACD?'on':''}`} onClick={()=>setShowMACD(v=>!v)}>MACD</button>
                 <button className={`cap-ind-btn stoch ${showStoch?'on':''}`} onClick={()=>setShowStoch(v=>!v)}>Stoch</button>
-                <button className={`cap-ind-btn supply ${showSup?'on':''}`} onClick={()=>{setShowSup(v=>!v);if(!showSup&&!supplyData) loadSupply()}}>수급</button>
               </div>
               <div className="cap-tb-sep"/>
               {/* 드로잉 */}
@@ -945,6 +947,69 @@ export default function ChartAnalysisPage() {
               <div className="cap-tb-sp"/>
               {/* 우측 버튼 */}
               <div className="cap-tb-right" ref={infoRef}>
+                {/* 수급 팝업 */}
+                <div className="cap-pop-wr">
+                  <button className={`cap-tb-btn ${infoPopup==='sup'?'active':''}`}
+                    onClick={()=>{
+                      const next=infoPopup==='sup'?null:'sup'
+                      setInfoPopup(next)
+                      if(next==='sup'&&!supplyData&&!supplyLoad) loadSupply()
+                    }}>
+                    📊 수급{supplyLoad&&' ⟳'}
+                  </button>
+                  {infoPopup==='sup'&&(
+                    <div className="cap-popup cap-supply-popup">
+                      <div className="cap-pop-title">
+                        📊 {selected.name} — 수급 현황
+                        <button className="cap-news-refresh" onClick={()=>{setSupplyData(null);loadSupply()}}>↺</button>
+                      </div>
+                      {supplyLoad&&<div className="cap-news-loading">⟳ 수급 데이터 로딩 중...</div>}
+                      {!supplyLoad&&!supplyData&&(
+                        <div className="cap-news-loading">
+                          <button style={{padding:'6px 14px',background:'var(--accent-mid)',color:'white',border:'none',borderRadius:6,cursor:'pointer',fontSize:12,fontWeight:600}} onClick={loadSupply}>📡 데이터 불러오기</button>
+                        </div>
+                      )}
+                      {!supplyLoad&&supplyData&&(()=>{
+                        const rows=supplyData.invsr||[]
+                        if(!rows.length) return <div className="cap-news-empty">데이터 없음</div>
+                        // 누적 합산
+                        let cumFor=0, cumOrg=0, cumInv=0
+                        return (
+                          <div style={{overflow:'auto',maxHeight:380}}>
+                            {/* 헤더 */}
+                            <div style={{display:'grid',gridTemplateColumns:'60px repeat(5,1fr)',gap:0,fontSize:10,fontWeight:700,color:'var(--text-dim)',background:'var(--bg-base)',padding:'5px 12px',borderBottom:'1px solid var(--border)',position:'sticky',top:0}}>
+                              <span>날짜</span>
+                              <span style={{textAlign:'right',color:'#2563eb'}}>외국인</span>
+                              <span style={{textAlign:'right',color:'#059669'}}>기관계</span>
+                              <span style={{textAlign:'right',color:'#7c3aed'}}>투신</span>
+                              <span style={{textAlign:'right',color:'#2563eb',fontSize:9}}>외인누적</span>
+                              <span style={{textAlign:'right',color:'#059669',fontSize:9}}>기관누적</span>
+                            </div>
+                            {[...rows].reverse().map((r,i)=>{
+                              cumFor+=r.foreign||0; cumOrg+=r.orgn||0; cumInv+=r.invtrt||0
+                              const dt=String(r.dt||''); const dl=dt.length>=8?dt.slice(4,6)+'/'+dt.slice(6,8):dt
+                              const fc=r.foreign>0?'#ef4444':r.foreign<0?'#2563eb':'var(--text-dim)'
+                              const oc=r.orgn>0?'#ef4444':r.orgn<0?'#2563eb':'var(--text-dim)'
+                              const ic=r.invtrt>0?'#ef4444':r.invtrt<0?'#2563eb':'var(--text-dim)'
+                              const cfc=cumFor>0?'#ef4444':cumFor<0?'#2563eb':'var(--text-dim)'
+                              const coc=cumOrg>0?'#ef4444':cumOrg<0?'#2563eb':'var(--text-dim)'
+                              return (
+                                <div key={i} style={{display:'grid',gridTemplateColumns:'60px repeat(5,1fr)',gap:0,fontSize:11,padding:'4px 12px',borderBottom:'1px solid var(--border-dim)',alignItems:'center'}}>
+                                  <span style={{color:'var(--text-dim)',fontSize:10}}>{dl}</span>
+                                  <span style={{textAlign:'right',color:fc,fontWeight:600}}>{r.foreign>0?'+':''}{(r.foreign||0).toLocaleString()}</span>
+                                  <span style={{textAlign:'right',color:oc,fontWeight:600}}>{r.orgn>0?'+':''}{(r.orgn||0).toLocaleString()}</span>
+                                  <span style={{textAlign:'right',color:ic}}>{r.invtrt>0?'+':''}{(r.invtrt||0).toLocaleString()}</span>
+                                  <span style={{textAlign:'right',color:cfc,fontSize:10}}>{cumFor>0?'+':''}{(cumFor).toLocaleString()}</span>
+                                  <span style={{textAlign:'right',color:coc,fontSize:10}}>{cumOrg>0?'+':''}{(cumOrg).toLocaleString()}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )}
+                </div>
                 <div className="cap-pop-wr">
                   <button className={`cap-tb-btn ${infoPopup==='disc'?'active':''}`} onClick={()=>setInfoPopup(p=>p==='disc'?null:'disc')}>공시</button>
                   {infoPopup==='disc'&&(
@@ -1073,24 +1138,6 @@ export default function ChartAnalysisPage() {
                         </div>
                       </>)}
                     </>)}
-                    {/* 수급 패널 — 인라인 (오버레이 제거) */}
-                    {showSup&&(
-                      <div className="cap-sup-inline">
-                        <div className="cap-sup-hdr">
-                          <span>📊 {selected.name} — 수급 현황</span>
-                          <button className="cap-sup-close" onClick={()=>setShowSup(false)}>✕</button>
-                        </div>
-                        <div className="cap-sup-body">
-                          {supplyLoad&&<div className="cap-sup-loading"><div className="cap-spinner" style={{width:14,height:14,borderWidth:2,display:'inline-block',verticalAlign:'middle',marginRight:6}}/>로딩 중...</div>}
-                          {!supplyLoad&&supplyData&&<SupplySubChart supplyData={supplyData}/>}
-                          {!supplyLoad&&!supplyData&&(
-                            <div className="cap-sup-loading">
-                              <button style={{padding:'6px 14px',background:'var(--accent-mid)',color:'white',border:'none',borderRadius:6,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}} onClick={loadSupply}>📡 수급 데이터 불러오기</button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
                     {/* 텍스트 메모 */}
                     {textInput&&(
                       <div className="cap-text-bar">
