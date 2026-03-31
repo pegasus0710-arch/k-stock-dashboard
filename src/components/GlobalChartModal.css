@@ -11,9 +11,12 @@
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 16px;
-  width: 100%; max-width: 900px;
+  width: 900px;        /* 기본값 — JS로 덮어씀 */
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
   box-shadow: var(--shadow-lg);
   overflow: hidden; display: flex; flex-direction: column;
+  position: relative;
 }
 
 /* ── 헤더 ── */
@@ -100,9 +103,10 @@
 
 /* ── 차트 본문 ── */
 .gcm-body {
-  padding: 16px 20px; min-height: 340px; position: relative;
+  padding: 16px 20px; min-height: 300px; position: relative;
   display: flex; align-items: center; justify-content: center;
   background: var(--bg-base);
+  flex: 1; overflow: hidden;
 }
 
 .gcm-loading, .gcm-error, .gcm-no-data {
@@ -139,11 +143,23 @@
 
 /* ── 푸터 ── */
 .gcm-footer {
-  padding: 8px 20px 12px; font-size: 11px;
-  color: var(--text-dim); text-align: right;
+  padding: 8px 20px 10px; font-size: 11px;
+  color: var(--text-dim);
   border-top: 1px solid var(--border);
   background: var(--bg-panel);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; user-select: none;
 }
+
+/* ── 리사이즈 핸들 ── */
+.gcm-resize-handle {
+  font-size: 16px; line-height: 1;
+  color: var(--text-dim); cursor: se-resize;
+  padding: 2px 4px; border-radius: 4px;
+  transition: color .12s, background .12s;
+  flex-shrink: 0;
+}
+.gcm-resize-handle:hover { color: var(--accent-mid); background: var(--accent-light); }
 
 /* ── 모바일 ── */
 @media (max-width: 640px) {

@@ -231,19 +231,19 @@ function CandleSvg({ candles, range,
           const h  = toY(c.high  || c.close)
           const l  = toY(c.low   || c.close)
           const cl = toY(c.close)
-          const isUp   = c.close >= (c.open || c.close)
-          const color  = isUp ? '#22c55e' : '#ef4444'
+          const isUp    = c.close >= (c.open || c.close)
+          const col     = isUp ? '#DC2626' : '#1D4ED8'   // 양봉=빨강, 음봉=파랑
           const bodyTop    = Math.min(o, cl)
           const bodyBottom = Math.max(o, cl)
           const bodyH = Math.max(1, bodyBottom - bodyTop)
           return (
             <g key={i}>
-              <line x1={x} y1={h} x2={x} y2={l} stroke={color} strokeWidth="1"/>
+              <line x1={x} y1={h} x2={x} y2={l} stroke={col} strokeWidth="1"/>
               <rect
                 x={x - barW / 2} y={bodyTop}
                 width={barW} height={bodyH}
-                fill={color} fillOpacity={isUp ? 0.85 : 1}
-                stroke={color} strokeWidth="0.5"
+                fill={col} fillOpacity={isUp ? 0.9 : 1}
+                stroke={col} strokeWidth="0.5"
               />
             </g>
           )
@@ -295,8 +295,8 @@ function CandleSvg({ candles, range,
         }}>
           <div className="gcm-tt-date">{fmtDateLong(tooltip.c.date)}</div>
           <div>시가: <b>{fmtNum(tooltip.c.open)}</b></div>
-          <div>고가: <b style={{color:'#22c55e'}}>{fmtNum(tooltip.c.high)}</b></div>
-          <div>저가: <b style={{color:'#ef4444'}}>{fmtNum(tooltip.c.low)}</b></div>
+          <div>고가: <b style={{color:'#DC2626'}}>{fmtNum(tooltip.c.high)}</b></div>
+          <div>저가: <b style={{color:'#1D4ED8'}}>{fmtNum(tooltip.c.low)}</b></div>
           <div>종가: <b>{fmtNum(tooltip.c.close)}</b></div>
         </div>
       )}
@@ -334,6 +334,10 @@ export default function GlobalChartModal({
   const [candles,       setCandles]       = useState([])
   const [loading,       setLoading]       = useState(false)
   const [error,         setError]         = useState('')
+  // 리사이즈
+  const [modalSize,     setModalSize]     = useState({ w: 900, h: null })
+  const resizeRef       = useRef(null)
+  const startRef        = useRef(null)
   // 드로잉 상태
   const [drawings,      setDrawings]      = useState(() => { try { return JSON.parse(localStorage.getItem(`gcm_draw_${symbol}`)) || [] } catch { return [] } })
   const [drawTool,      setDrawTool]      = useState('none')
@@ -388,7 +392,7 @@ export default function GlobalChartModal({
     ? (candles[candles.length-1].close - candles[candles.length-2].close)
       / candles[candles.length-2].close * 100
     : null
-  const rateColor = computedRate == null ? '#94a3b8' : computedRate > 0 ? '#22c55e' : computedRate < 0 ? '#ef4444' : '#94a3b8'
+  const rateColor = computedRate == null ? '#94a3b8' : computedRate > 0 ? '#DC2626' : computedRate < 0 ? '#1D4ED8' : '#94a3b8'
 
   // 드로잉 클릭 핸들러
   const handleChartClick = useCallback((coords) => {
@@ -416,10 +420,28 @@ export default function GlobalChartModal({
   const handleMouseMove = useCallback((c) => setMousePos(c), [])
   const handleLeave     = useCallback(() => setMousePos(null), [])
 
+  // 리사이즈 핸들러 (우하단 모서리 드래그)
+  const onResizeMouseDown = useCallback((e) => {
+    e.preventDefault(); e.stopPropagation()
+    const startX = e.clientX, startY = e.clientY
+    const startW = resizeRef.current?.offsetWidth  || 900
+    const startH = resizeRef.current?.offsetHeight || 600
+    const onMove = (ev) => {
+      setModalSize({
+        w: Math.max(600, Math.min(window.innerWidth  - 32, startW + ev.clientX - startX)),
+        h: Math.max(420, Math.min(window.innerHeight - 32, startH + ev.clientY - startY)),
+      })
+    }
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup',   onUp)
+  }, [])
+
   return (
     <div className="gcm-overlay"
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="gcm-modal">
+      <div className="gcm-modal" ref={resizeRef}
+        style={{ width: modalSize.w, ...(modalSize.h ? { height: modalSize.h } : {}) }}>
 
         {/* 헤더 */}
         <div className="gcm-header">
@@ -521,10 +543,11 @@ export default function GlobalChartModal({
           )}
         </div>
 
-        {/* 데이터 출처 */}
+        {/* 데이터 출처 + 리사이즈 핸들 */}
         <div className="gcm-footer">
-          데이터: Yahoo Finance · {candles.length}개 봉 · 캔들 차트
-          {drawings.length > 0 && ` · ✏️ 드로잉 ${drawings.length}개 저장됨`}
+          <span>데이터: Yahoo Finance · {candles.length}개 봉 · 캔들 차트
+          {drawings.length > 0 && ` · ✏️ 드로잉 ${drawings.length}개 저장됨`}</span>
+          <span className="gcm-resize-handle" onMouseDown={onResizeMouseDown} title="드래그해서 크기 조절">⤡</span>
         </div>
       </div>
     </div>
