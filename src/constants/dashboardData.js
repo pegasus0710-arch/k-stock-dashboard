@@ -39,7 +39,7 @@ export const SECTOR_GROUPS = [
   ]},
   { id:'forex',     label:'💱 환율',         accent:'#d97706', items:[
     { id:'FX_USD', label:'USD/KRW', type:'forex', pair:'USD', color:'#3b82f6' },
-    { id:'FX_JPY', label:'JPY/KRW', type:'forex', pair:'JPY', color:'#ef4444', unit:'(100엔)' },
+    { id:'FX_JPY', label:'JPY/KRW', type:'forex', pair:'JPY', color:'#ef4444' },
     { id:'FX_CNY', label:'CNY/KRW', type:'forex', pair:'CNY', color:'#f59e0b' },
     { id:'FX_EUR', label:'EUR/KRW', type:'forex', pair:'EUR', color:'#8b5cf6' },
   ]},
@@ -77,18 +77,18 @@ export const GUIDE_DATA = {
 // ── 업종 히트맵 섹터 정의 ─────────────────────────────
 // changeRate는 API에서 받아 주입. 여기서는 섹터 메타만 정의.
 export const HEATMAP_SECTORS = [
-  { id:'semiconductor', name:'반도체·IT',   stocks:'삼성전자, SK하이닉스', themeColor:'#1d4ed8', inds_cd:'013' },
-  { id:'battery',       name:'2차전지',      stocks:'LG에너지솔루션, 삼성SDI', themeColor:'#2563eb', inds_cd:'008' },
-  { id:'auto',          name:'자동차',       stocks:'현대차, 기아', themeColor:'#3b82f6', inds_cd:'015' },
-  { id:'bio',           name:'바이오·제약',  stocks:'삼성바이오, 셀트리온', themeColor:'#7c3aed', inds_cd:'009' },
-  { id:'game',          name:'게임·엔터',   stocks:'HYBE, 엔씨소프트', themeColor:'#8b5cf6', inds_cd:'026' },
-  { id:'finance',       name:'금융·보험',   stocks:'KB금융, 신한지주', themeColor:'#0891b2', inds_cd:'021' },
-  { id:'energy',        name:'에너지',       stocks:'S-Oil, GS칼텍스', themeColor:'#16a34a', inds_cd:'017' },
-  { id:'chemical',      name:'화학·소재',   stocks:'LG화학, 롯데케미칼', themeColor:'#15803d', inds_cd:'008' },
-  { id:'telecom',       name:'통신',         stocks:'SKT, KT', themeColor:'#64748b', inds_cd:'020' },
-  { id:'retail',        name:'유통·소비재', stocks:'이마트, 롯데쇼핑', themeColor:'#94a3b8', inds_cd:'016' },
-  { id:'construct',     name:'건설·부동산', stocks:'현대건설, DL이앤씨', themeColor:'#0369a1', inds_cd:'018' },
-  { id:'shipyard',      name:'조선·기계',   stocks:'HD한국조선해양, 두산에너빌', themeColor:'#0e7490', inds_cd:'012' },
+  { id:'semiconductor', name:'반도체·IT',   stocks:'삼성전자, SK하이닉스', themeColor:'#1d4ed8', inds_cd:'010' },  // 전기전자
+  { id:'battery',       name:'2차전지',      stocks:'LG에너지솔루션, 삼성SDI', themeColor:'#2563eb', inds_cd:'010' },  // 전기전자 (LG엔솔·삼성SDI)
+  { id:'auto',          name:'자동차',       stocks:'현대차, 기아', themeColor:'#3b82f6', inds_cd:'012' },  // 운수장비
+  { id:'bio',           name:'바이오·제약',  stocks:'삼성바이오, 셀트리온', themeColor:'#7c3aed', inds_cd:'006' },  // 의약품
+  { id:'game',          name:'게임·엔터',   stocks:'HYBE, 크래프톤', themeColor:'#8b5cf6', inds_cd:'022' },  // 서비스업
+  { id:'finance',       name:'금융·보험',   stocks:'KB금융, 신한지주', themeColor:'#0891b2', inds_cd:'018' },  // 금융업
+  { id:'energy',        name:'에너지',       stocks:'한국전력, 한국가스공사', themeColor:'#16a34a', inds_cd:'014' },  // 전기가스업
+  { id:'chemical',      name:'화학·소재',   stocks:'LG화학, 롯데케미칼', themeColor:'#15803d', inds_cd:'005' },  // 화학
+  { id:'telecom',       name:'통신',         stocks:'SKT, KT', themeColor:'#64748b', inds_cd:'017' },  // 통신업
+  { id:'retail',        name:'유통·소비재', stocks:'이마트, 롯데쇼핑', themeColor:'#94a3b8', inds_cd:'013' },  // 유통업
+  { id:'construct',     name:'건설·부동산', stocks:'현대건설, GS건설', themeColor:'#0369a1', inds_cd:'015' },  // 건설업
+  { id:'shipyard',      name:'조선·기계',   stocks:'HD한국조선해양, 두산에너빌', themeColor:'#0e7490', inds_cd:'009' },  // 기계
 ]
 
 // 등락률 → 히트맵 배경색 계산

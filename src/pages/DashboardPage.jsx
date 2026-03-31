@@ -146,10 +146,15 @@ export default function DashboardPage() {
     try {
       const res  = await fetch(`/api/kiwoom?type=sector-stocks&inds_cd=${sector.inds_cd}&mrkt_tp=0`)
       const data = await res.json()
-      // 등락률 절댓값 기준 상위 5개 (주도주: 가장 크게 움직이는 종목)
-      const sorted = (data.data || [])
-        .filter(s => s.cur_prc > 0)
-        .sort((a, b) => Math.abs(b.flu_rt) - Math.abs(a.flu_rt))
+      // 거래대금(trde_qty × cur_prc) 상위 5개 → 시장 주도 대형주 노출
+      // 장외 시간엔 trde_qty=0이므로 cur_prc(현재가) 기준으로 폴백
+      const stocks = (data.data || []).filter(s => s.cur_prc > 0)
+      const hasTrade = stocks.some(s => s.trde_qty > 0)
+      const sorted = stocks
+        .sort((a, b) => hasTrade
+          ? (b.trde_qty * b.cur_prc) - (a.trde_qty * a.cur_prc)   // 거래대금 상위
+          : b.cur_prc - a.cur_prc                                   // 장외: 주가 높은 순(시총 근사)
+        )
         .slice(0, 5)
       setSectorPopup({ sector, stocks: sorted, loading: false })
     } catch {
