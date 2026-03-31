@@ -541,7 +541,20 @@ export default function DashboardPage() {
                   <div key={item.id} className="db-card-group-divider">{item.label}</div>
                 )
                 const d        = getItemData(item, dashData, globalData, forexData)
-                const rate     = d?.changeRate
+                // KOSPI/KOSDAQ: sparkData 마지막 2봉으로 등락률 직접 계산
+                // (globalData.changeRate는 스파크 기간 전체 수익률이 섞일 수 있음)
+                const displayRate = (() => {
+                  if (item.id === 'KOSPI' || item.id === 'KOSDAQ') {
+                    const spark = sparkData?.[item.id]
+                    if (spark && spark.length >= 2) {
+                      const prev = spark[spark.length - 2]
+                      const cur  = spark[spark.length - 1]
+                      if (prev > 0 && cur > 0) return (cur - prev) / prev * 100
+                    }
+                  }
+                  return d?.changeRate ?? null
+                })()
+                const rate     = displayRate
                 const up       = (rate ?? 0) > 0
                 const badge    = getMarketBadge(item, d)
                 const isClosed = badge?.cls === 'closed'
