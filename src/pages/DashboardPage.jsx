@@ -748,6 +748,7 @@ export default function DashboardPage() {
       <AiBriefing
         open={showBriefing}
         onClose={()=>setShowBriefing(false)}
+        flowData={flowData}
         marketData={{
           kospi:  globalData?.['KS11'],
           kosdaq: globalData?.['KQ11'],
