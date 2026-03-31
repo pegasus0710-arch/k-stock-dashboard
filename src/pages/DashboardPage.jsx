@@ -547,7 +547,7 @@ export default function DashboardPage() {
                   <button key={item.id}
                     className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''} ${item.type==='spread'?'spread-card':''} ${warnClass}`}
                     onClick={()=>(item.type==='global'||item.type==='forex') && setSelId(item.id)}>
-                    <div className="db-idx-top-row">
+                <div className="db-idx-top-row">
                       <span className="db-idx-name">{item.label}</span>
                       <span style={{display:'flex',alignItems:'center',gap:3}}>
                         <TooltipIcon id={item.id} tipPosition={tipPos}/>
@@ -555,6 +555,18 @@ export default function DashboardPage() {
                           <span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
                             {badge.cls==='live' && <span className="db-idx-live-dot"/>}
                             {badge.label}
+                          </span>
+                        )}
+                        {/* 차트 분석 아이콘 — KOSPI/KOSDAQ 전용 */}
+                        {(item.id==='KOSPI'||item.id==='KOSDAQ') && d?.price!=null && (
+                          <span
+                            className="db-idx-chart-icon"
+                            title="차트 분석"
+                            onClick={e=>{
+                              e.stopPropagation()
+                              setChartItem({type:'global', sym:item.sym, label:item.label, price:d.price, changeRate:rate})
+                            }}>
+                            📈
                           </span>
                         )}
                       </span>
