@@ -404,14 +404,45 @@ export default function GlobalChartModal({
     if (!symbol) return
     setLoading(true)
     setError('')
-    const url = type === 'forex'
-      ? `/api/kis?type=forex-chart&pair=${symbol}&range=${range}`
-      : `/api/kis?type=global&symbol=${symbol}&range=${range}`
+
+    // KOSPI(KS11)/KOSDAQ(KQ11) → 키움 index-chart API (실시간, 당일 반영)
+    // 그 외 → Yahoo Finance (/api/kis)
+    const isKiwoom = symbol === 'KS11' || symbol === 'KQ11'
+    const inds_cd  = symbol === 'KS11' ? '001' : '101'
+
+    let url, kiwoomBody = null
+    if (isKiwoom) {
+      // range → 키움 period/봉수 매핑
+      const periodMap = {
+        '1mo': { period:'day',  cnt:22  },
+        '3mo': { period:'day',  cnt:65  },
+        '6mo': { period:'day',  cnt:130 },
+        '1y':  { period:'week', cnt:52  },
+        '5y':  { period:'week', cnt:260 },
+      }
+      const { period } = periodMap[range] || periodMap['6mo']
+      url = `/api/kiwoom?type=index-chart&inds_cd=${inds_cd}&period=${period}`
+    } else if (type === 'forex') {
+      url = `/api/kis?type=forex-chart&pair=${symbol}&range=${range}`
+    } else {
+      url = `/api/kis?type=global&symbol=${symbol}&range=${range}`
+    }
+
     fetch(url)
       .then(r => r.json())
       .then(data => {
         if (data.error) throw new Error(data.error)
-        setCandles(data.candles || [])
+        let candles = data.candles || []
+        // 키움 응답: time 필드가 date 필드 역할 — CandleSvg 호환
+        if (isKiwoom) {
+          // 기간에 맞는 봉수 슬라이싱
+          const cntMap = { '1mo':22, '3mo':65, '6mo':130, '1y':52, '5y':260 }
+          const cnt = cntMap[range] || 130
+          candles = candles.slice(-cnt)
+          // time 필드를 date 필드로 복사 (CandleSvg는 date 또는 time 둘 다 허용)
+          candles = candles.map(c => ({ ...c, date: c.time }))
+        }
+        setCandles(candles)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
@@ -581,7 +612,7 @@ export default function GlobalChartModal({
 
         {/* 데이터 출처 + 리사이즈 핸들 */}
         <div className="gcm-footer">
-          <span>데이터: Yahoo Finance · {candles.length}개 봉 · 캔들 차트
+          <span>데이터: {(symbol==='KS11'||symbol==='KQ11') ? '키움증권 REST API' : 'Yahoo Finance'} · {candles.length}개 봉 · 캔들 차트
           {drawings.length > 0 && ` · ✏️ 드로잉 ${drawings.length}개 저장됨`}</span>
           <span className="gcm-resize-handle" onMouseDown={onResizeMouseDown} title="드래그해서 크기 조절">⤡</span>
         </div>
