@@ -1,6 +1,7 @@
 // src/components/dashboard/HeroChart.jsx
 import { useState, useEffect, useCallback } from 'react'
 import { rateColor } from '../../utils/format'
+import CandleSvg from '../ui/CandleSvg'
 import { SECTOR_GROUPS, ALL_ITEMS } from '../../constants/dashboardData'
 
 // 국내지수 심볼 → 키움 업종코드
@@ -54,14 +55,15 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
       const inds = KIWOOM_IDS[id]
       if (inds) {
         // 국내지수 → 키움 index-chart (실시간, 당일 반영)
+        // ka20006/ka20007 응답값은 소수점 제거 후 100배 → /100 필요
         const period = toKiwoomPeriod(rng)
         const j = await fetch(`/api/kiwoom?type=index-chart&inds_cd=${inds}&period=${period}`).then(r=>r.json())
         raw = (j.candles || []).slice(-toKiwoomSlice(rng)).map(c => ({
           date:  c.time || c.label || '',
-          open:  c.open,
-          high:  c.high,
-          low:   c.low,
-          close: c.close,
+          open:  (c.open  || 0) / 100,
+          high:  (c.high  || 0) / 100,
+          low:   (c.low   || 0) / 100,
+          close: (c.close || 0) / 100,
         }))
       } else if (it.type==='global') {
         const j = await fetch(`/api/kis?type=global&symbol=${it.sym}&range=${rng}`).then(r=>r.json())
@@ -85,15 +87,19 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
   }, [])
 
   const loadDomesticSpark = useCallback(async () => {
+    // 1차: /index/spark (ka20007 주봉 배치)
     try {
       const j = await fetch('/api/kiwoom?type=index-spark', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       }).then(r => r.json())
+
+      let gotData = false
       for (const [id, payload] of Object.entries(j)) {
         const candles = (payload?.candles || []).filter(c => (c.close || 0) > 0)
         if (!candles.length) continue
+        gotData = true
         if (onSparkData) onSparkData(id, candles.map(c => c.close))
         if (onWeekRange) {
           const highs = candles.map(c => c.high || c.close || 0).filter(v => v > 0)
@@ -101,11 +107,27 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
           if (highs.length && lows.length) onWeekRange(id, Math.max(...highs), Math.min(...lows))
         }
       }
+      if (gotData) return  // 성공 시 종료
     } catch(e) {
-      fetchChart('KOSPI',  '1y', true)
-      fetchChart('KOSDAQ', '1y', true)
+      console.warn('[HeroChart] index-spark 실패:', e)
     }
-  }, [fetchChart])
+
+    // 2차 폴백: index-chart (일봉 1년) 직접 호출
+    const fallback = async (id, inds_cd) => {
+      try {
+        const j = await fetch(`/api/kiwoom?type=index-chart&inds_cd=${inds_cd}&period=week`).then(r=>r.json())
+        const candles = (j.candles||[]).filter(c=>(c.close||0)>0)
+        if (!candles.length) return
+        if (onSparkData) onSparkData(id, candles.map(c=>c.close))
+        if (onWeekRange) {
+          const highs = candles.map(c=>c.high||c.close||0).filter(v=>v>0)
+          const lows  = candles.map(c=>c.low||c.close||0).filter(v=>v>0)
+          if (highs.length&&lows.length) onWeekRange(id, Math.max(...highs), Math.min(...lows))
+        }
+      } catch(e2) { console.warn(`[HeroChart] ${id} fallback 실패:`, e2) }
+    }
+    await Promise.all([fallback('KOSPI','001'), fallback('KOSDAQ','101')])
+  }, [onSparkData, onWeekRange])
 
   useEffect(()=>{ fetchChart(selId, range) },[selId, range])
 
@@ -133,127 +155,6 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
   const cur = getCur()
   const pc  = cur ? rateColor(cur.changeRate) : '#94a3b8'
 
-  // ── 공통 SVG 축 계산 ────────────────────────────
-  const buildAxis = () => {
-    const W=800,H=190,pL=68,pR=16,pT=10,pB=28
-    const cW=W-pL-pR, cH=H-pT-pB
-    const closes = candles.map(c=>c.close)
-    const highs  = candles.map(c=>c.high||c.close)
-    const lows   = candles.map(c=>c.low||c.close)
-    const rawMin = Math.min(...lows),  rawMax = Math.max(...highs)
-    const pad    = (rawMax-rawMin)*0.05||rawMax*0.01
-    const niceNum=(r,round)=>{const e=Math.floor(Math.log10(r));const f=r/Math.pow(10,e);let nf;if(round){if(f<1.5)nf=1;else if(f<3)nf=2;else if(f<7)nf=5;else nf=10;}else{if(f<=1)nf=1;else if(f<=2)nf=2;else if(f<=5)nf=5;else nf=10;}return nf*Math.pow(10,e)}
-    const tickInterval=niceNum((rawMax-rawMin)/4,true)||1
-    const yMin=Math.floor((rawMin-pad)/tickInterval)*tickInterval
-    const yMax=Math.ceil( (rawMax+pad)/tickInterval)*tickInterval
-    const yRng=yMax-yMin||1
-    const py=v=>pT+cH-(v-yMin)/yRng*cH
-    const px=i=>pL+(i/(candles.length-1||1))*cW
-    // Y 눈금
-    const yTicks=[]
-    for(let v=yMin;v<=yMax+tickInterval*0.01;v+=tickInterval) yTicks.push(Math.round(v*100)/100)
-    // X 레이블
-    const useMon=range==='1y'||range==='6mo'
-    const useYr=range==='1y'
-    const xLabels=[]
-    if(useMon){
-      let lastMon=''
-      candles.forEach((c,i)=>{
-        const d=String(c.date||c.time||''); if(d.length<6) return
-        const yr=d.slice(2,4)||d.slice(0,4), mo=d.slice(d.length>=8?4:4,d.length>=8?6:6)
-        const moStr=d.length>=8?d.slice(4,6):d.slice(4,6)
-        const yrStr=d.length>=8?d.slice(2,4):d.slice(2,4)
-        const key=`${yrStr}${moStr}`
-        if(key!==lastMon){lastMon=key;xLabels.push({x:px(i),lbl:useYr?`${yrStr}/${moStr}`:`${moStr}월`})}
-      })
-    } else {
-      const step=Math.max(1,Math.floor(candles.length/6))
-      candles.forEach((c,i)=>{
-        if(i%step===0||i===candles.length-1){
-          const d=String(c.date||c.time||'')
-          xLabels.push({x:px(i),lbl:d.length>=8?`${d.slice(4,6)}/${d.slice(6,8)}`:d})
-        }
-      })
-    }
-    const filteredX=xLabels.length>8?xLabels.filter((_,i)=>i%(Math.ceil(xLabels.length/7))===0):xLabels
-    return { W,H,pL,pR,pT,pB,cW,cH,py,px,yTicks,filteredX,closes }
-  }
-
-  // ── 선형 차트 렌더링 ─────────────────────────────
-  const renderLine = () => {
-    if (!candles.length) return <div className="db-hero-empty">데이터를 불러오는 중...</div>
-    const { W,H,pL,pT,cH,py,px,yTicks,filteredX,closes } = buildAxis()
-    const pts=candles.map((c,i)=>`${px(i).toFixed(1)},${py(c.close).toFixed(1)}`).join(' ')
-    return (
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block'}}>
-        <defs>
-          <linearGradient id="hg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor={accent} stopOpacity="0.18"/>
-            <stop offset="100%" stopColor={accent} stopOpacity="0"/>
-          </linearGradient>
-        </defs>
-        {yTicks.map((v,i)=>{
-          const y=py(v); if(y<pT-2||y>pT+cH+2) return null
-          return <g key={i}>
-            <line x1={pL} x2={pL+(W-pL-16)} y1={y} y2={y} stroke="rgba(15,23,42,0.06)" strokeDasharray="3,4"/>
-            <text x={pL-5} y={y+4} textAnchor="end" fontSize="10" fill="#94A3B8">
-              {v>=1000?Math.round(v).toLocaleString():v>=10?v.toFixed(1):v.toFixed(2)}
-            </text>
-          </g>
-        })}
-        <polygon points={`${pL},${pT+cH} ${pts} ${px(candles.length-1).toFixed(1)},${pT+cH}`} fill="url(#hg)"/>
-        <polyline points={pts} fill="none" stroke={accent} strokeWidth="1.8"/>
-        <circle cx={px(candles.length-1).toFixed(1)} cy={py(closes[closes.length-1]).toFixed(1)}
-          r="4" fill={accent} stroke="#FFFFFF" strokeWidth="2"/>
-        {filteredX.map((l,i)=>(
-          <text key={i} x={l.x} y={H-6} textAnchor="middle" fontSize="10" fill="#94A3B8">{l.lbl}</text>
-        ))}
-      </svg>
-    )
-  }
-
-  // ── 캔들 차트 렌더링 ─────────────────────────────
-  const renderCandle = () => {
-    if (!candles.length) return <div className="db-hero-empty">데이터를 불러오는 중...</div>
-    const { W,H,pL,pT,cH,py,px,yTicks,filteredX } = buildAxis()
-    const barW = Math.max(2, Math.floor((W-pL-16) / candles.length * 0.65))
-    return (
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block'}}>
-        {yTicks.map((v,i)=>{
-          const y=py(v); if(y<pT-2||y>pT+cH+2) return null
-          return <g key={i}>
-            <line x1={pL} x2={pL+(W-pL-16)} y1={y} y2={y} stroke="rgba(15,23,42,0.06)" strokeDasharray="3,4"/>
-            <text x={pL-5} y={y+4} textAnchor="end" fontSize="10" fill="#94A3B8">
-              {v>=1000?Math.round(v).toLocaleString():v>=10?v.toFixed(1):v.toFixed(2)}
-            </text>
-          </g>
-        })}
-        {candles.map((c,i)=>{
-          const x    = px(i)
-          const o    = py(c.open  || c.close)
-          const cl   = py(c.close)
-          const hi   = py(c.high  || c.close)
-          const lo   = py(c.low   || c.close)
-          const up   = c.close >= (c.open || c.close)
-          const col  = up ? '#ef4444' : '#2563eb'
-          const top  = Math.min(o, cl)
-          const bot  = Math.max(o, cl)
-          const bodyH= Math.max(1, bot - top)
-          if (!isFinite(x)||!isFinite(top)||!isFinite(hi)||!isFinite(lo)) return null
-          return (
-            <g key={i}>
-              <line x1={x} x2={x} y1={hi} y2={lo} stroke={col} strokeWidth="1"/>
-              <rect x={x-barW/2} y={top} width={barW} height={bodyH}
-                fill={up ? col : 'white'} stroke={col} strokeWidth="0.8"/>
-            </g>
-          )
-        })}
-        {filteredX.map((l,i)=>(
-          <text key={i} x={l.x} y={H-6} textAnchor="middle" fontSize="10" fill="#94A3B8">{l.lbl}</text>
-        ))}
-      </svg>
-    )
-  }
 
   if (item?.type==='cb') {
     return (
@@ -308,7 +209,15 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
       <div className="db-hero-chart">
         {loading
           ? <div className="db-hero-loading"><div className="db-hero-spinner"/></div>
-          : chartType==='candle' ? renderCandle() : renderLine()
+          : <CandleSvg
+              candles={candles}
+              range={range}
+              chartType={chartType}
+              accent={accent}
+              showMA={{ 5:false, 20:false, 60:false, 120:false }}
+              W={820} H={210}
+              PAD={{ top:14, right:56, bottom:28, left:8 }}
+            />
         }
       </div>
     </div>
