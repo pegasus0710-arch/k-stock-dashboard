@@ -150,6 +150,12 @@ export default async function handler(req, res) {
     return relay('/supply/strength', { stk_cd: q.code }, res)
   }
 
+  // 전체 종목 리스트 — /api/kiwoom?type=stocks-list&market=kospi
+  // useStockList 훅 전용 (종목검색 전체 상장 종목)
+  if (q.type === 'stocks-list') {
+    return relay('/stocks/list', { market: q.market || 'kospi' }, res)
+  }
+
   // ══════════════════════════════════════════════════
   // Phase 2 — 업종 배치
   // ══════════════════════════════════════════════════
@@ -286,6 +292,7 @@ export default async function handler(req, res) {
       'price', 'hoga', 'stock-chart', 'index-chart', 'index-price', 'index-52week',
       'supply-foreign', 'supply-investor', 'supply-institution',
       'supply-short', 'supply-strength', 'market-flow',
+      'stocks-list',
       'sector-all', 'sector-stocks', 'sector-heatmap',
       'etf-info', 'etf-list', 'etf-profit', 'etf-holdings',
       'account-balance', 'account-holdings', 'account-orders', 'account-returns',
