@@ -10,6 +10,7 @@ const LS_RATES  = 'db_central_rates_v1'
 const LS_FLOW   = 'db_flow_v1'
 const LS_WEEK   = 'db_52week_v1'
 const LS_HEATMAP = 'db_heatmap_v1'
+const LS_DOMESTIC = 'db_domestic_v1'   // 국내지수(KOSPI/KOSDAQ) 키움 API 캐시
 
 function lsRead(key, ttl) {
   try { const r=localStorage.getItem(key); if(!r)return null; const {data,ts}=JSON.parse(r); return Date.now()-ts<ttl?data:null } catch { return null }
@@ -51,8 +52,45 @@ export default function useDashboard() {
 
   const fetchGlobal = useCallback(async (force=false) => {
     if(!force&&lsRead(LS_GLOBAL,300000)){setGlobalLoading(false);return}
-    try{const j=await fetch(`/api/kis?type=global-batch&symbols=${BATCH_SYMBOLS.join(',')}`).then(r=>r.json());setGlobalData(j);lsWrite(LS_GLOBAL,j)}
+    try{
+      const j=await fetch(`/api/kis?type=global-batch&symbols=${BATCH_SYMBOLS.join(',')}`).then(r=>r.json())
+      // merge: KS11/KQ11은 fetchDomesticIndex가 관리 → 덮어쓰지 않음
+      setGlobalData(prev => ({...prev, ...j}))
+      lsWrite(LS_GLOBAL, j)
+    }
     catch{}finally{setGlobalLoading(false)}
+  },[])
+
+  // ── 국내 지수 (KOSPI/KOSDAQ) — 키움 ka20001, 1순위 소스 ──────────
+  // 장 운영 중: 실시간 현재가 반영 / 장 마감 후: 직전 마감 종가 반영
+  // TTL: 장중 30초, 시간외 5분
+  const fetchDomesticIndex = useCallback(async (force=false) => {
+    const ttl = isMarketOpen() ? 30000 : 300000
+    if(!force && lsRead(LS_DOMESTIC, ttl)) return
+    try {
+      const j = await fetch('/api/kiwoom?type=index-domestic').then(r=>r.json())
+      if(!j.KOSPI || !j.KOSDAQ) return
+      // globalData에 KS11/KQ11 키로 merge (기존 해외지수 보존)
+      const now = isMarketOpen()
+      const kiwoomToGlobal = (d, sym) => ({
+        symbol:      sym,
+        price:       d.price,
+        change:      d.change,
+        changeRate:  d.changeRate,
+        open:        d.open,
+        high:        d.high,
+        low:         d.low,
+        high52:      d.high52,
+        low52:       d.low52,
+        marketState: now ? 'REGULAR' : 'CLOSED',
+      })
+      const patch = {
+        KS11: kiwoomToGlobal(j.KOSPI,  'KS11'),
+        KQ11: kiwoomToGlobal(j.KOSDAQ, 'KQ11'),
+      }
+      setGlobalData(prev => ({...prev, ...patch}))
+      lsWrite(LS_DOMESTIC, patch)
+    } catch(e) { console.warn('[useDashboard] fetchDomesticIndex 실패:', e.message) }
   },[])
 
   const fetchForex = useCallback(async (force=false) => {
@@ -100,17 +138,28 @@ export default function useDashboard() {
     localStorage.removeItem(LS_FOREX)
     localStorage.removeItem(LS_FLOW)
     localStorage.removeItem(LS_HEATMAP)
-    fetchDashboard(true);fetchGlobal(true);fetchForex(true);fetchFlow(true);fetchHeatmap(true)
-  },[fetchDashboard,fetchGlobal,fetchForex,fetchFlow,fetchHeatmap])
+    localStorage.removeItem(LS_DOMESTIC)
+    fetchDashboard(true);fetchGlobal(true);fetchForex(true);fetchFlow(true);fetchHeatmap(true);fetchDomesticIndex(true)
+  },[fetchDashboard,fetchGlobal,fetchForex,fetchFlow,fetchHeatmap,fetchDomesticIndex])
 
   useEffect(()=>{
-    fetchDashboard(true);fetchGlobal(true);fetchForex(true);fetchCbRates();fetchFlow(true);fetchWeek();fetchHeatmap(true)
-    timerRef.current  = setInterval(()=>fetchDashboard(true), isMarketOpen()?30000:300000)
-    globalRef.current = setInterval(()=>fetchGlobal(true),    isUSMarketOpen()?60000:300000)
-    const flowTimer    = setInterval(()=>fetchFlow(true),    isMarketOpen()?120000:600000)
-    const heatmapTimer = setInterval(()=>fetchHeatmap(true), isMarketOpen()?300000:600000)
-    return()=>{clearInterval(timerRef.current);clearInterval(globalRef.current);clearInterval(flowTimer);clearInterval(heatmapTimer)}
-  },[fetchDashboard,fetchGlobal,fetchForex,fetchCbRates,fetchFlow,fetchWeek,fetchHeatmap])
+    fetchDashboard(true);fetchGlobal(true);fetchForex(true);fetchCbRates()
+    fetchFlow(true);fetchWeek();fetchHeatmap(true);fetchDomesticIndex(true)
+
+    timerRef.current  = setInterval(()=>fetchDashboard(true),     isMarketOpen()?30000:300000)
+    globalRef.current = setInterval(()=>fetchGlobal(true),        isUSMarketOpen()?60000:300000)
+    // 국내지수: 장중 30초, 시간외 5분 (fetchDashboard와 동일 주기)
+    const domesticTimer  = setInterval(()=>fetchDomesticIndex(true), isMarketOpen()?30000:300000)
+    const flowTimer      = setInterval(()=>fetchFlow(true),           isMarketOpen()?120000:600000)
+    const heatmapTimer   = setInterval(()=>fetchHeatmap(true),        isMarketOpen()?300000:600000)
+    return()=>{
+      clearInterval(timerRef.current)
+      clearInterval(globalRef.current)
+      clearInterval(domesticTimer)
+      clearInterval(flowTimer)
+      clearInterval(heatmapTimer)
+    }
+  },[fetchDashboard,fetchGlobal,fetchForex,fetchCbRates,fetchFlow,fetchWeek,fetchHeatmap,fetchDomesticIndex])
 
   return { dashData, globalData, forexData, cbRates, flowData, weekData, heatmapData, loading, globalLoading, fetchError, setFetchError, lastFetch, refresh, fetchDashboard }
 }

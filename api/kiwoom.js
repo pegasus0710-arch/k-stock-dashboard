@@ -82,6 +82,15 @@ export default async function handler(req, res) {
     return relay('/index/price', { inds_cd: cd, mrkt_tp: mrkt }, res)
   }
 
+  // 국내 지수 배치 (KOSPI + KOSDAQ 동시) — /api/kiwoom?type=index-domestic
+  // 응답: { KOSPI: { price, change, changeRate, open, high, low, high52, low52, ... },
+  //         KOSDAQ: { ... } }
+  // - 장 운영 중: 실시간 현재가 반영
+  // - 장 마감 후: 직전 마감 종가 반영
+  if (q.type === 'index-domestic') {
+    return relay('/index/domestic', {}, res)
+  }
+
   // 52주 고저가 — /api/kiwoom?type=index-52week
   if (q.type === 'index-52week') {
     return relay('/index/52week', {}, res)
@@ -269,13 +278,6 @@ export default async function handler(req, res) {
       fr_dt: q.fr_dt || '',
       to_dt: q.to_dt || '',
     }, res)
-  }
-
-  // 종목별 투자자기관별 차트 (ka10060) — 외인/기관계/투신 일별 순매수
-  // /api/kiwoom?type=supply-invsr-chart&code=005930
-  if (q.type === 'supply-invsr-chart') {
-    if (!q.code) return res.status(400).json({ error: 'code required' })
-    return relay('/supply/invsr-chart', { stk_cd: q.code }, res)
   }
 
   return res.status(400).json({
