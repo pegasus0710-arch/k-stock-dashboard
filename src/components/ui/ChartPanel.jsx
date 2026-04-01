@@ -111,21 +111,21 @@ export default function ChartPanel({
     <div className="chart-panel">
       {showToolbar && (
         <div className="chart-panel-toolbar">
-          {/* MA 토글 */}
-          <div className="chart-panel-ma">
-            {MA_LIST.map(({ p, color, label }) => (
-              <button key={p}
-                className={`cp-ma-btn ${showMA[p] ? 'active' : ''}`}
-                style={{ '--ma-color': color }}
-                title={label}
-                onClick={() => toggleMA(p)}>
-                ● {label}
-              </button>
-            ))}
-          </div>
-
-          {/* 구분선 */}
-          <div className="chart-panel-sep"/>
+          {/* MA 토글 — 캔들 모드에서만 표시 */}
+          {!forceHideMA && (
+            <div className="chart-panel-ma">
+              {MA_LIST.map(({ p, color, label }) => (
+                <button key={p}
+                  className={`cp-ma-btn ${showMA[p] ? 'active' : ''}`}
+                  style={{ '--ma-color': color }}
+                  title={label}
+                  onClick={() => toggleMA(p)}>
+                  ● {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {!forceHideMA && <div className="chart-panel-sep"/>}
 
           {/* 드로잉 툴 */}
           <div className="chart-panel-draw-tools">

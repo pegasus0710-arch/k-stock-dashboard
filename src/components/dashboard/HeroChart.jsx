@@ -225,7 +225,7 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
               chartType={chartType}
               accent={accent}
               drawKey={`hero_${selId}`}
-              showToolbar={chartType === 'candle'}
+              showToolbar={true}
               forceHideMA={chartType === 'line'}
               W={820} H={210}
               PAD={{ top:14, right:72, bottom:28, left:8 }}
