@@ -53,8 +53,9 @@ export default function useDashboard() {
   const fetchGlobal = useCallback(async (force=false) => {
     if(!force&&lsRead(LS_GLOBAL,300000)){setGlobalLoading(false);return}
     try{
-      const j=await fetch(`/api/kis?type=global-batch&symbols=${BATCH_SYMBOLS.join(',')}`).then(r=>r.json())
-      // merge: KS11/KQ11은 fetchDomesticIndex가 관리 → 덮어쓰지 않음
+      // KS11/KQ11은 fetchDomesticIndex(키움)에서 관리 → batch에서 제외, globalData merge 방식으로 보존
+      const syms = BATCH_SYMBOLS.filter(s => s !== 'KS11' && s !== 'KQ11')
+      const j = await fetch(`/api/kis?type=global-batch&symbols=${syms.join(',')}`).then(r=>r.json())
       setGlobalData(prev => ({...prev, ...j}))
       lsWrite(LS_GLOBAL, j)
     }
@@ -63,16 +64,14 @@ export default function useDashboard() {
 
   // ── 국내 지수 (KOSPI/KOSDAQ) — 키움 ka20001, 1순위 소스 ──────────
   // 장 운영 중: 실시간 현재가 반영 / 장 마감 후: 직전 마감 종가 반영
-  // TTL: 장중 30초, 시간외 5분
   const fetchDomesticIndex = useCallback(async (force=false) => {
     const ttl = isMarketOpen() ? 30000 : 300000
     if(!force && lsRead(LS_DOMESTIC, ttl)) return
     try {
       const j = await fetch('/api/kiwoom?type=index-domestic').then(r=>r.json())
       if(!j.KOSPI || !j.KOSDAQ) return
-      // globalData에 KS11/KQ11 키로 merge (기존 해외지수 보존)
       const now = isMarketOpen()
-      const kiwoomToGlobal = (d, sym) => ({
+      const toGlobal = (d, sym) => ({
         symbol:      sym,
         price:       d.price,
         change:      d.change,
@@ -85,8 +84,8 @@ export default function useDashboard() {
         marketState: now ? 'REGULAR' : 'CLOSED',
       })
       const patch = {
-        KS11: kiwoomToGlobal(j.KOSPI,  'KS11'),
-        KQ11: kiwoomToGlobal(j.KOSDAQ, 'KQ11'),
+        KS11: toGlobal(j.KOSPI,  'KS11'),
+        KQ11: toGlobal(j.KOSDAQ, 'KQ11'),
       }
       setGlobalData(prev => ({...prev, ...patch}))
       lsWrite(LS_DOMESTIC, patch)
@@ -145,19 +144,15 @@ export default function useDashboard() {
   useEffect(()=>{
     fetchDashboard(true);fetchGlobal(true);fetchForex(true);fetchCbRates()
     fetchFlow(true);fetchWeek();fetchHeatmap(true);fetchDomesticIndex(true)
-
-    timerRef.current  = setInterval(()=>fetchDashboard(true),     isMarketOpen()?30000:300000)
-    globalRef.current = setInterval(()=>fetchGlobal(true),        isUSMarketOpen()?60000:300000)
-    // 국내지수: 장중 30초, 시간외 5분 (fetchDashboard와 동일 주기)
+    timerRef.current  = setInterval(()=>fetchDashboard(true),       isMarketOpen()?30000:300000)
+    globalRef.current = setInterval(()=>fetchGlobal(true),          isUSMarketOpen()?60000:300000)
+    // 국내지수: 장중 30초, 시간외 5분
     const domesticTimer  = setInterval(()=>fetchDomesticIndex(true), isMarketOpen()?30000:300000)
     const flowTimer      = setInterval(()=>fetchFlow(true),           isMarketOpen()?120000:600000)
     const heatmapTimer   = setInterval(()=>fetchHeatmap(true),        isMarketOpen()?300000:600000)
     return()=>{
-      clearInterval(timerRef.current)
-      clearInterval(globalRef.current)
-      clearInterval(domesticTimer)
-      clearInterval(flowTimer)
-      clearInterval(heatmapTimer)
+      clearInterval(timerRef.current);clearInterval(globalRef.current)
+      clearInterval(domesticTimer);clearInterval(flowTimer);clearInterval(heatmapTimer)
     }
   },[fetchDashboard,fetchGlobal,fetchForex,fetchCbRates,fetchFlow,fetchWeek,fetchHeatmap,fetchDomesticIndex])
 
