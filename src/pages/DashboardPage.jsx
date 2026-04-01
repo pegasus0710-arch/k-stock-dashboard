@@ -415,6 +415,9 @@ export default function DashboardPage() {
                               </div>
                             )}
                             {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
+                          </>
+                        ) : <div className="db-idx-na">—</div>}
+                      </button>
                     )
                   })}
                 </div>
@@ -479,6 +482,8 @@ export default function DashboardPage() {
                               )}
                               {makeCommoditySpark()}
                               {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
+                            </>
+                          : <span style={{fontSize:10,color:'var(--text-dim)'}}>—</span>
                       }
                     </div>
                   )
