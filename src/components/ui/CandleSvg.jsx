@@ -323,7 +323,7 @@ export default function CandleSvg({
             ? `${toX(i).toFixed(1)},${toY(v).toFixed(1)}` : null
           ).filter(Boolean).join(' ')
           return pts ? <polyline key={mi} points={pts} fill="none"
-            stroke={color} strokeWidth="1.2" opacity="0.85"/> : null
+            stroke={color} strokeWidth="0.9" opacity="0.8"/> : null
         })}
 
         {/* 저장된 드로잉 */}
@@ -347,13 +347,13 @@ export default function CandleSvg({
             <line
               x1={tooltip.x} y1={PAD.top}
               x2={tooltip.x} y2={PAD.top + chartH}
-              stroke="rgba(0,0,0,0.35)" strokeWidth="0.6" strokeDasharray="3 4"
+              stroke="rgba(0,0,0,0.28)" strokeWidth="0.4" strokeDasharray="2 5"
             />
             {/* 가로선 */}
             <line
               x1={PAD.left} y1={tooltip.svgY}
               x2={W - PAD.right} y2={tooltip.svgY}
-              stroke="rgba(0,0,0,0.35)" strokeWidth="0.6" strokeDasharray="3 4"
+              stroke="rgba(0,0,0,0.28)" strokeWidth="0.4" strokeDasharray="2 5"
             />
             {/* Y축 가격 버블 */}
             {isFinite(tooltip.price) && tooltip.svgY >= PAD.top && tooltip.svgY <= PAD.top + chartH && (

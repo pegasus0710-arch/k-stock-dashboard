@@ -25,8 +25,9 @@ export default function ChartPanel({
   range,
   chartType = 'line',
   accent = '#2563eb',
-  drawKey = 'default',       // 드로잉 저장 키 (종목코드/심볼)
-  showToolbar = true,        // 툴바 표시 여부
+  drawKey = 'default',
+  showToolbar = true,
+  forceHideMA = false,       // true면 선형 모드 — MA 완전 숨김
   W = 820, H = 300,
   PAD,
 }) {
@@ -177,7 +178,7 @@ export default function ChartPanel({
         range={range}
         chartType={chartType}
         accent={accent}
-        showMA={showMA}
+        showMA={forceHideMA ? { 5:false, 20:false, 60:false, 120:false } : showMA}
         drawings={drawings}
         drawTool={drawTool}
         drawPhase={drawPhase}
