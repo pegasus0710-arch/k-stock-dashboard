@@ -155,25 +155,17 @@ export default function DashboardPage() {
       return true
     }
 
-    SPARK_MAP.forEach(async ({ id, inds_cd, yahoo }) => {
+    SPARK_MAP.forEach(async ({ id, inds_cd }) => {
       try {
-        // 1차: 키움 index-chart 주봉
+        // day period 1년치 (week가 빈 배열 반환하는 문제 우회)
         const j = await fetch(
-          `/api/kiwoom?type=index-chart&inds_cd=${inds_cd}&period=week`
+          `/api/kiwoom?type=index-chart&inds_cd=${inds_cd}&period=day`
         ).then(r => r.json())
-        const kiwoomCandles = (j.candles || []).slice(-52)
-        if (applyData(id, kiwoomCandles)) return
-      } catch(e) {}
-
-      try {
-        // 2차 폴백: Yahoo Finance 1년 (^KS11, ^KQ11)
-        const j2 = await fetch(
-          `/api/kis?type=global&symbol=%5E${yahoo}&range=1y`
-        ).then(r => r.json())
-        const yahooCandles = (j2.candles || []).slice(-52)
-        applyData(id, yahooCandles)
-      } catch(e2) {
-        console.warn(`[Dashboard] ${id} spark 완전 실패:`, e2)
+        const candles = (j.candles || []).slice(-250)  // 약 1년 일봉
+        if (applyData(id, candles)) return
+        console.warn(`[Dashboard] ${id} spark 빈 배열`)
+      } catch(e) {
+        console.warn(`[Dashboard] ${id} spark 실패:`, e)
       }
     })
   }, [])
