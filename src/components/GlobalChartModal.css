@@ -135,10 +135,27 @@
 .gcm-tt-date { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600; }
 .gcm-tooltip div { line-height: 1.6; }
 
-/* MA 범례 */
+/* MA 토글 버튼 */
 .gcm-ma-legend {
   position: absolute; top: 8px; left: 12px;
-  display: flex; gap: 12px; font-size: 11px; font-weight: 600; pointer-events: none;
+  display: flex; gap: 6px; pointer-events: all;
+}
+.gcm-ma-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  border: 1.5px solid var(--ma-color, #94a3b8);
+  background: transparent;
+  color: var(--ma-color, #94a3b8);
+  opacity: 0.45;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.gcm-ma-toggle:hover { opacity: 0.75; }
+.gcm-ma-toggle.active {
+  background: var(--ma-color, #94a3b8);
+  color: white;
+  opacity: 1;
 }
 
 /* ── 푸터 ── */

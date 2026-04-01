@@ -91,6 +91,12 @@ export default async function handler(req, res) {
     return relay('/index/domestic', {}, res)
   }
 
+  // 국내 주봉 스파크라인 — /api/kiwoom?type=index-spark
+  // HeroChart 전용 — EC2 직접 호출 대신 프록시 경유 (Mixed Content 방지)
+  if (q.type === 'index-spark') {
+    return relay('/index/spark', {}, res)
+  }
+
   // 52주 고저가 — /api/kiwoom?type=index-52week
   if (q.type === 'index-52week') {
     return relay('/index/52week', {}, res)
@@ -148,12 +154,6 @@ export default async function handler(req, res) {
   if (q.type === 'supply-strength') {
     if (!q.code) return res.status(400).json({ error: 'code required' })
     return relay('/supply/strength', { stk_cd: q.code }, res)
-  }
-
-  // 전체 종목 리스트 — /api/kiwoom?type=stocks-list&market=kospi
-  // useStockList 훅 전용 (종목검색 전체 상장 종목)
-  if (q.type === 'stocks-list') {
-    return relay('/stocks/list', { market: q.market || 'kospi' }, res)
   }
 
   // ══════════════════════════════════════════════════
@@ -292,7 +292,6 @@ export default async function handler(req, res) {
       'price', 'hoga', 'stock-chart', 'index-chart', 'index-price', 'index-52week',
       'supply-foreign', 'supply-investor', 'supply-institution',
       'supply-short', 'supply-strength', 'market-flow',
-      'stocks-list',
       'sector-all', 'sector-stocks', 'sector-heatmap',
       'etf-info', 'etf-list', 'etf-profit', 'etf-holdings',
       'account-balance', 'account-holdings', 'account-orders', 'account-returns',

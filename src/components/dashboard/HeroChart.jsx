@@ -29,8 +29,7 @@ function getMarketBadge(item, data) {
   return { label:'전일', color:'#64748b' }
 }
 
-// ── EC2 릴레이 베이스 URL ────────────────────────────
-const EC2_URL = import.meta.env.VITE_RELAY_URL || 'http://3.38.37.78:8000'
+// ── EC2 직접 호출 금지 — 반드시 Vercel 프록시 경유 (Mixed Content 방지) ──
 
 function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeekRange, onSparkData }) {
   const [range,   setRange]   = useState('3mo')
@@ -75,7 +74,8 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
   // ── 국내지수 주봉 스파크 로드 (ka20007) ──────────────
   const loadDomesticSpark = useCallback(async () => {
     try {
-      const j = await fetch(`${EC2_URL}/index/spark`, {
+      // Vercel 프록시 경유 (Mixed Content 방지 — EC2 직접 호출 금지)
+      const j = await fetch('/api/kiwoom?type=index-spark', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),

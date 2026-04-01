@@ -629,17 +629,26 @@
    신규 추가 — 1단계 (기존 클래스 무수정)
 ══════════════════════════════════════════════════ */
 
-/* 기준일 배지 */
+/* 기준일 배지 — 전 카드 통일 디자인 */
 .db-date-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 9px;
+  font-weight: 600;
   color: var(--text-dim);
   background: var(--bg-base);
   border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 1px 5px;
+  border-radius: 4px;
+  padding: 2px 6px;
   white-space: nowrap;
   vertical-align: middle;
+  letter-spacing: 0.2px;
+}
+.db-date-badge::before {
+  content: '🕐';
+  font-size: 8px;
+  line-height: 1;
 }
 
 /* 툴팁 왼쪽 치우침 방지 — 오른쪽으로 열림 */

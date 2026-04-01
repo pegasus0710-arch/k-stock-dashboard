@@ -41,6 +41,7 @@ function fmtDateLong(d) {
 function CandleSvg({ candles, range,
                      drawings=[], drawTool='none', drawPhase=0,
                      drawPoint1=null, mousePos=null, selectedColor='#f59e0b',
+                     showMA={5:true,20:true,60:false,120:false},
                      onChartClick, onChartMouseMove, onChartMouseLeave }) {
   const svgRef = useRef(null)
   const [tooltip, setTooltip] = useState(null)
@@ -91,8 +92,10 @@ function CandleSvg({ candles, range,
       return arr.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0) / period
     })
   }
-  const ma5  = calcMA(closes, 5)
-  const ma20 = calcMA(closes, 20)
+  const ma5   = calcMA(closes, 5)
+  const ma20  = calcMA(closes, 20)
+  const ma60  = calcMA(closes, 60)
+  const ma120 = calcMA(closes, 120)
 
   // SVG 좌표 → 데이터 좌표
   const getSvgCoords = (e) => {
@@ -250,18 +253,32 @@ function CandleSvg({ candles, range,
         })}
 
         {/* MA5 */}
-        {(() => {
+        {showMA[5] && (() => {
           const pts = ma5.map((v, i) => v !== null
             ? `${toX(i).toFixed(1)},${toY(v).toFixed(1)}` : null
           ).filter(Boolean).join(' ')
           return pts ? <polyline points={pts} fill="none" stroke="#f59e0b" strokeWidth="1.2" opacity="0.85"/> : null
         })()}
         {/* MA20 */}
-        {(() => {
+        {showMA[20] && (() => {
           const pts = ma20.map((v, i) => v !== null
             ? `${toX(i).toFixed(1)},${toY(v).toFixed(1)}` : null
           ).filter(Boolean).join(' ')
           return pts ? <polyline points={pts} fill="none" stroke="#a78bfa" strokeWidth="1.2" opacity="0.85"/> : null
+        })()}
+        {/* MA60 */}
+        {showMA[60] && (() => {
+          const pts = ma60.map((v, i) => v !== null
+            ? `${toX(i).toFixed(1)},${toY(v).toFixed(1)}` : null
+          ).filter(Boolean).join(' ')
+          return pts ? <polyline points={pts} fill="none" stroke="#22c55e" strokeWidth="1.2" opacity="0.85"/> : null
+        })()}
+        {/* MA120 */}
+        {showMA[120] && (() => {
+          const pts = ma120.map((v, i) => v !== null
+            ? `${toX(i).toFixed(1)},${toY(v).toFixed(1)}` : null
+          ).filter(Boolean).join(' ')
+          return pts ? <polyline points={pts} fill="none" stroke="#f43f5e" strokeWidth="1.2" opacity="0.85"/> : null
         })()}
 
         {/* 저장된 드로잉 */}
@@ -301,10 +318,23 @@ function CandleSvg({ candles, range,
         </div>
       )}
 
-      {/* MA 범례 */}
+      {/* MA 토글 버튼 */}
       <div className="gcm-ma-legend">
-        <span style={{color:'#f59e0b'}}>● MA5</span>
-        <span style={{color:'#a78bfa'}}>● MA20</span>
+        {[
+          { p:5,   color:'#f59e0b', label:'MA5'   },
+          { p:20,  color:'#a78bfa', label:'MA20'  },
+          { p:60,  color:'#22c55e', label:'MA60'  },
+          { p:120, color:'#f43f5e', label:'MA120' },
+        ].map(({ p, color, label }) => (
+          <button
+            key={p}
+            className={`gcm-ma-toggle ${showMA[p] ? 'active' : ''}`}
+            style={{ '--ma-color': color }}
+            onClick={() => onToggleMA(p)}
+          >
+            ● {label}
+          </button>
+        ))}
       </div>
 
       {/* 드로잉 힌트 */}
@@ -345,6 +375,11 @@ export default function GlobalChartModal({
   const [drawPoint1,    setDrawPoint1]    = useState(null)
   const [mousePos,      setMousePos]      = useState(null)
   const [selectedColor, setSelectedColor] = useState('#f59e0b')
+  const [showMA,        setShowMA]        = useState({ 5:true, 20:true, 60:false, 120:false })
+
+  const onToggleMA = useCallback((period) => {
+    setShowMA(prev => ({ ...prev, [period]: !prev[period] }))
+  }, [])
 
   // ESC 키
   useEffect(() => {
@@ -536,6 +571,7 @@ export default function GlobalChartModal({
               drawings={drawings} drawTool={drawTool}
               drawPhase={drawPhase} drawPoint1={drawPoint1}
               mousePos={mousePos} selectedColor={selectedColor}
+              showMA={showMA} onToggleMA={onToggleMA}
               onChartClick={handleChartClick}
               onChartMouseMove={handleMouseMove}
               onChartMouseLeave={handleLeave}
