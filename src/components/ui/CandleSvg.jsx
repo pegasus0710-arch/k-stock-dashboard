@@ -46,7 +46,7 @@ export default function CandleSvg({
   accent = '#2563eb',
   // 크기 설정
   W = 820, H = 320,
-  PAD = { top: 20, right: 60, bottom: 36, left: 10 },
+  PAD = { top: 20, right: 72, bottom: 36, left: 10 },
 }) {
   const svgRef = useRef(null)
   const [tooltip, setTooltip] = useState(null)  // { c, x, y, svgY, price }
@@ -69,30 +69,40 @@ export default function CandleSvg({
   const yMax   = rawMax + pad5
   const yRange = yMax - yMin || 1
 
-  const toX = idx   => PAD.left + (idx / Math.max(data.length - 1, 1)) * chartW
-  const toY = price => PAD.top  + ((yMax - price) / yRange) * chartH
   const barW = Math.max(2, Math.floor(chartW / data.length * 0.7))
+  // toX: 마지막 캔들이 Y축에서 1봉 여백 유지
+  const toX = idx => PAD.left + barW/2 + (idx / Math.max(data.length - 1, 1)) * (chartW - barW)
+  const toY = price => PAD.top  + ((yMax - price) / yRange) * chartH
   const ticks = Array.from({ length: 5 }, (_, i) => yMin + (yRange * i) / 4)
 
-  // ── X축 레이블 — 마지막 날짜 겹침 방지 ────────────
+  // ── X축 레이블 — 마지막 날짜와 겹침 방지 ────────────
+  const lastX   = chartW - barW / 2 + PAD.left  // 마지막 캔들 X 위치
+  const MIN_GAP = 44  // 마지막 날짜 텍스트와 최소 픽셀 간격
+
   const xLabels = (() => {
+    let candidates = []
     if (range === '5y' || range === '2y') {
       const seen = new Set()
-      return data.slice(0, -1).filter(c => {
+      candidates = data.slice(0, -1).filter(c => {
         const yr = c.date?.slice(0, 4)
         if (!yr || seen.has(yr)) return false; seen.add(yr); return true
       })
-    }
-    if (range === '1y') {
+    } else if (range === '1y') {
       const seen = new Set()
-      return data.slice(0, -1).filter(c => {
+      candidates = data.slice(0, -1).filter(c => {
         const mo = c.date?.slice(0, 6)
         if (!mo || seen.has(mo)) return false; seen.add(mo); return true
       })
+    } else {
+      const step = Math.max(1, Math.floor(data.length / 6))
+      candidates = data.slice(0, -1).filter((_, i) => i % step === 0)
     }
-    // 3mo/6mo/1mo: step 기반, 마지막 항목 제외
-    const step = Math.max(1, Math.floor(data.length / 6))
-    return data.slice(0, -1).filter((_, i) => i % step === 0)
+    // 마지막 날짜와 너무 가까운 레이블 제거
+    return candidates.filter(c => {
+      const i   = data.indexOf(c)
+      const x   = PAD.left + barW/2 + (i / Math.max(data.length - 1, 1)) * (chartW - barW)
+      return lastX - x >= MIN_GAP
+    })
   })()
 
   // 마지막 날짜는 항상 맨 오른쪽에 단독 표시
@@ -224,6 +234,10 @@ export default function CandleSvg({
         onMouseMove={handleMouseMove}
         onClick={handleClick}
       >
+        {/* 차트 배경 */}
+        <rect x={PAD.left} y={PAD.top} width={chartW} height={chartH}
+          fill="#f8fafc" rx="2" opacity="0.7"/>
+
         {/* Y축 그리드 + 눈금 */}
         {ticks.map((t, i) => (
           <g key={i}>
@@ -248,8 +262,8 @@ export default function CandleSvg({
         })}
         {/* 마지막 날짜 — 오른쪽 끝 단독 표시 */}
         {lastCandle && (
-          <text x={W - PAD.right} y={H - 6} fontSize="10" fill="#2563eb"
-            textAnchor="end" fontWeight="600">
+          <text x={lastX} y={H - 6} fontSize="10" fill="#2563eb"
+            textAnchor="middle" fontWeight="600">
             {fmtDate(lastCandle.date, range)}
           </text>
         )}
@@ -333,13 +347,13 @@ export default function CandleSvg({
             <line
               x1={tooltip.x} y1={PAD.top}
               x2={tooltip.x} y2={PAD.top + chartH}
-              stroke="rgba(0,0,0,0.25)" strokeWidth="1" strokeDasharray="4 3"
+              stroke="rgba(0,0,0,0.35)" strokeWidth="0.6" strokeDasharray="3 4"
             />
             {/* 가로선 */}
             <line
               x1={PAD.left} y1={tooltip.svgY}
               x2={W - PAD.right} y2={tooltip.svgY}
-              stroke="rgba(0,0,0,0.25)" strokeWidth="1" strokeDasharray="4 3"
+              stroke="rgba(0,0,0,0.35)" strokeWidth="0.6" strokeDasharray="3 4"
             />
             {/* Y축 가격 버블 */}
             {isFinite(tooltip.price) && tooltip.svgY >= PAD.top && tooltip.svgY <= PAD.top + chartH && (
@@ -362,17 +376,37 @@ export default function CandleSvg({
       </svg>
 
       {/* 툴팁 박스 */}
-      {tooltip && drawTool === 'none' && (
-        <div className="gcm-tooltip" style={{
-          left: `${Math.min(tooltip.x / W * 100, 72)}%`,
-        }}>
-          <div className="gcm-tt-date">{fmtDateLong(tooltip.c.date)}</div>
-          {tooltip.c.open != null && <div>시가: <b>{fmtNum(tooltip.c.open)}</b></div>}
-          {tooltip.c.high != null && <div>고가: <b style={{color:'#DC2626'}}>{fmtNum(tooltip.c.high)}</b></div>}
-          {tooltip.c.low  != null && <div>저가: <b style={{color:'#1D4ED8'}}>{fmtNum(tooltip.c.low)}</b></div>}
-          <div>종가: <b>{fmtNum(tooltip.c.close)}</b></div>
-        </div>
-      )}
+      {tooltip && drawTool === 'none' && (() => {
+        const c   = tooltip.c
+        const idx = data.indexOf(c)
+        const prev = idx > 0 ? data[idx - 1] : null
+        const chg  = prev ? c.close - prev.close : (c.change ?? null)
+        const rate = prev && prev.close > 0 ? (chg / prev.close * 100) : (c.changeRate ?? null)
+        const isUp = chg >= 0
+        return (
+          <div className="gcm-tooltip" style={{
+            left: `${tooltip.x / W * 100 > 65 ? Math.max(5, tooltip.x / W * 100 - 28) : Math.min(tooltip.x / W * 100 + 2, 65)}%`,
+          }}>
+            <div className="gcm-tt-date">{fmtDateLong(c.date)}</div>
+            {c.open  != null && <div>시가: <b>{fmtNum(c.open,  c.open  > 100 ? 0 : 2)}</b></div>}
+            {c.high  != null && <div>고가: <b style={{color:'#DC2626'}}>{fmtNum(c.high,  c.high  > 100 ? 0 : 2)}</b></div>}
+            {c.low   != null && <div>저가: <b style={{color:'#1D4ED8'}}>{fmtNum(c.low,   c.low   > 100 ? 0 : 2)}</b></div>}
+            <div>종가: <b>{fmtNum(c.close, c.close > 100 ? 0 : 2)}</b></div>
+            {chg != null && (
+              <div style={{borderTop:'1px solid rgba(0,0,0,0.08)',marginTop:3,paddingTop:3}}>
+                전일비: <b style={{color: isUp ? '#DC2626' : '#1D4ED8'}}>
+                  {isUp ? '+' : ''}{fmtNum(chg, chg > 100 ? 0 : 2)}
+                </b>
+                {rate != null && (
+                  <span style={{marginLeft:4,color: isUp ? '#DC2626' : '#1D4ED8', fontWeight:700}}>
+                    ({isUp ? '+' : ''}{rate.toFixed(2)}%)
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* 드로잉 힌트 */}
       {drawTool !== 'none' && (

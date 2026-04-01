@@ -97,31 +97,40 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
 
       let gotData = false
       for (const [id, payload] of Object.entries(j)) {
-        const candles = (payload?.candles || []).filter(c => (c.close || 0) > 0)
+        // ka20007 응답은 100배 → /100 처리
+        const raw = (payload?.candles || []).map(c => ({
+          close: (c.close || 0) / 100,
+          high:  (c.high  || 0) / 100,
+          low:   (c.low   || 0) / 100,
+        }))
+        const candles = raw.filter(c => c.close > 0)
         if (!candles.length) continue
         gotData = true
         if (onSparkData) onSparkData(id, candles.map(c => c.close))
         if (onWeekRange) {
-          const highs = candles.map(c => c.high || c.close || 0).filter(v => v > 0)
-          const lows  = candles.map(c => c.low  || c.close || 0).filter(v => v > 0)
+          const highs = candles.map(c => c.high || c.close).filter(v => v > 0)
+          const lows  = candles.map(c => c.low  || c.close).filter(v => v > 0)
           if (highs.length && lows.length) onWeekRange(id, Math.max(...highs), Math.min(...lows))
         }
       }
-      if (gotData) return  // 성공 시 종료
+      if (gotData) return
     } catch(e) {
       console.warn('[HeroChart] index-spark 실패:', e)
     }
 
-    // 2차 폴백: index-chart (일봉 1년) 직접 호출
+    // 2차 폴백: index-chart 주봉 직접 호출
     const fallback = async (id, inds_cd) => {
       try {
         const j = await fetch(`/api/kiwoom?type=index-chart&inds_cd=${inds_cd}&period=week`).then(r=>r.json())
-        const candles = (j.candles||[]).filter(c=>(c.close||0)>0)
+        // ka20007 응답은 100배 → /100 처리
+        const candles = (j.candles||[])
+          .map(c => ({ close:(c.close||0)/100, high:(c.high||0)/100, low:(c.low||0)/100 }))
+          .filter(c => c.close > 0)
         if (!candles.length) return
         if (onSparkData) onSparkData(id, candles.map(c=>c.close))
         if (onWeekRange) {
-          const highs = candles.map(c=>c.high||c.close||0).filter(v=>v>0)
-          const lows  = candles.map(c=>c.low||c.close||0).filter(v=>v>0)
+          const highs = candles.map(c=>c.high||c.close).filter(v=>v>0)
+          const lows  = candles.map(c=>c.low||c.close).filter(v=>v>0)
           if (highs.length&&lows.length) onWeekRange(id, Math.max(...highs), Math.min(...lows))
         }
       } catch(e2) { console.warn(`[HeroChart] ${id} fallback 실패:`, e2) }
