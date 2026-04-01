@@ -746,9 +746,11 @@ export default function DashboardPage() {
                               </div>
                             </div>
                             <span className="db-flow-val" style={{color:isBuy?'#1D4ED8':'#DC2626'}}>
-                              {isBuy?'+':''}{Math.abs(val)>=100
-                                ? `${(val/100).toFixed(0)}백억`
-                                : `${val.toFixed(0)}억`}
+                              {isBuy?'+':''}{Math.abs(val)>=10000
+                                ? `${(val/10000).toFixed(1)}조`
+                                : Math.abs(val)>=1000
+                                ? `${Math.round(val/1000).toLocaleString()}천억`
+                                : `${Math.round(val).toLocaleString()}억`}
                             </span>
                           </div>
                         )
