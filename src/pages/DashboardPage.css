@@ -104,6 +104,12 @@
 .db-period-btn.active { background:var(--accent-light); color:var(--accent-mid); border-color:var(--accent-mid); }
 .db-period-btn:hover:not(.active) { border-color:#CBD5E1; color:var(--text-primary); }
 
+/* 선형/캔들 차트 타입 토글 */
+.db-chart-type-tabs { display:flex; gap:2px; background:var(--bg-base); border:1px solid var(--border); border-radius:7px; padding:2px; }
+.db-chart-type-btn  { padding:2px 9px; border-radius:5px; font-size:11px; border:none; background:transparent; color:var(--text-secondary); cursor:pointer; transition:all .15s; white-space:nowrap; }
+.db-chart-type-btn.active { background:white; color:var(--accent-mid); font-weight:700; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+.db-chart-type-btn:hover:not(.active) { color:var(--text-primary); }
+
 .db-hero-chart   { min-height: 260px; }
 .db-hero-loading { display:flex; align-items:center; justify-content:center; height:260px; }
 .db-hero-empty   { display:flex; align-items:center; justify-content:center; height:260px; color:var(--text-dim); font-size:13px; }
