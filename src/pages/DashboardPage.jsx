@@ -144,19 +144,29 @@ export default function DashboardPage() {
   const openSectorPopup = useCallback(async (sector) => {
     setSectorPopup({ sector, stocks: [], loading: true })
     try {
-      const res  = await fetch(`/api/kiwoom?type=sector-stocks&inds_cd=${sector.inds_cd}&mrkt_tp=0`)
-      const data = await res.json()
-      // 거래대금(trde_qty × cur_prc) 상위 5개 → 시장 주도 대형주 노출
-      // 장외 시간엔 trde_qty=0이므로 cur_prc(현재가) 기준으로 폴백
-      const stocks = (data.data || []).filter(s => s.cur_prc > 0)
-      const hasTrade = stocks.some(s => s.trde_qty > 0)
-      const sorted = stocks
-        .sort((a, b) => hasTrade
-          ? (b.trde_qty * b.cur_prc) - (a.trde_qty * a.cur_prc)   // 거래대금 상위
-          : b.cur_prc - a.cur_prc                                   // 장외: 주가 높은 순(시총 근사)
+      const codes = sector.repCodes || []
+      if (!codes.length) {
+        setSectorPopup({ sector, stocks: [], loading: false, error: true })
+        return
+      }
+
+      // repCodes 순서대로 현재가 병렬 조회 (ka10001 개별 호출)
+      const results = await Promise.allSettled(
+        codes.map(code =>
+          fetch(`/api/kiwoom?type=price&code=${code}`).then(r => r.json())
         )
-        .slice(0, 5)
-      setSectorPopup({ sector, stocks: sorted, loading: false })
+      )
+
+      const stocks = results
+        .filter(r => r.status === 'fulfilled' && r.value?.stk_nm && !r.value?.error)
+        .map(r => ({
+          stk_cd:  r.value.stk_cd  || '',
+          stk_nm:  r.value.stk_nm  || '',
+          cur_prc: Math.abs(r.value.cur_prc || 0),
+          flu_rt:  r.value.flu_rt  || 0,
+        }))
+
+      setSectorPopup({ sector, stocks, loading: false })
     } catch {
       setSectorPopup({ sector, stocks: [], loading: false, error: true })
     }
@@ -896,7 +906,7 @@ export default function DashboardPage() {
                     })}
                   </div>
                   <div className="db-sector-popup-note">
-                    당일 등락률 상위 종목 기준
+                    시가총액 상위 대표 종목 · 실시간 현재가
                   </div>
                 </>
               )}
