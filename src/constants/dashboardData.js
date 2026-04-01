@@ -86,8 +86,8 @@ export const HEATMAP_SECTORS = [
     repCodes:['005380','000270','012330','011210','064350'] },  // 현대차, 기아, 현대모비스, 현대위아, 현대로템
   { id:'bio',           name:'바이오·제약',  stocks:'삼성바이오, 셀트리온', themeColor:'#7c3aed', inds_cd:'006',
     repCodes:['207940','068270','000100','128940','326030'] },  // 삼성바이오로직스, 셀트리온, 유한양행, 한미약품, SK바이오팜
-  { id:'game',          name:'게임·엔터',   stocks:'HYBE, 엔씨소프트', themeColor:'#8b5cf6', inds_cd:'022',
-    repCodes:['259960','036570','251270','112040','095660'] },  // 크래프톤, 엔씨소프트, 넷마블, 위메이드, 네오위즈
+  { id:'game',          name:'게임·엔터',   stocks:'HYBE, 엔씨소프트', themeColor:'#8b5cf6', inds_cd:'024',
+    repCodes:['259960','036570','251270','352820','035420'] },  // 크래프톤, 엔씨소프트, 넷마블, HYBE, NAVER
   { id:'finance',       name:'금융·보험',   stocks:'KB금융, 신한지주', themeColor:'#0891b2', inds_cd:'018',
     repCodes:['105560','055550','086790','316140','138040'] },  // KB금융, 신한지주, 하나금융지주, 우리금융지주, 메리츠금융지주
   { id:'energy',        name:'에너지',       stocks:'S-Oil, GS칼텍스', themeColor:'#16a34a', inds_cd:'014',
