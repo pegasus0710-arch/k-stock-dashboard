@@ -135,18 +135,18 @@
 .gcm-tt-date { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600; }
 .gcm-tooltip div { line-height: 1.6; }
 
-/* MA 토글 버튼 */
-.gcm-ma-legend {
-  position: absolute; top: 8px; left: 12px;
-  display: flex; gap: 6px; pointer-events: all;
+/* MA 토글 버튼 그룹 */
+.gcm-ma-toggles {
+  display: flex; gap: 4px; align-items: center;
+  margin-right: 8px; border-right: 1px solid var(--border); padding-right: 8px;
 }
 .gcm-ma-toggle {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 9px; border-radius: 20px;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 3px 8px; border-radius: 20px;
   font-size: 11px; font-weight: 600; cursor: pointer;
   border: 1.5px solid var(--ma-color, #94a3b8);
   background: transparent;
-  color: var(--ma-color, #94a3b8);
+  color: var(--text-dim);
   opacity: 0.45;
   transition: all .15s;
   white-space: nowrap;
@@ -188,3 +188,57 @@
   .gcm-range-btn { padding: 4px 8px; font-size: 12px; }
   .gcm-body    { padding: 10px 12px; min-height: 260px; }
 }
+
+/* ── ChartPanel 공용 툴바 ──────────────────────────── */
+.chart-panel { display: flex; flex-direction: column; width: 100%; }
+
+.chart-panel-toolbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 12px; border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.chart-panel-sep {
+  width: 1px; height: 18px; background: var(--border); flex-shrink: 0;
+}
+
+/* MA 토글 */
+.chart-panel-ma { display: flex; gap: 4px; }
+.cp-ma-btn {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600;
+  cursor: pointer; border: 1.5px solid var(--ma-color, #94a3b8);
+  background: transparent; color: var(--text-dim); opacity: 0.45; transition: all .15s;
+}
+.cp-ma-btn:hover { opacity: 0.75; }
+.cp-ma-btn.active { background: var(--ma-color); color: white; opacity: 1; }
+
+/* 드로잉 툴 */
+.chart-panel-draw-tools { display: flex; gap: 3px; }
+.cp-draw-btn {
+  padding: 3px 9px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-base); color: var(--text-secondary);
+  font-size: 12px; cursor: pointer; transition: all .12s;
+}
+.cp-draw-btn:hover  { border-color: var(--accent-mid); color: var(--accent-mid); }
+.cp-draw-btn.active { background: var(--accent-mid); color: white; border-color: var(--accent-mid); }
+
+/* 색상 선택 */
+.chart-panel-colors { display: flex; gap: 4px; align-items: center; }
+.cp-color-dot {
+  width: 14px; height: 14px; border-radius: 50%; border: 2px solid transparent;
+  cursor: pointer; padding: 0; transition: transform .12s;
+}
+.cp-color-dot:hover  { transform: scale(1.2); }
+.cp-color-dot.active { border-color: var(--text-primary); transform: scale(1.15); }
+
+/* 액션 */
+.chart-panel-actions { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+.cp-act-btn {
+  padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-base); color: var(--text-secondary);
+  font-size: 11px; cursor: pointer; transition: all .12s;
+}
+.cp-act-btn:disabled { opacity: .4; cursor: not-allowed; }
+.cp-act-clear:hover:not(:disabled) { border-color: #ef4444; color: #ef4444; }
+.cp-draw-count { font-size: 10px; color: var(--accent-mid); font-weight: 700; }
+.cp-hint { font-size: 10px; color: var(--text-dim); margin-left: 4px; }

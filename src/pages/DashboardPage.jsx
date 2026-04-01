@@ -1,5 +1,5 @@
 // src/pages/DashboardPage.jsx — v5 (컴포넌트 분리 후 경량화)
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { rateColor, getTodayStr, getKstStatus, isMarketOpen, isUSMarketOpen, getSymbolMarketStatus } from '../utils/format'
 import { SECTOR_GROUPS, ALL_ITEMS, GAUGE_CONFIG, HEATMAP_SECTORS, getHeatmapColor } from '../constants/dashboardData'
 import { GaugeBar, TooltipIcon } from '../components/ui/GaugeBar'
@@ -133,6 +133,46 @@ export default function DashboardPage() {
   }, [])
   const handleSparkData = useCallback((id, closes) => {
     if(id && closes?.length) setSparkData(prev => ({...prev, [id]: closes}))
+  }, [])
+
+  // ── 국내지수 스파크라인 직접 로드 (HeroChart 콜백과 이중 보장) ────────
+  useEffect(() => {
+    const load = async () => {
+      try {
+        // 1차: index-spark (주봉 배치)
+        const j = await fetch('/api/kiwoom?type=index-spark', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+        }).then(r => r.json())
+
+        let ok = false
+        for (const [id, payload] of Object.entries(j)) {
+          const raw = (payload?.candles || [])
+            .map(c => ({ close:(c.close||0)/100, high:(c.high||0)/100, low:(c.low||0)/100 }))
+            .filter(c => c.close > 0)
+          if (!raw.length) continue
+          ok = true
+          setSparkData(prev => ({ ...prev, [id]: raw.map(c => c.close) }))
+          const hs = raw.map(c => c.high||c.close), ls = raw.map(c => c.low||c.close)
+          setWeekData(prev => ({ ...prev, [id]: { high52: Math.max(...hs), low52: Math.min(...ls) } }))
+        }
+        if (ok) return
+      } catch(e) { console.warn('[Dashboard] index-spark 실패:', e) }
+
+      // 2차 폴백: index-chart 주봉
+      for (const [id, inds_cd] of [['KOSPI','001'],['KOSDAQ','101']]) {
+        try {
+          const j = await fetch(`/api/kiwoom?type=index-chart&inds_cd=${inds_cd}&period=week`).then(r=>r.json())
+          const raw = (j.candles||[])
+            .map(c => ({ close:(c.close||0)/100, high:(c.high||0)/100, low:(c.low||0)/100 }))
+            .filter(c => c.close > 0)
+          if (!raw.length) continue
+          setSparkData(prev => ({ ...prev, [id]: raw.map(c => c.close) }))
+          const hs = raw.map(c => c.high||c.close), ls = raw.map(c => c.low||c.close)
+          setWeekData(prev => ({ ...prev, [id]: { high52: Math.max(...hs), low52: Math.min(...ls) } }))
+        } catch(e2) { console.warn(`[Dashboard] ${id} spark fallback 실패:`, e2) }
+      }
+    }
+    load()
   }, [])
 
   const [selId,       setSelId]       = useState('KOSPI')

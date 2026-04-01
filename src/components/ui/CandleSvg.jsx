@@ -242,7 +242,7 @@ export default function CandleSvg({
         {ticks.map((t, i) => (
           <g key={i}>
             <line x1={PAD.left} y1={toY(t)} x2={W - PAD.right} y2={toY(t)}
-              stroke="rgba(0,0,0,0.05)" strokeDasharray="4 4"/>
+              stroke="rgba(0,0,0,0.04)" strokeWidth="0.5" strokeDasharray="4 4"/>
             <text x={W - PAD.right + 5} y={toY(t) + 4}
               fontSize="10" fill="#94a3b8" textAnchor="start">
               {fmtNum(t, t > 100 ? 0 : 2)}

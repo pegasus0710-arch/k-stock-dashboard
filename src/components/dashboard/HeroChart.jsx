@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { rateColor } from '../../utils/format'
 import CandleSvg from '../ui/CandleSvg'
+import ChartPanel from '../ui/ChartPanel'
 import { SECTOR_GROUPS, ALL_ITEMS } from '../../constants/dashboardData'
 
 // 국내지수 심볼 → 키움 업종코드
@@ -218,14 +219,15 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
       <div className="db-hero-chart">
         {loading
           ? <div className="db-hero-loading"><div className="db-hero-spinner"/></div>
-          : <CandleSvg
+          : <ChartPanel
               candles={candles}
               range={range}
               chartType={chartType}
               accent={accent}
-              showMA={{ 5:false, 20:false, 60:false, 120:false }}
+              drawKey={`hero_${selId}`}
+              showToolbar={chartType === 'candle'}
               W={820} H={210}
-              PAD={{ top:14, right:56, bottom:28, left:8 }}
+              PAD={{ top:14, right:72, bottom:28, left:8 }}
             />
         }
       </div>
