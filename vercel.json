@@ -1,9 +1,6 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "toolbar": {
-    "enabled": false
-  },
   "headers": [
     {
       "source": "/(.*)",
