@@ -143,7 +143,10 @@ export default function DashboardPage() {
     ]
 
     const applyData = (id, candles) => {
-      const raw = candles.filter(c => (c.close||0) > 0)
+      // 키움 index-chart는 100배 값 반환 → /100
+      const raw = candles
+        .map(c => ({ close:(c.close||0)/100, high:(c.high||0)/100, low:(c.low||0)/100 }))
+        .filter(c => c.close > 0)
       if (!raw.length) return false
       setSparkData(prev => ({ ...prev, [id]: raw.map(c => c.close) }))
       const hs = raw.map(c => c.high || c.close)
