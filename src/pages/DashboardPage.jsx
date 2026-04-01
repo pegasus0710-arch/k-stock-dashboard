@@ -137,35 +137,45 @@ export default function DashboardPage() {
 
   // ── 국내지수 스파크라인 직접 로드 ────────────────────────────────────
   useEffect(() => {
-    const loadSpark = async (id, inds_cd) => {
+    const SPARK_MAP = [
+      { id:'KOSPI',  inds_cd:'001', yahoo:'KS11' },
+      { id:'KOSDAQ', inds_cd:'101', yahoo:'KQ11' },
+    ]
+
+    const applyData = (id, candles) => {
+      const raw = candles.filter(c => (c.close||0) > 0)
+      if (!raw.length) return false
+      setSparkData(prev => ({ ...prev, [id]: raw.map(c => c.close) }))
+      const hs = raw.map(c => c.high || c.close)
+      const ls = raw.map(c => c.low  || c.close)
+      setWeekData(prev => ({
+        ...prev,
+        [id]: { high52: Math.max(...hs), low52: Math.min(...ls) }
+      }))
+      return true
+    }
+
+    SPARK_MAP.forEach(async ({ id, inds_cd, yahoo }) => {
       try {
-        // index-chart 주봉 (메인차트와 동일 API — 정상 동작 확인됨)
+        // 1차: 키움 index-chart 주봉
         const j = await fetch(
           `/api/kiwoom?type=index-chart&inds_cd=${inds_cd}&period=week`
         ).then(r => r.json())
-        const raw = (j.candles || [])
-          .map(c => ({
-            close: (c.close || 0) / 100,
-            high:  (c.high  || 0) / 100,
-            low:   (c.low   || 0) / 100,
-          }))
-          .filter(c => c.close > 0)
-          .slice(-52)
-        if (!raw.length) return
-        setSparkData(prev => ({ ...prev, [id]: raw.map(c => c.close) }))
-        const hs = raw.map(c => c.high || c.close)
-        const ls = raw.map(c => c.low  || c.close)
-        setWeekData(prev => ({
-          ...prev,
-          [id]: { high52: Math.max(...hs), low52: Math.min(...ls) }
-        }))
-        console.log(`[Dashboard] ${id} spark loaded: ${raw.length}봉, 최신=${raw[raw.length-1]?.close}`)
-      } catch(e) {
-        console.warn(`[Dashboard] ${id} spark 실패:`, e)
+        const kiwoomCandles = (j.candles || []).slice(-52)
+        if (applyData(id, kiwoomCandles)) return
+      } catch(e) {}
+
+      try {
+        // 2차 폴백: Yahoo Finance 1년 (^KS11, ^KQ11)
+        const j2 = await fetch(
+          `/api/kis?type=global&symbol=%5E${yahoo}&range=1y`
+        ).then(r => r.json())
+        const yahooCandles = (j2.candles || []).slice(-52)
+        applyData(id, yahooCandles)
+      } catch(e2) {
+        console.warn(`[Dashboard] ${id} spark 완전 실패:`, e2)
       }
-    }
-    loadSpark('KOSPI',  '001')
-    loadSpark('KOSDAQ', '101')
+    })
   }, [])
 
   const [selId,       setSelId]       = useState('KOSPI')
