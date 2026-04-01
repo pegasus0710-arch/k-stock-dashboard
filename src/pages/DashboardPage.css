@@ -645,11 +645,6 @@
   vertical-align: middle;
   letter-spacing: 0.2px;
 }
-.db-date-badge::before {
-  content: '🕐';
-  font-size: 8px;
-  line-height: 1;
-}
 
 /* 툴팁 왼쪽 치우침 방지 — 오른쪽으로 열림 */
 .db-tooltip-wrap.tip-right .db-tooltip-box {

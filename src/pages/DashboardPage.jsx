@@ -59,7 +59,7 @@ function getCommodityDotColor(rate) {
 // 지수별 기준일 레이블 — 마켓별 마감 시간이 다름
 function getItemDateLabel(item, d) {
   if (!d) return null
-  if (d.isCB && d.date) return d.date          // 기준금리: API 날짜
+  if (d.isCB && d.date) return `🕐 ${d.date}`  // 기준금리: API 날짜
   if (d.price == null)  return null
   const now = new Date()
   const kst = new Date(Date.now() + 9 * 3600000)
@@ -84,13 +84,13 @@ function getItemDateLabel(item, d) {
   const CN_IDS  = ['HSI','SSE','TWI']
   const FX_IDS  = ['FX_USD','FX_JPY','FX_CNY','FX_EUR']
 
-  if (KR_IDS.includes(item.id))  return kstStr
-  if (US_IDS.includes(item.id))  return estStr
-  if (EU_IDS.includes(item.id))  return cetStr
-  if (JP_IDS.includes(item.id))  return jstStr
-  if (CN_IDS.includes(item.id))  return cstStr
-  if (FX_IDS.includes(item.id))  return kstStr
-  if (item.type === 'spread')     return estStr
+  if (KR_IDS.includes(item.id))  return `🕐 ${kstStr}`
+  if (US_IDS.includes(item.id))  return `🕐 ${estStr}`
+  if (EU_IDS.includes(item.id))  return `🕐 ${cetStr}`
+  if (JP_IDS.includes(item.id))  return `🕐 ${jstStr}`
+  if (CN_IDS.includes(item.id))  return `🕐 ${cstStr}`
+  if (FX_IDS.includes(item.id))  return `🕐 ${kstStr}`
+  if (item.type === 'spread')     return `🕐 ${estStr}`
   return null
 }
 
@@ -697,14 +697,15 @@ export default function DashboardPage() {
                   <div className="tip-wrap" style={{position:'relative',display:'inline-flex'}}>
                     <TooltipIcon id="FLOW" tipPosition="right"/>
                   </div>
-                  {flowData && <span className="db-date-badge" style={{marginLeft:'auto'}}>장중 기준</span>}
+                  {flowData && <span className="db-date-badge" style={{marginLeft:'auto'}}>{isOpen ? '장중 기준' : isAfter ? '장마감 기준' : '전일 기준'}</span>}
                 </div>
                 {(()=>{
                   const f = flowData?.total
-                  const allZero = f && f.foreign===0 && f.institution===0 && f.individual===0
+                  // 장중에만 allZero 체크 — 장 마감 후엔 마지막 수급값 그대로 표시
+                  const allZero = f && isOpen && f.foreign===0 && f.institution===0 && f.individual===0
                   if (!flowData || allZero) return (
                     <div className="db-flow-empty">
-                      {isOpen ? '수급 데이터 로딩 중...' : isAfter ? '장 마감 · 전일 수급 없음' : '장 시작 후 표시됩니다'}
+                      {isOpen ? '수급 데이터 로딩 중...' : isAfter ? '수급 데이터 로딩 중...' : '장 시작 후 표시됩니다'}
                     </div>
                   )
                   return (
