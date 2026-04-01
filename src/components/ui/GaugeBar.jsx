@@ -4,11 +4,11 @@ import { GAUGE_CONFIG, GUIDE_DATA } from '../../constants/dashboardData'
 
 // ── 반원 게이지 (VIX + DXY 공통) ─────────────────────
 function SemiGauge({ price, config, id }) {
-  const { min=0, max=60, safe, caution, labels=['안정','주의','위험'], unit='' } = config || {}
+  const { min=0, max=60, safe, caution, labels=['안전','주의','위험'], unit='' } = config || {}
   const pct   = Math.min(100, Math.max(0, (price-min)/(max-min)*100))
   const angle = -180 + pct * 1.8
   const toRad = a => a * Math.PI / 180
-  const cx=60, cy=60, r=46
+  const cx=60, cy=62, r=46
 
   const arcPath = (startDeg, endDeg, color, sw=10) => {
     const s=toRad(startDeg), e=toRad(endDeg)
@@ -24,55 +24,47 @@ function SemiGauge({ price, config, id }) {
   const nx = cx + (r-6) * Math.cos(needleAngle)
   const ny = cy + (r-6) * Math.sin(needleAngle)
 
-  // VIX 전용 4단계 레벨 (DXY는 3단계 유지)
   const isVix = id === 'VIX'
   const isPanic  = isVix && price >= 40
-  const levelColor = isPanic        ? '#7c3aed'
-                   : price <= safe  ? '#22c55e'
+  const levelColor = isPanic          ? '#7c3aed'
+                   : price <= safe    ? '#22c55e'
                    : price <= caution ? '#f59e0b'
                    : '#ef4444'
-  const levelLabel = isPanic          ? '패닉'
-                   : price <= safe    ? labels[0]
-                   : price <= caution ? labels[1]
-                   : labels[2]
-  const isWarn = price > caution
+  const levelLabel = isPanic          ? '🚨 패닉'
+                   : price <= safe    ? `● ${labels[0]}`
+                   : price <= caution ? `⚠ ${labels[1]}`
+                   : `⛔ ${labels[2]}`
+
+  const leftColor  = '#22c55e'
+  const rightColor = isVix ? '#7c3aed' : '#ef4444'
 
   return (
     <div className="db-semi-wrap">
-      <div className="db-semi-badge-row">
-        <span className="db-semi-badge"
-          style={{background:levelColor+'22', color:levelColor, borderColor:levelColor+'55'}}>
-          {isPanic ? '🚨 ' : isWarn ? '⚠ ' : '● '}{levelLabel}
-        </span>
-        {/* VIX 30↑ 역발상 힌트 */}
-        {isVix && price >= 30 && price < 40 && (
-          <span style={{fontSize:9, color:'#7c3aed', marginLeft:4, fontWeight:700}}>역발상↑</span>
-        )}
-      </div>
-      <svg viewBox="0 0 120 68" width="100%" style={{display:'block'}}>
+      <svg viewBox="0 0 120 75" width="100%" style={{display:'block'}}>
         {arcPath(-180, 0, '#E2E8F0', 10)}
         {arcPath(-180, -120, '#22c55e', 10)}
         {arcPath(-120, -60,  '#f59e0b', 10)}
         {arcPath(-60,  -30,  '#ef4444', 10)}
-        {arcPath(-30,  0,    '#7c3aed', 10)}
+        {arcPath(-30,   0,   '#7c3aed', 10)}
         <line x1={cx} y1={cy} x2={nx.toFixed(2)} y2={ny.toFixed(2)}
           stroke="var(--text-primary,#1e293b)" strokeWidth="2.5" strokeLinecap="round"/>
         <circle cx={cx} cy={cy} r="4" fill="var(--text-primary,#1e293b)"/>
-        <text x={cx} y={cy+14} textAnchor="middle"
-          fontSize="14" fontWeight="700" fill={levelColor}>
-          {Math.round(price)}{unit}
+        <text x="6" y="74" textAnchor="start" fontSize="8" fontWeight="700" fill={leftColor}>
+          {isVix ? '안전' : labels[0]}
+        </text>
+        <text x="114" y="74" textAnchor="end" fontSize="8" fontWeight="700" fill={rightColor}>
+          {isVix ? '패닉' : labels[2]}
         </text>
       </svg>
-      <div className="db-semi-labels">
-        {isVix
-          ? <><span style={{color:'#22c55e'}}>안전</span><span style={{color:'#7c3aed'}}>패닉</span></>
-          : <><span>{labels[0]}</span><span>{labels[1]}</span><span>{labels[2]}</span></>
-        }
+      <div style={{display:'flex', justifyContent:'center', marginTop:2}}>
+        <span className="db-semi-badge"
+          style={{background:levelColor+'22', color:levelColor, borderColor:levelColor+'55'}}>
+          {levelLabel}
+        </span>
       </div>
     </div>
   )
 }
-
 // ── USD/KRW 컬러 레인지 바 ────────────────────────────
 function ForexRangeBar({ price }) {
   const segments = [

@@ -1132,10 +1132,19 @@
 .db-forex-small {
   padding: 8px 10px;
   min-height: 0;
+  text-align: center;
+  align-items: center;
+}
+.db-forex-small .db-idx-top-row {
+  justify-content: center;
 }
 .db-forex-small .db-idx-price {
   font-size: 14px !important;
   margin: 2px 0;
+  text-align: center;
+}
+.db-forex-small .db-idx-rate-badge {
+  margin: 0 auto;
 }
 
 /* ── 다크 잔재 완전 차단 — db- 전체 강제 라이트 ─────── */
@@ -1270,35 +1279,31 @@
 }
 .db-global-mini-item {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 4px 6px;
+  justify-content: center;
+  gap: 1px;
+  padding: 5px 4px;
   background: var(--bg-base);
   border: 0.5px solid var(--border);
   border-radius: 5px;
-  overflow: hidden;
+  text-align: center;
 }
 .db-global-mini-label {
   font-size: 9px;
   font-weight: 700;
   color: var(--text-secondary);
-  flex-shrink: 0;
   white-space: nowrap;
 }
 .db-global-mini-price {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--text-primary);
-  flex: 1;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .db-global-mini-rate {
   font-size: 9px;
   font-weight: 700;
-  flex-shrink: 0;
   white-space: nowrap;
 }
 .db-global-mini-na {

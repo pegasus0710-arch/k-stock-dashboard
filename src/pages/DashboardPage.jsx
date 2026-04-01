@@ -399,6 +399,7 @@ export default function DashboardPage() {
                     return (
                       <button key={item.id}
                         className={`db-idx-card db-forex-small ${selId===item.id?'active':''}`}
+                        style={{display:'flex',flexDirection:'column',alignItems:'center'}}
                         onClick={()=>setSelId(item.id)}>
                         <div className="db-idx-top-row">
                           <span className="db-idx-name" style={{fontSize:10}}>{item.label}</span>
