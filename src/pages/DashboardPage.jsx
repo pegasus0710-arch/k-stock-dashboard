@@ -414,10 +414,7 @@ export default function DashboardPage() {
                                 {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
                               </div>
                             )}
-                            {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
-                          </>
-                        ) : <div className="db-idx-na">—</div>}
-                      </button>
+                            {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
                     )
                   })}
                 </div>
@@ -481,9 +478,7 @@ export default function DashboardPage() {
                                 </span>
                               )}
                               {makeCommoditySpark()}
-                              {dateLabel && <span className="db-date-badge">{dateLabel}</span>}
-                            </>
-                          : <span style={{fontSize:10,color:'var(--text-dim)'}}>—</span>
+                              {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
                       }
                     </div>
                   )
@@ -529,7 +524,7 @@ export default function DashboardPage() {
                             {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
                           </div>}
                           {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
-                          {dateLabel&&<span className="db-date-badge">{dateLabel}</span>}
+                          {dateLabel&&<div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
                         </>
                       ) : <div className="db-idx-na">—</div>}
                     </button>
@@ -681,7 +676,7 @@ export default function DashboardPage() {
                         )}
                         {/* 일반 카드 기준일 */}
                         {item.id!=='KOSPI' && item.id!=='KOSDAQ' && dateLabel &&
-                          <span className="db-date-badge">{dateLabel}</span>
+                          <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>
                         }
                       </>
                     ) : <div className="db-idx-na">—</div>}
