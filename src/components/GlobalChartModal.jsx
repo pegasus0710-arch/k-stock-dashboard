@@ -6,6 +6,7 @@
 //   둘 다 Yahoo Finance OHLC 응답
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useUserSettings } from '../hooks/useUserSettings'
 import './GlobalChartModal.css'
 
 // ── 기간 탭 정의 ─────────────────────────────────────
@@ -318,24 +319,6 @@ function CandleSvg({ candles, range,
         </div>
       )}
 
-      {/* MA 토글 버튼 */}
-      <div className="gcm-ma-legend">
-        {[
-          { p:5,   color:'#f59e0b', label:'MA5'   },
-          { p:20,  color:'#a78bfa', label:'MA20'  },
-          { p:60,  color:'#22c55e', label:'MA60'  },
-          { p:120, color:'#f43f5e', label:'MA120' },
-        ].map(({ p, color, label }) => (
-          <button
-            key={p}
-            className={`gcm-ma-toggle ${showMA[p] ? 'active' : ''}`}
-            style={{ '--ma-color': color }}
-            onClick={() => onToggleMA(p)}
-          >
-            ● {label}
-          </button>
-        ))}
-      </div>
 
       {/* 드로잉 힌트 */}
       {drawTool !== 'none' && (
@@ -368,18 +351,33 @@ export default function GlobalChartModal({
   const [modalSize,     setModalSize]     = useState({ w: 900, h: null })
   const resizeRef       = useRef(null)
   const startRef        = useRef(null)
-  // 드로잉 상태
+  // Firestore 설정 훅
+  const { getSetting, setSetting, getDrawings, saveDrawings } = useUserSettings()
+
+  // 드로잉 상태 — Firestore 로드 (비동기, 초기값은 localStorage 폴백)
   const [drawings,      setDrawings]      = useState(() => { try { return JSON.parse(localStorage.getItem(`gcm_draw_${symbol}`)) || [] } catch { return [] } })
   const [drawTool,      setDrawTool]      = useState('none')
   const [drawPhase,     setDrawPhase]     = useState(0)
   const [drawPoint1,    setDrawPoint1]    = useState(null)
   const [mousePos,      setMousePos]      = useState(null)
   const [selectedColor, setSelectedColor] = useState('#f59e0b')
-  const [showMA,        setShowMA]        = useState({ 5:true, 20:true, 60:false, 120:false })
+  // MA 설정 — Firestore에서 로드 (기본값: 전체 ON)
+  const [showMA, setShowMA] = useState(
+    () => getSetting('chart', 'gcm_ma_settings', { 5:true, 20:true, 60:true, 120:true })
+  )
+
+  // Firestore에서 드로잉 비동기 로드
+  useEffect(() => {
+    getDrawings(`gcm_draw_${symbol}`).then(d => { if (d?.length) setDrawings(d) })
+  }, [symbol])
 
   const onToggleMA = useCallback((period) => {
-    setShowMA(prev => ({ ...prev, [period]: !prev[period] }))
-  }, [])
+    setShowMA(prev => {
+      const next = { ...prev, [period]: !prev[period] }
+      setSetting('chart', 'gcm_ma_settings', next)
+      return next
+    })
+  }, [setSetting])
 
   // ESC 키
   useEffect(() => {
@@ -448,9 +446,9 @@ export default function GlobalChartModal({
       .finally(() => setLoading(false))
   }, [type, symbol, range])
 
-  // 드로잉 저장 (변경 시마다)
+  // 드로잉 저장 — Firestore + localStorage 동기화
   useEffect(() => {
-    try { localStorage.setItem(`gcm_draw_${symbol}`, JSON.stringify(drawings)) } catch {}
+    saveDrawings(`gcm_draw_${symbol}`, drawings)
   }, [symbol, drawings])
 
   // 등락율 — prop 대신 로드된 캔들 마지막 2봉으로 계산
@@ -568,6 +566,25 @@ export default function GlobalChartModal({
             ))}
           </div>
           <div className="gcm-draw-actions">
+            {/* MA 이동평균선 토글 */}
+            <div className="gcm-ma-toggles">
+              {[
+                { p:5,   color:'#f59e0b', label:'MA5'   },
+                { p:20,  color:'#a78bfa', label:'MA20'  },
+                { p:60,  color:'#22c55e', label:'MA60'  },
+                { p:120, color:'#f43f5e', label:'MA120' },
+              ].map(({ p, color, label }) => (
+                <button
+                  key={p}
+                  className={`gcm-ma-toggle ${showMA[p] ? 'active' : ''}`}
+                  style={{ '--ma-color': color }}
+                  title={`${label} ${showMA[p] ? '숨기기' : '표시'}`}
+                  onClick={() => onToggleMA(p)}
+                >
+                  ● {label}
+                </button>
+              ))}
+            </div>
             <button className="gcm-draw-act-btn"
               disabled={drawings.length === 0}
               title="마지막 드로잉 삭제"

@@ -8,6 +8,7 @@ import '../components/StockChart.css'
 import { useStockPrices } from '../hooks/useKiwoomPrice'
 import { useStockList   } from '../hooks/useStockList'
 import { getKstStatus   } from '../utils/format'
+import { useUserSettings } from '../hooks/useUserSettings'
 import { ALL_THEMES     } from '../constants/themes'
 import './ChartAnalysisPage.css'
 import FinancialChart from '../components/FinancialChart'
@@ -446,15 +447,26 @@ export default function ChartAnalysisPage() {
   const [showDrop, setShowDrop] = useState(false)
   const [dropIdx,  setDropIdx]  = useState(-1)
   const [selected, setSelected] = useState(null)
+  // Firestore 설정 훅
+  const { getSetting, setSetting, getDrawings, saveDrawings: fbSaveDrawings, getWatchlist, saveWatchlist, getWlCats, saveWlCats } = useUserSettings()
+
   const [recent,   setRecent]   = useState(()=>lsGet(LS_RECENT,[]))
-  const [watchlist,setWatchlist]= useState(()=>lsGet(LS_WATCHLIST,[]))
+  const [watchlist,setWatchlist]= useState(()=>getWatchlist([]))
+
+  // Firestore에서 최근검색/관심종목 로드 (로그인 후 동기화)
+  useEffect(() => {
+    const fbRecent = getSetting('chart', LS_RECENT, null)
+    if (fbRecent?.length) setRecent(fbRecent)
+    const fbWatch = getWatchlist([])
+    if (fbWatch?.length) setWatchlist(fbWatch)
+  }, [getSetting, getWatchlist])
   const searchRef = useRef(null)
   const { stockList, loading: slLoading } = useStockList()
 
   // ── UI 상태 ───────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [wlTab, setWlTab] = useState('watch')
-  const [wlCats, setWlCats] = useState(()=>{ try{return JSON.parse(localStorage.getItem('wl_v3'))||[]}catch{return []} })
+  const [wlCats, setWlCats] = useState(()=>getWlCats([]))
   const [selCatId, setSelCatId] = useState('')
   const [activeView, setActiveView] = useState('chart') // 'chart'|'ai'
   const [showFull, setShowFull] = useState(false)
@@ -594,15 +606,20 @@ export default function ChartAnalysisPage() {
   const select = stock => {
     setSelected(stock); setQuery(stock.name); setShowDrop(false); setDropIdx(-1)
     setAiResult(''); setAiError(''); setBasicInfo(null); setNewsData([]); setSupplyData(null)
-    const d=lsGet(`${LS_DRAWINGS}_${stock.code}`,[])
-    setDrawings(d); setDrawTool('none'); setDrawState(null)
+    // 드로잉 로드 — Firestore 우선, localStorage 폴백
+    getDrawings(`${LS_DRAWINGS}_${stock.code}`).then(d=>{ setDrawings(d||[]) })
+    setDrawTool('none'); setDrawState(null)
     const next=[stock,...recent.filter(r=>r.code!==stock.code)].slice(0,8)
-    setRecent(next); lsSet(LS_RECENT,next)
+    setRecent(next)
+    setSetting('chart', LS_RECENT, next)  // Firestore 저장
     // basicInfo 로드
     fetch(`/api/kiwoom?type=stockbasic&code=${stock.code}`).then(r=>r.json()).then(d=>{if(!d.error)setBasicInfo(d)}).catch(()=>{})
   }
 
-  const saveDrawings = next => { setDrawings(next); if(selected) lsSet(`${LS_DRAWINGS}_${selected.code}`,next) }
+  const saveDrawings = next => {
+    setDrawings(next)
+    if(selected) fbSaveDrawings(`${LS_DRAWINGS}_${selected.code}`, next)
+  }
   const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
   const handleInlineClick = args => { const r=handleDrawClick({drawTool,setDrawTool,drawState,setDrawState,drawings,saveDrawings,...args,data:candles}); if(r?.textOverlay) setTextInput(r.textOverlay) }
 
@@ -610,7 +627,7 @@ export default function ChartAnalysisPage() {
     if(!selected) return
     const exists=watchlist.find(w=>w.code===selected.code)
     const next=exists?watchlist.filter(w=>w.code!==selected.code):[selected,...watchlist].slice(0,20)
-    setWatchlist(next); lsSet(LS_WATCHLIST,next)
+    setWatchlist(next); saveWatchlist(next)  // Firestore + localStorage 동기화
   }
   const isWatched = selected&&watchlist.find(w=>w.code===selected.code)
 

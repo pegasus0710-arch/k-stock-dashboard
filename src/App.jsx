@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { useUserSettings } from './hooks/useUserSettings'
 import LoginPage         from './auth/LoginPage'
 import OtpPage           from './auth/OtpPage'
 import DashboardPage     from './pages/DashboardPage'
@@ -221,6 +222,7 @@ const PAGE_THEMES = {
 // ── 메인 레이아웃 ─────────────────────────────────────
 function AppLayout() {
   const location = useLocation()
+  const { getSetting, setSetting } = useUserSettings()
   const [collapsed, setCollapsed] = useState(() => {
     try { return JSON.parse(localStorage.getItem('sidebar_collapsed') || 'false') } catch { return false }
   })
@@ -230,7 +232,8 @@ function AppLayout() {
   const themeClass = PAGE_THEMES[themeKey] || 'theme-blue'
 
   useEffect(() => {
-    localStorage.setItem('sidebar_collapsed', JSON.stringify(collapsed))
+    // Firestore + localStorage 동기화
+    setSetting('layout', 'sidebar_collapsed', collapsed)
   }, [collapsed])
 
   return (
