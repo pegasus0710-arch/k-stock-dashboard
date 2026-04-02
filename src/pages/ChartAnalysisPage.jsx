@@ -518,6 +518,10 @@ export default function ChartAnalysisPage() {
     setRightPanel(true)
     if(tab==='sup' && !supplyData && !supplyLoad) loadSupply()
     if(tab==='news' && !newsData.length) loadNews()
+    if(tab==='si' && !basicInfo && selected?.code) {
+      fetch(`/api/kiwoom?type=stockbasic&code=${selected.code}`)
+        .then(r=>r.json()).then(d=>{if(!d.error)setBasicInfo(d)}).catch(()=>{})
+    }
   }
   const infoRef = useRef(null)
 
@@ -723,6 +727,7 @@ export default function ChartAnalysisPage() {
           messages:[{role:'user',content:`오늘(${today}) ${selected.name}(${selected.code}) 웹검색 기반 분석:\n## 📌 현재 주가 상황\n## 📈 기술적 분석\n## 🔑 핵심 뉴스\n## 🎯 지지·저항 레벨\n## ⚠️ 리스크\n## 💡 투자 의견`}]})
       })
       const data=await res.json()
+      if(!data.content) throw new Error(data.error?.message||JSON.stringify(data))
       const result=data.content.filter(b=>b.type==='text').map(b=>b.text).join('\n')
       setAiResult(result)
 
@@ -1245,10 +1250,19 @@ export default function ChartAnalysisPage() {
                   {panelTab==='news'&&(<>
                     <div style={{padding:'8px 10px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                       <span style={{fontSize:12,fontWeight:700}}>📰 {selected.name} 뉴스</span>
-                      <button style={{fontSize:10,padding:'2px 6px',background:'var(--bg-base)',border:'1px solid var(--border)',borderRadius:4,cursor:'pointer'}} onClick={loadNews}>↺</button>
+                      {CLAUDE_KEY&&<button style={{fontSize:10,padding:'2px 6px',background:'var(--bg-base)',border:'1px solid var(--border)',borderRadius:4,cursor:'pointer'}} onClick={loadNews}>↺</button>}
                     </div>
-                    {newsLoading&&<div style={{padding:16,textAlign:'center',fontSize:12,color:'var(--text-dim)'}}>⟳ 검색 중...</div>}
-                    {!newsLoading&&!newsData.length&&(
+                    {!CLAUDE_KEY&&(
+                      <div style={{padding:16,textAlign:'center'}}>
+                        <div style={{fontSize:11,color:'#dc2626',background:'#fef2f2',padding:'8px 12px',borderRadius:6,marginBottom:8}}>⚠️ VITE_CLAUDE_API_KEY 미설정</div>
+                        <a href={`https://finance.naver.com/item/news_news.naver?code=${selected.code}`} target="_blank" rel="noreferrer"
+                          style={{display:'block',padding:'8px 12px',background:'var(--bg-base)',border:'1px solid var(--border)',borderRadius:6,textDecoration:'none',color:'var(--text-primary)',fontSize:12,fontWeight:600}}>
+                          네이버 종목뉴스 →
+                        </a>
+                      </div>
+                    )}
+                    {CLAUDE_KEY&&newsLoading&&<div style={{padding:16,textAlign:'center',fontSize:12,color:'var(--text-dim)'}}>⟳ 검색 중...</div>}
+                    {CLAUDE_KEY&&!newsLoading&&!newsData.length&&(
                       <div style={{padding:20,textAlign:'center'}}>
                         <button style={{padding:'6px 14px',background:'var(--accent-mid)',color:'white',border:'none',borderRadius:6,cursor:'pointer',fontSize:12,fontWeight:600}} onClick={loadNews}>🔍 뉴스 검색</button>
                       </div>
@@ -1353,7 +1367,7 @@ export default function ChartAnalysisPage() {
     {/* ETF 구성종목 */}
     {showEtf&&selected&&<EtfHoldingsPopup code={selected.code} name={selected.name} onClose={()=>setShowEtf(false)}/>}
     {/* 재무제표 */}
-    {showFin&&selected&&<FinancialChart stock={selected} onClose={()=>setShowFin(false)}/>}
+    {showFin&&selected&&<FinancialChart stock={{...selected, basicInfo}} onClose={()=>setShowFin(false)}/>}
     </>
   )
 }
