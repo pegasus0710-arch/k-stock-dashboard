@@ -615,18 +615,18 @@ export default function ChartAnalysisPage() {
   useEffect(()=>{
     if(!chartWrap) return
     const calc=()=>{
-      setChartW(chartWrap.clientWidth)
-      // 부모 캔버스 높이에서 서브차트 높이 빼서 메인 차트 높이 계산
-      const parent=chartWrap.parentElement
-      if(!parent) return
-      const totalH=parent.clientHeight
+      const w=chartWrap.clientWidth
+      if(w>0) setChartW(w)
+      const canvas=chartWrap.closest('.cap-canvas')
+      const totalH=canvas?canvas.clientHeight:chartWrap.clientHeight
       const subH=(showRSI?subHeights.rsi:0)+(showMACD?subHeights.macd:0)+(showStoch?subHeights.stoch:0)+(showSup?200:0)
-      setChartH(Math.max(300, totalH-subH-2))    }
+      setChartH(Math.max(300, totalH-subH-volH-32))
+    }
     calc()
     const ro=new ResizeObserver(calc)
-    ro.observe(chartWrap.parentElement||chartWrap)
+    ro.observe(chartWrap)
     return()=>ro.disconnect()
-  },[chartWrap, showRSI, showMACD, showStoch, showSup, subHeights])
+  },[chartWrap, showRSI, showMACD, showStoch, showSup, subHeights, volH])
 
   // 팝업 외부 클릭 닫기
   useEffect(()=>{
@@ -1054,7 +1054,7 @@ export default function ChartAnalysisPage() {
           <div style={{display:'flex',flex:1,overflow:'hidden',minHeight:0}}>
 
             {/* 차트 영역 */}
-            <div className="cap-canvas" style={{flex:1,overflow:'auto',minWidth:0}}>
+            <div className="cap-canvas" style={{flex:1,overflow:'hidden',minWidth:0,display:'flex',flexDirection:'column'}}>
               {chartLoading
                 ? <div className="cap-chart-loading"><div className="cap-spinner"/>차트 불러오는 중...</div>
                 : (<>
