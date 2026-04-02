@@ -449,7 +449,7 @@ export default function ChartAnalysisPage() {
   const [dropIdx,  setDropIdx]  = useState(-1)
   const [selected, setSelected] = useState(null)
   // Firestore 설정 훅
-  const { getSetting, setSetting, getDrawings, saveDrawings: fbSaveDrawings, getWatchlist, saveWatchlist, getWlCats, saveWlCats } = useUserSettings()
+  const { ready, getSetting, setSetting, getDrawings, saveDrawings: fbSaveDrawings, getWatchlist, saveWatchlist, getWlCats, saveWlCats } = useUserSettings()
   const { user } = useAuth()
 
   const [recent,   setRecent]   = useState(()=>lsGet(LS_RECENT,[]))
@@ -461,7 +461,6 @@ export default function ChartAnalysisPage() {
     const recentList = fbRecent?.length ? fbRecent : lsGet(LS_RECENT, [])
     if (recentList?.length) {
       setRecent(recentList)
-      // 마지막 검색 종목 자동 선택 (stockList 로드 후)
       const last = recentList[0]
       if (last) {
         setSelected(last)
@@ -474,6 +473,30 @@ export default function ChartAnalysisPage() {
     const fbWatch = getWatchlist([])
     if (fbWatch?.length) setWatchlist(fbWatch)
   }, []) // 마운트 1회만
+
+  // ── Firestore 로드 완료 시 차트 설정 동기화 ──────────
+  // useState 초기값은 동기이므로 ready=true 후 Firestore 값으로 덮어씀
+  useEffect(() => {
+    if (!ready) return
+    const cfg = getSetting('chart', 'cap_chart_config', {})
+    if (cfg.period)          setPeriod(cfg.period)
+    if (cfg.scope)           setScope(cfg.scope)
+    if (cfg.range   != null) setRange(cfg.range)
+    if (cfg.showMA  != null) setShowMA(cfg.showMA)
+    if (cfg.showBB  != null) setShowBB(cfg.showBB)
+    if (cfg.showRSI != null) setShowRSI(cfg.showRSI)
+    if (cfg.showMACD!= null) setShowMACD(cfg.showMACD)
+    if (cfg.showStoch!=null) setShowStoch(cfg.showStoch)
+    if (cfg.enabledMA)       setEnabledMA(new Set(cfg.enabledMA))
+    if (cfg.volH)            setVolH(cfg.volH)
+    if (cfg.subH_rsi || cfg.subH_macd || cfg.subH_stoch) {
+      setSubHeights(prev => ({
+        rsi:   cfg.subH_rsi   || prev.rsi,
+        macd:  cfg.subH_macd  || prev.macd,
+        stoch: cfg.subH_stoch || prev.stoch,
+      }))
+    }
+  }, [ready]) // ready true 되는 시점 1회
 
   // 보유종목 로드 (계좌 API)
   useEffect(() => {
