@@ -172,6 +172,29 @@ export default async function handler(req, res) {
     }, res)
   }
 
+  // 재무제표 (연간/분기) — /api/kiwoom?type=finance&code=005930&period=annual
+  // 네이버 모바일 API 서버사이드 호출
+  if (q.type === 'finance') {
+    const code   = q.code
+    const period = q.period || 'annual' // annual | quarter
+    if (!code) return res.status(400).json({ error: 'code required' })
+    try {
+      const url = `https://m.stock.naver.com/api/stock/${code}/finance/${period}`
+      const r = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
+          'Referer':    'https://m.stock.naver.com/',
+          'Accept':     'application/json',
+        }
+      })
+      if (!r.ok) throw new Error(`naver ${r.status}`)
+      const data = await r.json()
+      return res.status(200).json(data)
+    } catch (e) {
+      return res.status(500).json({ error: e.message })
+    }
+  }
+
   // ══════════════════════════════════════════════════
   // Phase 2 — 업종 배치
   // ══════════════════════════════════════════════════
