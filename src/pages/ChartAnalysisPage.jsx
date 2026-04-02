@@ -987,7 +987,13 @@ export default function ChartAnalysisPage() {
                 </div>
               ))}
               {/* 재무 버튼 */}
-              <button className="cap-hdr-btn" style={{marginLeft:'auto',alignSelf:'center',flexShrink:0}} onClick={()=>setShowFin(true)}>📊 재무</button>
+              <button className="cap-hdr-btn" style={{marginLeft:'auto',alignSelf:'center',flexShrink:0}} onClick={()=>{
+                setShowFin(true)
+                if(!basicInfo && selected?.code){
+                  fetch(`/api/kiwoom?type=stockbasic&code=${selected.code}`)
+                    .then(r=>r.json()).then(d=>{if(!d.error)setBasicInfo(d)}).catch(()=>{})
+                }
+              }}>📊 재무</button>
             </div>
           </div>
 

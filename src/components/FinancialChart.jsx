@@ -1,6 +1,7 @@
 // src/components/FinancialChart.jsx
-// 재무제표 팝업 — 키움 ka10001 basicInfo 기반 (단일 시점)
-// + 네이버 금융 링크 제공
+// 재무제표 팝업 — 키움 ka10001 기반, 직접 API 호출로 basicInfo 로드
+
+import { useState, useEffect } from "react"
 
 function fmt(v) {
   if (v == null || v === "" || v === "0") return "-"
@@ -45,20 +46,37 @@ function GaugeRow({ label, value, max, color="#3b82f6" }) {
 }
 
 export default function FinancialChart({ stock, onClose }) {
-  const info = stock?.basicInfo
+  // basicInfo를 prop으로 받거나 직접 API 호출
+  const [info, setInfo]       = useState(stock?.basicInfo || null)
+  const [loading, setLoading] = useState(!stock?.basicInfo)
+  const [error, setError]     = useState("")
 
-  const mac    = Number(String(info?.mac     ||"0").replace(/,/g,""))
-  const saleAmt= Number(String(info?.sale_amt||"0").replace(/,/g,""))
-  const busPro = Number(String(info?.bus_pro ||"0").replace(/,/g,""))
-  const cupNga = Number(String(info?.cup_nga ||"0").replace(/,/g,""))
-  const per    = Number(String(info?.per     ||"0").replace(/,/g,""))
-  const pbr    = Number(String(info?.pbr     ||"0").replace(/,/g,""))
-  const eps    = Number(String(info?.eps     ||"0").replace(/,/g,""))
-  const roe    = Number(String(info?.roe     ||"0").replace(/,/g,""))
-  const bps    = Number(String(info?.bps     ||"0").replace(/,/g,""))
-  const ev     = Number(String(info?.ev      ||"0").replace(/,/g,""))
-  const opm    = saleAmt > 0 ? (busPro / saleAmt * 100) : 0
-  const npm    = saleAmt > 0 ? (cupNga / saleAmt * 100) : 0
+  useEffect(() => {
+    if (info) return  // 이미 있으면 스킵
+    if (!stock?.code) return
+    setLoading(true)
+    fetch(`/api/kiwoom?type=stockbasic&code=${stock.code}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) throw new Error(d.error)
+        setInfo(d)
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [stock?.code])
+
+  const mac     = Number(String(info?.mac     ||"0").replace(/,/g,""))
+  const saleAmt = Number(String(info?.sale_amt||"0").replace(/,/g,""))
+  const busPro  = Number(String(info?.bus_pro ||"0").replace(/,/g,""))
+  const cupNga  = Number(String(info?.cup_nga ||"0").replace(/,/g,""))
+  const per     = Number(String(info?.per     ||"0").replace(/,/g,""))
+  const pbr     = Number(String(info?.pbr     ||"0").replace(/,/g,""))
+  const eps     = Number(String(info?.eps     ||"0").replace(/,/g,""))
+  const roe     = Number(String(info?.roe     ||"0").replace(/,/g,""))
+  const bps     = Number(String(info?.bps     ||"0").replace(/,/g,""))
+  const ev      = Number(String(info?.ev      ||"0").replace(/,/g,""))
+  const opm     = saleAmt > 0 ? (busPro / saleAmt * 100) : 0
+  const npm     = saleAmt > 0 ? (cupNga / saleAmt * 100) : 0
   const maxIncome = Math.max(Math.abs(saleAmt), Math.abs(busPro), Math.abs(cupNga), 1)
 
   return (
@@ -84,12 +102,18 @@ export default function FinancialChart({ stock, onClose }) {
 
         {/* 컨텐츠 */}
         <div style={{flex:1,overflow:"auto",padding:"16px"}}>
-          {!info ? (
-            <div style={{textAlign:"center",padding:32,color:"var(--text-dim)"}}>
+          {loading && (
+            <div style={{textAlign:"center",padding:40,color:"var(--text-dim)"}}>
               <div style={{fontSize:24,marginBottom:8}}>⏳</div>
-              <div style={{fontSize:13}}>종목 정보를 불러오는 중...</div>
+              <div style={{fontSize:13}}>재무 데이터 불러오는 중...</div>
             </div>
-          ) : (
+          )}
+          {error && !loading && (
+            <div style={{textAlign:"center",padding:32,color:"#dc2626",fontSize:13}}>
+              ⚠️ {error}
+            </div>
+          )}
+          {!loading && !error && info && (
             <>
               {/* 시가총액 */}
               {mac > 0 && (
@@ -105,8 +129,8 @@ export default function FinancialChart({ stock, onClose }) {
               {(saleAmt>0||busPro!==0||cupNga!==0) && (
                 <div style={{marginBottom:16}}>
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text-dim)",marginBottom:8}}>📊 손익 현황 (최근 결산)</div>
-                  <GaugeRow label="매출액"    value={info.sale_amt} max={maxIncome} color="#3b82f6"/>
-                  <GaugeRow label="영업이익"  value={info.bus_pro}  max={maxIncome} color="#10b981"/>
+                  <GaugeRow label="매출액"     value={info.sale_amt} max={maxIncome} color="#3b82f6"/>
+                  <GaugeRow label="영업이익"   value={info.bus_pro}  max={maxIncome} color="#10b981"/>
                   <GaugeRow label="당기순이익" value={info.cup_nga}  max={maxIncome} color="#8b5cf6"/>
                 </div>
               )}
@@ -116,10 +140,10 @@ export default function FinancialChart({ stock, onClose }) {
                 <div style={{fontSize:11,fontWeight:700,color:"var(--text-dim)",marginBottom:8}}>📐 수익성 지표</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   {[
-                    {l:"영업이익률", v: opm!==0?opm.toFixed(1)+"%":"-", c:opm>0?"#10b981":"#ef4444"},
-                    {l:"순이익률",   v: npm!==0?npm.toFixed(1)+"%":"-", c:npm>0?"#8b5cf6":"#ef4444"},
-                    {l:"ROE",        v: roe!==0?fmtPct(info.roe):"-",   c:roe>0?"#f59e0b":"#ef4444"},
-                    {l:"EV/EBITDA",  v: ev!==0?fmtNum(ev):"-",          c:"var(--text-primary)"},
+                    {l:"영업이익률", v:opm!==0?opm.toFixed(1)+"%":"-", c:opm>0?"#10b981":"#ef4444"},
+                    {l:"순이익률",   v:npm!==0?npm.toFixed(1)+"%":"-", c:npm>0?"#8b5cf6":"#ef4444"},
+                    {l:"ROE",        v:roe!==0?fmtPct(info.roe):"-",   c:roe>0?"#f59e0b":"#ef4444"},
+                    {l:"EV/EBITDA",  v:ev!==0?fmtNum(ev):"-",          c:"var(--text-primary)"},
                   ].map(({l,v,c})=>(
                     <div key={l} style={{background:"var(--bg-base)",borderRadius:8,padding:"8px 12px"}}>
                       <div style={{fontSize:10,color:"var(--text-dim)",marginBottom:3}}>{l}</div>
@@ -153,11 +177,11 @@ export default function FinancialChart({ stock, onClose }) {
               <div style={{borderTop:"1px solid var(--border)",paddingTop:12}}>
                 <div style={{fontSize:11,fontWeight:700,color:"var(--text-dim)",marginBottom:8}}>📋 기타</div>
                 {[
-                  ["자본금",      info.cap?fmtNum(info.cap,"억"):"-"],
-                  ["상장주식수",  info.flo_stk?Number(String(info.flo_stk).replace(/,/g,"")).toLocaleString()+"주":"-"],
-                  ["외국인소진률",info.for_exh_rt?info.for_exh_rt+"%":"-"],
-                  ["유통비율",    info.dstr_rt?info.dstr_rt+"%":"-"],
-                  ["시총비중",    info.mac_wght?info.mac_wght+"%":"-"],
+                  ["자본금",       info.cap?fmtNum(info.cap,"억"):"-"],
+                  ["상장주식수",   info.flo_stk?Number(String(info.flo_stk).replace(/,/g,"")).toLocaleString()+"주":"-"],
+                  ["외국인소진률", info.for_exh_rt?info.for_exh_rt+"%":"-"],
+                  ["유통비율",     info.dstr_rt?info.dstr_rt+"%":"-"],
+                  ["시총비중",     info.mac_wght?info.mac_wght+"%":"-"],
                 ].filter(([,v])=>v&&v!=="-").map(([k,v])=>(
                   <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid var(--border-dim)"}}>
                     <span style={{fontSize:11,color:"var(--text-dim)"}}>{k}</span>
