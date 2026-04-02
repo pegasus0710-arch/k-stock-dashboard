@@ -39,6 +39,12 @@ export default async function handler(req, res) {
   // 종목 기본
   // ══════════════════════════════════════════════════
 
+  // 전종목 목록 — /api/kiwoom?type=stocks-list
+  // useStockList 훅에서 종목 검색용으로 사용
+  if (q.type === 'stocks-list') {
+    return relay('/stocks/list', {}, res)
+  }
+
   // 현재가 — /api/kiwoom?type=price&code=005930
   if (q.type === 'price') {
     if (!q.code) return res.status(400).json({ error: 'code required' })
