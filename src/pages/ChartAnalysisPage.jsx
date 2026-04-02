@@ -739,36 +739,20 @@ export default function ChartAnalysisPage() {
       try {
         const timeStr=now.toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
         const title=`[AI분석] ${selected.name}(${selected.code}) — ${timeStr}`
-        const CHUNK=800
-        const entries=[]
-        if(result.length<=CHUNK){
-          entries.push({title,content:result})
-        } else {
-          const parts=Math.ceil(result.length/CHUNK)
-          for(let i=0;i<parts;i++){
-            entries.push({
-              title:`${title} (${i+1}/${parts})`,
-              content:result.slice(i*CHUNK,(i+1)*CHUNK),
-            })
-          }
+        const ts=Timestamp.fromDate(now)
+        const memoData={
+          title, content:result,
+          category:'AI브리핑', tags:['AI','자동저장'],
+          bgColor:'#EFF6FF', titleColor:'#1E40AF', textColor:'#1E293B',
+          fontSize:13, pinned:false, createdAt:ts, updatedAt:ts,
         }
         if(user) {
-          // 로그인 상태: Firestore 직접 저장
-          const ts=Timestamp.fromDate(now)
-          await Promise.all(entries.map(e=>
-            addDoc(collection(db,'users',user.uid,'memos'),{
-              title:e.title, content:e.content,
-              category:'AI브리핑', tags:['AI','자동저장'],
-              bgColor:'#EFF6FF', titleColor:'#1E40AF', textColor:'#1E293B',
-              fontSize:13, pinned:false, createdAt:ts, updatedAt:ts,
-            })
-          ))
-          console.log(`[AI] 메모 ${entries.length}개 Firestore 저장 완료`)
+          await addDoc(collection(db,'users',user.uid,'memos'), memoData)
+          console.log('[AI] 메모 Firestore 저장 완료')
         } else {
-          // 비로그인: localStorage pending (메모장 방문 시 동기화)
           const LS_AI='ai_briefing_memos'
           const prev=JSON.parse(localStorage.getItem(LS_AI)||'[]')
-          localStorage.setItem(LS_AI,JSON.stringify([...prev,...entries]))
+          localStorage.setItem(LS_AI,JSON.stringify([...prev,{title,content:result}]))
         }
       } catch(e){ console.warn('[AI] 메모 저장 실패:', e) }
 
