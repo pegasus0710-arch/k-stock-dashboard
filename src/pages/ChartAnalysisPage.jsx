@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { db } from '../firebase'
+import { collection, addDoc, Timestamp } from 'firebase/firestore'
+import { useAuth } from '../context/AuthContext'
 import {
   CandleSvg, DrawingToolbar, SupplySubChart, EtfHoldingsPopup, MarkdownView,
   useStockChart, handleDrawClick, filterByRange, parseN, fmtN, fmtShort, rateColor, lsSet,
@@ -447,6 +450,7 @@ export default function ChartAnalysisPage() {
   const [selected, setSelected] = useState(null)
   // Firestore 설정 훅
   const { getSetting, setSetting, getDrawings, saveDrawings: fbSaveDrawings, getWatchlist, saveWatchlist, getWlCats, saveWlCats } = useUserSettings()
+  const { user } = useAuth()
 
   const [recent,   setRecent]   = useState(()=>lsGet(LS_RECENT,[]))
   const [watchlist,setWatchlist]= useState(()=>getWatchlist([]))
@@ -731,7 +735,7 @@ export default function ChartAnalysisPage() {
       const result=data.content.filter(b=>b.type==='text').map(b=>b.text).join('\n')
       setAiResult(result)
 
-      // ── AI 분석 결과 메모 자동저장 (MemoPage ai_briefing_memos 방식) ──
+      // ── AI 분석 결과 → Firestore 메모 직접 저장 ──
       try {
         const timeStr=now.toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
         const title=`[AI분석] ${selected.name}(${selected.code}) — ${timeStr}`
@@ -748,10 +752,24 @@ export default function ChartAnalysisPage() {
             })
           }
         }
-        const LS_AI='ai_briefing_memos'
-        const prev=JSON.parse(localStorage.getItem(LS_AI)||'[]')
-        localStorage.setItem(LS_AI,JSON.stringify([...prev,...entries]))
-        console.log(`[AI] 메모 ${entries.length}개 저장 → 메모장 페이지 방문 시 Firestore 동기화`)
+        if(user) {
+          // 로그인 상태: Firestore 직접 저장
+          const ts=Timestamp.fromDate(now)
+          await Promise.all(entries.map(e=>
+            addDoc(collection(db,'users',user.uid,'memos'),{
+              title:e.title, content:e.content,
+              category:'AI브리핑', tags:['AI','자동저장'],
+              bgColor:'#EFF6FF', titleColor:'#1E40AF', textColor:'#1E293B',
+              fontSize:13, pinned:false, createdAt:ts, updatedAt:ts,
+            })
+          ))
+          console.log(`[AI] 메모 ${entries.length}개 Firestore 저장 완료`)
+        } else {
+          // 비로그인: localStorage pending (메모장 방문 시 동기화)
+          const LS_AI='ai_briefing_memos'
+          const prev=JSON.parse(localStorage.getItem(LS_AI)||'[]')
+          localStorage.setItem(LS_AI,JSON.stringify([...prev,...entries]))
+        }
       } catch(e){ console.warn('[AI] 메모 저장 실패:', e) }
 
     } catch(e){setAiError(e.message)} finally{setAiLoading(false)}
