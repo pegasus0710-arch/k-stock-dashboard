@@ -581,15 +581,22 @@ export default function ChartAnalysisPage() {
   const [showSup,   setShowSup]   = useState(false)
 
   // 설정 변경 저장 헬퍼
-  const saveChartCfg = (patch) => {
-    // localStorage에서 직접 읽어 merge (Firestore cache 비동기 문제 우회)
-    const prev = (() => { try { return JSON.parse(localStorage.getItem('cap_chart_config')) || {} } catch { return {} } })()
-    const next = { ...prev, ...patch }
-    // localStorage 즉시 저장
-    try { localStorage.setItem('cap_chart_config', JSON.stringify(next)) } catch {}
-    // Firestore 저장 (debounced)
-    setSetting('chart', 'cap_chart_config', next)
-  }
+  // ── 차트 설정 일괄 저장 (상태 변경 감지) ────────────
+  // 각 항목에 saveChartCfg 호출 대신, 상태 변경 시 useEffect로 한 번에 저장
+  // Strict Mode / 클로저 이슈 완전 우회
+  useEffect(() => {
+    const cfg = {
+      period, scope, range,
+      showMA, enabledMA: [...enabledMA],
+      showBB, showRSI, showMACD, showStoch,
+      subH_rsi:   subHeights.rsi,
+      subH_macd:  subHeights.macd,
+      subH_stoch: subHeights.stoch,
+      volH,
+    }
+    try { localStorage.setItem('cap_chart_config', JSON.stringify(cfg)) } catch {}
+    setSetting('chart', 'cap_chart_config', cfg)
+  }, [period, scope, range, showMA, enabledMA, showBB, showRSI, showMACD, showStoch, subHeights, volH])
 
   // ── 서브차트 높이 (드래그 리사이즈) ──────────────
   const [subHeights, setSubHeights] = useState({
@@ -598,16 +605,10 @@ export default function ChartAnalysisPage() {
     stoch: _cfg.subH_stoch || 74,
   })
   const [volH, setVolH] = useState(_cfg.volH || 56)
-  const updateSubH = (key, delta) => setSubHeights(prev => {
-    const next = { ...prev, [key]: Math.max(50, Math.min(200, prev[key] + delta)) }
-    saveChartCfg({ [`subH_${key}`]: next[key] })
-    return next
-  })
-  const updateVolH = delta => setVolH(prev => {
-    const next = Math.max(30, Math.min(150, prev + delta))
-    saveChartCfg({ volH: next })
-    return next
-  })
+  const updateSubH = (key, delta) => setSubHeights(prev => ({
+    ...prev, [key]: Math.max(50, Math.min(200, prev[key] + delta))
+  }))
+  const updateVolH = delta => setVolH(prev => Math.max(30, Math.min(150, prev + delta)))
 
   // ── 데이터 ────────────────────────────────────────
   const [basicInfo,   setBasicInfo]   = useState(null)
@@ -722,7 +723,7 @@ export default function ChartAnalysisPage() {
     setDrawings(next)
     if(selected) fbSaveDrawings(`${LS_DRAWINGS}_${selected.code}`, next)
   }
-  const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); saveChartCfg({enabledMA:[...n]}); return n })
+  const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
   const handleInlineClick = args => { const r=handleDrawClick({drawTool,setDrawTool,drawState,setDrawState,drawings,saveDrawings,...args,data:candles}); if(r?.textOverlay) setTextInput(r.textOverlay) }
 
   const toggleWatch = () => {
@@ -1044,12 +1045,12 @@ export default function ChartAnalysisPage() {
               <div className="cap-tg">
                 {PERIODS.map(p=><button key={p.key} className={`cap-tg-btn ${period===p.key?'active':''}`}
                   onClick={()=>{
-                    setPeriod(p.key); saveChartCfg({period:p.key})
+                    setPeriod(p.key)
                     setDrawState(null)
-                    if(p.key==='month'){setRange(12);saveChartCfg({period:p.key,range:12})}
-                    if(p.key==='week') {setRange(6); saveChartCfg({period:p.key,range:6})}
-                    if(p.key==='day')  {setRange(3); saveChartCfg({period:p.key,range:3})}
-                    if(p.key==='year') {setRange(0); saveChartCfg({period:p.key,range:0})}
+                    if(p.key==='month'){setRange(12)}
+                    if(p.key==='week') {setRange(6)}
+                    if(p.key==='day')  {setRange(3)}
+                    if(p.key==='year') {setRange(0)}
                   }}>{p.label}</button>)}
               </div>
               <div className="cap-tb-sep"/>
@@ -1057,7 +1058,7 @@ export default function ChartAnalysisPage() {
               {period==='min' ? (<>
                 <div className="cap-tg">
                   {MIN_SCOPES.map(s=><button key={s} className={`cap-tg-btn ${scope===s?'active':''}`}
-                    onClick={()=>{setScope(s);saveChartCfg({scope:s})}}>{s}분</button>)}
+                    onClick={()=>setScope(s)}>{s}분</button>)}
                 </div>
                 <div className="cap-tb-sep"/>
                 <div className="cap-tg">
@@ -1068,12 +1069,12 @@ export default function ChartAnalysisPage() {
               </>) : (
                 <div className="cap-tg">
                   {RANGES.map(r=><button key={r.label} className={`cap-tg-btn ${range===r.months?'active':''}`}
-                    onClick={()=>{setRange(r.months);saveChartCfg({range:r.months})}}>{r.label}</button>)}
+                    onClick={()=>setRange(r.months)}>{r.label}</button>)}
                 </div>
               )}
               <div className="cap-tb-sep"/>
               {/* MA */}
-              <button className={`cap-ma-tog ${showMA?'on':''}`} onClick={()=>{setShowMA(v=>{saveChartCfg({showMA:!v});return !v})}}>MA</button>
+              <button className={`cap-ma-tog ${showMA?'on':''}`} onClick={()=>setShowMA(v=>!v)}>MA</button>
               {showMA&&<div className="cap-ma-chips">
                 {MA_SETTINGS.map(({p,color,label})=>(
                   <button key={p} className={`cap-ma-chip ${enabledMA.has(p)?'on':'off'}`}
@@ -1084,10 +1085,10 @@ export default function ChartAnalysisPage() {
               <div className="cap-tb-sep"/>
               {/* 지표 */}
               <div className="cap-ind">
-                <button className={`cap-ind-btn bb ${showBB?'on':''}`}     onClick={()=>{setShowBB(v=>{saveChartCfg({showBB:!v});return !v})}}>BB</button>
-                <button className={`cap-ind-btn rsi ${showRSI?'on':''}`}   onClick={()=>{setShowRSI(v=>{saveChartCfg({showRSI:!v});return !v})}}>RSI</button>
-                <button className={`cap-ind-btn macd ${showMACD?'on':''}`}  onClick={()=>{setShowMACD(v=>{saveChartCfg({showMACD:!v});return !v})}}>MACD</button>
-                <button className={`cap-ind-btn stoch ${showStoch?'on':''}`} onClick={()=>{setShowStoch(v=>{saveChartCfg({showStoch:!v});return !v})}}>Stoch</button>
+                <button className={`cap-ind-btn bb ${showBB?'on':''}`}     onClick={()=>setShowBB(v=>!v)}>BB</button>
+                <button className={`cap-ind-btn rsi ${showRSI?'on':''}`}   onClick={()=>setShowRSI(v=>!v)}>RSI</button>
+                <button className={`cap-ind-btn macd ${showMACD?'on':''}`}  onClick={()=>setShowMACD(v=>!v)}>MACD</button>
+                <button className={`cap-ind-btn stoch ${showStoch?'on':''}`} onClick={()=>setShowStoch(v=>!v)}>Stoch</button>
               </div>
               <div className="cap-tb-sep"/>
               {/* 드로잉 */}
