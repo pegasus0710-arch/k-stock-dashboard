@@ -698,9 +698,41 @@ export default function ChartAnalysisPage() {
     setAiLoading(true); setAiError('')
     try {
       const today=new Date().toLocaleDateString('ko-KR')
-      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CLAUDE_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1000,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:`오늘(${today}) ${selected.name}(${selected.code}) 웹검색 기반 분석:\n## 📌 현재 주가 상황\n## 📈 기술적 분석\n## 🔑 핵심 뉴스\n## 🎯 지지·저항 레벨\n## ⚠️ 리스크\n## 💡 투자 의견`}]})})
+      const now=new Date()
+      const res=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':CLAUDE_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1500,
+          tools:[{type:'web_search_20250305',name:'web_search'}],
+          messages:[{role:'user',content:`오늘(${today}) ${selected.name}(${selected.code}) 웹검색 기반 분석:\n## 📌 현재 주가 상황\n## 📈 기술적 분석\n## 🔑 핵심 뉴스\n## 🎯 지지·저항 레벨\n## ⚠️ 리스크\n## 💡 투자 의견`}]})
+      })
       const data=await res.json()
-      setAiResult(data.content.filter(b=>b.type==='text').map(b=>b.text).join('\n'))
+      const result=data.content.filter(b=>b.type==='text').map(b=>b.text).join('\n')
+      setAiResult(result)
+
+      // ── AI 분석 결과 메모 자동저장 (MemoPage ai_briefing_memos 방식) ──
+      try {
+        const timeStr=now.toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+        const title=`[AI분석] ${selected.name}(${selected.code}) — ${timeStr}`
+        const CHUNK=800
+        const entries=[]
+        if(result.length<=CHUNK){
+          entries.push({title,content:result})
+        } else {
+          const parts=Math.ceil(result.length/CHUNK)
+          for(let i=0;i<parts;i++){
+            entries.push({
+              title:`${title} (${i+1}/${parts})`,
+              content:result.slice(i*CHUNK,(i+1)*CHUNK),
+            })
+          }
+        }
+        const LS_AI='ai_briefing_memos'
+        const prev=JSON.parse(localStorage.getItem(LS_AI)||'[]')
+        localStorage.setItem(LS_AI,JSON.stringify([...prev,...entries]))
+        console.log(`[AI] 메모 ${entries.length}개 저장 → 메모장 페이지 방문 시 Firestore 동기화`)
+      } catch(e){ console.warn('[AI] 메모 저장 실패:', e) }
+
     } catch(e){setAiError(e.message)} finally{setAiLoading(false)}
   }
 
