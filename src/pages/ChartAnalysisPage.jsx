@@ -345,8 +345,6 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
   const [fsSupplyLoad, setFsSupplyLoad] = useState(false)
   const [fsBasicInfo, setFsBasicInfo]   = useState(null)
   const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
-
-  const { allData, loading } = useStockChart({ code:stock.code, period, scope, minDays })
   const candles = useMemo(()=>{
     if(period!=='min') return filterByRange(allData,range)
     // 분봉: dayKey 기준으로 최근 minDays 영업일만 필터
@@ -384,7 +382,7 @@ function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClos
               .map(r=><button key={r.days} className={`cap-fs-btn ${minDays===r.days?'active':''}`} onClick={()=>setMinDays(r.days)}>{r.label}</button>)}
           </div>
         </>)}
-        {period!=='min'&&<><div className="cap-fs-sep"/><div className="cap-fs-group">{RANGES.map(r=><button key={r.label} className={`cap-fs-btn ${range===r.months?'active':''}`} onClick={()=>setRange(r.months)}>{r.label}</button>)}</div></>}
+        {period!=='min'&&<><div className="cap-fs-sep"/><div className="cap-fs-group">{RANGES.map(r=><button key={r.label} className={`cap-fs-btn ${range===r.months?'active':''}`} onClick={()=>{setRange(r.months)}}>{r.label}</button>)}</div></>}
         <div className="cap-fs-sep"/>
         <div className="cap-fs-group">
           <button className={`cap-fs-btn ${showMA?'active':''}`} onClick={()=>setShowMA(v=>!v)}>MA</button>
@@ -453,13 +451,46 @@ export default function ChartAnalysisPage() {
   const [recent,   setRecent]   = useState(()=>lsGet(LS_RECENT,[]))
   const [watchlist,setWatchlist]= useState(()=>getWatchlist([]))
 
-  // Firestore에서 최근검색/관심종목 로드 (로그인 후 동기화)
+  // Firestore에서 최근검색/관심종목 로드 + 마지막 종목 자동 복원
   useEffect(() => {
     const fbRecent = getSetting('chart', LS_RECENT, null)
-    if (fbRecent?.length) setRecent(fbRecent)
+    const recentList = fbRecent?.length ? fbRecent : lsGet(LS_RECENT, [])
+    if (recentList?.length) {
+      setRecent(recentList)
+      // 마지막 검색 종목 자동 선택 (stockList 로드 후)
+      const last = recentList[0]
+      if (last) {
+        setSelected(last)
+        setQuery(last.name)
+        fetch(`/api/kiwoom?type=stockbasic&code=${last.code}`)
+          .then(r=>r.json()).then(d=>{ if(!d.error) setBasicInfo(d) }).catch(()=>{})
+        getDrawings(`${LS_DRAWINGS}_${last.code}`).then(d=>{ if(d?.length) setDrawings(d) })
+      }
+    }
     const fbWatch = getWatchlist([])
     if (fbWatch?.length) setWatchlist(fbWatch)
-  }, [getSetting, getWatchlist])
+  }, []) // 마운트 1회만
+
+  // 보유종목 로드 (계좌 API)
+  useEffect(() => {
+    fetch('/api/kiwoom?type=account-holdings')
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) return
+        const map = {}
+        ;(data.holdings || data.list || []).forEach(h => {
+          const code = h.stk_cd || h.code
+          if (!code) return
+          map[code] = {
+            qty:  Number(h.rmnd_qty || h.qty || 0),
+            rate: Number(h.evlt_pfls_rt || h.rate || 0),
+            avg:  Number(h.pch_avg_pric || h.avg || 0),
+          }
+        })
+        setHoldings(map)
+      })
+      .catch(() => {})
+  }, [])
   const searchRef = useRef(null)
   const { stockList, loading: slLoading } = useStockList()
 
@@ -474,13 +505,14 @@ export default function ChartAnalysisPage() {
   const [infoPopup, setInfoPopup] = useState(null) // 'disc'|'news'|'si'
   const infoRef = useRef(null)
 
-  // ── 차트 컨트롤 ───────────────────────────────────
-  const [period,    setPeriod]    = useState('day')
-  const [scope,     setScope]     = useState('5')
-  const [range,     setRange]     = useState(3)
-  const [minDays,   setMinDays]   = useState(1)   // 분봉 조회 일수
-  const [showMA,    setShowMA]    = useState(true)
-  const [enabledMA, setEnabledMA] = useState(new Set([5,10,20,60,120]))
+  // ── 차트 컨트롤 (Firestore 설정 저장) ────────────────
+  const _cfg = getSetting('chart', 'cap_chart_config', {})
+  const [period,    setPeriod]    = useState(_cfg.period  || 'day')
+  const [scope,     setScope]     = useState(_cfg.scope   || '5')
+  const [range,     setRange]     = useState(_cfg.range   ?? 3)
+  const [minDays,   setMinDays]   = useState(1)
+  const [showMA,    setShowMA]    = useState(_cfg.showMA  ?? true)
+  const [enabledMA, setEnabledMA] = useState(new Set(_cfg.enabledMA || [5,10,20,60,120]))
   const [drawTool,  setDrawTool]  = useState('none')
   const [drawState, setDrawState] = useState(null)
   const [drawings,  setDrawings]  = useState([])
@@ -490,12 +522,18 @@ export default function ChartAnalysisPage() {
   const [chartW,    setChartW]    = useState(900)
   const [chartH,    setChartH]    = useState(500)
 
-  // ── 지표 토글 ─────────────────────────────────────
-  const [showBB,    setShowBB]    = useState(true)
-  const [showRSI,   setShowRSI]   = useState(true)
-  const [showMACD,  setShowMACD]  = useState(false)
-  const [showStoch, setShowStoch] = useState(false)
+  // ── 지표 토글 (Firestore 설정 저장) ─────────────────
+  const [showBB,    setShowBB]    = useState(_cfg.showBB    ?? true)
+  const [showRSI,   setShowRSI]   = useState(_cfg.showRSI   ?? true)
+  const [showMACD,  setShowMACD]  = useState(_cfg.showMACD  ?? false)
+  const [showStoch, setShowStoch] = useState(_cfg.showStoch ?? false)
   const [showSup,   setShowSup]   = useState(false)
+
+  // 설정 변경 저장 헬퍼
+  const saveChartCfg = (patch) => {
+    const prev = getSetting('chart', 'cap_chart_config', {})
+    setSetting('chart', 'cap_chart_config', { ...prev, ...patch })
+  }
 
   // ── 서브차트 높이 (드래그 리사이즈) ──────────────
   const [subHeights, setSubHeights] = useState({ rsi:80, macd:96, stoch:74 })
@@ -620,7 +658,7 @@ export default function ChartAnalysisPage() {
     setDrawings(next)
     if(selected) fbSaveDrawings(`${LS_DRAWINGS}_${selected.code}`, next)
   }
-  const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
+  const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); saveChartCfg({enabledMA:[...n]}); return n })
   const handleInlineClick = args => { const r=handleDrawClick({drawTool,setDrawTool,drawState,setDrawState,drawings,saveDrawings,...args,data:candles}); if(r?.textOverlay) setTextInput(r.textOverlay) }
 
   const toggleWatch = () => {
@@ -867,6 +905,7 @@ export default function ChartAnalysisPage() {
                 </>)
               })()}
               {basicInfo?.for_exh_rt&&<div className="cap-metric"><span className="cap-ml">외국인</span><span className="cap-mv">{basicInfo.for_exh_rt}%</span></div>}
+              {basicInfo?.lsnr_exh_rt&&<div className="cap-metric"><span className="cap-ml">유통비중</span><span className="cap-mv">{basicInfo.lsnr_exh_rt}%</span></div>}
               {basicInfo?.upName&&<div className="cap-metric"><span className="cap-ml">업종</span><span className="cap-mv" style={{fontSize:10}}>{basicInfo.upName}</span></div>}
             </div>
           </div>
@@ -879,13 +918,12 @@ export default function ChartAnalysisPage() {
               <div className="cap-tg">
                 {PERIODS.map(p=><button key={p.key} className={`cap-tg-btn ${period===p.key?'active':''}`}
                   onClick={()=>{
-                    setPeriod(p.key)
+                    setPeriod(p.key); saveChartCfg({period:p.key})
                     setDrawState(null)
-                    // 봉 전환 시 기본 기간 자동 조정
-                    if(p.key==='month') setRange(12)   // 월봉 → 기본 1년
-                    if(p.key==='week')  setRange(6)    // 주봉 → 기본 6개월
-                    if(p.key==='day')   setRange(3)    // 일봉 → 기본 3개월
-                    if(p.key==='year')  setRange(0)    // 년봉 → 전체
+                    if(p.key==='month'){setRange(12);saveChartCfg({period:p.key,range:12})}
+                    if(p.key==='week') {setRange(6); saveChartCfg({period:p.key,range:6})}
+                    if(p.key==='day')  {setRange(3); saveChartCfg({period:p.key,range:3})}
+                    if(p.key==='year') {setRange(0); saveChartCfg({period:p.key,range:0})}
                   }}>{p.label}</button>)}
               </div>
               <div className="cap-tb-sep"/>
@@ -911,12 +949,12 @@ export default function ChartAnalysisPage() {
               </>) : (
                 <div className="cap-tg">
                   {RANGES.map(r=><button key={r.label} className={`cap-tg-btn ${range===r.months?'active':''}`}
-                    onClick={()=>setRange(r.months)}>{r.label}</button>)}
+                    onClick={()=>{setRange(r.months);saveChartCfg({range:r.months})}}>{r.label}</button>)}
                 </div>
               )}
               <div className="cap-tb-sep"/>
               {/* MA */}
-              <button className={`cap-ma-tog ${showMA?'on':''}`} onClick={()=>setShowMA(v=>!v)}>MA</button>
+              <button className={`cap-ma-tog ${showMA?'on':''}`} onClick={()=>{setShowMA(v=>{saveChartCfg({showMA:!v});return !v})}}>MA</button>
               {showMA&&(
                 <div className="cap-ma-chips">
                   {MA_SETTINGS.map(({p,color,label})=>(
@@ -939,10 +977,10 @@ export default function ChartAnalysisPage() {
               {/* 지표 토글 */}
               <span style={{fontSize:10,color:'var(--text-dim)',fontWeight:700,marginRight:2}}>지표</span>
               <div className="cap-ind">
-                <button className={`cap-ind-btn bb ${showBB?'on':''}`}    onClick={()=>setShowBB(v=>!v)}>BB</button>
-                <button className={`cap-ind-btn rsi ${showRSI?'on':''}`}  onClick={()=>setShowRSI(v=>!v)}>RSI</button>
-                <button className={`cap-ind-btn macd ${showMACD?'on':''}`} onClick={()=>setShowMACD(v=>!v)}>MACD</button>
-                <button className={`cap-ind-btn stoch ${showStoch?'on':''}`} onClick={()=>setShowStoch(v=>!v)}>Stoch</button>
+                <button className={`cap-ind-btn bb ${showBB?'on':''}`}    onClick={()=>{setShowBB(v=>{saveChartCfg({showBB:!v});return !v})}}>BB</button>
+                <button className={`cap-ind-btn rsi ${showRSI?'on':''}`}  onClick={()=>{setShowRSI(v=>{saveChartCfg({showRSI:!v});return !v})}}>RSI</button>
+                <button className={`cap-ind-btn macd ${showMACD?'on':''}`} onClick={()=>{setShowMACD(v=>{saveChartCfg({showMACD:!v});return !v})}}>MACD</button>
+                <button className={`cap-ind-btn stoch ${showStoch?'on':''}`} onClick={()=>{setShowStoch(v=>{saveChartCfg({showStoch:!v});return !v})}}>Stoch</button>
               </div>
               <div className="cap-tb-sep"/>
               {/* 드로잉 */}
@@ -1058,7 +1096,7 @@ export default function ChartAnalysisPage() {
                   {infoPopup==='si'&&basicInfo&&(
                     <div className="cap-popup">
                       <div className="cap-pop-title">ℹ️ {selected.name}</div>
-                      {[['코드',selected.code],['업종',basicInfo.upName],['시가총액',basicInfo.mac?(Number(String(basicInfo.mac).replace(/,/g,''))/100000000).toFixed(0)+'억':'-'],['PER',basicInfo.per&&basicInfo.per!=='0'?Number(basicInfo.per).toFixed(1)+'배':'-'],['PBR',basicInfo.pbr&&basicInfo.pbr!=='0'?Number(basicInfo.pbr).toFixed(2)+'배':'-'],['EPS',basicInfo.eps&&basicInfo.eps!=='0'?Number(basicInfo.eps).toLocaleString()+'원':'-'],['ROE',basicInfo.roe&&basicInfo.roe!=='0'?Number(basicInfo.roe).toFixed(1)+'%':'-'],['외국인',basicInfo.for_exh_rt?basicInfo.for_exh_rt+'%':'-'],].filter(([,v])=>v&&v!=='-').map(([k,v])=>(
+                      {[['코드',selected.code],['업종',basicInfo.upName],['시가총액',basicInfo.mac?(Number(String(basicInfo.mac).replace(/,/g,''))/100000000).toFixed(0)+'억':'-'],['PER',basicInfo.per&&basicInfo.per!=='0'?Number(basicInfo.per).toFixed(1)+'배':'-'],['PBR',basicInfo.pbr&&basicInfo.pbr!=='0'?Number(basicInfo.pbr).toFixed(2)+'배':'-'],['EPS',basicInfo.eps&&basicInfo.eps!=='0'?Number(basicInfo.eps).toLocaleString()+'원':'-'],['ROE',basicInfo.roe&&basicInfo.roe!=='0'?Number(basicInfo.roe).toFixed(1)+'%':'-'],['외국인',basicInfo.for_exh_rt?basicInfo.for_exh_rt+'%':'-'],['유통비중',basicInfo.lsnr_exh_rt?basicInfo.lsnr_exh_rt+'%':'-'],['매출액',basicInfo.sale_amt?Number(String(basicInfo.sale_amt).replace(/,/g,'')).toLocaleString()+'억':'-'],['영업이익',basicInfo.bsop_pfi?Number(String(basicInfo.bsop_pfi).replace(/,/g,'')).toLocaleString()+'억':'-'],].filter(([,v])=>v&&v!=='-').map(([k,v])=>(
                         <div key={k} className="cap-si-row"><span className="cap-si-key">{k}</span><span className="cap-si-val">{v}</span></div>
                       ))}
                     </div>
