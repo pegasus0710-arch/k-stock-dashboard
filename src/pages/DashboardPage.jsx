@@ -129,7 +129,9 @@ export default function DashboardPage() {
   const [weekData,  setWeekData]  = useState({})
   const [sparkData, setSparkData] = useState({})
   const handleWeekRange = useCallback((id, high, low) => {
-    if(id) setWeekData(prev => ({...prev, [id]: {high52: high, low52: low}}))
+    // 키움 API는 100배 값 반환 → 자동 보정 (KOSPI/KOSDAQ 정상범위: 500~15000)
+    const fix = v => v > 50000 ? v / 100 : v
+    if(id) setWeekData(prev => ({...prev, [id]: {high52: fix(high), low52: fix(low)}}))
   }, [])
   const handleSparkData = useCallback((id, closes) => {
     if(id && closes?.length) setSparkData(prev => ({...prev, [id]: closes}))
@@ -697,7 +699,10 @@ export default function DashboardPage() {
                             {/* 52주 고저 게이지 */}
                             {weekData?.[item.id] && (() => {
                               const w = weekData[item.id]
-                              const low = w.low52, high = w.high52
+                              // 100배 값 자동 보정 (KOSPI/KOSDAQ 정상범위: 500~15000)
+                              const fix = v => v > 50000 ? v / 100 : v
+                              const low  = fix(w.low52)
+                              const high = fix(w.high52)
                               if (!low||!high||high<=low) return null
                               const pct = Math.min(100, Math.max(0, (d.price-low)/(high-low)*100))
                               return (
