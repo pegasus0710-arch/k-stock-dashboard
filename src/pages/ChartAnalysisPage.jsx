@@ -553,7 +553,11 @@ export default function ChartAnalysisPage() {
   const infoRef = useRef(null)
 
   // ── 차트 컨트롤 (Firestore 설정 저장) ────────────────
-  const _cfg = getSetting('chart', 'cap_chart_config', {})
+  // getSetting은 Firestore cache 기반 (첫 렌더 시 비어있음)
+  // → localStorage를 직접 읽어 즉시 복원 (setSetting이 localStorage도 함께 저장함)
+  const _cfg = (() => {
+    try { return JSON.parse(localStorage.getItem('cap_chart_config')) || {} } catch { return {} }
+  })()
   const [period,    setPeriod]    = useState(_cfg.period  || 'day')
   const [scope,     setScope]     = useState(_cfg.scope   || '5')
   const [range,     setRange]     = useState(_cfg.range   ?? 3)
@@ -578,8 +582,13 @@ export default function ChartAnalysisPage() {
 
   // 설정 변경 저장 헬퍼
   const saveChartCfg = (patch) => {
-    const prev = getSetting('chart', 'cap_chart_config', {})
-    setSetting('chart', 'cap_chart_config', { ...prev, ...patch })
+    // localStorage에서 직접 읽어 merge (Firestore cache 비동기 문제 우회)
+    const prev = (() => { try { return JSON.parse(localStorage.getItem('cap_chart_config')) || {} } catch { return {} } })()
+    const next = { ...prev, ...patch }
+    // localStorage 즉시 저장
+    try { localStorage.setItem('cap_chart_config', JSON.stringify(next)) } catch {}
+    // Firestore 저장 (debounced)
+    setSetting('chart', 'cap_chart_config', next)
   }
 
   // ── 서브차트 높이 (드래그 리사이즈) ──────────────
@@ -589,7 +598,6 @@ export default function ChartAnalysisPage() {
     stoch: _cfg.subH_stoch || 74,
   })
   const [volH, setVolH] = useState(_cfg.volH || 56)
-
   const updateSubH = (key, delta) => setSubHeights(prev => {
     const next = { ...prev, [key]: Math.max(50, Math.min(200, prev[key] + delta)) }
     saveChartCfg({ [`subH_${key}`]: next[key] })
