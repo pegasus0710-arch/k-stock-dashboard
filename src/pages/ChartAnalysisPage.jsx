@@ -669,17 +669,13 @@ export default function ChartAnalysisPage() {
   }
   const isWatched = selected&&watchlist.find(w=>w.code===selected.code)
 
-  const loadSupply = useCallback(async()=>{
+  const loadSupply = useCallback(async()=>{\
     if(!selected?.code||supplyData) return
     setSupplyLoad(true)
     try {
-      const [f, iv] = await Promise.all([
-        fetch(`/api/kiwoom?type=supply-foreign&code=${selected.code}`).then(r=>r.json()),
-        fetch(`/api/kiwoom?type=supply-invsr-chart&code=${selected.code}`).then(r=>r.json()),
-      ])
+      const iv = await fetch(`/api/kiwoom?type=supply-invsr-chart&code=${selected.code}`).then(r=>r.json())
       setSupplyData({
-        foreign:  f.data?.slice(0,30)||[],    // 외국인 일별 순매수
-        invsr:    iv.data?.slice(0,30)||[],   // 기관/투신 일별 (ka10060)
+        invsr: iv.data?.slice(0,30)||[],
       })
     } catch(e){ console.error('[loadSupply]', e) }
     finally { setSupplyLoad(false) }
@@ -1025,41 +1021,83 @@ export default function ChartAnalysisPage() {
                         </div>
                       )}
                       {!supplyLoad&&supplyData&&(()=>{
-                        const rows=supplyData.invsr||[]
-                        if(!rows.length) return <div className="cap-news-empty">데이터 없음</div>
-                        // 누적 합산
-                        let cumFor=0, cumOrg=0, cumInv=0
+                        const allRows=supplyData.invsr||[]
+                        if(!allRows.length) return <div className="cap-news-empty">데이터 없음</div>
+                        const rows=[...allRows].reverse().slice(-20)
+                        // SVG 차트
+                        const W=420,H=110,PAD={l:36,r:8,t:8,b:20}
+                        const cW=W-PAD.l-PAD.r,cH=H-PAD.t-PAD.b
+                        const n=rows.length
+                        const bW=Math.max(2,Math.floor(cW/n*0.5))
+                        const allV=rows.flatMap(r=>[r.foreign||0,r.orgn||0,r.ind||0])
+                        const maxV=Math.max(...allV.map(Math.abs),1)
+                        const mid=PAD.t+cH/2
+                        const toY=v=>v>=0?mid-(v/maxV)*(cH/2):mid
+                        const toH=v=>Math.max(1,Math.abs(v)/maxV*(cH/2))
+                        const px=i=>PAD.l+(i+0.5)*(cW/n)
+                        let cumFor=0,cumOrg=0
                         return (
-                          <div style={{overflow:'auto',maxHeight:380}}>
-                            {/* 헤더 */}
-                            <div style={{display:'grid',gridTemplateColumns:'60px repeat(5,1fr)',gap:0,fontSize:10,fontWeight:700,color:'var(--text-dim)',background:'var(--bg-base)',padding:'5px 12px',borderBottom:'1px solid var(--border)',position:'sticky',top:0}}>
-                              <span>날짜</span>
-                              <span style={{textAlign:'right',color:'#2563eb'}}>외국인</span>
-                              <span style={{textAlign:'right',color:'#059669'}}>기관계</span>
-                              <span style={{textAlign:'right',color:'#7c3aed'}}>투신</span>
-                              <span style={{textAlign:'right',color:'#2563eb',fontSize:9}}>외인누적</span>
-                              <span style={{textAlign:'right',color:'#059669',fontSize:9}}>기관누적</span>
+                          <>
+                            <div style={{padding:'6px 10px 0',borderBottom:'1px solid var(--border)'}}>
+                              <div style={{fontSize:10,color:'var(--text-dim)',marginBottom:3,display:'flex',gap:10}}>
+                                <span style={{color:'#2563eb'}}>■ 외국인</span>
+                                <span style={{color:'#059669'}}>■ 기관</span>
+                                <span style={{color:'#94a3b8'}}>■ 개인</span>
+                                <span style={{marginLeft:'auto'}}>단위: 백만원</span>
+                              </div>
+                              <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block'}}>
+                                <line x1={PAD.l} y1={mid} x2={W-PAD.r} y2={mid} stroke="rgba(0,0,0,0.12)" strokeWidth="0.8"/>
+                                {[maxV,0,-maxV].map((v,i)=>(
+                                  <text key={i} x={PAD.l-3} y={(v===0?mid:toY(v))+(v<0?-2:3)} fontSize="8" fill="#94a3b8" textAnchor="end">
+                                    {v===0?'0':(v>0?'+':'')+Math.round(v/1000)+'B'}
+                                  </text>
+                                ))}
+                                {rows.map((r,i)=>{
+                                  const x=px(i),fv=r.foreign||0,ov=r.orgn||0,iv2=r.ind||0
+                                  return (
+                                    <g key={i}>
+                                      <rect x={x-bW*1.5} y={toY(fv)} width={bW} height={toH(fv)} fill={fv>=0?'#ef4444':'#2563eb'} opacity="0.85"/>
+                                      <rect x={x-bW*0.5} y={toY(ov)} width={bW} height={toH(ov)} fill={ov>=0?'#ef4444':'#059669'} opacity="0.85"/>
+                                      <rect x={x+bW*0.5} y={toY(iv2)} width={bW} height={toH(iv2)} fill="#94a3b8" opacity="0.7"/>
+                                    </g>
+                                  )
+                                })}
+                                {rows.filter((_,i)=>i%(Math.floor(n/4)||1)===0).map((r,i)=>{
+                                  const idx=rows.indexOf(r),d=String(r.dt||'')
+                                  return <text key={i} x={px(idx)} y={H-4} fontSize="8" fill="#94a3b8" textAnchor="middle">
+                                    {d.length>=8?`${d.slice(4,6)}/${d.slice(6,8)}`:d}
+                                  </text>
+                                })}
+                              </svg>
                             </div>
-                            {[...rows].reverse().map((r,i)=>{
-                              cumFor+=r.foreign||0; cumOrg+=r.orgn||0; cumInv+=r.invtrt||0
-                              const dt=String(r.dt||''); const dl=dt.length>=8?dt.slice(4,6)+'/'+dt.slice(6,8):dt
-                              const fc=r.foreign>0?'#ef4444':r.foreign<0?'#2563eb':'var(--text-dim)'
-                              const oc=r.orgn>0?'#ef4444':r.orgn<0?'#2563eb':'var(--text-dim)'
-                              const ic=r.invtrt>0?'#ef4444':r.invtrt<0?'#2563eb':'var(--text-dim)'
-                              const cfc=cumFor>0?'#ef4444':cumFor<0?'#2563eb':'var(--text-dim)'
-                              const coc=cumOrg>0?'#ef4444':cumOrg<0?'#2563eb':'var(--text-dim)'
-                              return (
-                                <div key={i} style={{display:'grid',gridTemplateColumns:'60px repeat(5,1fr)',gap:0,fontSize:11,padding:'4px 12px',borderBottom:'1px solid var(--border-dim)',alignItems:'center'}}>
-                                  <span style={{color:'var(--text-dim)',fontSize:10}}>{dl}</span>
-                                  <span style={{textAlign:'right',color:fc,fontWeight:600}}>{r.foreign>0?'+':''}{(r.foreign||0).toLocaleString()}</span>
-                                  <span style={{textAlign:'right',color:oc,fontWeight:600}}>{r.orgn>0?'+':''}{(r.orgn||0).toLocaleString()}</span>
-                                  <span style={{textAlign:'right',color:ic}}>{r.invtrt>0?'+':''}{(r.invtrt||0).toLocaleString()}</span>
-                                  <span style={{textAlign:'right',color:cfc,fontSize:10}}>{cumFor>0?'+':''}{(cumFor).toLocaleString()}</span>
-                                  <span style={{textAlign:'right',color:coc,fontSize:10}}>{cumOrg>0?'+':''}{(cumOrg).toLocaleString()}</span>
-                                </div>
-                              )
-                            })}
-                          </div>
+                            <div style={{overflow:'auto',maxHeight:200}}>
+                              <div style={{display:'grid',gridTemplateColumns:'50px repeat(5,1fr)',fontSize:10,fontWeight:700,color:'var(--text-dim)',background:'var(--bg-base)',padding:'4px 10px',borderBottom:'1px solid var(--border)',position:'sticky',top:0}}>
+                                <span>날짜</span>
+                                <span style={{textAlign:'right',color:'#2563eb'}}>외국인</span>
+                                <span style={{textAlign:'right',color:'#059669'}}>기관</span>
+                                <span style={{textAlign:'right',color:'#94a3b8'}}>개인</span>
+                                <span style={{textAlign:'right',color:'#2563eb',fontSize:9}}>외인누적</span>
+                                <span style={{textAlign:'right',color:'#059669',fontSize:9}}>기관누적</span>
+                              </div>
+                              {rows.map((r,i)=>{
+                                cumFor+=r.foreign||0; cumOrg+=r.orgn||0
+                                const d=String(r.dt||''),dl=d.length>=8?`${d.slice(4,6)}/${d.slice(6,8)}`:d
+                                const fc=r.foreign>0?'#ef4444':r.foreign<0?'#2563eb':'var(--text-dim)'
+                                const oc=r.orgn>0?'#ef4444':r.orgn<0?'#059669':'var(--text-dim)'
+                                const ic=r.ind>0?'#ef4444':r.ind<0?'#2563eb':'var(--text-dim)'
+                                return (
+                                  <div key={i} style={{display:'grid',gridTemplateColumns:'50px repeat(5,1fr)',fontSize:11,padding:'3px 10px',borderBottom:'1px solid var(--border-dim)'}}>
+                                    <span style={{color:'var(--text-dim)',fontSize:10}}>{dl}</span>
+                                    <span style={{textAlign:'right',color:fc,fontWeight:600}}>{r.foreign>0?'+':''}{(r.foreign||0).toLocaleString()}</span>
+                                    <span style={{textAlign:'right',color:oc,fontWeight:600}}>{r.orgn>0?'+':''}{(r.orgn||0).toLocaleString()}</span>
+                                    <span style={{textAlign:'right',color:ic}}>{r.ind>0?'+':''}{(r.ind||0).toLocaleString()}</span>
+                                    <span style={{textAlign:'right',color:cumFor>0?'#ef4444':cumFor<0?'#2563eb':'var(--text-dim)',fontSize:10}}>{cumFor>0?'+':''}{cumFor.toLocaleString()}</span>
+                                    <span style={{textAlign:'right',color:cumOrg>0?'#ef4444':cumOrg<0?'#059669':'var(--text-dim)',fontSize:10}}>{cumOrg>0?'+':''}{cumOrg.toLocaleString()}</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </>
                         )
                       })()}
                     </div>

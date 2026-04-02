@@ -162,6 +162,16 @@ export default async function handler(req, res) {
     return relay('/supply/strength', { stk_cd: q.code }, res)
   }
 
+  // 종목별 투자자기관별 수급차트 — /api/kiwoom?type=supply-invsr-chart&code=005930
+  // ka10060: 외국인/기관/개인 일별 순매수 차트
+  if (q.type === 'supply-invsr-chart') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/supply/invsr-chart', {
+      stk_cd: q.code,
+      dt:     today(),
+    }, res)
+  }
+
   // ══════════════════════════════════════════════════
   // Phase 2 — 업종 배치
   // ══════════════════════════════════════════════════
