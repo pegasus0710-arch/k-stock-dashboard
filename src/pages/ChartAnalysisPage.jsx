@@ -679,7 +679,7 @@ export default function ChartAnalysisPage() {
   }
   const isWatched = selected&&watchlist.find(w=>w.code===selected.code)
 
-  const loadSupply = useCallback(async()=>{\
+  const loadSupply = useCallback(async()=>{
     if(!selected?.code||supplyData) return
     setSupplyLoad(true)
     try {
