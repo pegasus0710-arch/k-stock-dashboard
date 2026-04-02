@@ -503,6 +503,16 @@ export default function ChartAnalysisPage() {
   const [showFull, setShowFull] = useState(false)
   const [drawMenuOpen, setDrawMenuOpen] = useState(false)
   const [infoPopup, setInfoPopup] = useState(null) // 'disc'|'news'|'si'
+  // 우측 정보 패널
+  const [rightPanel, setRightPanel] = useState(false)  // 패널 열림 여부
+  const [panelTab, setPanelTab]     = useState('sup')  // 'sup'|'fin'|'news'|'disc'|'si'|'ai'
+
+  const openPanel = (tab) => {
+    setPanelTab(tab)
+    setRightPanel(true)
+    if(tab==='sup' && !supplyData && !supplyLoad) loadSupply()
+    if(tab==='news' && !newsData.length) loadNews()
+  }
   const infoRef = useRef(null)
 
   // ── 차트 컨트롤 (Firestore 설정 저장) ────────────────
@@ -803,11 +813,34 @@ export default function ChartAnalysisPage() {
           )}
         </div>
 
-        {/* 최근 검색 */}
+        {/* 최근 검색 — 현재가 + 등락률 표시 */}
         {recent.length>0&&(
           <div className="cap-sb-recent">
-            <span className="cap-sb-recent-label">최근</span>
-            <div className="cap-sb-chips">{recent.slice(0,6).map(r=><button key={r.code} className="cap-sb-chip" onClick={()=>select(r)}>{r.name}</button>)}</div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+              <span className="cap-sb-recent-label">최근 검색</span>
+              <button style={{fontSize:10,color:'var(--text-dim)',background:'none',border:'none',cursor:'pointer',padding:'0 2px'}}
+                onClick={()=>setRecent([])}>지우기</button>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:3}}>
+              {recent.slice(0,6).map(r=>{
+                const p=prices[r.code]
+                const rc=p?rateColor(p.changeRate):'var(--text-secondary)'
+                const rs=(p?.changeRate??0)>0?'+':''
+                return (
+                  <button key={r.code} className="cap-sb-chip"
+                    style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 8px',borderRadius:6,background:'var(--bg-base)',border:'1px solid var(--border)',cursor:'pointer',width:'100%',textAlign:'left'}}
+                    onClick={()=>select(r)}>
+                    <span style={{fontSize:12,fontWeight:600,color:'var(--text-primary)'}}>{r.name}</span>
+                    {p?.price>0&&(
+                      <span style={{fontSize:11,color:rc,fontWeight:700}}>
+                        {p.price.toLocaleString()}
+                        <span style={{fontSize:10,marginLeft:3}}>{rs}{p.changeRate?.toFixed(1)}%</span>
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
 
@@ -878,70 +911,57 @@ export default function ChartAnalysisPage() {
         {selected&&(<>
 
           {/* ── 헤더 카드 ── */}
-          <div className="cap-hdr">
-            <div className="cap-hdr-r1">
-              <span className="cap-hdr-name">{selected.name}</span>
-              <span className="cap-hdr-code">{selected.code}</span>
+          {/* ══ 헤더 2단 ══ */}
+          <div className="cap-hdr" style={{borderBottom:'1px solid var(--border)',background:'var(--bg-panel)'}}>
+            {/* 1행: 종목명 + 가격 + 액션 */}
+            <div className="cap-hdr-r1" style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',flexWrap:'wrap'}}>
+              <span className="cap-hdr-name" style={{fontSize:16,fontWeight:800}}>{selected.name}</span>
+              <span className="cap-hdr-code" style={{fontSize:12,color:'var(--text-dim)'}}>{selected.code}</span>
               {etfMode&&<span className="cap-hdr-badge etf">ETF</span>}
               {isNearH52&&<span className="cap-hdr-badge h52">🚀 52주 신고가</span>}
-              {getKstStatus()==='open'&&<span className="cap-hdr-badge live">● LIVE</span>}
+              {getKstStatus()==='open'&&<span className="cap-hdr-badge live" style={{color:'#22c55e',fontSize:11,fontWeight:700}}>● LIVE</span>}
               {price?.price>0&&(<>
-                <span className="cap-hdr-price" style={{color:pc}}>{price.price.toLocaleString()}원</span>
-                <span className="cap-hdr-change" style={{color:pc}}>{sign}{price.change?.toLocaleString()}원 ({sign}{price.changeRate?.toFixed(2)}%)</span>
+                <span className="cap-hdr-price" style={{color:pc,fontSize:20,fontWeight:800,marginLeft:4}}>{price.price.toLocaleString()}원</span>
+                <span className="cap-hdr-change" style={{color:pc,fontSize:13,fontWeight:600}}>{sign}{price.change?.toLocaleString()}원 ({sign}{price.changeRate?.toFixed(2)}%)</span>
               </>)}
-              <div className="cap-hdr-actions">
-                <button className={`cap-hdr-btn ${isWatched?'starred':'star'}`} onClick={toggleWatch}>{isWatched?'⭐ 해제':'☆ 즐겨찾기'}</button>
-                {etfMode&&<button className="cap-hdr-btn" onClick={()=>setShowEtf(true)}>🧩 구성종목</button>}
-                <button className="cap-hdr-btn" onClick={()=>setShowFin(true)}>📊 재무</button>
+              <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
+                <button className={`cap-hdr-btn ${isWatched?'starred':'star'}`} onClick={toggleWatch}>{isWatched?'⭐':'☆'}</button>
+                {etfMode&&<button className="cap-hdr-btn" onClick={()=>setShowEtf(true)}>🧩</button>}
+                <button className="cap-hdr-btn" onClick={()=>setShowFull(true)}>⛶</button>
                 <button className="cap-hdr-btn x" onClick={()=>{setSelected(null);setQuery('')}}>✕</button>
               </div>
             </div>
-
-            {/* 메트릭 바 */}
-            <div className="cap-metrics">
-              {price?.volume&&<div className="cap-metric"><span className="cap-ml">거래량</span><span className="cap-mv">{fmtShort(price.volume)}주</span></div>}
-              {price?.open&&<div className="cap-metric"><span className="cap-ml">시가</span><span className="cap-mv">{price.open.toLocaleString()}</span></div>}
-              {price?.high&&<div className="cap-metric"><span className="cap-ml">고가</span><span className="cap-mv up">{price.high.toLocaleString()}</span></div>}
-              {price?.low &&<div className="cap-metric"><span className="cap-ml">저가</span><span className="cap-mv dn">{price.low.toLocaleString()}</span></div>}
-              {basicInfo?.mac&&<div className="cap-metric"><span className="cap-ml">시가총액</span><span className="cap-mv">{(Number(String(basicInfo.mac).replace(/,/g,''))/100000000).toFixed(0)}억</span></div>}
-              {basicInfo?.per&&basicInfo.per!=='0'&&<div className="cap-metric"><span className="cap-ml">PER</span><span className="cap-mv">{Number(basicInfo.per).toFixed(1)}배</span></div>}
-              {basicInfo?.pbr&&basicInfo.pbr!=='0'&&<div className="cap-metric"><span className="cap-ml">PBR</span><span className="cap-mv">{Number(basicInfo.pbr).toFixed(2)}배</span></div>}
-              {basicInfo?.roe&&basicInfo.roe!=='0'&&<div className="cap-metric"><span className="cap-ml">ROE</span><span className="cap-mv">{Number(basicInfo.roe).toFixed(1)}%</span></div>}
-              {basicInfo?.eps&&basicInfo.eps!=='0'&&<div className="cap-metric"><span className="cap-ml">EPS</span><span className="cap-mv">{Number(basicInfo.eps).toLocaleString()}원</span></div>}
-              {/* 52주 고저 — 항상 진짜 52주 기준 */}
-              {week52?.high&&<div className="cap-metric">
-                <span className="cap-ml">52주高</span>
-                <span className="cap-mv h52">{Math.round(week52.high).toLocaleString()}</span>
-              </div>}
-              {week52?.low&&<div className="cap-metric">
-                <span className="cap-ml">52주低</span>
-                <span className="cap-mv l52">{Math.round(week52.low).toLocaleString()}</span>
-              </div>}
-              {/* 차트 구간 고저 — 현재 선택 기간 기준 (52주와 다를 때만 표시) */}
-              {chartHighLow?.high&&week52?.high&&Math.round(chartHighLow.high)!==Math.round(week52.high)&&(()=>{
-                // 기간 레이블
-                const rangeLabel=period==='min'?`${minDays}일`:period==='year'?'전체':period==='month'?`${range}개월봉`:period==='week'?`${range}개월주`:RANGES.find(r=>r.months===range)?.label||`${range}M`
-                return (<>
-                  <div className="cap-metric" style={{borderLeft:'2px solid var(--border)'}}>
-                    <span className="cap-ml" style={{color:'#dc2626'}}>구간高({rangeLabel})</span>
-                    <span className="cap-mv" style={{color:'#dc2626',fontWeight:800}}>{Math.round(chartHighLow.high).toLocaleString()}</span>
-                  </div>
-                  <div className="cap-metric">
-                    <span className="cap-ml" style={{color:'#2563eb'}}>구간低</span>
-                    <span className="cap-mv" style={{color:'#2563eb',fontWeight:800}}>{Math.round(chartHighLow.low).toLocaleString()}</span>
-                  </div>
-                </>)
-              })()}
-              {basicInfo?.for_exh_rt&&<div className="cap-metric"><span className="cap-ml">외국인</span><span className="cap-mv">{basicInfo.for_exh_rt}%</span></div>}
-              {basicInfo?.lsnr_exh_rt&&<div className="cap-metric"><span className="cap-ml">유통비중</span><span className="cap-mv">{basicInfo.lsnr_exh_rt}%</span></div>}
-              {basicInfo?.upName&&<div className="cap-metric"><span className="cap-ml">업종</span><span className="cap-mv" style={{fontSize:10}}>{basicInfo.upName}</span></div>}
+            {/* 2행: 메트릭 칩 (스크롤) */}
+            <div style={{display:'flex',gap:0,overflowX:'auto',padding:'0 12px 6px',scrollbarWidth:'none'}}>
+              {[
+                price?.volume && {l:'거래량', v:fmtShort(price.volume)+'주'},
+                price?.open   && {l:'시가',   v:price.open.toLocaleString()},
+                price?.high   && {l:'고가',   v:price.high.toLocaleString(), c:'#dc2626'},
+                price?.low    && {l:'저가',   v:price.low.toLocaleString(),  c:'#2563eb'},
+                basicInfo?.mac && {l:'시총', v:(Number(String(basicInfo.mac).replace(/,/g,''))/100000000).toFixed(0)+'억'},
+                basicInfo?.per&&basicInfo.per!=='0' && {l:'PER', v:Number(basicInfo.per).toFixed(1)+'배'},
+                basicInfo?.pbr&&basicInfo.pbr!=='0' && {l:'PBR', v:Number(basicInfo.pbr).toFixed(2)+'배'},
+                basicInfo?.eps&&basicInfo.eps!=='0' && {l:'EPS', v:Number(basicInfo.eps).toLocaleString()+'원'},
+                basicInfo?.roe&&basicInfo.roe!=='0' && {l:'ROE', v:Number(basicInfo.roe).toFixed(1)+'%'},
+                basicInfo?.for_exh_rt && {l:'외국인', v:basicInfo.for_exh_rt+'%'},
+                basicInfo?.lsnr_exh_rt && {l:'유통비중', v:basicInfo.lsnr_exh_rt+'%'},
+                week52?.high && {l:'52주高', v:Math.round(week52.high).toLocaleString(), c:'#dc2626'},
+                week52?.low  && {l:'52주低', v:Math.round(week52.low).toLocaleString(),  c:'#2563eb'},
+                basicInfo?.upName && {l:'업종', v:basicInfo.upName, small:true},
+              ].filter(Boolean).map((m,i)=>(
+                <div key={i} style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'3px 10px',borderRight:'1px solid var(--border)',whiteSpace:'nowrap',flexShrink:0}}>
+                  <span style={{fontSize:9,color:'var(--text-dim)',marginBottom:1}}>{m.l}</span>
+                  <span style={{fontSize:m.small?10:12,fontWeight:700,color:m.c||'var(--text-primary)'}}>{m.v}</span>
+                </div>
+              ))}
+              {/* 재무 버튼 */}
+              <button className="cap-hdr-btn" style={{marginLeft:'auto',alignSelf:'center',flexShrink:0}} onClick={()=>setShowFin(true)}>📊 재무</button>
             </div>
           </div>
 
-          {/* ── 툴바 ── */}
-          <div className="cap-tb">
-            {/* Row 1: 봉종류 + 기간 + MA */}
-            <div className="cap-tb-row">
+          {/* ══ 툴바 통합 (1줄) ══ */}
+          <div className="cap-tb" style={{borderBottom:'1px solid var(--border)',background:'var(--bg-panel)'}}>
+            <div className="cap-tb-row" style={{display:'flex',alignItems:'center',gap:4,padding:'5px 10px',flexWrap:'wrap'}}>
               {/* 봉종류 */}
               <div className="cap-tg">
                 {PERIODS.map(p=><button key={p.key} className={`cap-tg-btn ${period===p.key?'active':''}`}
@@ -955,8 +975,7 @@ export default function ChartAnalysisPage() {
                   }}>{p.label}</button>)}
               </div>
               <div className="cap-tb-sep"/>
-
-              {/* 분봉: 분단위 간격 + 일수 범위 / 일봉 이상: 기간 범위 */}
+              {/* 기간 */}
               {period==='min' ? (<>
                 <div className="cap-tg">
                   {MIN_SCOPES.map(s=><button key={s} className={`cap-tg-btn ${scope===s?'active':''}`}
@@ -964,15 +983,9 @@ export default function ChartAnalysisPage() {
                 </div>
                 <div className="cap-tb-sep"/>
                 <div className="cap-tg">
-                  {[
-                    {label:'당일', days:1},
-                    {label:'3일',  days:3},
-                    {label:'5일',  days:5},
-                    {label:'10일', days:10},
-                    {label:'20일', days:20},
-                    {label:'30일', days:30},
-                  ].map(r=><button key={r.days} className={`cap-tg-btn ${minDays===r.days?'active':''}`}
-                    onClick={()=>setMinDays(r.days)}>{r.label}</button>)}
+                  {[{label:'당일',days:1},{label:'3일',days:3},{label:'5일',days:5},{label:'10일',days:10},{label:'20일',days:20},{label:'30일',days:30}]
+                    .map(r=><button key={r.days} className={`cap-tg-btn ${minDays===r.days?'active':''}`}
+                      onClick={()=>setMinDays(r.days)}>{r.label}</button>)}
                 </div>
               </>) : (
                 <div className="cap-tg">
@@ -983,38 +996,26 @@ export default function ChartAnalysisPage() {
               <div className="cap-tb-sep"/>
               {/* MA */}
               <button className={`cap-ma-tog ${showMA?'on':''}`} onClick={()=>{setShowMA(v=>{saveChartCfg({showMA:!v});return !v})}}>MA</button>
-              {showMA&&(
-                <div className="cap-ma-chips">
-                  {MA_SETTINGS.map(({p,color,label})=>(
-                    <button key={p} className={`cap-ma-chip ${enabledMA.has(p)?'on':'off'}`}
-                      style={enabledMA.has(p)?{color,borderColor:color,background:color+'18'}:{}}
-                      onClick={()=>toggleMA(p)}>{label}</button>
-                  ))}
-                </div>
-              )}
-              <div className="cap-tb-sp"/>
-              {/* 뷰 전환 */}
-              <div className="cap-view-tabs">
-                <button className={`cap-view-tab ${activeView==='chart'?'active':''}`} onClick={()=>setActiveView('chart')}>📈 차트</button>
-                <button className={`cap-view-tab ${activeView==='ai'?'active':''}`}    onClick={()=>setActiveView('ai')}>🤖 AI</button>
-              </div>
-            </div>
-
-            {/* Row 2: 지표 + 드로잉 + 우측 버튼 */}
-            <div className="cap-tb-row">
-              {/* 지표 토글 */}
-              <span style={{fontSize:10,color:'var(--text-dim)',fontWeight:700,marginRight:2}}>지표</span>
+              {showMA&&<div className="cap-ma-chips">
+                {MA_SETTINGS.map(({p,color,label})=>(
+                  <button key={p} className={`cap-ma-chip ${enabledMA.has(p)?'on':'off'}`}
+                    style={enabledMA.has(p)?{color,borderColor:color,background:color+'18'}:{}}
+                    onClick={()=>toggleMA(p)}>{label}</button>
+                ))}
+              </div>}
+              <div className="cap-tb-sep"/>
+              {/* 지표 */}
               <div className="cap-ind">
-                <button className={`cap-ind-btn bb ${showBB?'on':''}`}    onClick={()=>{setShowBB(v=>{saveChartCfg({showBB:!v});return !v})}}>BB</button>
-                <button className={`cap-ind-btn rsi ${showRSI?'on':''}`}  onClick={()=>{setShowRSI(v=>{saveChartCfg({showRSI:!v});return !v})}}>RSI</button>
-                <button className={`cap-ind-btn macd ${showMACD?'on':''}`} onClick={()=>{setShowMACD(v=>{saveChartCfg({showMACD:!v});return !v})}}>MACD</button>
+                <button className={`cap-ind-btn bb ${showBB?'on':''}`}     onClick={()=>{setShowBB(v=>{saveChartCfg({showBB:!v});return !v})}}>BB</button>
+                <button className={`cap-ind-btn rsi ${showRSI?'on':''}`}   onClick={()=>{setShowRSI(v=>{saveChartCfg({showRSI:!v});return !v})}}>RSI</button>
+                <button className={`cap-ind-btn macd ${showMACD?'on':''}`}  onClick={()=>{setShowMACD(v=>{saveChartCfg({showMACD:!v});return !v})}}>MACD</button>
                 <button className={`cap-ind-btn stoch ${showStoch?'on':''}`} onClick={()=>{setShowStoch(v=>{saveChartCfg({showStoch:!v});return !v})}}>Stoch</button>
               </div>
               <div className="cap-tb-sep"/>
               {/* 드로잉 */}
               <div className="cap-draw-wr">
                 <button className={`cap-draw-tog ${drawTool!=='none'?'on':''}`} onClick={()=>setDrawMenuOpen(v=>!v)}>
-                  ✏️ 드로잉 ▾
+                  ✏️ ▾
                 </button>
                 {drawMenuOpen&&(
                   <div className="cap-draw-menu">
@@ -1026,161 +1027,34 @@ export default function ChartAnalysisPage() {
                   </div>
                 )}
               </div>
-              {drawState&&<div className="cap-draw-hint">{drawTool==='trend'?'2번째 점 클릭':'끝점 클릭'}</div>}
+              {drawState&&<span className="cap-draw-hint" style={{fontSize:10,color:'var(--text-dim)'}}>{drawTool==='trend'?'2번째 점 클릭':'끝점 클릭'}</span>}
               <div className="cap-tb-sp"/>
-              {/* 우측 버튼 */}
-              <div className="cap-tb-right" ref={infoRef}>
-                {/* 수급 팝업 */}
-                <div className="cap-pop-wr">
-                  <button className={`cap-tb-btn ${infoPopup==='sup'?'active':''}`}
-                    onClick={()=>{
-                      const next=infoPopup==='sup'?null:'sup'
-                      setInfoPopup(next)
-                      if(next==='sup'&&!supplyData&&!supplyLoad) loadSupply()
-                    }}>
-                    📊 수급{supplyLoad&&' ⟳'}
-                  </button>
-                  {infoPopup==='sup'&&(
-                    <div className="cap-popup cap-supply-popup">
-                      <div className="cap-pop-title">
-                        📊 {selected.name} — 수급 현황
-                        <button className="cap-news-refresh" onClick={()=>{setSupplyData(null);loadSupply()}}>↺</button>
-                      </div>
-                      {supplyLoad&&<div className="cap-news-loading">⟳ 수급 데이터 로딩 중...</div>}
-                      {!supplyLoad&&!supplyData&&(
-                        <div className="cap-news-loading">
-                          <button style={{padding:'6px 14px',background:'var(--accent-mid)',color:'white',border:'none',borderRadius:6,cursor:'pointer',fontSize:12,fontWeight:600}} onClick={loadSupply}>📡 데이터 불러오기</button>
-                        </div>
-                      )}
-                      {!supplyLoad&&supplyData&&(()=>{
-                        const allRows=supplyData.invsr||[]
-                        if(!allRows.length) return <div className="cap-news-empty">데이터 없음</div>
-                        const rows=[...allRows].reverse().slice(-20)
-                        // SVG 차트
-                        const W=420,H=110,PAD={l:36,r:8,t:8,b:20}
-                        const cW=W-PAD.l-PAD.r,cH=H-PAD.t-PAD.b
-                        const n=rows.length
-                        const bW=Math.max(2,Math.floor(cW/n*0.5))
-                        const allV=rows.flatMap(r=>[r.foreign||0,r.orgn||0,r.ind||0])
-                        const maxV=Math.max(...allV.map(Math.abs),1)
-                        const mid=PAD.t+cH/2
-                        const toY=v=>v>=0?mid-(v/maxV)*(cH/2):mid
-                        const toH=v=>Math.max(1,Math.abs(v)/maxV*(cH/2))
-                        const px=i=>PAD.l+(i+0.5)*(cW/n)
-                        let cumFor=0,cumOrg=0
-                        return (
-                          <>
-                            <div style={{padding:'6px 10px 0',borderBottom:'1px solid var(--border)'}}>
-                              <div style={{fontSize:10,color:'var(--text-dim)',marginBottom:3,display:'flex',gap:10}}>
-                                <span style={{color:'#2563eb'}}>■ 외국인</span>
-                                <span style={{color:'#059669'}}>■ 기관</span>
-                                <span style={{color:'#94a3b8'}}>■ 개인</span>
-                                <span style={{marginLeft:'auto'}}>단위: 백만원</span>
-                              </div>
-                              <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block'}}>
-                                <line x1={PAD.l} y1={mid} x2={W-PAD.r} y2={mid} stroke="rgba(0,0,0,0.12)" strokeWidth="0.8"/>
-                                {[maxV,0,-maxV].map((v,i)=>(
-                                  <text key={i} x={PAD.l-3} y={(v===0?mid:toY(v))+(v<0?-2:3)} fontSize="8" fill="#94a3b8" textAnchor="end">
-                                    {v===0?'0':(v>0?'+':'')+Math.round(v/1000)+'B'}
-                                  </text>
-                                ))}
-                                {rows.map((r,i)=>{
-                                  const x=px(i),fv=r.foreign||0,ov=r.orgn||0,iv2=r.ind||0
-                                  return (
-                                    <g key={i}>
-                                      <rect x={x-bW*1.5} y={toY(fv)} width={bW} height={toH(fv)} fill={fv>=0?'#ef4444':'#2563eb'} opacity="0.85"/>
-                                      <rect x={x-bW*0.5} y={toY(ov)} width={bW} height={toH(ov)} fill={ov>=0?'#ef4444':'#059669'} opacity="0.85"/>
-                                      <rect x={x+bW*0.5} y={toY(iv2)} width={bW} height={toH(iv2)} fill="#94a3b8" opacity="0.7"/>
-                                    </g>
-                                  )
-                                })}
-                                {rows.filter((_,i)=>i%(Math.floor(n/4)||1)===0).map((r,i)=>{
-                                  const idx=rows.indexOf(r),d=String(r.dt||'')
-                                  return <text key={i} x={px(idx)} y={H-4} fontSize="8" fill="#94a3b8" textAnchor="middle">
-                                    {d.length>=8?`${d.slice(4,6)}/${d.slice(6,8)}`:d}
-                                  </text>
-                                })}
-                              </svg>
-                            </div>
-                            <div style={{overflow:'auto',maxHeight:200}}>
-                              <div style={{display:'grid',gridTemplateColumns:'50px repeat(5,1fr)',fontSize:10,fontWeight:700,color:'var(--text-dim)',background:'var(--bg-base)',padding:'4px 10px',borderBottom:'1px solid var(--border)',position:'sticky',top:0}}>
-                                <span>날짜</span>
-                                <span style={{textAlign:'right',color:'#2563eb'}}>외국인</span>
-                                <span style={{textAlign:'right',color:'#059669'}}>기관</span>
-                                <span style={{textAlign:'right',color:'#94a3b8'}}>개인</span>
-                                <span style={{textAlign:'right',color:'#2563eb',fontSize:9}}>외인누적</span>
-                                <span style={{textAlign:'right',color:'#059669',fontSize:9}}>기관누적</span>
-                              </div>
-                              {rows.map((r,i)=>{
-                                cumFor+=r.foreign||0; cumOrg+=r.orgn||0
-                                const d=String(r.dt||''),dl=d.length>=8?`${d.slice(4,6)}/${d.slice(6,8)}`:d
-                                const fc=r.foreign>0?'#ef4444':r.foreign<0?'#2563eb':'var(--text-dim)'
-                                const oc=r.orgn>0?'#ef4444':r.orgn<0?'#059669':'var(--text-dim)'
-                                const ic=r.ind>0?'#ef4444':r.ind<0?'#2563eb':'var(--text-dim)'
-                                return (
-                                  <div key={i} style={{display:'grid',gridTemplateColumns:'50px repeat(5,1fr)',fontSize:11,padding:'3px 10px',borderBottom:'1px solid var(--border-dim)'}}>
-                                    <span style={{color:'var(--text-dim)',fontSize:10}}>{dl}</span>
-                                    <span style={{textAlign:'right',color:fc,fontWeight:600}}>{r.foreign>0?'+':''}{(r.foreign||0).toLocaleString()}</span>
-                                    <span style={{textAlign:'right',color:oc,fontWeight:600}}>{r.orgn>0?'+':''}{(r.orgn||0).toLocaleString()}</span>
-                                    <span style={{textAlign:'right',color:ic}}>{r.ind>0?'+':''}{(r.ind||0).toLocaleString()}</span>
-                                    <span style={{textAlign:'right',color:cumFor>0?'#ef4444':cumFor<0?'#2563eb':'var(--text-dim)',fontSize:10}}>{cumFor>0?'+':''}{cumFor.toLocaleString()}</span>
-                                    <span style={{textAlign:'right',color:cumOrg>0?'#ef4444':cumOrg<0?'#059669':'var(--text-dim)',fontSize:10}}>{cumOrg>0?'+':''}{cumOrg.toLocaleString()}</span>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </>
-                        )
-                      })()}
-                    </div>
-                  )}
-                </div>
-                <div className="cap-pop-wr">
-                  <button className={`cap-tb-btn ${infoPopup==='disc'?'active':''}`} onClick={()=>setInfoPopup(p=>p==='disc'?null:'disc')}>공시</button>
-                  {infoPopup==='disc'&&(
-                    <div className="cap-popup">
-                      <div className="cap-pop-title">📋 공시 바로가기</div>
-                      <a className="cap-pop-item" href={`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(selected.name)}`} target="_blank" rel="noreferrer" onClick={()=>setInfoPopup(null)}>DART 전자공시 →</a>
-                      <a className="cap-pop-item" href={`https://kind.krx.co.kr/disclosuresearch/disclosuresearch.do?searchmode=searchCorp&searchText=${selected.code}`} target="_blank" rel="noreferrer" onClick={()=>setInfoPopup(null)}>KRX KIND 공시 →</a>
-                    </div>
-                  )}
-                </div>
-                <div className="cap-pop-wr">
-                  <button className={`cap-tb-btn ${infoPopup==='news'?'active':''}`} onClick={()=>{setInfoPopup(p=>p==='news'?null:'news');if(infoPopup!=='news'&&!newsData.length) loadNews()}}>뉴스{newsLoading&&'⟳'}</button>
-                  {infoPopup==='news'&&(
-                    <div className="cap-popup cap-news-popup">
-                      <div className="cap-pop-title">📰 {selected.name} <button className="cap-news-refresh" onClick={loadNews}>↺</button></div>
-                      {newsLoading&&<div className="cap-news-loading">⟳ 검색 중...</div>}
-                      {!newsLoading&&!newsData.length&&<div className="cap-news-empty">버튼을 눌러 뉴스 검색</div>}
-                      {newsData.map((n,i)=>(
-                        <a key={i} href={n.url} target="_blank" rel="noreferrer" className="cap-news-item" onClick={()=>setInfoPopup(null)}>
-                          <div className="cap-news-item-ttl">{n.title}</div>
-                          <div className="cap-news-item-meta">{n.source} · {n.date}</div>
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="cap-pop-wr">
-                  <button className={`cap-tb-btn ${infoPopup==='si'?'active':''}`} onClick={()=>setInfoPopup(p=>p==='si'?null:'si')}>종목정보</button>
-                  {infoPopup==='si'&&basicInfo&&(
-                    <div className="cap-popup">
-                      <div className="cap-pop-title">ℹ️ {selected.name}</div>
-                      {[['코드',selected.code],['업종',basicInfo.upName],['시가총액',basicInfo.mac?(Number(String(basicInfo.mac).replace(/,/g,''))/100000000).toFixed(0)+'억':'-'],['PER',basicInfo.per&&basicInfo.per!=='0'?Number(basicInfo.per).toFixed(1)+'배':'-'],['PBR',basicInfo.pbr&&basicInfo.pbr!=='0'?Number(basicInfo.pbr).toFixed(2)+'배':'-'],['EPS',basicInfo.eps&&basicInfo.eps!=='0'?Number(basicInfo.eps).toLocaleString()+'원':'-'],['ROE',basicInfo.roe&&basicInfo.roe!=='0'?Number(basicInfo.roe).toFixed(1)+'%':'-'],['외국인',basicInfo.for_exh_rt?basicInfo.for_exh_rt+'%':'-'],['유통비중',basicInfo.lsnr_exh_rt?basicInfo.lsnr_exh_rt+'%':'-'],['매출액',basicInfo.sale_amt?Number(String(basicInfo.sale_amt).replace(/,/g,'')).toLocaleString()+'억':'-'],['영업이익',basicInfo.bsop_pfi?Number(String(basicInfo.bsop_pfi).replace(/,/g,'')).toLocaleString()+'억':'-'],].filter(([,v])=>v&&v!=='-').map(([k,v])=>(
-                        <div key={k} className="cap-si-row"><span className="cap-si-key">{k}</span><span className="cap-si-val">{v}</span></div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <a className="cap-tb-btn" href={`https://finance.naver.com/item/main.naver?code=${selected.code}`} target="_blank" rel="noreferrer" style={{textDecoration:'none'}}>N증권</a>
-                <button className="cap-tb-btn" onClick={()=>setShowFull(true)}>⛶ 전체화면</button>
-              </div>
+              {/* 우측 패널 탭 버튼 */}
+              {[
+                {id:'sup',  label:'📊 수급'},
+                {id:'news', label:'📰 뉴스'},
+                {id:'disc', label:'📋 공시'},
+                {id:'si',   label:'ℹ️ 종목'},
+                {id:'ai',   label:'🤖 AI'},
+              ].map(t=>(
+                <button key={t.id}
+                  className={`cap-tb-btn ${rightPanel&&panelTab===t.id?'active':''}`}
+                  onClick={()=>{
+                    if(rightPanel&&panelTab===t.id) setRightPanel(false)
+                    else openPanel(t.id)
+                  }}>
+                  {t.label}
+                </button>
+              ))}
+              <button className="cap-tb-btn" onClick={()=>setShowFull(true)}>⛶</button>
             </div>
           </div>
 
-          {/* ── 차트 캔버스 ── */}
-          {activeView==='chart'&&(
-            <div className="cap-canvas">
+          {/* ══ 차트 + 우측 패널 ══ */}
+          <div style={{display:'flex',flex:1,overflow:'hidden',minHeight:0}}>
+
+            {/* 차트 영역 */}
+            <div className="cap-canvas" style={{flex:1,overflow:'auto',minWidth:0}}>
               {chartLoading
                 ? <div className="cap-chart-loading"><div className="cap-spinner"/>차트 불러오는 중...</div>
                 : (<>
@@ -1193,77 +1067,37 @@ export default function ChartAnalysisPage() {
                         showBollinger={showBB} week52={chartHighLow} period={period}
                         volHeight={volH}
                       />
-                      {/* 거래량/캔들 경계 핸들 — SVG 내부 거래량 영역 상단에 오버레이 */}
                       <div
-                        style={{
-                          position:'absolute',
-                          left:72, right:72,
-                          bottom: 32 + volH - 3,  // PAD.bottom + volH
-                          height:6,
-                          cursor:'row-resize',
-                          zIndex:20,
-                          display:'flex', alignItems:'center', justifyContent:'center',
-                        }}
+                        style={{position:'absolute',left:72,right:72,bottom:32+volH-3,height:6,cursor:'row-resize',zIndex:20,display:'flex',alignItems:'center',justifyContent:'center'}}
                         title="거래량 높이 조절"
                         onMouseDown={e=>{
                           e.preventDefault()
                           let lastY=e.clientY
-                          const onMove=e=>{
-                            const delta=e.clientY-lastY
-                            lastY=e.clientY
-                            updateVolH(delta)
-                          }
-                          const onUp=()=>{
-                            window.removeEventListener('mousemove',onMove)
-                            window.removeEventListener('mouseup',onUp)
-                          }
-                          window.addEventListener('mousemove',onMove)
-                          window.addEventListener('mouseup',onUp)
+                          const onMove=e=>{const delta=e.clientY-lastY;lastY=e.clientY;updateVolH(delta)}
+                          const onUp=()=>{window.removeEventListener('mousemove',onMove);window.removeEventListener('mouseup',onUp)}
+                          window.addEventListener('mousemove',onMove);window.addEventListener('mouseup',onUp)
                         }}
                       >
-                        <div style={{
-                          width:60, height:2, borderRadius:2,
-                          background:'rgba(100,116,139,0.35)',
-                          transition:'all .15s',
-                        }}
+                        <div style={{width:60,height:2,borderRadius:2,background:'rgba(100,116,139,0.35)',transition:'all .15s'}}
                           onMouseEnter={e=>{e.currentTarget.style.width='120px';e.currentTarget.style.background='#2563eb'}}
                           onMouseLeave={e=>{e.currentTarget.style.width='60px';e.currentTarget.style.background='rgba(100,116,139,0.35)'}}
                         />
                       </div>
                     </div>
-                    {/* 보조지표 서브차트 + 드래그 핸들 */}
                     {candles.length>0&&(<>
                       {showRSI&&(<>
-                        <ResizeDivider
-                          label="RSI 패널 높이 조절"
-                          onDrag={delta=>{
-                            updateSubH('rsi', delta)
-                          }}
-                        />
-                        <div className="cap-sub">
-                          <SubRSI data={candles} width={chartW} height={subHeights.rsi}/>
-                        </div>
+                        <ResizeDivider label="RSI 패널 높이 조절" onDrag={delta=>updateSubH('rsi',delta)}/>
+                        <div className="cap-sub"><SubRSI data={candles} width={chartW} height={subHeights.rsi}/></div>
                       </>)}
                       {showMACD&&(<>
-                        <ResizeDivider
-                          label="MACD 패널 높이 조절"
-                          onDrag={delta=>updateSubH('macd', delta)}
-                        />
-                        <div className="cap-sub">
-                          <SubMACD data={candles} width={chartW} height={subHeights.macd}/>
-                        </div>
+                        <ResizeDivider label="MACD 패널 높이 조절" onDrag={delta=>updateSubH('macd',delta)}/>
+                        <div className="cap-sub"><SubMACD data={candles} width={chartW} height={subHeights.macd}/></div>
                       </>)}
                       {showStoch&&(<>
-                        <ResizeDivider
-                          label="Stoch 패널 높이 조절"
-                          onDrag={delta=>updateSubH('stoch', delta)}
-                        />
-                        <div className="cap-sub">
-                          <SubStoch data={candles} width={chartW} height={subHeights.stoch}/>
-                        </div>
+                        <ResizeDivider label="Stoch 패널 높이 조절" onDrag={delta=>updateSubH('stoch',delta)}/>
+                        <div className="cap-sub"><SubStoch data={candles} width={chartW} height={subHeights.stoch}/></div>
                       </>)}
                     </>)}
-                    {/* 텍스트 메모 */}
                     {textInput&&(
                       <div className="cap-text-bar">
                         <input autoFocus className="cap-text-input" placeholder="메모 입력 후 Enter"
@@ -1277,34 +1111,213 @@ export default function ChartAnalysisPage() {
                   </>)
               }
             </div>
-          )}
 
-          {/* ── AI 패널 ── */}
-          {activeView==='ai'&&(
-            <div className="cap-ai">
-              <div className="cap-ai-hdr">
-                <span className="cap-ai-title">🤖 {selected.name} — 웹 검색 기반 AI 분석</span>
-                <button className="cap-ai-run" onClick={doAI} disabled={aiLoading||!CLAUDE_KEY}>
-                  {aiLoading?'⟳ 분석 중...':aiResult?'↺ 다시 분석':'🔍 AI 분석 시작'}
-                </button>
+            {/* ══ 우측 정보 패널 ══ */}
+            {rightPanel&&(
+              <div style={{width:300,borderLeft:'1px solid var(--border)',display:'flex',flexDirection:'column',overflow:'hidden',background:'var(--bg-panel)',flexShrink:0}}>
+                {/* 패널 탭 */}
+                <div style={{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--bg-base)'}}>
+                  {[
+                    {id:'sup',  label:'📊 수급'},
+                    {id:'news', label:'📰 뉴스'},
+                    {id:'disc', label:'📋 공시'},
+                    {id:'si',   label:'ℹ️ 종목'},
+                    {id:'ai',   label:'🤖 AI'},
+                  ].map(t=>(
+                    <button key={t.id}
+                      onClick={()=>{setPanelTab(t.id);if(t.id==='sup'&&!supplyData&&!supplyLoad)loadSupply();if(t.id==='news'&&!newsData.length)loadNews()}}
+                      style={{flex:1,padding:'6px 2px',fontSize:10,fontWeight:panelTab===t.id?700:400,
+                        color:panelTab===t.id?'var(--accent-mid)':'var(--text-dim)',
+                        borderBottom:panelTab===t.id?'2px solid var(--accent-mid)':'2px solid transparent',
+                        background:'none',border:'none',cursor:'pointer',whiteSpace:'nowrap'}}>
+                      {t.label}
+                    </button>
+                  ))}
+                  <button onClick={()=>setRightPanel(false)}
+                    style={{padding:'6px 8px',background:'none',border:'none',cursor:'pointer',color:'var(--text-dim)',fontSize:14}}>✕</button>
+                </div>
+
+                {/* 패널 컨텐츠 */}
+                <div style={{flex:1,overflow:'auto'}}>
+
+                  {/* ── 수급 탭 ── */}
+                  {panelTab==='sup'&&(<>
+                    <div style={{padding:'8px 10px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{fontSize:12,fontWeight:700}}>📊 {selected.name} 수급</span>
+                      <button style={{fontSize:10,padding:'2px 6px',background:'var(--bg-base)',border:'1px solid var(--border)',borderRadius:4,cursor:'pointer'}}
+                        onClick={()=>{setSupplyData(null);loadSupply()}}>↺ 새로고침</button>
+                    </div>
+                    {supplyLoad&&<div style={{padding:20,textAlign:'center',fontSize:12,color:'var(--text-dim)'}}>⟳ 로딩 중...</div>}
+                    {!supplyLoad&&!supplyData&&(
+                      <div style={{padding:20,textAlign:'center'}}>
+                        <button style={{padding:'6px 14px',background:'var(--accent-mid)',color:'white',border:'none',borderRadius:6,cursor:'pointer',fontSize:12,fontWeight:600}} onClick={loadSupply}>📡 데이터 불러오기</button>
+                      </div>
+                    )}
+                    {!supplyLoad&&supplyData&&(()=>{
+                      const allRows=supplyData.invsr||[]
+                      if(!allRows.length) return <div style={{padding:16,textAlign:'center',color:'var(--text-dim)',fontSize:12}}>데이터 없음</div>
+                      const rows=[...allRows].reverse().slice(-20)
+                      const W=280,H=100,PAD={l:32,r:6,t:6,b:18}
+                      const cW=W-PAD.l-PAD.r,cH=H-PAD.t-PAD.b
+                      const n=rows.length,bW=Math.max(2,Math.floor(cW/n*0.5))
+                      const allV=rows.flatMap(r=>[r.foreign||0,r.orgn||0,r.ind||0])
+                      const maxV=Math.max(...allV.map(Math.abs),1)
+                      const mid=PAD.t+cH/2
+                      const toY=v=>v>=0?mid-(v/maxV)*(cH/2):mid
+                      const toH=v=>Math.max(1,Math.abs(v)/maxV*(cH/2))
+                      const px=i=>PAD.l+(i+0.5)*(cW/n)
+                      let cumFor=0,cumOrg=0
+                      return (
+                        <>
+                          <div style={{padding:'6px 8px 0',borderBottom:'1px solid var(--border)'}}>
+                            <div style={{fontSize:9,color:'var(--text-dim)',marginBottom:2,display:'flex',gap:8}}>
+                              <span style={{color:'#2563eb'}}>■외국인</span><span style={{color:'#059669'}}>■기관</span><span style={{color:'#94a3b8'}}>■개인</span>
+                            </div>
+                            <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block'}}>
+                              <line x1={PAD.l} y1={mid} x2={W-PAD.r} y2={mid} stroke="rgba(0,0,0,0.12)" strokeWidth="0.8"/>
+                              {rows.map((r,i)=>{
+                                const x=px(i),fv=r.foreign||0,ov=r.orgn||0,iv2=r.ind||0
+                                return <g key={i}>
+                                  <rect x={x-bW*1.5} y={toY(fv)} width={bW} height={toH(fv)} fill={fv>=0?'#ef4444':'#2563eb'} opacity="0.85"/>
+                                  <rect x={x-bW*0.5} y={toY(ov)} width={bW} height={toH(ov)} fill={ov>=0?'#ef4444':'#059669'} opacity="0.85"/>
+                                  <rect x={x+bW*0.5} y={toY(iv2)} width={bW} height={toH(iv2)} fill="#94a3b8" opacity="0.7"/>
+                                </g>
+                              })}
+                              {rows.filter((_,i)=>i%(Math.floor(n/3)||1)===0).map((r,i)=>{
+                                const idx=rows.indexOf(r),d=String(r.dt||'')
+                                return <text key={i} x={px(idx)} y={H-3} fontSize="7" fill="#94a3b8" textAnchor="middle">
+                                  {d.length>=8?`${d.slice(4,6)}/${d.slice(6,8)}`:d}
+                                </text>
+                              })}
+                            </svg>
+                          </div>
+                          <div style={{overflow:'auto',maxHeight:280}}>
+                            <div style={{display:'grid',gridTemplateColumns:'44px repeat(3,1fr)',fontSize:10,fontWeight:700,color:'var(--text-dim)',background:'var(--bg-base)',padding:'3px 8px',borderBottom:'1px solid var(--border)',position:'sticky',top:0}}>
+                              <span>날짜</span>
+                              <span style={{textAlign:'right',color:'#2563eb'}}>외국인</span>
+                              <span style={{textAlign:'right',color:'#059669'}}>기관</span>
+                              <span style={{textAlign:'right',color:'#94a3b8'}}>개인</span>
+                            </div>
+                            {rows.map((r,i)=>{
+                              cumFor+=r.foreign||0; cumOrg+=r.orgn||0
+                              const d=String(r.dt||''),dl=d.length>=8?`${d.slice(4,6)}/${d.slice(6,8)}`:d
+                              return (
+                                <div key={i} style={{display:'grid',gridTemplateColumns:'44px repeat(3,1fr)',fontSize:10,padding:'3px 8px',borderBottom:'1px solid var(--border-dim)'}}>
+                                  <span style={{color:'var(--text-dim)'}}>{dl}</span>
+                                  <span style={{textAlign:'right',color:r.foreign>0?'#ef4444':r.foreign<0?'#2563eb':'inherit',fontWeight:600}}>{r.foreign>0?'+':''}{(r.foreign||0).toLocaleString()}</span>
+                                  <span style={{textAlign:'right',color:r.orgn>0?'#ef4444':r.orgn<0?'#059669':'inherit',fontWeight:600}}>{r.orgn>0?'+':''}{(r.orgn||0).toLocaleString()}</span>
+                                  <span style={{textAlign:'right',color:r.ind>0?'#ef4444':r.ind<0?'#2563eb':'inherit'}}>{r.ind>0?'+':''}{(r.ind||0).toLocaleString()}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </>
+                      )
+                    })()}
+                  </>)}
+
+                  {/* ── 뉴스 탭 ── */}
+                  {panelTab==='news'&&(<>
+                    <div style={{padding:'8px 10px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{fontSize:12,fontWeight:700}}>📰 {selected.name} 뉴스</span>
+                      <button style={{fontSize:10,padding:'2px 6px',background:'var(--bg-base)',border:'1px solid var(--border)',borderRadius:4,cursor:'pointer'}} onClick={loadNews}>↺</button>
+                    </div>
+                    {newsLoading&&<div style={{padding:16,textAlign:'center',fontSize:12,color:'var(--text-dim)'}}>⟳ 검색 중...</div>}
+                    {!newsLoading&&!newsData.length&&(
+                      <div style={{padding:20,textAlign:'center'}}>
+                        <button style={{padding:'6px 14px',background:'var(--accent-mid)',color:'white',border:'none',borderRadius:6,cursor:'pointer',fontSize:12,fontWeight:600}} onClick={loadNews}>🔍 뉴스 검색</button>
+                      </div>
+                    )}
+                    {newsData.map((n,i)=>(
+                      <a key={i} href={n.url} target="_blank" rel="noreferrer"
+                        style={{display:'block',padding:'10px 12px',borderBottom:'1px solid var(--border-dim)',textDecoration:'none'}}>
+                        <div style={{fontSize:12,fontWeight:600,color:'var(--text-primary)',marginBottom:3,lineHeight:1.4}}>{n.title}</div>
+                        <div style={{fontSize:10,color:'var(--text-dim)'}}>{n.source} · {n.date}</div>
+                      </a>
+                    ))}
+                  </>)}
+
+                  {/* ── 공시 탭 ── */}
+                  {panelTab==='disc'&&(<>
+                    <div style={{padding:'8px 10px',borderBottom:'1px solid var(--border)'}}>
+                      <span style={{fontSize:12,fontWeight:700}}>📋 공시 바로가기</span>
+                    </div>
+                    <div style={{padding:12,display:'flex',flexDirection:'column',gap:8}}>
+                      <a href={`https://dart.fss.or.kr/dsab007/detailSearch.ax?textCrpNm=${encodeURIComponent(selected.name)}`}
+                        target="_blank" rel="noreferrer"
+                        style={{display:'block',padding:'10px 14px',background:'var(--bg-base)',border:'1px solid var(--border)',borderRadius:8,textDecoration:'none',color:'var(--text-primary)',fontSize:13,fontWeight:600}}>
+                        DART 전자공시 →
+                      </a>
+                      <a href={`https://kind.krx.co.kr/disclosuresearch/disclosuresearch.do?searchmode=searchCorp&searchText=${selected.code}`}
+                        target="_blank" rel="noreferrer"
+                        style={{display:'block',padding:'10px 14px',background:'var(--bg-base)',border:'1px solid var(--border)',borderRadius:8,textDecoration:'none',color:'var(--text-primary)',fontSize:13,fontWeight:600}}>
+                        KRX KIND 공시 →
+                      </a>
+                      <a href={`https://finance.naver.com/item/news.naver?code=${selected.code}`}
+                        target="_blank" rel="noreferrer"
+                        style={{display:'block',padding:'10px 14px',background:'var(--bg-base)',border:'1px solid var(--border)',borderRadius:8,textDecoration:'none',color:'var(--text-primary)',fontSize:13,fontWeight:600}}>
+                        네이버 종목뉴스 →
+                      </a>
+                    </div>
+                  </>)}
+
+                  {/* ── 종목정보 탭 ── */}
+                  {panelTab==='si'&&basicInfo&&(<>
+                    <div style={{padding:'8px 10px',borderBottom:'1px solid var(--border)'}}>
+                      <span style={{fontSize:12,fontWeight:700}}>ℹ️ {selected.name} 종목정보</span>
+                    </div>
+                    <div style={{padding:'6px 0'}}>
+                      {[
+                        ['코드',selected.code],
+                        ['업종',basicInfo.upName],
+                        ['시가총액',basicInfo.mac?(Number(String(basicInfo.mac).replace(/,/g,''))/100000000).toFixed(0)+'억':'-'],
+                        ['PER',basicInfo.per&&basicInfo.per!=='0'?Number(basicInfo.per).toFixed(1)+'배':'-'],
+                        ['PBR',basicInfo.pbr&&basicInfo.pbr!=='0'?Number(basicInfo.pbr).toFixed(2)+'배':'-'],
+                        ['EPS',basicInfo.eps&&basicInfo.eps!=='0'?Number(basicInfo.eps).toLocaleString()+'원':'-'],
+                        ['ROE',basicInfo.roe&&basicInfo.roe!=='0'?Number(basicInfo.roe).toFixed(1)+'%':'-'],
+                        ['외국인비중',basicInfo.for_exh_rt?basicInfo.for_exh_rt+'%':'-'],
+                        ['유통비중',basicInfo.lsnr_exh_rt?basicInfo.lsnr_exh_rt+'%':'-'],
+                        ['매출액',basicInfo.sale_amt?Number(String(basicInfo.sale_amt).replace(/,/g,'')).toLocaleString()+'억':'-'],
+                        ['영업이익',basicInfo.bus_pro?Number(String(basicInfo.bus_pro).replace(/,/g,'')).toLocaleString()+'억':'-'],
+                      ].filter(([,v])=>v&&v!=='-').map(([k,v])=>(
+                        <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'6px 14px',borderBottom:'1px solid var(--border-dim)'}}>
+                          <span style={{fontSize:11,color:'var(--text-dim)'}}>{k}</span>
+                          <span style={{fontSize:12,fontWeight:700,color:'var(--text-primary)'}}>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>)}
+
+                  {/* ── AI 분석 탭 ── */}
+                  {panelTab==='ai'&&(<>
+                    <div style={{padding:'8px 10px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{fontSize:12,fontWeight:700}}>🤖 AI 분석</span>
+                      <button style={{padding:'4px 10px',background:'var(--accent-mid)',color:'white',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600,opacity:aiLoading||!CLAUDE_KEY?0.5:1}}
+                        onClick={doAI} disabled={aiLoading||!CLAUDE_KEY}>
+                        {aiLoading?'⟳ 분석 중...':aiResult?'↺ 재분석':'🔍 AI 분석'}
+                      </button>
+                    </div>
+                    {!CLAUDE_KEY&&<div style={{padding:12,fontSize:11,color:'#dc2626',background:'#fef2f2',margin:8,borderRadius:6}}>⚠️ VITE_CLAUDE_API_KEY 미설정</div>}
+                    {aiError&&<div style={{padding:10,fontSize:11,color:'#dc2626'}}>{aiError}</div>}
+                    {aiResult&&!aiLoading&&(
+                      <div style={{padding:'8px 12px'}}>
+                        <div style={{fontSize:10,color:'var(--text-dim)',marginBottom:6}}>🔍 웹 검색 기반 · {new Date().toLocaleTimeString('ko-KR')} · 메모 자동저장 완료</div>
+                        <MarkdownView text={aiResult}/>
+                      </div>
+                    )}
+                    {!aiResult&&!aiLoading&&!aiError&&(
+                      <div style={{padding:32,textAlign:'center',color:'var(--text-dim)'}}>
+                        <div style={{fontSize:28,marginBottom:8}}>🤖</div>
+                        <div style={{fontSize:12,fontWeight:700,marginBottom:4}}>AI 기술적 분석</div>
+                        <div style={{fontSize:11}}>{selected.name} 웹 검색 기반<br/>AI 분석을 시작하세요</div>
+                      </div>
+                    )}
+                  </>)}
+
+                </div>
               </div>
-              {!CLAUDE_KEY&&<div className="cap-ai-warn">⚠️ VITE_CLAUDE_API_KEY 미설정</div>}
-              {aiError&&<div className="cap-ai-error">⚠️ {aiError}</div>}
-              {aiResult&&!aiLoading&&(
-                <div className="cap-ai-result">
-                  <div className="cap-ai-badge">🔍 웹 검색 기반 · {new Date().toLocaleTimeString('ko-KR')}</div>
-                  <MarkdownView text={aiResult}/>
-                </div>
-              )}
-              {!aiResult&&!aiLoading&&!aiError&&(
-                <div style={{padding:40,textAlign:'center',color:'var(--text-dim)'}}>
-                  <div style={{fontSize:32,marginBottom:12}}>🤖</div>
-                  <div style={{fontSize:14,fontWeight:700,color:'var(--text-secondary)',marginBottom:6}}>AI 기술적 분석</div>
-                  <div style={{fontSize:12}}>버튼을 눌러 {selected.name} 웹 검색 기반 AI 분석을 시작하세요</div>
-                </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
 
         </>)}
       </div>
