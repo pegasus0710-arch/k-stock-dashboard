@@ -560,14 +560,23 @@ export default function ChartAnalysisPage() {
   }
 
   // ── 서브차트 높이 (드래그 리사이즈) ──────────────
-  const [subHeights, setSubHeights] = useState({ rsi:80, macd:96, stoch:74 })
-  const [volH, setVolH] = useState(56)  // 거래량 바 높이
+  const [subHeights, setSubHeights] = useState({
+    rsi:   _cfg.subH_rsi   || 80,
+    macd:  _cfg.subH_macd  || 96,
+    stoch: _cfg.subH_stoch || 74,
+  })
+  const [volH, setVolH] = useState(_cfg.volH || 56)
 
-  const updateSubH = (key, delta) => setSubHeights(prev => ({
-    ...prev,
-    [key]: Math.max(50, Math.min(200, prev[key] + delta))
-  }))
-  const updateVolH = delta => setVolH(prev => Math.max(30, Math.min(150, prev + delta)))
+  const updateSubH = (key, delta) => setSubHeights(prev => {
+    const next = { ...prev, [key]: Math.max(50, Math.min(200, prev[key] + delta)) }
+    saveChartCfg({ [`subH_${key}`]: next[key] })
+    return next
+  })
+  const updateVolH = delta => setVolH(prev => {
+    const next = Math.max(30, Math.min(150, prev + delta))
+    saveChartCfg({ volH: next })
+    return next
+  })
 
   // ── 데이터 ────────────────────────────────────────
   const [basicInfo,   setBasicInfo]   = useState(null)
@@ -1017,7 +1026,7 @@ export default function ChartAnalysisPage() {
               {period==='min' ? (<>
                 <div className="cap-tg">
                   {MIN_SCOPES.map(s=><button key={s} className={`cap-tg-btn ${scope===s?'active':''}`}
-                    onClick={()=>setScope(s)}>{s}분</button>)}
+                    onClick={()=>{setScope(s);saveChartCfg({scope:s})}}>{s}분</button>)}
                 </div>
                 <div className="cap-tb-sep"/>
                 <div className="cap-tg">
