@@ -347,13 +347,13 @@ export default function CandleSvg({
             <line
               x1={tooltip.x} y1={PAD.top}
               x2={tooltip.x} y2={PAD.top + chartH}
-              stroke="rgba(0,0,0,0.28)" strokeWidth="0.4" strokeDasharray="2 5"
+              stroke="rgba(220,38,38,0.55)" strokeWidth="0.5" strokeDasharray="2 5"
             />
             {/* 가로선 */}
             <line
               x1={PAD.left} y1={tooltip.svgY}
               x2={W - PAD.right} y2={tooltip.svgY}
-              stroke="rgba(0,0,0,0.28)" strokeWidth="0.4" strokeDasharray="2 5"
+              stroke="rgba(220,38,38,0.55)" strokeWidth="0.5" strokeDasharray="2 5"
             />
             {/* Y축 가격 버블 */}
             {isFinite(tooltip.price) && tooltip.svgY >= PAD.top && tooltip.svgY <= PAD.top + chartH && (
