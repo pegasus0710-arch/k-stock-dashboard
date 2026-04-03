@@ -256,24 +256,33 @@ function TradesPanel({ user }) {
         fetch(`/api/kiwoom?type=account-trades&fr_dt=${fr}&to_dt=${to}`).then(r=>r.json()),
         fetch(`/api/kiwoom?type=account-realized&fr_dt=${fr}&to_dt=${to}`).then(r=>r.json()).catch(()=>({})),
       ])
-      const rawTrades  = tradeRes.trades || []
-      const byKey      = realRes.by_key  || {}
+      const rawTrades   = tradeRes.trades   || []
+      const realizedArr = realRes.realized  || []
+      const byKey       = realRes.by_key    || {}
 
-      // 매도 건에 실현손익 병합 (date+code 기준 매칭)
+      // 매도 건에 실현손익 병합 (다단계 매칭)
       const merged = rawTrades.map(t => {
         if (t.type !== 'sell') return t
-        const key     = `${t.date}_${t.code}`
-        const matches = byKey[key]
-        if (!matches?.length) return t
-        // 수량이 가장 근접한 건 매칭
-        const best = matches.find(m => m.qty === t.qty) || matches[0]
+        // 1차: date+code by_key 정확 매칭
+        const key   = `${t.date}_${t.code}`
+        let matches = byKey[key] || []
+        // 2차: code만으로 폴백 (날짜 형식 불일치 대비)
+        if (!matches.length) {
+          matches = realizedArr.filter(r =>
+            r.code === t.code &&
+            Math.abs(Number(r.qty||0) - Number(t.qty||0)) < 2
+          )
+        }
+        if (!matches.length) return t
+        // 수량 일치 우선, 없으면 첫 번째
+        const best = matches.find(m => Number(m.qty||0) === Number(t.qty||0)) || matches[0]
         return {
           ...t,
-          profit:    best.profit,       // 실현손익
-          profit_rt: best.profit_rt,    // 손익률
-          buy_price: best.buy_price,    // 매입단가
+          profit:    best.profit,
+          profit_rt: best.profit_rt,
+          buy_price: best.buy_price,
           fee:       best.fee || t.fee,
-          tax:       best.tax  || 0,
+          tax:       best.tax || 0,
         }
       })
       setTrades(merged)
@@ -544,30 +553,46 @@ function CashflowPanel({ user }) {
 
 // ── 기간분석 패널 ─────────────────────────────────────
 // ── 성과분석 SVG 막대차트 ─────────────────────────────
-function BarChart({ data, height=120 }) {
+function BarChart({ data, height=140 }) {
   if (!data?.length) return null
-  const max = Math.max(...data.map(d=>Math.max(Math.abs(d.buy||0), Math.abs(d.sell||0))), 1)
-  const W = 100 / data.length
+  const VW = 600, VH = height + 40
+  const PAD = { t:20, b:30, l:8, r:8 }
+  const innerW = VW - PAD.l - PAD.r
+  const innerH = VH - PAD.t - PAD.b
+  const colW   = innerW / data.length
+  const barW   = Math.max(4, Math.min(20, colW * 0.35))
+  const gap    = barW * 0.4
+  const max    = Math.max(...data.map(d=>Math.max(d.buy||0, d.sell||0)), 1)
+
   return (
-    <svg viewBox={`0 0 ${data.length*44} ${height+30}`} style={{width:'100%',display:'block'}}>
-      {data.map((d,i)=>{
-        const bh = (d.buy||0)/max*(height-10)
-        const sh = (d.sell||0)/max*(height-10)
-        const x  = i*44
-        return (
-          <g key={d.label}>
-            {bh>0 && <rect x={x+4}  y={height-bh-5} width={16} height={bh} fill="#EF4444" rx="2" opacity=".8"/>}
-            {sh>0 && <rect x={x+22} y={height-sh-5} width={16} height={sh} fill="#3B82F6" rx="2" opacity=".8"/>}
-            <text x={x+22} y={height+16} textAnchor="middle" fontSize="10" fill="#94A3B8">{d.label}</text>
-          </g>
-        )
-      })}
-      {/* 범례 */}
-      <rect x={0} y={0} width={8} height={8} fill="#EF4444" rx="1"/>
-      <text x={12} y={8} fontSize="9" fill="#94A3B8">매수</text>
-      <rect x={36} y={0} width={8} height={8} fill="#3B82F6" rx="1"/>
-      <text x={48} y={8} fontSize="9" fill="#94A3B8">매도</text>
-    </svg>
+    <div style={{width:'100%',overflowX:'auto'}}>
+      <svg viewBox={`0 0 ${VW} ${VH}`} style={{width:'100%',minWidth:300,display:'block'}}>
+        {/* 범례 */}
+        <rect x={PAD.l} y={4} width={10} height={10} fill="#EF4444" rx="2"/>
+        <text x={PAD.l+14} y={13} fontSize="11" fill="#94A3B8">매수</text>
+        <rect x={PAD.l+52} y={4} width={10} height={10} fill="#3B82F6" rx="2"/>
+        <text x={PAD.l+66} y={13} fontSize="11" fill="#94A3B8">매도</text>
+
+        {/* 기준선 */}
+        <line x1={PAD.l} y1={PAD.t+innerH} x2={VW-PAD.r} y2={PAD.t+innerH}
+          stroke="#E2E8F0" strokeWidth="1"/>
+
+        {data.map((d,i)=>{
+          const cx  = PAD.l + (i + 0.5) * colW
+          const bh  = (d.buy||0)  / max * innerH
+          const sh  = (d.sell||0) / max * innerH
+          const by  = PAD.t + innerH - bh
+          const sy  = PAD.t + innerH - sh
+          return (
+            <g key={d.label}>
+              {bh>0 && <rect x={cx-gap-barW} y={by}   width={barW} height={bh} fill="#EF4444" rx="2" opacity=".85"/>}
+              {sh>0 && <rect x={cx+gap}       y={sy}   width={barW} height={sh} fill="#3B82F6" rx="2" opacity=".85"/>}
+              <text x={cx} y={PAD.t+innerH+16} textAnchor="middle" fontSize="11" fill="#94A3B8">{d.label}</text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
   )
 }
 
