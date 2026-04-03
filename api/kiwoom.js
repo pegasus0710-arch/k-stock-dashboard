@@ -313,6 +313,15 @@ export default async function handler(req, res) {
     }, res)
   }
 
+  // /api/kiwoom?type=account-realized&fr_dt=20260301&to_dt=20260403&stk_cd=
+  if (q.type === 'account-realized') {
+    return relay('/account/realized', {
+      fr_dt:  q.fr_dt  || '',
+      to_dt:  q.to_dt  || '',
+      stk_cd: q.stk_cd || '',
+    }, res)
+  }
+
   return res.status(400).json({
     error: 'Invalid type',
     valid: [

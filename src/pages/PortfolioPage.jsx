@@ -251,9 +251,32 @@ function TradesPanel({ user }) {
   const fetchTrades = async (fr=frDt, to=toDt) => {
     setLoading(true); setTrades([]); setSaved(0)
     try {
-      const res = await fetch(`/api/kiwoom?type=account-trades&fr_dt=${fr}&to_dt=${to}`)
-      const data = await res.json()
-      setTrades(data.trades || [])
+      // 매매내역 + 실현손익 동시 조회
+      const [tradeRes, realRes] = await Promise.all([
+        fetch(`/api/kiwoom?type=account-trades&fr_dt=${fr}&to_dt=${to}`).then(r=>r.json()),
+        fetch(`/api/kiwoom?type=account-realized&fr_dt=${fr}&to_dt=${to}`).then(r=>r.json()).catch(()=>({})),
+      ])
+      const rawTrades  = tradeRes.trades || []
+      const byKey      = realRes.by_key  || {}
+
+      // 매도 건에 실현손익 병합 (date+code 기준 매칭)
+      const merged = rawTrades.map(t => {
+        if (t.type !== 'sell') return t
+        const key     = `${t.date}_${t.code}`
+        const matches = byKey[key]
+        if (!matches?.length) return t
+        // 수량이 가장 근접한 건 매칭
+        const best = matches.find(m => m.qty === t.qty) || matches[0]
+        return {
+          ...t,
+          profit:    best.profit,       // 실현손익
+          profit_rt: best.profit_rt,    // 손익률
+          buy_price: best.buy_price,    // 매입단가
+          fee:       best.fee || t.fee,
+          tax:       best.tax  || 0,
+        }
+      })
+      setTrades(merged)
     } catch(e) { console.error(e) }
     setLoading(false)
   }
@@ -263,7 +286,6 @@ function TradesPanel({ user }) {
     setSaving(true)
     let newCount = 0
     try {
-      // 기존 ID 목록 조회
       const existing = new Set(dbTrades.map(t=>makeTradeId(t)))
       const batch = writeBatch(db)
       const col = collection(db,'users',user.uid,'portfolio','trades','records')
@@ -336,6 +358,7 @@ function TradesPanel({ user }) {
                 <th>수량</th>
                 <th>단가</th>
                 <th>금액</th>
+                <th>실현손익</th>
                 <th>수수료</th>
               </tr>
             </thead>
@@ -351,6 +374,19 @@ function TradesPanel({ user }) {
                   <td>{fmt(t.qty)}</td>
                   <td>{fmt(t.price)}</td>
                   <td>{fmt(t.amount)}</td>
+                  <td>
+                    {t.type==='sell' && t.profit!=null
+                      ? <div>
+                          <div className={Number(t.profit)>=0?'up':'down'} style={{fontWeight:700}}>
+                            {Number(t.profit)>=0?'+':''}{fmt(t.profit)}
+                          </div>
+                          <div style={{fontSize:10,color:Number(t.profit_rt)>=0?'#EF4444':'#3B82F6'}}>
+                            {Number(t.profit_rt)>=0?'+':''}{Number(t.profit_rt||0).toFixed(2)}%
+                          </div>
+                        </div>
+                      : <span style={{color:'var(--text-dim)',fontSize:11}}>{t.type==='buy'?'-':'미집계'}</span>
+                    }
+                  </td>
                   <td>{fmt(t.fee)}</td>
                 </tr>
               ))}
@@ -569,6 +605,20 @@ function AnalysisView({ allTrades, allCashflow }) {
   const buyCount    = buys.length
   const sellCount   = sells.length
 
+  // ── 실현손익 기반 성과 계산 ──────────────────────────
+  const sellsWithProfit = sells.filter(t => t.profit != null)
+  const totalProfit     = sellsWithProfit.reduce((s,t)=>s+Number(t.profit||0), 0)
+  const winners         = sellsWithProfit.filter(t=>Number(t.profit)>0)
+  const losers          = sellsWithProfit.filter(t=>Number(t.profit)<=0)
+  const winRate         = sellsWithProfit.length > 0
+    ? (winners.length / sellsWithProfit.length * 100) : null
+  const avgWin  = winners.length > 0
+    ? winners.reduce((s,t)=>s+Number(t.profit),0) / winners.length : 0
+  const avgLoss = losers.length  > 0
+    ? Math.abs(losers.reduce((s,t)=>s+Number(t.profit),0) / losers.length) : 0
+  const rrRatio = avgLoss > 0 ? (avgWin / avgLoss) : null
+  const hasProfitData = sellsWithProfit.length > 0
+
   // 월별 집계 (최근 12개월)
   const monthly = {}
   const allItems = [...allTrades, ...allCashflow]
@@ -587,9 +637,12 @@ function AnalysisView({ allTrades, allCashflow }) {
   const byCode = {}
   trades.forEach(t=>{
     if(!t.code) return
-    if(!byCode[t.code]) byCode[t.code]={ name:t.name, code:t.code, buyAmt:0, sellAmt:0, buyQty:0, sellQty:0, fee:0 }
+    if(!byCode[t.code]) byCode[t.code]={ name:t.name, code:t.code, buyAmt:0, sellAmt:0, buyQty:0, sellQty:0, fee:0, profit:0, hasProfit:false }
     if(t.type==='buy')  { byCode[t.code].buyAmt  += Number(t.amount||0); byCode[t.code].buyQty  += Number(t.qty||0) }
-    if(t.type==='sell') { byCode[t.code].sellAmt += Number(t.amount||0); byCode[t.code].sellQty += Number(t.qty||0) }
+    if(t.type==='sell') {
+      byCode[t.code].sellAmt += Number(t.amount||0); byCode[t.code].sellQty += Number(t.qty||0)
+      if(t.profit!=null) { byCode[t.code].profit += Number(t.profit||0); byCode[t.code].hasProfit = true }
+    }
     byCode[t.code].fee += Number(t.fee||0)
   })
   const byCodeArr = Object.values(byCode)
@@ -624,13 +677,13 @@ function AnalysisView({ allTrades, allCashflow }) {
         )}
       </div>
 
-      {/* 요약 카드 */}
-      <div className="pp-stat-grid" style={{gridTemplateColumns:'repeat(4,1fr)',marginBottom:20}}>
+      {/* 요약 카드 — 1행: 거래금액 */}
+      <div className="pp-stat-grid" style={{gridTemplateColumns:'repeat(4,1fr)',marginBottom:10}}>
         {[
-          { label:'총 매수금액', value: fmtM(totalBuy),   sub:`${buyCount}건`,   color:'#EF4444' },
-          { label:'총 매도금액', value: fmtM(totalSell),  sub:`${sellCount}건`,  color:'#3B82F6' },
-          { label:'총 수수료',   value: fmtM(totalFee),   sub:'매수+매도',       color:'var(--text-dim)' },
-          { label:'순 입금',     value: fmtM(totalIn-totalOut), sub:`입금${inflows.length}건`, color:'var(--text-primary)' },
+          { label:'총 매수금액', value: fmtM(totalBuy),          sub:`${buyCount}건`,          color:'#EF4444' },
+          { label:'총 매도금액', value: fmtM(totalSell),         sub:`${sellCount}건`,          color:'#3B82F6' },
+          { label:'총 수수료',   value: fmtM(totalFee),           sub:'매수+매도 합산',          color:'var(--text-dim)' },
+          { label:'순 입금',     value: fmtM(totalIn-totalOut),   sub:`입금${inflows.length}건`, color:'var(--text-primary)' },
         ].map(c=>(
           <div key={c.label} className="pp-stat-item">
             <div className="pp-stat-label">{c.label}</div>
@@ -639,6 +692,54 @@ function AnalysisView({ allTrades, allCashflow }) {
           </div>
         ))}
       </div>
+
+      {/* 요약 카드 — 2행: 실현손익 성과 (데이터 있을 때만) */}
+      {hasProfitData && (
+        <div className="pp-stat-grid" style={{gridTemplateColumns:'repeat(4,1fr)',marginBottom:20}}>
+          <div className="pp-stat-item">
+            <div className="pp-stat-label">총 실현손익</div>
+            <div className="pp-stat-value" style={{fontSize:15,color:totalProfit>=0?'#EF4444':'#3B82F6'}}>
+              {totalProfit>=0?'+':''}{fmtM(totalProfit)}
+            </div>
+            <div style={{fontSize:10,color:'var(--text-dim)',marginTop:2}}>
+              {sellsWithProfit.length}건 매도 기준
+            </div>
+          </div>
+          <div className="pp-stat-item">
+            <div className="pp-stat-label">승률</div>
+            <div className="pp-stat-value" style={{fontSize:15,color:winRate>=50?'#EF4444':'#3B82F6'}}>
+              {winRate!=null ? winRate.toFixed(1)+'%' : '-'}
+            </div>
+            <div style={{fontSize:10,color:'var(--text-dim)',marginTop:2}}>
+              {winners.length}승 {losers.length}패
+            </div>
+          </div>
+          <div className="pp-stat-item">
+            <div className="pp-stat-label">손익비 (R:R)</div>
+            <div className="pp-stat-value" style={{fontSize:15,color:rrRatio>=1?'#EF4444':'#3B82F6'}}>
+              {rrRatio!=null ? rrRatio.toFixed(2) : '-'}
+            </div>
+            <div style={{fontSize:10,color:'var(--text-dim)',marginTop:2}}>
+              평균이익 / 평균손실
+            </div>
+          </div>
+          <div className="pp-stat-item">
+            <div className="pp-stat-label">평균 수익률</div>
+            <div className="pp-stat-value" style={{fontSize:15}}>
+              {sellsWithProfit.length>0
+                ? ((sellsWithProfit.reduce((s,t)=>s+Number(t.profit_rt||0),0)/sellsWithProfit.length).toFixed(2)+'%')
+                : '-'}
+            </div>
+            <div style={{fontSize:10,color:'var(--text-dim)',marginTop:2}}>매도 건 평균</div>
+          </div>
+        </div>
+      )}
+
+      {!hasProfitData && (
+        <div style={{padding:'8px 12px',background:'#FFFBEB',border:'1px solid #FCD34D',borderRadius:7,fontSize:11,color:'#92400E',marginBottom:16}}>
+          ℹ️ 실현손익 데이터는 매매내역 탭에서 <strong>조회 후 저장</strong>하면 승률·R:R이 계산됩니다.
+        </div>
+      )}
 
       {/* 월별 거래 차트 */}
       {monthlyArr.length>0 && (
@@ -662,8 +763,8 @@ function AnalysisView({ allTrades, allCashflow }) {
                 <th>매수수량</th>
                 <th>매도금액</th>
                 <th>매도수량</th>
+                <th>실현손익</th>
                 <th>수수료</th>
-                <th>순거래</th>
               </tr></thead>
               <tbody>
                 {byCodeArr.map(s=>(
@@ -676,10 +777,15 @@ function AnalysisView({ allTrades, allCashflow }) {
                     <td>{fmt(s.buyQty)}</td>
                     <td style={{color:'#3B82F6'}}>{fmtM(s.sellAmt)}</td>
                     <td>{fmt(s.sellQty)}</td>
-                    <td style={{color:'var(--text-dim)'}}>{fmt(s.fee)}</td>
-                    <td style={{fontWeight:700,color:s.sellAmt-s.buyAmt>=0?'#EF4444':'#3B82F6'}}>
-                      {fmtM(s.sellAmt - s.buyAmt)}
+                    <td>
+                      {s.hasProfit
+                        ? <span style={{fontWeight:700,color:s.profit>=0?'#EF4444':'#3B82F6'}}>
+                            {s.profit>=0?'+':''}{fmtM(s.profit)}
+                          </span>
+                        : <span style={{color:'var(--text-dim)',fontSize:10}}>미저장</span>
+                      }
                     </td>
+                    <td style={{color:'var(--text-dim)'}}>{fmt(s.fee)}</td>
                   </tr>
                 ))}
               </tbody>
