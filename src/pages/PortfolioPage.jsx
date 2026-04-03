@@ -4,8 +4,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { db } from '../firebase'
 import {
-  collection, addDoc, getDocs, query,
-  where, orderBy, Timestamp, writeBatch, doc, updateDoc
+  collection, addDoc, getDocs, query, setDoc,
+  where, orderBy, Timestamp, writeBatch, doc, updateDoc, deleteDoc
 } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import './PortfolioPage.css'
@@ -29,8 +29,15 @@ const maxDate   = (fr, months=3) => {  // fr 날짜 기준 최대 조회 종료�
 const fmtDate = s => s?`${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}`:''
 
 // trade_id 중복 방지용 해시
-const makeTradeId = t => `${t.date}_${t.code}_${t.type}_${t.price}_${t.qty}`
-const makeCfId    = t => `${t.date}_${t.type}_${t.amount}`
+const makeTradeId = t => t.trade_id || `${t.date}_${t.code}_${t.type}_${t.price}_${t.qty}`
+// 입출금 doc ID: 서버 trade_id 우선, 없으면 날짜+구분+금액
+const makeCfId    = t => t.trade_id || `${t.date}_${t.type}_${t.amount}`
+// 내용 기반 중복 감지 키: date + type + 절대금액 + 적요 앞 6자
+// → ID 포맷이 달라도 실질적으로 같은 거래 탐지
+const makeCfContentKey = t =>
+  `${t.date}_${t.type==='out'?'out':'in'}_${Math.round(Math.abs(Number(t.amount||0)))}_${(t.rmrk_nm||'').slice(0,6)}`
+// 중복 탐지용 내용 기반 키 (날짜+금액으로 동일 거래 판별)
+// (makeCfContentKey는 위에서 정의됨)
 
 // 섹터 색상
 const SECTOR_COLORS = ['#4F46E5','#0D9488','#D97706','#EF4444','#8B5CF6','#10B981','#F59E0B','#6366F1']
@@ -38,8 +45,6 @@ const SECTOR_COLORS = ['#4F46E5','#0D9488','#D97706','#EF4444','#8B5CF6','#10B98
 // ── 메뉴 목록 ──────────────────────────────────────────
 const MENU = [
   { id: 'holdings', label: '보유현황' },
-  { id: 'trades',   label: '매매내역' },
-  { id: 'cashflow', label: '입출금' },
   { id: 'journal',  label: '매매분석' },
   { id: 'ai',       label: 'AI 진단' },
 ]
@@ -225,331 +230,230 @@ function HoldingsPanel({ data, loading, onRefresh }) {
 
 // ── 손익현황 패널 ─────────────────────────────────────
 // ── 매매내역 패널 ─────────────────────────────────────
-function TradesPanel({ user }) {
-  const [frDt, setFrDt] = useState(daysAgo(30))
-  const [toDt, setToDt] = useState(today())
-  const [loading, setLoading]   = useState(false)
-  const [saving,  setSaving]    = useState(false)
-  const [trades,  setTrades]    = useState([])
-  const [saved,   setSaved]     = useState(0)
-  const [dbTrades,setDbTrades]  = useState([])
-  const [viewMode,setViewMode]  = useState('api') // 'api' | 'db'
 
-  // DB에서 저장된 내역 로드
-  const loadDbTrades = useCallback(async () => {
+// ── 가져오기 패널 (매매분석 내장) ─────────────────────
+// 거래내역 + 입출금 내역을 기간별로 API에서 가져와
+// Firestore 저장 여부를 실시간 비교해 동기화 상태 표시
+function ImportPanel({ user, onImported }) {
+  const [frDt,    setFrDt]    = useState(daysAgo(30))
+  const [toDt,    setToDt]    = useState(today())
+  const [loading, setLoading] = useState(false)
+  const [saving,  setSaving]  = useState(false)
+  const [items,   setItems]   = useState([])      // API에서 가져온 전체 (trades+cashflow)
+  const [dbIds,   setDbIds]   = useState(new Set()) // Firestore에 이미 있는 ID Set
+  const [dbContentKeys, setDbContentKeys] = useState(new Set()) // 내용 기반 중복 체크
+  const [saved,   setSaved]   = useState(0)
+  const [warn,    setWarn]    = useState('')
+
+  // 최초 마운트 시 Firestore 기존 ID 로드
+  const loadDbIds = useCallback(async () => {
     if (!user) return
-    const q = query(
-      collection(db,'users',user.uid,'portfolio','trades','records'),
-      orderBy('date','desc')
-    )
-    const snap = await getDocs(q)
-    setDbTrades(snap.docs.map(d=>d.data()))
-  }, [user])
-
-  useEffect(() => { loadDbTrades() }, [loadDbTrades])
-
-  const fetchTrades = async (fr=frDt, to=toDt) => {
-    setLoading(true); setTrades([]); setSaved(0)
     try {
-      // 매매내역 + 실현손익 동시 조회
-      const [tradeRes, realRes] = await Promise.all([
-        fetch(`/api/kiwoom?type=account-trades&fr_dt=${fr}&to_dt=${to}`).then(r=>r.json()),
-        fetch(`/api/kiwoom?type=account-realized&fr_dt=${fr}&to_dt=${to}`).then(r=>r.json()).catch(()=>({})),
+      const [tSnap, cSnap] = await Promise.all([
+        getDocs(collection(db,'users',user.uid,'portfolio','trades','records')).catch(()=>({docs:[]})),
+        getDocs(collection(db,'users',user.uid,'portfolio','cashflow','records')).catch(()=>({docs:[]})),
       ])
-      const rawTrades   = tradeRes.trades   || []
-      const realizedArr = realRes.realized  || []
-      const byKey       = realRes.by_key    || {}
-
-      // 매도 건에 실현손익 병합 (다단계 매칭)
-      const merged = rawTrades.map(t => {
-        if (t.type !== 'sell') return t
-        // 1차: date+code by_key 정확 매칭
-        const key   = `${t.date}_${t.code}`
-        let matches = byKey[key] || []
-        // 2차: code만으로 폴백 (날짜 형식 불일치 대비)
-        if (!matches.length) {
-          matches = realizedArr.filter(r =>
-            r.code === t.code &&
-            Math.abs(Number(r.qty||0) - Number(t.qty||0)) < 2
-          )
-        }
-        if (!matches.length) return t
-        // 수량 일치 우선, 없으면 첫 번째
-        const best = matches.find(m => Number(m.qty||0) === Number(t.qty||0)) || matches[0]
-        return {
-          ...t,
-          profit:    best.profit,
-          profit_rt: best.profit_rt,
-          buy_price: best.buy_price,
-          fee:       best.fee || t.fee,
-          tax:       best.tax || 0,
-        }
-      })
-      setTrades(merged)
-    } catch(e) { console.error(e) }
-    setLoading(false)
-  }
-
-  const saveTrades = async () => {
-    if (!user || !trades.length) return
-    setSaving(true)
-    let newCount = 0
-    try {
-      const existing = new Set(dbTrades.map(t=>makeTradeId(t)))
-      const batch = writeBatch(db)
-      const col = collection(db,'users',user.uid,'portfolio','trades','records')
-      for (const t of trades) {
-        const id = makeTradeId(t)
-        if (existing.has(id)) continue
-        const ref = doc(col, id)
-        batch.set(ref, { ...t, savedAt: Timestamp.now() })
-        newCount++
-      }
-      if (newCount > 0) await batch.commit()
-      setSaved(newCount)
-      await loadDbTrades()
-    } catch(e) { console.error(e) }
-    setSaving(false)
-  }
-
-  const displayData = viewMode === 'db' ? dbTrades : trades
-
-  return (
-    <div className="pp-panel">
-      <div className="pp-panel-hdr">
-        <div className="pp-panel-title">매매내역</div>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-          {['api','db'].map(m=>(
-            <button key={m} className={`pp-period-btn ${viewMode===m?'active':''}`} onClick={()=>setViewMode(m)}>
-              {m==='api'?'API 조회':'저장된 내역'}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {viewMode==='api' && (
-        <>
-          <PeriodBar frDt={frDt} toDt={toDt}
-            onChange={(f,t)=>{setFrDt(f);setToDt(t)}}
-            onSearch={(f,t)=>{ setFrDt(f); setToDt(t); fetchTrades(f,t) }}/>
-          <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
-            <button className="pp-btn primary" onClick={()=>fetchTrades()} disabled={loading}>
-              {loading?'조회 중...':'조회'}
-            </button>
-            {trades.length>0 && (
-              <button className="pp-btn" onClick={saveTrades} disabled={saving}>
-                {saving?'저장 중...':'Firestore 저장'}
-              </button>
-            )}
-            {saved>0 && <span className="pp-save-badge">✓ {saved}건 신규 저장</span>}
-          </div>
-        </>
-      )}
-
-      {loading && <div className="pp-loading"><div className="pp-spinner"/><span>매매내역 조회 중...</span></div>}
-
-      {!loading && displayData.length===0 && (
-        <div className="pp-empty">
-          <div className="pp-empty-icon">📋</div>
-          <div className="pp-empty-title">{viewMode==='api'?'조회 결과 없음':'저장된 내역 없음'}</div>
-          <div className="pp-empty-sub">{viewMode==='api'?'기간을 선택 후 조회해주세요.':'API 조회 후 저장하면 이 곳에 누적됩니다.'}</div>
-        </div>
-      )}
-
-      {!loading && displayData.length>0 && (
-        <div className="pp-table-wrap">
-          <table className="pp-table">
-            <thead>
-              <tr>
-                <th style={{textAlign:'left'}}>날짜</th>
-                <th style={{textAlign:'left'}}>종목</th>
-                <th>구분</th>
-                <th>수량</th>
-                <th>단가</th>
-                <th>금액</th>
-                <th>실현손익</th>
-                <th>수수료</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayData.map((t,i)=>(
-                <tr key={i}>
-                  <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11}}>{fmtDate(t.date)}</td>
-                  <td>
-                    <div className="pp-stock-name">{t.name}</div>
-                    <div className="pp-stock-code">{t.code}</div>
-                  </td>
-                  <td><span style={{color:t.type==='buy'?'#EF4444':'#3B82F6',fontWeight:700}}>{t.type==='buy'?'매수':'매도'}</span></td>
-                  <td>{fmt(t.qty)}</td>
-                  <td>{fmt(t.price)}</td>
-                  <td>{fmt(t.amount)}</td>
-                  <td>
-                    {t.type==='sell' && t.profit!=null
-                      ? <div>
-                          <div className={Number(t.profit)>=0?'up':'down'} style={{fontWeight:700}}>
-                            {Number(t.profit)>=0?'+':''}{fmt(t.profit)}
-                          </div>
-                          <div style={{fontSize:10,color:Number(t.profit_rt)>=0?'#EF4444':'#3B82F6'}}>
-                            {Number(t.profit_rt)>=0?'+':''}{Number(t.profit_rt||0).toFixed(2)}%
-                          </div>
-                        </div>
-                      : <span style={{color:'var(--text-dim)',fontSize:11}}>{t.type==='buy'?'-':'미집계'}</span>
-                    }
-                  </td>
-                  <td>{fmt(t.fee)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── 입출금 패널 ───────────────────────────────────────
-function CashflowPanel({ user }) {
-  const [frDt, setFrDt] = useState(daysAgo(30))
-  const [toDt, setToDt] = useState(today())
-  const [loading, setLoading]  = useState(false)
-  const [saving,  setSaving]   = useState(false)
-  const [flows,   setFlows]    = useState([])
-  const [saved,   setSaved]    = useState(0)
-  const [dbFlows, setDbFlows]  = useState([])
-  const [viewMode,setViewMode] = useState('api')
-
-  const loadDbFlows = useCallback(async () => {
-    if (!user) return
-    const q = query(
-      collection(db,'users',user.uid,'portfolio','cashflow','records'),
-      orderBy('date','desc')
-    )
-    const snap = await getDocs(q)
-    setDbFlows(snap.docs.map(d=>d.data()))
+      const ids = new Set()
+      const cts = new Set()
+      tSnap.docs.forEach(d=>{ ids.add(d.id); const v=d.data(); cts.add(`${v.date}_${v.code}_${v.type}_${v.price}_${v.qty}`) })
+      cSnap.docs.forEach(d=>{ ids.add(d.id); const v=d.data(); cts.add(makeCfContentKey(v)) })
+      setDbIds(ids)
+      setDbContentKeys(cts)
+    } catch(e){ console.error(e) }
   }, [user])
 
-  useEffect(() => { loadDbFlows() }, [loadDbFlows])
+  useEffect(()=>{ loadDbIds() }, [loadDbIds])
 
-  const fetchFlows = async (fr=frDt, to=toDt) => {
-    setLoading(true); setFlows([]); setSaved(0)
+  // 동기화 상태 계산
+  const syncStatus = (item) => {
+    if (dbIds.has(item._id)) return 'synced'      // ID 완전 일치
+    if (item._col === 'cashflow' && dbContentKeys.has(makeCfContentKey(item))) return 'synced' // 내용 일치
+    return 'new'
+  }
+
+  // API 가져오기
+  const fetchAll = async () => {
+    setLoading(true); setItems([]); setSaved(0); setWarn('')
     try {
-      const res = await fetch(`/api/kiwoom?type=account-cashflow&fr_dt=${fr}&to_dt=${to}`)
-      const data = await res.json()
-      setFlows(data.cashflow || [])
-    } catch(e) { console.error(e) }
+      // 거래내역 + 실현손익 동시 조회
+      const [tradeRes, cfRes] = await Promise.all([
+        fetch(`/api/kiwoom?type=account-trades&fr_dt=${frDt}&to_dt=${toDt}`).then(r=>r.json()),
+        fetch(`/api/kiwoom?type=account-cashflow&fr_dt=${frDt}&to_dt=${toDt}`).then(r=>r.json()),
+      ])
+      const rawTrades  = (tradeRes.trades   || []).map(t=>({...t, _col:'trades',   _id: makeTradeId(t)}))
+      const rawFlows   = (cfRes.cashflow    || []).map(f=>({...f, _col:'cashflow', _id: makeCfId(f)}))
+
+      // 매도 건 실현손익 병합
+      const sellCodes = [...new Set(rawTrades.filter(t=>t.type==='sell').map(t=>t.code).filter(Boolean))]
+      if (sellCodes.length) {
+        const realRes = await fetch(`/api/kiwoom?type=account-realized&fr_dt=${frDt}&to_dt=${toDt}`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ fr_dt:frDt, to_dt:toDt, codes:sellCodes })
+        }).then(r=>r.json()).catch(()=>({}))
+        const byKey  = realRes.by_key  || {}
+        const byCode = realRes.by_code || {}
+        rawTrades.forEach((t,i)=>{
+          if (t.type!=='sell') return
+          const key = `${t.date}_${t.code}`
+          let matches = byKey[key] || byCode[t.code] || []
+          const best = matches.find(m=>Number(m.qty||0)===Number(t.qty||0)) || matches[0]
+          if (best) { rawTrades[i] = {...t, profit:best.profit, profit_rt:best.profit_rt, buy_price:best.buy_price} }
+        })
+      }
+
+      const merged = [...rawTrades, ...rawFlows].sort((a,b)=>b.date.localeCompare(a.date))
+      setItems(merged)
+    } catch(e){ console.error(e); setWarn('조회 중 오류가 발생했습니다.') }
     setLoading(false)
   }
 
-  const saveFlows = async () => {
-    if (!user || !flows.length) return
+  // 신규 항목만 Firestore 저장
+  const saveNew = async () => {
+    if (!user || !items.length) return
     setSaving(true)
-    let newCount = 0
+    let cnt = 0
     try {
-      const existing = new Set(dbFlows.map(f=>makeCfId(f)))
+      const newItems = items.filter(it=>syncStatus(it)==='new')
       const batch = writeBatch(db)
-      const col = collection(db,'users',user.uid,'portfolio','cashflow','records')
-      for (const f of flows) {
-        const id = makeCfId(f)
-        if (existing.has(id)) continue
-        const ref = doc(col, id)
-        batch.set(ref, { ...f, savedAt: Timestamp.now() })
-        newCount++
+      for (const it of newItems) {
+        const { _col, _id, ...data } = it
+        const col = collection(db,'users',user.uid,'portfolio',_col,'records')
+        const ref = doc(col, _id)
+        batch.set(ref, { ...data, source: data.source||'api',
+          category: data.category||(data._col==='cashflow'?data.type:'trade'),
+          savedAt: Timestamp.now() })
+        cnt++
       }
-      if (newCount > 0) await batch.commit()
-      setSaved(newCount)
-      await loadDbFlows()
-    } catch(e) { console.error(e) }
+      if (cnt > 0) {
+        await batch.commit()
+        setSaved(cnt)
+        await loadDbIds()            // 동기화 상태 갱신
+        onImported && onImported()   // JournalPanel 새로고침
+      }
+    } catch(e){ console.error(e) }
     setSaving(false)
   }
 
-  const displayData = viewMode === 'db' ? dbFlows : flows
-  const totalIn  = displayData.filter(f=>f.type==='in').reduce((s,f)=>s+Number(f.amount||0), 0)
-  const totalOut = displayData.filter(f=>f.type==='out').reduce((s,f)=>s+Number(f.amount||0), 0)
+  const newCount    = items.filter(it=>syncStatus(it)==='new').length
+  const syncedCount = items.filter(it=>syncStatus(it)==='synced').length
 
   return (
-    <div className="pp-panel">
-      <div className="pp-panel-hdr">
-        <div className="pp-panel-title">입출금 내역</div>
-        <div style={{display:'flex',gap:6}}>
-          {['api','db'].map(m=>(
-            <button key={m} className={`pp-period-btn ${viewMode===m?'active':''}`} onClick={()=>setViewMode(m)}>
-              {m==='api'?'API 조회':'저장된 내역'}
-            </button>
-          ))}
+    <div style={{background:'var(--bg-panel)',border:'1px solid var(--border)',
+      borderRadius:10,padding:14,marginBottom:16}}>
+      {/* 헤더 */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:13,fontWeight:800,color:'var(--text-primary)'}}>📥 가져오기</span>
+          <span style={{fontSize:11,color:'var(--text-dim)'}}>거래·입출금 내역을 API에서 불러와 동기화합니다</span>
         </div>
       </div>
 
-      {viewMode==='api' && (
-        <>
-          <PeriodBar frDt={frDt} toDt={toDt}
-            onChange={(f,t)=>{setFrDt(f);setToDt(t)}}
-            onSearch={(f,t)=>{ setFrDt(f); setToDt(t); fetchFlows(f,t) }}/>
-          <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center',flexWrap:'wrap'}}>
-            <button className="pp-btn primary" onClick={()=>fetchFlows()} disabled={loading}>{loading?'조회 중...':'조회'}</button>
-            {flows.length>0 && <button className="pp-btn" onClick={saveFlows} disabled={saving}>{saving?'저장 중...':'저장'}</button>}
-            {saved>0 && <span className="pp-save-badge">✓ {saved}건 저장</span>}
-          </div>
-        </>
-      )}
+      {/* 기간 선택 */}
+      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10,flexWrap:'wrap'}}>
+        {[{l:'1개월',d:30},{l:'3개월',d:90}].map(p=>(
+          <button key={p.d} className="pp-period-btn"
+            style={{background:frDt===daysAgo(p.d)&&toDt===today()?'var(--accent-mid)':'var(--bg-panel)',
+              color:frDt===daysAgo(p.d)&&toDt===today()?'white':'var(--text-secondary)',
+              borderColor:frDt===daysAgo(p.d)&&toDt===today()?'var(--accent-mid)':'var(--border)'}}
+            onClick={()=>{ setFrDt(daysAgo(p.d)); setToDt(today()); setWarn('') }}>
+            {p.l}
+          </button>
+        ))}
+        <input type="date" className="pp-date-input" value={toHtml(frDt)}
+          onChange={e=>{ const f=fromHtml(e.target.value); setFrDt(f);
+            const lim=maxDate(f,3); if(toDt>lim){setToDt(lim);setWarn('최대 3개월')} }}
+          max={toHtml(today())}/>
+        <span style={{color:'var(--text-dim)',fontSize:12}}>~</span>
+        <input type="date" className="pp-date-input" value={toHtml(toDt)}
+          onChange={e=>{ const t=fromHtml(e.target.value); const lim=maxDate(frDt,3);
+            setToDt(t>lim?lim:t); setWarn(t>lim?'최대 3개월':'') }}
+          max={toHtml(today())}/>
+        <button className="pp-btn primary" onClick={fetchAll} disabled={loading} style={{minWidth:70}}>
+          {loading ? '조회 중…' : '조회'}
+        </button>
+        {warn && <span style={{fontSize:11,color:'#D97706'}}>⚠️ {warn}</span>}
+      </div>
 
-      {displayData.length>0 && (
-        <div className="pp-stat-grid" style={{marginBottom:12}}>
-          <div className="pp-stat-item">
-            <div className="pp-stat-label">총 입금</div>
-            <div className="pp-stat-value" style={{color:'#EF4444'}}>+{fmtM(totalIn)}</div>
-          </div>
-          <div className="pp-stat-item">
-            <div className="pp-stat-label">총 출금</div>
-            <div className="pp-stat-value" style={{color:'#3B82F6'}}>-{fmtM(totalOut)}</div>
-          </div>
-          <div className="pp-stat-item">
-            <div className="pp-stat-label">순 투자금</div>
-            <div className="pp-stat-value">{fmtM(totalIn-totalOut)}</div>
-          </div>
-          <div className="pp-stat-item">
-            <div className="pp-stat-label">거래 건수</div>
-            <div className="pp-stat-value">{displayData.length}건</div>
-          </div>
+      {/* 조회 결과 요약 */}
+      {items.length > 0 && !loading && (
+        <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',
+          background:'var(--bg-base)',borderRadius:7,marginBottom:10,flexWrap:'wrap'}}>
+          <span style={{fontSize:12,color:'var(--text-secondary)'}}>
+            총 <strong>{items.length}건</strong>
+          </span>
+          <span style={{fontSize:12}}>
+            <span style={{color:'#059669',fontWeight:700}}>✅ 저장됨 {syncedCount}건</span>
+            {' · '}
+            <span style={{color:'var(--accent-mid)',fontWeight:700}}>🆕 신규 {newCount}건</span>
+          </span>
+          {newCount > 0 && (
+            <button className="pp-btn primary" onClick={saveNew} disabled={saving} style={{marginLeft:'auto'}}>
+              {saving ? '저장 중…' : `신규 ${newCount}건 저장`}
+            </button>
+          )}
+          {saved > 0 && (
+            <span style={{fontSize:11,color:'#059669',fontWeight:700}}>✓ {saved}건 저장 완료</span>
+          )}
         </div>
       )}
 
-      {loading && <div className="pp-loading"><div className="pp-spinner"/><span>입출금 내역 조회 중...</span></div>}
-
-      {!loading && displayData.length===0 && (
-        <div className="pp-empty">
-          <div className="pp-empty-icon">💳</div>
-          <div className="pp-empty-title">내역 없음</div>
-          <div className="pp-empty-sub">{viewMode==='api'?'기간 선택 후 조회해주세요.':'저장된 입출금 내역이 없습니다.'}</div>
-        </div>
-      )}
-
-      {!loading && displayData.length>0 && (
-        <div className="pp-table-wrap">
-          <table className="pp-table">
+      {/* 가져온 목록 미리보기 (최대 20건) */}
+      {items.length > 0 && !loading && (
+        <div style={{maxHeight:260,overflowY:'auto',borderRadius:7,border:'1px solid var(--border)'}}>
+          <table className="pp-table" style={{fontSize:11}}>
             <thead><tr>
+              <th style={{textAlign:'left',width:20}}>상태</th>
               <th style={{textAlign:'left'}}>날짜</th>
               <th style={{textAlign:'left'}}>구분</th>
+              <th style={{textAlign:'left'}}>종목/항목</th>
               <th>금액</th>
-              <th>잔고</th>
-              <th style={{textAlign:'left'}}>메모</th>
+              <th>수량</th>
             </tr></thead>
             <tbody>
-              {displayData.map((f,i)=>(
-                <tr key={i}>
-                  <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11}}>{fmtDate(f.date)}</td>
-                  <td style={{textAlign:'left'}}><span style={{color:f.type==='in'?'#EF4444':'#3B82F6',fontWeight:700}}>{f.type==='in'?'입금':'출금'}</span></td>
-                  <td className={f.type==='in'?'up':'down'}>{f.type==='in'?'+':'-'}{fmt(f.amount)}</td>
-                  <td>{fmt(f.balance)}</td>
-                  <td style={{textAlign:'left',fontFamily:'var(--font-kr,sans-serif)',fontSize:11,color:'var(--text-dim)'}}>{f.io_tp_nm||f.memo||''}</td>
-                </tr>
-              ))}
+              {items.slice(0, 50).map((it,i)=>{
+                const status = syncStatus(it)
+                const isCash = it._col==='cashflow'
+                const cat    = isCash ? getCfCat(it.category||it.type) : null
+                return (
+                  <tr key={i} style={{opacity: status==='synced'?.55:1,
+                    background: status==='synced'?'var(--bg-base)':'white'}}>
+                    <td>
+                      <span style={{fontSize:10,padding:'1px 5px',borderRadius:8,
+                        background:status==='synced'?'#ECFDF5':'#EEF2FF',
+                        color:status==='synced'?'#059669':'var(--accent-mid)',fontWeight:700}}>
+                        {status==='synced'?'✅':'🆕'}
+                      </span>
+                    </td>
+                    <td style={{textAlign:'left',fontFamily:'monospace'}}>{fmtDate(it.date)}</td>
+                    <td style={{textAlign:'left'}}>
+                      {isCash
+                        ? <span style={{fontSize:10,padding:'1px 5px',borderRadius:8,color:cat.color,background:cat.bg}}>{cat.label}</span>
+                        : <span style={{fontWeight:700,color:it.type==='buy'?'#EF4444':'#3B82F6'}}>{it.type==='buy'?'매수':'매도'}</span>
+                      }
+                    </td>
+                    <td style={{textAlign:'left'}}>
+                      {it.name||<span style={{color:'var(--text-dim)'}}>{it.rmrk_nm||it.io_tp_nm||'-'}</span>}
+                    </td>
+                    <td>{fmt(it.amount||0)}</td>
+                    <td>{it.qty?fmt(it.qty):'-'}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
+          {items.length > 50 && (
+            <div style={{textAlign:'center',padding:8,fontSize:11,color:'var(--text-dim)'}}>
+              +{items.length-50}건 더 있음 (저장하면 전체 반영)
+            </div>
+          )}
         </div>
       )}
+
+      {loading && <div className="pp-loading"><div className="pp-spinner"/><span>API 조회 중...</span></div>}
     </div>
   )
 }
+
 
 // ── 기간분석 패널 ─────────────────────────────────────
 // ── 성과분석 SVG 막대차트 ─────────────────────────────
@@ -873,11 +777,11 @@ function AddEntryModal({ user, onClose, onSaved }) {
         const ref = doc(
           collection(db,'users',user.uid,'portfolio','trades','records'), tradeId
         )
-        await (await import('firebase/firestore')).setDoc(ref, {
+        await setDoc(ref, {
           trade_id: tradeId, date: dt, code, name,
           type, qty: Number(qty||0), price: Number(price||0),
           amount: amt, fee: 0, source: 'manual', category: 'trade',
-          memo, reason_tag: reason, savedAt: (await import('firebase/firestore')).Timestamp.now(),
+          memo, reason_tag: reason, savedAt: Timestamp.now(),
         })
       } else {
         const cfId = `manual_${Date.now()}_${Math.random().toString(36).slice(2,7)}`
@@ -885,11 +789,11 @@ function AddEntryModal({ user, onClose, onSaved }) {
           collection(db,'users',user.uid,'portfolio','cashflow','records'), cfId
         )
         const flowType = cat==='out' ? 'out' : 'in'
-        await (await import('firebase/firestore')).setDoc(ref, {
+        await setDoc(ref, {
           trade_id: cfId, date: dt, type: flowType,
           category: cat, source: 'manual',
           amount: Number(amount||0), balance: 0,
-          rmrk_nm: name||memo, memo, savedAt: (await import('firebase/firestore')).Timestamp.now(),
+          rmrk_nm: name||memo, memo, savedAt: Timestamp.now(),
         })
       }
       onSaved()
@@ -1096,23 +1000,85 @@ function JournalPanel({ user }) {
     } catch(e){ console.error(e) }
   }
 
-  // 수동 항목 삭제 (source==='manual'만)
+  // 항목 삭제
+  // - 수동(manual): 바로 삭제
+  // - 입출금 자동(cashflow api): 재조회 가능하므로 삭제 허용 (확인 메시지)
+  // - 거래 자동(trades api): 실현손익 계산 데이터 보호 → 삭제 금지
   const deleteItem = async (it) => {
-    if (!user || it.source!=='manual') return
-    if (!window.confirm(`"${it.name||it.rmrk_nm||'항목'}"을 삭제하시겠습니까?`)) return
+    if (!user) return
+    const isManual   = it.source === 'manual'
+    const isCashflow = it._col  === 'cashflow'
+    // 자동 trades는 삭제 불가
+    if (!isManual && !isCashflow) return
+
+    const label = it.name || it.rmrk_nm || '항목'
+    const msg = isManual
+      ? `수동 입력 항목 "${label}"을 삭제하시겠습니까?`
+      : `자동 입출금 "${label}"을 삭제하시겠습니까?\n(입출금 탭에서 재조회·저장할 수 있습니다)`
+    if (!window.confirm(msg)) return
+
     setDeleting(it._id)
     try {
-      const col = it._col==='trades' ? 'trades' : 'cashflow'
-      const { deleteDoc: delDoc } = await import('firebase/firestore')
+      const col = isCashflow ? 'cashflow' : 'trades'
       const ref = doc(db,'users',user.uid,'portfolio',col,'records',it._id)
-      await delDoc(ref)
+      await deleteDoc(ref)
       setItems(prev=>prev.filter(x=>x._id!==it._id))
     } catch(e){ console.error(e) }
     setDeleting(null)
   }
 
+  // 중복 입출금 탐지 및 일괄 제거
+  // 같은 날짜+금액 중복 건 → 최신 savedAt 외 삭제
+  const deduplicateFlows = async () => {
+    if (!user) return
+    const cfItems = items.filter(it=>it._col==='cashflow')
+    // contentKey로 그룹핑
+    const groups = {}
+    cfItems.forEach(it=>{
+      const key = makeCfContentKey(it)
+      if (!groups[key]) groups[key] = []
+      groups[key].push(it)
+    })
+    const duplicates = Object.values(groups).filter(g=>g.length>1)
+    if (!duplicates.length) { alert('중복 항목이 없습니다.'); return }
+
+    const totalDup = duplicates.reduce((s,g)=>s+(g.length-1), 0)
+    if (!window.confirm(`중복 입출금 ${totalDup}건을 삭제하시겠습니까?\n(날짜+금액이 동일한 항목 중 오래된 것 삭제)`)) return
+
+    try {
+      const idsToDelete = []
+      for (const group of duplicates) {
+        const sorted = [...group].sort((a,b)=>{
+          const at = a.savedAt?.seconds || 0
+          const bt = b.savedAt?.seconds || 0
+          return bt - at
+        })
+        sorted.slice(1).forEach(it=>idsToDelete.push(it._id))
+      }
+      await Promise.all(idsToDelete.map(id=>{
+        const ref = doc(db,'users',user.uid,'portfolio','cashflow','records',id)
+        return deleteDoc(ref)
+      }))
+      setItems(prev=>prev.filter(it=>!idsToDelete.includes(it._id)))
+      alert(`${idsToDelete.length}건 중복 제거 완료`)
+    } catch(e){ console.error(e) }
+  }
+
   // 배당 미분류 건 (입금이지만 category가 'in'인 것 — 수동 재분류 대상)
   const unclassifiedCount = items.filter(it=>it._col==='cashflow'&&it.category==='in').length
+
+  // 중복 입출금 건수
+  const dupCount = (() => {
+    const cfItems = items.filter(it=>it._col==='cashflow')
+    const seen = {}
+    let cnt = 0
+    cfItems.forEach(it=>{
+      const key = makeCfContentKey(it)
+      seen[key] = (seen[key]||0)+1
+      if (seen[key]===2) cnt++ // 2번째부터 카운트
+    })
+    return cnt
+  })()
 
   const typeColor = (it) => {
     if (it.type==='buy')  return '#EF4444'
@@ -1132,6 +1098,12 @@ function JournalPanel({ user }) {
           ))}
         </div>
         <div style={{display:'flex',gap:6}}>
+          {view==='log' && dupCount>0 && (
+            <button className="pp-btn" onClick={deduplicateFlows}
+              style={{color:'#D97706',borderColor:'#D97706',fontSize:11}}>
+              ⚠️ 중복 {dupCount}건 제거
+            </button>
+          )}
           {view==='log' && (
             <button className="pp-btn primary" onClick={()=>setShowAdd(true)}>+ 수동 추가</button>
           )}
@@ -1142,6 +1114,11 @@ function JournalPanel({ user }) {
       {/* 수동 추가 모달 */}
       {showAdd && (
         <AddEntryModal user={user} onClose={()=>setShowAdd(false)} onSaved={load}/>
+      )}
+
+      {/* ── 가져오기 패널 (토글) ── */}
+      {view==='log' && (
+        <ImportPanel user={user} onImported={load}/>
       )}
 
       {/* ── 내역 탭 ── */}
@@ -1201,17 +1178,27 @@ function JournalPanel({ user }) {
                 <th></th>  {/* 삭제 */}
               </tr></thead>
               <tbody>
-                {filtered.map((it,i)=>{
+                {/* 중복 항목 사전 계산 */}
+                {(() => {
+                  // 입출금 항목별 contentKey 중복 횟수
+                  const dupMap = {}
+                  filtered.filter(x=>x._col==='cashflow').forEach(x=>{
+                    const k = makeCfContentKey(x)
+                    dupMap[k] = (dupMap[k]||0)+1
+                  })
+
+                  return filtered.map((it,i)=>{
                   const isManual = it.source==='manual'
                   const isSell   = it.type==='sell'
                   const isBuy    = it.type==='buy'
                   const isCash   = it._col==='cashflow'
                   const cat      = isCash ? getCfCat(it.category||it.type) : null
-                  const barColor = isManual ? '#D97706' : '#E2E8F0'
+                  const isDup    = isCash && (dupMap[makeCfContentKey(it)]||0) > 1
+                  const barColor = isDup ? '#EF4444' : isManual ? '#D97706' : '#E2E8F0'
 
                   return (
                     <tr key={`${it._id}_${i}`}
-                      style={{background: isManual?'#FFFDF7':'white'}}
+                      style={{background: isDup?'#FFF5F5': isManual?'#FFFDF7':'white'}}
                       className="pp-journal-row">
                       {/* 출처 컬러 바 */}
                       <td style={{padding:0,width:4}}>
@@ -1221,6 +1208,7 @@ function JournalPanel({ user }) {
                       {/* 날짜 */}
                       <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11,whiteSpace:'nowrap'}}>
                         {fmtDate(it.date)}
+                        {isDup && <div style={{fontSize:9,color:'#EF4444',fontWeight:700,marginTop:1}}>⚠ 중복</div>}
                       </td>
 
                       {/* 구분 + 출처 뱃지 */}
@@ -1349,22 +1337,25 @@ function JournalPanel({ user }) {
                         )}
                       </td>
 
-                      {/* 삭제 (수동 항목만) */}
-                      <td style={{width:28}}>
-                        {isManual && (
+                      {/* 삭제: 수동 전체 + 입출금 자동 허용 / 거래 자동은 금지 */}
+                      <td style={{width:32}}>
+                        {(isManual || isCash) && (
                           <button
-                            style={{border:'none',background:'none',cursor:'pointer',color:'#EF4444',
-                              fontSize:14,padding:'2px 4px',opacity:deleting===it._id?.5:1}}
+                            style={{border:'none',background:'none',cursor:'pointer',
+                              color: isDup?'#EF4444': isManual?'#EF4444':'#CBD5E1',
+                              fontSize:14,padding:'2px 4px',
+                              opacity:deleting===it._id?.5:1,
+                              fontWeight: isDup?700:400}}
                             onClick={()=>deleteItem(it)}
                             disabled={deleting===it._id}
-                            title="삭제 (수동 항목만)">
+                            title={isDup?'중복 항목 삭제':isManual?'수동 항목 삭제':'입출금 삭제 (재조회 가능)'}>
                             {deleting===it._id ? '…' : '✕'}
                           </button>
                         )}
                       </td>
                     </tr>
-                  )
-                })}
+                  )})}
+                })()}
               </tbody>
             </table>
           </div>
@@ -1542,8 +1533,6 @@ export default function PortfolioPage() {
   const renderPanel = () => {
     switch(activeMenu) {
       case 'holdings': return <HoldingsPanel data={holdData} loading={holdLoading} onRefresh={loadHoldings}/>
-      case 'trades':   return <TradesPanel user={user}/>
-      case 'cashflow': return <CashflowPanel user={user}/>
       case 'journal':  return <JournalPanel user={user}/>
       case 'ai':       return <AIPanel holdingsData={holdData} user={user}/>
       default:         return <HoldingsPanel data={holdData} loading={holdLoading} onRefresh={loadHoldings}/>

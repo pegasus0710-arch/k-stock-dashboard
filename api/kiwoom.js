@@ -315,10 +315,17 @@ export default async function handler(req, res) {
 
   // /api/kiwoom?type=account-realized&fr_dt=20260301&to_dt=20260403&stk_cd=
   if (q.type === 'account-realized') {
+    // ImportPanel은 POST body로 { fr_dt, to_dt, codes[] } 전달
+    // 기존 GET 방식(stk_cd 쿼리 파라미터)과 모두 지원
+    let body = {}
+    if (req.method === 'POST') {
+      try { body = await req.json() } catch { body = {} }
+    }
     return relay('/account/realized', {
-      fr_dt:  q.fr_dt  || '',
-      to_dt:  q.to_dt  || '',
-      stk_cd: q.stk_cd || '',
+      fr_dt:  body.fr_dt  || q.fr_dt  || '',
+      to_dt:  body.to_dt  || q.to_dt  || '',
+      codes:  body.codes  || [],            // 매도 종목 코드 배열 (ImportPanel용)
+      stk_cd: body.stk_cd || q.stk_cd || '', // 단일 종목 (기존 호환)
     }, res)
   }
 
@@ -331,6 +338,7 @@ export default async function handler(req, res) {
       'sector-all', 'sector-stocks', 'sector-heatmap',
       'etf-info', 'etf-list', 'etf-profit', 'etf-holdings',
       'account-balance', 'account-holdings', 'account-orders', 'account-returns',
+      'account-trades', 'account-cashflow', 'account-realized',
     ],
   })
 }
