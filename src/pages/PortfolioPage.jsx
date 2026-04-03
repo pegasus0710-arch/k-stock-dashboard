@@ -1,5 +1,5 @@
 // src/pages/PortfolioPage.jsx
-// 포트폴리오 + 매매일지 통합 페이지
+// 포트폴리오 + 매매분석 통합 페이지
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { db } from '../firebase'
@@ -40,7 +40,7 @@ const MENU = [
   { id: 'holdings', label: '보유현황' },
   { id: 'trades',   label: '매매내역' },
   { id: 'cashflow', label: '입출금' },
-  { id: 'journal',  label: '매매일지' },
+  { id: 'journal',  label: '매매분석' },
   { id: 'ai',       label: 'AI 진단' },
 ]
 
@@ -830,7 +830,7 @@ function AnalysisView({ allTrades, allCashflow }) {
   )
 }
 
-// ── 매매일지 패널 (일지 + 성과분석 탭) ──────────────
+// ── 매매분석 패널 (일지 + 성과분석 탭) ──────────────
 // ── 카테고리 설정 (입출금 분류) ──────────────────────
 const CF_CATEGORIES = [
   { id:'in',       label:'입금',  color:'#EF4444', bg:'#FEF2F2' },
@@ -996,7 +996,7 @@ function AddEntryModal({ user, onClose, onSaved }) {
   )
 }
 
-// ── 매매일지 패널 ─────────────────────────────────────
+// ── 매매분석 패널 ─────────────────────────────────────
 function JournalPanel({ user }) {
   const [view,       setView]       = useState('log')
   const [frDt,       setFrDt]       = useState(daysAgo(30))
@@ -1126,7 +1126,7 @@ function JournalPanel({ user }) {
       {/* 상단 헤더 */}
       <div className="pp-panel-hdr">
         <div style={{display:'flex',gap:4}}>
-          {[{id:'log',label:'📓 일지'},{id:'analysis',label:'📊 성과분석'}].map(v=>(
+          {[{id:'log',label:'📓 내역'},{id:'analysis',label:'📊 성과분석'}].map(v=>(
             <button key={v.id} className={`pp-period-btn ${view===v.id?'active':''}`}
               style={{fontWeight:view===v.id?700:500}} onClick={()=>setView(v.id)}>{v.label}</button>
           ))}
@@ -1144,7 +1144,7 @@ function JournalPanel({ user }) {
         <AddEntryModal user={user} onClose={()=>setShowAdd(false)} onSaved={load}/>
       )}
 
-      {/* ── 일지 탭 ── */}
+      {/* ── 내역 탭 ── */}
       {view==='log' && (<>
         <PeriodBar frDt={frDt} toDt={toDt} onChange={(f,t)=>{setFrDt(f);setToDt(t)}}/>
 
