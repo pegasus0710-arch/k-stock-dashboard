@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { useUserSettings } from './hooks/useUserSettings'
 import LoginPage         from './auth/LoginPage'
 import OtpPage           from './auth/OtpPage'
 import DashboardPage     from './pages/DashboardPage'
@@ -168,41 +167,123 @@ function BottomTabBar() {
   )
 }
 
-// ── 상단 헤더 ─────────────────────────────────────────
-function TopHeader() {
-  const location = useLocation()
-  const current  = MENU.find(m => location.pathname.startsWith(m.path))
-  const now      = new Date()
-  const dateStr  = now.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' })
+// ── 시장 상태 ─────────────────────────────────────────
+function getMarketStatus() {
+  const now = new Date()
+  const h = now.getHours(), m = now.getMinutes(), day = now.getDay()
+  const t = h * 60 + m
+  if (day === 0 || day === 6)     return { label:'주말', color:'#64748b' }
+  if (t >= 9*60 && t < 15*60+30) return { label:'LIVE', color:'#22c55e' }
+  if (t >= 15*60+30 && t < 18*60)return { label:'시간외', color:'#f59e0b' }
+  return { label:'장마감', color:'#ef4444' }
+}
 
-  const getMarketStatus = () => {
-    const h = now.getHours(), m = now.getMinutes(), day = now.getDay()
-    const t = h * 60 + m
-    if (day === 0 || day === 6)              return { label:'주말 휴장',  color:'#64748b' }
-    if (t >= 9*60 && t < 15*60+30)          return { label:'● LIVE',    color:'#22c55e' }
-    if (t >= 15*60+30 && t < 18*60)         return { label:'⏱ 시간외',  color:'#f59e0b' }
-    return { label:'● 장 마감', color:'#ef4444' }
-  }
+// ── 티커 띠 ───────────────────────────────────────────
+function TickerBanner() {
+  const [tickers, setTickers] = useState([
+    { label:'KOSPI',  value:'-', change:0 },
+    { label:'KOSDAQ', value:'-', change:0 },
+    { label:'S&P500', value:'-', change:0 },
+    { label:'나스닥',  value:'-', change:0 },
+    { label:'니케이',  value:'-', change:0 },
+    { label:'VIX',    value:'-', change:0 },
+    { label:'DXY',    value:'-', change:0 },
+    { label:'환율',   value:'-', change:0 },
+  ])
+
+  useEffect(() => {
+    // 국내 지수
+    fetch('/api/kiwoom?type=index-domestic')
+      .then(r=>r.json())
+      .then(d=>{
+        setTickers(prev => prev.map(t => {
+          if(t.label==='KOSPI'  && d.KOSPI)  return {...t, value: d.KOSPI.price?.toLocaleString(),  change: d.KOSPI.changeRate}
+          if(t.label==='KOSDAQ' && d.KOSDAQ) return {...t, value: d.KOSDAQ.price?.toLocaleString(), change: d.KOSDAQ.changeRate}
+          return t
+        }))
+      }).catch(()=>{})
+
+    // 해외 지수 (Yahoo Finance)
+    const OVERSEAS = [
+      { symbol:'^GSPC',  label:'S&P500' },
+      { symbol:'^IXIC',  label:'나스닥' },
+      { symbol:'^N225',  label:'니케이' },
+      { symbol:'^VIX',   label:'VIX'   },
+      { symbol:'DX-Y.NYB', label:'DXY' },
+      { symbol:'KRW=X',  label:'환율'  },
+    ]
+    OVERSEAS.forEach(({symbol, label}) => {
+      fetch(`/api/kis?type=yahoo-quote&symbol=${encodeURIComponent(symbol)}`)
+        .then(r=>r.json())
+        .then(d=>{
+          if(!d.price) return
+          setTickers(prev => prev.map(t =>
+            t.label===label ? {...t, value: Number(d.price).toLocaleString(undefined,{maximumFractionDigits:2}), change: d.changeRate||0} : t
+          ))
+        }).catch(()=>{})
+    })
+  }, [])
+
+  // 티커 아이템
+  const items = [...tickers, ...tickers] // 무한 스크롤용 복제
+  return (
+    <div className="ticker-banner">
+      <div className="ticker-track">
+        {items.map((t, i) => {
+          const c = t.change > 0 ? '#ef4444' : t.change < 0 ? '#2563eb' : '#94a3b8'
+          const s = t.change > 0 ? '▲' : t.change < 0 ? '▼' : ''
+          return (
+            <span key={i} className="ticker-item">
+              <span className="ticker-label">{t.label}</span>
+              <span className="ticker-value" style={{color:c}}>
+                {t.value} {s}{t.change!==0?Math.abs(t.change).toFixed(2)+'%':''}
+              </span>
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── GNB (상단 네비게이션) ──────────────────────────────
+function GNB() {
+  const { user, logout } = useAuth()
   const status = getMarketStatus()
+  const now = new Date()
+  const timeStr = now.toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})
 
   return (
-    <header className="top-header">
-      <div className="top-header-left">
-        {current && (
-          <>
-            <span className="top-header-icon">{current.icon}</span>
-            <div>
-              <span className="top-header-title">{current.label}</span>
-              <span className="top-header-sub">{current.sub}</span>
-            </div>
-          </>
+    <nav className="gnb">
+      {/* 로고 */}
+      <div className="gnb-logo">
+        <span className="gnb-logo-icon">K</span>
+        <span className="gnb-logo-text">Stock</span>
+      </div>
+
+      {/* 메뉴 탭 */}
+      <div className="gnb-menu">
+        {MENU.map(item => (
+          <NavLink key={item.path} to={item.path}
+            className={({ isActive }) => `gnb-item ${isActive ? 'active' : ''}`}>
+            <span className="gnb-item-icon">{item.icon}</span>
+            <span className="gnb-item-label">{item.label}</span>
+            {item.path === '/memo' && <span className="gnb-item-badge">N</span>}
+          </NavLink>
+        ))}
+      </div>
+
+      {/* 우측 */}
+      <div className="gnb-right">
+        <span className="gnb-status" style={{color: status.color}}>● {status.label}</span>
+        <span className="gnb-time">{timeStr}</span>
+        {user && (
+          <button className="gnb-user" onClick={logout} title="로그아웃">
+            <span className="gnb-avatar">{(user.displayName||user.email||'J')[0].toUpperCase()}</span>
+          </button>
         )}
       </div>
-      <div className="top-header-right">
-        <span className="top-header-status" style={{ color: status.color }}>{status.label}</span>
-        <span className="top-header-date">{dateStr}</span>
-      </div>
-    </header>
+    </nav>
   )
 }
 
@@ -222,41 +303,32 @@ const PAGE_THEMES = {
 // ── 메인 레이아웃 ─────────────────────────────────────
 function AppLayout() {
   const location = useLocation()
-  const { getSetting, setSetting } = useUserSettings()
-  const [collapsed, setCollapsed] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('sidebar_collapsed') || 'false') } catch { return false }
-  })
-
-  // 현재 경로에 맞는 테마 클래스
   const themeKey = Object.keys(PAGE_THEMES).find(k => location.pathname.startsWith(k))
   const themeClass = PAGE_THEMES[themeKey] || 'theme-blue'
 
-  useEffect(() => {
-    // Firestore + localStorage 동기화
-    setSetting('layout', 'sidebar_collapsed', collapsed)
-  }, [collapsed])
-
   return (
-    <div className={`app-layout ${collapsed ? 'sidebar-collapsed' : ''} ${themeClass}`}>
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(v => !v)}/>
-      <div className="app-main">
-        <TopHeader/>
-        <main className="app-content">
-          <Routes>
-            <Route path="/"              element={<Navigate to="/dashboard" replace/>}/>
-            <Route path="/dashboard"     element={<DashboardPage/>}/>
-            <Route path="/chart"         element={<ChartAnalysisPage/>}/>
-            <Route path="/market"        element={<MarketPage/>}/>
-            <Route path="/etf"           element={<ETFPage/>}/>
-            <Route path="/watchlist"     element={<WatchlistPage/>}/>
-            <Route path="/portfolio"     element={<PortfolioPage/>}/>
-            <Route path="/trading-log"   element={<TradingLogPage/>}/>
-            <Route path="/memo"          element={<MemoPage/>}/>
-            <Route path="/news"          element={<NewsPage/>}/>
-            <Route path="*"             element={<Navigate to="/dashboard" replace/>}/>
-          </Routes>
-        </main>
-      </div>
+    <div className={`app-layout ${themeClass}`}>
+      {/* 상단 티커 띠 */}
+      <TickerBanner/>
+      {/* GNB */}
+      <GNB/>
+      {/* 메인 콘텐츠 */}
+      <main className="app-content">
+        <Routes>
+          <Route path="/"              element={<Navigate to="/dashboard" replace/>}/>
+          <Route path="/dashboard"     element={<DashboardPage/>}/>
+          <Route path="/chart"         element={<ChartAnalysisPage/>}/>
+          <Route path="/market"        element={<MarketPage/>}/>
+          <Route path="/etf"           element={<ETFPage/>}/>
+          <Route path="/watchlist"     element={<WatchlistPage/>}/>
+          <Route path="/portfolio"     element={<PortfolioPage/>}/>
+          <Route path="/trading-log"   element={<TradingLogPage/>}/>
+          <Route path="/memo"          element={<MemoPage/>}/>
+          <Route path="/news"          element={<NewsPage/>}/>
+          <Route path="*"             element={<Navigate to="/dashboard" replace/>}/>
+        </Routes>
+      </main>
+      {/* 모바일 하단 탭 */}
       <BottomTabBar/>
     </div>
   )

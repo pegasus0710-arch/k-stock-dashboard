@@ -819,6 +819,27 @@ export default async function handler(req, res) {
         return res.json(rates)
       }
 
+      // ── 야후 파이낸스 단순 현재가 (티커 띠 전용) ──
+      case 'yahoo-quote': {
+        const symbol = q.symbol || '^GSPC'
+        try {
+          const r = await fetch(
+            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`,
+            { headers: { 'User-Agent': 'Mozilla/5.0' } }
+          )
+          const data = await r.json()
+          const result = data.chart?.result?.[0]
+          if (!result) return res.json({ symbol, price: null })
+          const meta   = result.meta
+          const price  = meta.regularMarketPrice || meta.previousClose
+          const prev   = meta.chartPreviousClose || meta.previousClose
+          const changeRate = prev ? ((price - prev) / prev * 100) : 0
+          return res.json({ symbol, price, changeRate: Math.round(changeRate * 100) / 100 })
+        } catch(e) {
+          return res.json({ symbol, price: null, error: e.message })
+        }
+      }
+
       default:
         return res.status(400).json({ error: `알 수 없는 type: ${type}` })
     }

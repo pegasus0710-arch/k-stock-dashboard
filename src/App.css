@@ -10,17 +10,94 @@
 
 /* ── 레이아웃 ───────────────────────────────────────── */
 .app-layout {
-  display:flex; min-height:100vh; background:var(--bg-base);
-  --sidebar-w: 220px;
-  --sidebar-w-collapsed: 60px;
-  --header-h: 52px;
+  display:flex; flex-direction:column; min-height:100vh; background:var(--bg-base);
+  --ticker-h: 28px;
+  --gnb-h:    44px;
+  --top-h:    72px; /* ticker + gnb */
 }
-.app-main {
-  flex:1; display:flex; flex-direction:column;
-  margin-left:var(--sidebar-w); min-width:0;
-  transition:margin-left .2s;
+.app-content {
+  flex:1; min-height:0;
+  padding-top: var(--top-h);
+  display:flex; flex-direction:column;
 }
-.app-layout.sidebar-collapsed .app-main { margin-left:var(--sidebar-w-collapsed); }
+
+/* ── 티커 띠 ─────────────────────────────────────────── */
+.ticker-banner {
+  position:fixed; top:0; left:0; right:0; z-index:200;
+  height:var(--ticker-h);
+  background:#0f172a; border-bottom:1px solid rgba(255,255,255,.08);
+  overflow:hidden; display:flex; align-items:center;
+}
+.ticker-track {
+  display:flex; align-items:center; gap:0;
+  animation: ticker-scroll 40s linear infinite;
+  white-space:nowrap;
+  will-change:transform;
+}
+.ticker-banner:hover .ticker-track { animation-play-state:paused; }
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-item {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:0 18px; border-right:1px solid rgba(255,255,255,.08);
+  font-size:11px;
+}
+.ticker-label { color:#94a3b8; font-weight:600; letter-spacing:.03em; }
+.ticker-value { font-weight:700; font-family:monospace; }
+
+/* ── GNB ─────────────────────────────────────────────── */
+.gnb {
+  position:fixed; top:var(--ticker-h); left:0; right:0; z-index:190;
+  height:var(--gnb-h);
+  background:var(--bg-panel); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; padding:0 16px; gap:0;
+}
+.gnb-logo {
+  display:flex; align-items:center; gap:6px;
+  margin-right:20px; flex-shrink:0;
+}
+.gnb-logo-icon {
+  width:28px; height:28px; background:var(--accent-mid); color:white;
+  border-radius:8px; display:flex; align-items:center; justify-content:center;
+  font-size:14px; font-weight:900;
+}
+.gnb-logo-text { font-size:14px; font-weight:800; color:var(--text-primary); }
+.gnb-menu {
+  display:flex; align-items:center; gap:1px; flex:1; overflow-x:auto;
+  scrollbar-width:none;
+}
+.gnb-menu::-webkit-scrollbar { display:none; }
+.gnb-item {
+  display:flex; align-items:center; gap:5px;
+  padding:6px 12px; border-radius:7px;
+  font-size:12px; font-weight:500; color:var(--text-secondary);
+  text-decoration:none; white-space:nowrap; position:relative;
+  transition:all .12s;
+}
+.gnb-item:hover { background:var(--bg-hover); color:var(--text-primary); }
+.gnb-item.active {
+  background:var(--accent-light); color:var(--accent-mid); font-weight:700;
+}
+.gnb-item-icon { font-size:14px; }
+.gnb-item-badge {
+  position:absolute; top:2px; right:2px;
+  font-size:8px; font-weight:800; background:#ef4444; color:white;
+  padding:1px 4px; border-radius:6px;
+}
+.gnb-right {
+  display:flex; align-items:center; gap:10px; flex-shrink:0; margin-left:12px;
+}
+.gnb-status { font-size:11px; font-weight:700; }
+.gnb-time   { font-size:11px; color:var(--text-dim); font-family:monospace; }
+.gnb-user   { background:none; border:none; cursor:pointer; padding:0; }
+.gnb-avatar {
+  width:28px; height:28px; border-radius:50%;
+  background:var(--accent-mid); color:white;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:700;
+}
 
 /* ── 사이드바 ───────────────────────────────────────── */
 .sidebar {
@@ -111,21 +188,8 @@
 .sidebar.collapsed .sidebar-logout { padding:5px 8px; }
 
 /* ── 헤더 ─────────────────────────────────────────── */
-.top-header {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:0 20px; height:var(--header-h);
-  background:var(--bg-panel) !important;
-  border-bottom:1px solid var(--border) !important;
-  flex-shrink:0; gap:12px;
-  color: var(--text-primary) !important;
-}
-.top-header-left { display:flex; align-items:center; gap:10px; }
-.top-header-icon { font-size:18px; }
-.top-header-title { font-size:15px; font-weight:700; color:var(--text-primary) !important; display:block; }
-.top-header-sub   { font-size:11px; color:var(--text-secondary) !important; display:block; margin-top:1px; }
-.top-header-right { display:flex; align-items:center; gap:12px; flex-shrink:0; }
-.top-header-status { font-size:12px; font-weight:700; }
-.top-header-date   { font-size:11px; color:var(--text-dim) !important; }
+/* top-header → GNB로 대체됨 (레거시 클래스 유지) */
+.top-header { display:none; }
 
 /* ── 사이드바 라이트 강제 ───────────────────────────── */
 .sidebar {
@@ -146,8 +210,20 @@
 .app-content {
   flex:1; overflow-y:auto; overflow-x:hidden;
   padding-bottom:70px; background:var(--bg-base) !important;
+  /* 사이드바 margin 없음 - GNB 기준 top padding은 app-layout에서 처리 */
 }
 @media(min-width:768px) { .app-content { padding-bottom:0; } }
+
+/* ── GNB 모바일 반응형 ───────────────────────────────── */
+@media(max-width:767px) {
+  .gnb-item-label { display:none; }
+  .gnb-item { padding:6px 8px; }
+  .gnb-logo-text { display:none; }
+  .gnb-time { display:none; }
+  .ticker-banner { display:none; }
+  .app-content { padding-top: 44px; } /* ticker 없으므로 gnb만 */
+  .app-layout { --top-h: 44px; }
+}
 
 /* ── 모바일 하단 탭바 ────────────────────────────────── */
 .bottom-tabbar {
