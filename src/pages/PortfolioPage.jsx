@@ -424,7 +424,7 @@ function ImportPanel({ user, onImported }) {
                         {status==='synced'?'✅':'🆕'}
                       </span>
                     </td>
-                    <td style={{textAlign:'left',fontFamily:'monospace'}}>{fmtDate(it.date)}</td>
+                    <td style={{textAlign:'left',}}>{fmtDate(it.date)}</td>
                     <td style={{textAlign:'left'}}>
                       {isCash
                         ? <span style={{fontSize:10,padding:'1px 5px',borderRadius:8,color:cat.color,background:cat.bg}}>{cat.label}</span>
@@ -1130,7 +1130,6 @@ function JournalPanel({ user }) {
 
       {/* ── 내역 탭 ── */}
       {view==='log' && (<>
-        <PeriodBar frDt={frDt} toDt={toDt} onChange={(f,t)=>{setFrDt(f);setToDt(t)}}/>
 
         {/* 미분류 입금 안내 */}
         {unclassifiedCount > 0 && (
@@ -1172,17 +1171,16 @@ function JournalPanel({ user }) {
 
         {!loading && filtered.length>0 && (
           <div className="pp-table-wrap" style={{overflowX:'auto'}}>
-            <table className="pp-table" style={{minWidth:820}}>
+            <table className="pp-table" style={{minWidth:640}}>
               <thead><tr>
-                <th style={{textAlign:'left',width:16}}></th>  {/* 출처 바 */}
-                <th style={{textAlign:'left'}}>날짜</th>
-                <th style={{textAlign:'left'}}>구분·출처</th>
-                <th style={{textAlign:'left'}}>종목/항목</th>
-                <th>매수금액(단가×수량)</th>
-                <th>매도금액(단가×수량)</th>
-                <th>실현손익</th>
-                <th style={{textAlign:'left',minWidth:150}}>메모·진입근거</th>
-                <th></th>  {/* 삭제 */}
+                <th style={{textAlign:'left',width:5,padding:0}}></th>
+                <th style={{textAlign:'left',width:80}}>날짜</th>
+                <th style={{textAlign:'left'}}>종목 / 항목</th>
+                <th style={{width:130}}>매수 (단가×수량)</th>
+                <th style={{width:130}}>매도 (단가×수량)</th>
+                <th style={{width:110}}>실현손익</th>
+                <th style={{textAlign:'left',minWidth:140}}>메모 · 진입근거</th>
+                <th style={{width:24}}></th>
               </tr></thead>
               <tbody>
                 {filtered.map((it,i)=>{
@@ -1198,39 +1196,40 @@ function JournalPanel({ user }) {
                     <tr key={`${it._id}_${i}`}
                       style={{background: isDup?'#FFF5F5': isManual?'#FFFDF7':'white'}}
                       className="pp-journal-row">
-                      {/* 출처 컬러 바 */}
-                      <td style={{padding:0,width:4}}>
-                        <div style={{width:3,height:'100%',minHeight:36,background:barColor,borderRadius:2}}/>
+
+                      {/* ① 컬러 바 4px */}
+                      <td style={{padding:0,width:5}}>
+                        <div style={{width:4,height:'100%',minHeight:34,background:barColor,borderRadius:2}}/>
                       </td>
 
-                      {/* 날짜 */}
-                      <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11,whiteSpace:'nowrap'}}>
-                        {fmtDate(it.date)}
-                        {isDup && <div style={{fontSize:9,color:'#EF4444',fontWeight:700,marginTop:1}}>⚠ 중복</div>}
-                      </td>
-
-                      {/* 구분 + 출처 뱃지 */}
-                      <td style={{textAlign:'left'}}>
-                        <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                      {/* ② 날짜 + 구분 뱃지 (세로) */}
+                      <td style={{textAlign:'left',paddingLeft:8}}>
+                        <div style={{fontSize:11,color:'var(--text-secondary)',whiteSpace:'nowrap',
+                          fontVariantNumeric:'tabular-nums'}}>
+                          {fmtDate(it.date)}
+                        </div>
+                        <div style={{marginTop:3}}>
                           {isCash ? (
-                            /* 카테고리 인라인 드롭다운 */
                             catEdit===it._id ? (
                               <div style={{display:'flex',flexWrap:'wrap',gap:3,background:'white',
-                                border:'1px solid var(--border)',borderRadius:6,padding:4,position:'relative',zIndex:10}}>
+                                border:'1px solid var(--border)',borderRadius:6,padding:4,
+                                position:'absolute',zIndex:10,boxShadow:'0 4px 12px rgba(0,0,0,.1)'}}>
                                 {CF_CATEGORIES.map(c=>(
                                   <button key={c.id}
-                                    style={{padding:'2px 8px',borderRadius:10,fontSize:10,border:`1px solid ${c.color}`,
-                                      background:c.bg,color:c.color,cursor:'pointer',fontWeight:700}}
+                                    style={{padding:'2px 8px',borderRadius:10,fontSize:10,
+                                      border:`1px solid ${c.color}`,background:c.bg,
+                                      color:c.color,cursor:'pointer',fontWeight:700}}
                                     onClick={()=>updateCat(it,c.id)}>{c.label}</button>
                                 ))}
-                                <button style={{padding:'2px 6px',fontSize:10,border:'1px solid var(--border)',
-                                  borderRadius:10,cursor:'pointer',color:'var(--text-dim)'}}
+                                <button style={{padding:'2px 6px',fontSize:10,
+                                  border:'1px solid var(--border)',borderRadius:10,
+                                  cursor:'pointer',color:'var(--text-dim)'}}
                                   onClick={()=>setCatEdit(null)}>✕</button>
                               </div>
                             ) : (
-                              <span style={{display:'inline-flex',alignItems:'center',gap:4,cursor:'pointer'}}
-                                onClick={()=>setCatEdit(it._id)} title="클릭해서 카테고리 변경">
-                                <span style={{padding:'2px 7px',borderRadius:10,fontSize:10,fontWeight:700,
+                              <span style={{display:'inline-flex',alignItems:'center',gap:3,cursor:'pointer'}}
+                                onClick={()=>setCatEdit(it._id)} title="카테고리 변경">
+                                <span style={{padding:'1px 6px',borderRadius:8,fontSize:10,fontWeight:700,
                                   color:cat.color,background:cat.bg,border:`1px solid ${cat.color}33`}}>
                                   {cat.label}
                                 </span>
@@ -1238,70 +1237,98 @@ function JournalPanel({ user }) {
                               </span>
                             )
                           ) : (
-                            <span style={{color:typeColor(it),fontWeight:700,fontSize:12}}>
-                              {isBuy?'매수':isSell?'매도':it.type==='in'?'입금':'출금'}
+                            <span style={{padding:'1px 6px',borderRadius:8,fontSize:10,fontWeight:700,
+                              color:isBuy?'#EF4444':'#3B82F6',
+                              background:isBuy?'#FEF2F2':'#EFF6FF'}}>
+                              {isBuy?'매수':'매도'}
                             </span>
                           )}
-                          <span style={{fontSize:9,padding:'1px 5px',borderRadius:8,
-                            color:isManual?'#D97706':'#94A3B8',
-                            background:isManual?'#FEF3C7':'#F1F5F9',
-                            display:'inline-block',width:'fit-content'}}>
-                            {isManual?'✏ 수동':'🔗 자동'}
-                          </span>
                         </div>
                       </td>
 
-                      {/* 종목/항목 */}
+                      {/* ③ 종목/항목 + 자동/수동 뱃지 (한 셀) */}
                       <td style={{textAlign:'left'}}>
-                        {it.name
-                          ? <><div className="pp-stock-name">{it.name}</div>
-                              <div className="pp-stock-code">{it.code}</div></>
-                          : <span style={{fontSize:11,color:'var(--text-dim)'}}>{it.rmrk_nm||it.io_tp_nm||'-'}</span>
-                        }
+                        {it.name ? (
+                          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                            <span style={{fontWeight:600,fontSize:12,color:'var(--text-primary)'}}>
+                              {it.name}
+                            </span>
+                            {it.code && (
+                              <span style={{fontSize:10,color:'var(--text-dim)',
+                                fontFamily:"'SFMono-Regular','Consolas',monospace"}}>
+                                {it.code}
+                              </span>
+                            )}
+                            <span style={{fontSize:10,padding:'0px 4px',borderRadius:6,
+                              color:isManual?'#D97706':'#94A3B8',
+                              background:isManual?'#FEF3C7':'#F1F5F9'}}>
+                              {isManual?'수동':'자동'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div style={{display:'flex',alignItems:'center',gap:6}}>
+                            <span style={{fontSize:11,color:'var(--text-secondary)'}}>
+                              {it.rmrk_nm||it.io_tp_nm||''}
+                            </span>
+                            <span style={{fontSize:10,padding:'0px 4px',borderRadius:6,
+                              color:isManual?'#D97706':'#94A3B8',
+                              background:isManual?'#FEF3C7':'#F1F5F9'}}>
+                              {isManual?'수동':'자동'}
+                            </span>
+                          </div>
+                        )}
+                        {isDup && <div style={{fontSize:10,color:'#EF4444',fontWeight:700,marginTop:2}}>⚠ 중복</div>}
                       </td>
 
-                      {/* 매수 금액·단가·수량 */}
+                      {/* ④ 매수 금액 — 빈값(-) 제거 */}
                       <td>
-                        {isBuy||isCash ? (
-                          <div style={{textAlign:'right'}}>
-                            <div style={{fontWeight:700,fontSize:12}}>{fmt(it.amount||0)}</div>
+                        {(isBuy||isCash) ? (
+                          <div>
+                            <div style={{fontWeight:700,fontSize:12,fontVariantNumeric:'tabular-nums'}}>
+                              {fmt(it.amount||0)}
+                            </div>
                             {isBuy && it.price && it.qty &&
-                              <div style={{fontSize:10,color:'var(--text-dim)'}}>
+                              <div style={{fontSize:10,color:'var(--text-dim)',fontVariantNumeric:'tabular-nums'}}>
                                 {fmt(it.price)}×{fmt(it.qty)}
                               </div>
                             }
                           </div>
-                        ) : <span style={{color:'var(--text-dim)'}}>-</span>}
+                        ) : null}
                       </td>
 
-                      {/* 매도 금액·단가·수량 */}
+                      {/* ⑤ 매도 금액 — 빈값(-) 제거 */}
                       <td>
                         {isSell ? (
-                          <div style={{textAlign:'right'}}>
-                            <div style={{fontWeight:700,fontSize:12}}>{fmt(it.amount||0)}</div>
+                          <div>
+                            <div style={{fontWeight:700,fontSize:12,fontVariantNumeric:'tabular-nums'}}>
+                              {fmt(it.amount||0)}
+                            </div>
                             {it.price && it.qty &&
-                              <div style={{fontSize:10,color:'var(--text-dim)'}}>
+                              <div style={{fontSize:10,color:'var(--text-dim)',fontVariantNumeric:'tabular-nums'}}>
                                 {fmt(it.price)}×{fmt(it.qty)}
                               </div>
                             }
                           </div>
-                        ) : <span style={{color:'var(--text-dim)'}}>-</span>}
+                        ) : null}
                       </td>
 
-                      {/* 실현손익 */}
+                      {/* ⑥ 실현손익 — 빈값(-) 제거 */}
                       <td>
                         {isSell && it.profit!=null ? (
-                          <div style={{textAlign:'right'}}>
-                            <div className={Number(it.profit)>=0?'up':'down'} style={{fontWeight:700,fontSize:12}}>
+                          <div>
+                            <div className={Number(it.profit)>=0?'up':'down'}
+                              style={{fontWeight:700,fontSize:12,fontVariantNumeric:'tabular-nums'}}>
                               {Number(it.profit)>=0?'+':''}{fmt(it.profit)}
                             </div>
                             {it.profit_rt!=null &&
-                              <div style={{fontSize:10,color:Number(it.profit_rt)>=0?'#EF4444':'#3B82F6'}}>
+                              <div style={{fontSize:10,
+                                color:Number(it.profit_rt)>=0?'#EF4444':'#3B82F6',
+                                fontVariantNumeric:'tabular-nums'}}>
                                 {Number(it.profit_rt)>=0?'+':''}{Number(it.profit_rt||0).toFixed(2)}%
                               </div>
                             }
                           </div>
-                        ) : <span style={{color:'var(--text-dim)',fontSize:11}}>-</span>}
+                        ) : null}
                       </td>
 
                       {/* 메모 + 진입근거 */}
@@ -1322,7 +1349,7 @@ function JournalPanel({ user }) {
                           <div onClick={()=>{setEditId(it._id);setEditText(it.memo||'')}}
                             style={{cursor:'pointer',minHeight:20}}>
                             {it.reason_tag && (
-                              <span style={{fontSize:9,padding:'1px 5px',borderRadius:8,
+                              <span style={{fontSize:10,padding:'1px 5px',borderRadius:8,
                                 background:'var(--accent-light)',color:'var(--accent-mid)',
                                 fontWeight:700,marginRight:4}}>{it.reason_tag}</span>
                             )}
