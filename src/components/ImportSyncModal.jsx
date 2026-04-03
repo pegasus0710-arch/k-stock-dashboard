@@ -63,7 +63,7 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
     }
   }, [user, colPath])
 
-  useEffect(() => { loadDb() }, [loadDb])
+  // 초기에는 아무것도 로드 안 함 — 조회 버튼 클릭 시 fetchApi에서 양쪽 동시 로드
 
   // 저장된 항목 matchKey Set
   const dbKeySet = new Set(dbItems.map(matchKey))
@@ -387,7 +387,9 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
                 <div style={{display:'flex',flexDirection:'column',alignItems:'center',
                   justifyContent:'center',height:'100%',color:'var(--text-dim)',gap:8}}>
                   <div style={{fontSize:28,opacity:.4}}>📂</div>
-                  <div style={{fontSize:12}}>저장된 내역이 없습니다</div>
+                  <div style={{fontSize:12}}>
+                    {fetched ? '해당 기간에 저장된 내역이 없습니다' : '기간 조회 후 표시됩니다'}
+                  </div>
                 </div>
               )}
               {dbItems.map((it, idx) => {
