@@ -80,7 +80,8 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
       const rows = (isTrades ? res.trades : res.cashflow) || []
 
       // 실현손익 병합 (매매내역만)
-      let realByKey = {}
+      let realByKey  = {}
+      let realByCode = {}
       if (isTrades) {
         const sellCodes = [...new Set(rows.filter(t=>t.type==='sell').map(t=>t.code).filter(Boolean))]
         if (sellCodes.length) {
@@ -88,23 +89,32 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
             method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify({ fr_dt:frDt, to_dt:toDt, codes:sellCodes })
           }).then(r=>r.json()).catch(()=>({}))
-          realByKey = rr.by_key || {}
+          realByKey  = rr.by_key  || {}
+          realByCode = rr.by_code || {}
         }
       }
 
       const items = rows.map((r, idx) => {
         const item = { ...r, _apiIdx: idx }
         if (isTrades && r.type === 'sell') {
-          const key = `${r.date}_${r.code}`
-          const matches = realByKey[key] || []
-          const best = matches.find(m=>Number(m.qty||0)===Number(r.qty||0)) || matches[0]
+          // 1차: 날짜+코드 정확 매칭
+          const key1 = `${r.date}_${r.code}`
+          let matches = realByKey[key1] || []
+
+          // 2차 폴백: 코드만으로 매칭 (날짜 불일치 대응)
+          if (!matches.length && r.code) {
+            matches = realByCode[r.code] || []
+          }
+
+          // 수량이 정확히 일치하는 건 우선, 없으면 첫 번째
+          const best = matches.find(m => Number(m.qty||0) === Number(r.qty||0)) || matches[0]
           if (best) {
             Object.assign(item, {
               profit:    best.profit,
               profit_rt: best.profit_rt,
-              buy_price: best.buy_price,          // 매입단가 (실현손익 기준)
-              fee:       best.fee || r.fee || 0,  // 수수료 (realized 우선)
-              tax:       best.tax || 0,           // 세금 (거래세 + 농특세)
+              buy_price: best.buy_price,
+              fee:       best.fee || r.fee || 0,
+              tax:       best.tax || 0,
             })
           }
         }
