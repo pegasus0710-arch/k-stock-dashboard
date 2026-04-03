@@ -56,15 +56,15 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
       const inds = KIWOOM_IDS[id]
       if (inds) {
         // 국내지수 → 키움 index-chart (실시간, 당일 반영)
-        // ka20006/ka20007 응답값은 소수점 제거 후 100배 → /100 필요
+        // server.py build_index_candle에서 이미 /100 처리됨
         const period = toKiwoomPeriod(rng)
         const j = await fetch(`/api/kiwoom?type=index-chart&inds_cd=${inds}&period=${period}`).then(r=>r.json())
         raw = (j.candles || []).slice(-toKiwoomSlice(rng)).map(c => ({
           date:  c.time || c.label || '',
-          open:  (c.open  || 0) / 100,
-          high:  (c.high  || 0) / 100,
-          low:   (c.low   || 0) / 100,
-          close: (c.close || 0) / 100,
+          open:  c.open  || 0,
+          high:  c.high  || 0,
+          low:   c.low   || 0,
+          close: c.close || 0,
         }))
       } else if (it.type==='global') {
         const j = await fetch(`/api/kis?type=global&symbol=${it.sym}&range=${rng}`).then(r=>r.json())
@@ -98,11 +98,11 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
 
       let gotData = false
       for (const [id, payload] of Object.entries(j)) {
-        // ka20007 응답은 100배 → /100 처리
+        // server.py /index/spark에서 이미 /100 처리됨
         const raw = (payload?.candles || []).map(c => ({
-          close: (c.close || 0) / 100,
-          high:  (c.high  || 0) / 100,
-          low:   (c.low   || 0) / 100,
+          close: c.close || 0,
+          high:  c.high  || 0,
+          low:   c.low   || 0,
         }))
         const candles = raw.filter(c => c.close > 0)
         if (!candles.length) continue
@@ -123,9 +123,9 @@ function HeroChart({ selId, onSelChange, dashData, globalData, forexData, onWeek
     const fallback = async (id, inds_cd) => {
       try {
         const j = await fetch(`/api/kiwoom?type=index-chart&inds_cd=${inds_cd}&period=week`).then(r=>r.json())
-        // ka20007 응답은 100배 → /100 처리
+        // server.py build_index_candle에서 이미 /100 처리됨
         const candles = (j.candles||[])
-          .map(c => ({ close:(c.close||0)/100, high:(c.high||0)/100, low:(c.low||0)/100 }))
+          .map(c => ({ close: c.close||0, high: c.high||0, low: c.low||0 }))
           .filter(c => c.close > 0)
         if (!candles.length) return
         if (onSparkData) onSparkData(id, candles.map(c=>c.close))

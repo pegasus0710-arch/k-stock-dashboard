@@ -125,14 +125,14 @@ export default function GlobalChartModal({
           const cntMap = { '1mo':22, '3mo':65, '6mo':130, '1y':52, '5y':260 }
           const cnt = cntMap[range] || 130
           candles = candles.slice(-cnt)
-          // time → date, ka20006/ka20007 값은 100배 → /100
+          // time → date 매핑, server.py에서 이미 /100 처리됨
           candles = candles.map(c => ({
             ...c,
             date:  c.time || c.date,
-            open:  (c.open  || 0) / 100,
-            high:  (c.high  || 0) / 100,
-            low:   (c.low   || 0) / 100,
-            close: (c.close || 0) / 100,
+            open:  c.open  || 0,
+            high:  c.high  || 0,
+            low:   c.low   || 0,
+            close: c.close || 0,
           }))
         }
         setCandles(candles)
