@@ -1352,7 +1352,8 @@ function JournalPanel({ user }) {
                         )}
                       </td>
                     </tr>
-                  })}
+                  )
+                })}
               </tbody>
             </table>
           </div>
