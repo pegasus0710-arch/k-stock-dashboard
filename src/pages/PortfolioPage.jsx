@@ -138,12 +138,9 @@ function KpiBar({ data }) {
 
 // ── 보유현황 패널 ─────────────────────────────────────
 function HoldingsPanel({ data, loading, onRefresh, user }) {
-  // 보유일자: Firestore trade records에서 종목별 최초 매수일 조회
   const [firstBuyMap, setFirstBuyMap] = useState({})
   useEffect(() => {
     if (!user || !data?.holdings?.length) return
-    const { collection: col, getDocs: gd, query: q, where, orderBy: ob } =
-      require ? null : null  // Firestore는 상단 import 사용
     ;(async () => {
       try {
         const snap = await getDocs(
