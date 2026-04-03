@@ -97,7 +97,15 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
           const key = `${r.date}_${r.code}`
           const matches = realByKey[key] || []
           const best = matches.find(m=>Number(m.qty||0)===Number(r.qty||0)) || matches[0]
-          if (best) Object.assign(item, { profit: best.profit, profit_rt: best.profit_rt })
+          if (best) {
+            Object.assign(item, {
+              profit:    best.profit,
+              profit_rt: best.profit_rt,
+              buy_price: best.buy_price,          // 매입단가 (실현손익 기준)
+              fee:       best.fee || r.fee || 0,  // 수수료 (realized 우선)
+              tax:       best.tax || 0,           // 세금 (거래세 + 농특세)
+            })
+          }
         }
         return item
       })
@@ -364,6 +372,15 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
                           </span>
                         )}
                       </div>
+                      {/* 수수료·세금 표시 */}
+                      {isTrades && (Number(it.fee||0) > 0 || Number(it.tax||0) > 0) && (
+                        <div style={{fontSize:10,color:'var(--text-dim)',marginTop:1,
+                          fontVariantNumeric:'tabular-nums'}}>
+                          {Number(it.fee||0)>0 && <span>수수료 {fmt(it.fee)}</span>}
+                          {Number(it.fee||0)>0 && Number(it.tax||0)>0 && <span style={{margin:'0 4px'}}>·</span>}
+                          {Number(it.tax||0)>0 && <span>세금 {fmt(it.tax)}</span>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )

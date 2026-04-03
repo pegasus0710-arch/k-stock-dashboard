@@ -1262,7 +1262,7 @@ function JournalPanel({ user }) {
                 <th style={{textAlign:'left'}}>종목 / 항목</th>
                 <th style={{width:130}}>매수 (단가×수량)</th>
                 <th style={{width:130}}>매도 (단가×수량)</th>
-                <th style={{width:110}}>실현손익</th>
+                <th style={{width:120}}>손익 · 비용</th>
                 <th style={{textAlign:'left',minWidth:140}}>메모 · 진입근거</th>
                 <th style={{width:24}}></th>
               </tr></thead>
@@ -1396,7 +1396,7 @@ function JournalPanel({ user }) {
                         ) : null}
                       </td>
 
-                      {/* ⑥ 실현손익 — 빈값(-) 제거 */}
+                      {/* ⑥ 실현손익 + 수수료·세금 */}
                       <td>
                         {isSell && it.profit!=null ? (
                           <div>
@@ -1411,8 +1411,29 @@ function JournalPanel({ user }) {
                                 {Number(it.profit_rt)>=0?'+':''}{Number(it.profit_rt||0).toFixed(2)}%
                               </div>
                             }
+                            {/* 수수료·세금 */}
+                            {(Number(it.fee||0)>0 || Number(it.tax||0)>0) && (
+                              <div style={{fontSize:10,color:'var(--text-dim)',marginTop:2,
+                                borderTop:'1px dashed var(--border-dim)',paddingTop:2,
+                                fontVariantNumeric:'tabular-nums'}}>
+                                {Number(it.fee||0)>0 &&
+                                  <span>수수료 {fmt(it.fee)}</span>}
+                                {Number(it.fee||0)>0 && Number(it.tax||0)>0 &&
+                                  <span style={{margin:'0 3px'}}>·</span>}
+                                {Number(it.tax||0)>0 &&
+                                  <span>세금 {fmt(it.tax)}</span>}
+                              </div>
+                            )}
                           </div>
-                        ) : null}
+                        ) : (
+                          /* 매수·입출금: 수수료만 표시 */
+                          Number(it.fee||0)>0 ? (
+                            <div style={{fontSize:10,color:'var(--text-dim)',
+                              fontVariantNumeric:'tabular-nums'}}>
+                              수수료 {fmt(it.fee)}
+                            </div>
+                          ) : null
+                        )}
                       </td>
 
                       {/* 메모 + 진입근거 */}
