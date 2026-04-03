@@ -27,8 +27,11 @@ const fmtDateDay = s => {
   return `${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}(${DOW_M[d.getDay()]})`
 }
 
-// 매칭 키: 날짜 + 절대금액 조합
-const matchKey = item => `${item.date}_${Math.abs(Number(item.amount||0))}`
+// matchKey: 매매=날짜+종목코드+수량+금액, 입출금=날짜+금액
+// 분할체결 건 구분을 위해 code+qty 포함
+const matchKey = item => item.code
+  ? `${item.date}_${item.code}_${Math.abs(Number(item.qty||0))}_${Math.abs(Number(item.amount||0))}`
+  : `${item.date}_${Math.abs(Number(item.amount||0))}`
 
 // 카테고리 색상
 const CAT_COLOR = {

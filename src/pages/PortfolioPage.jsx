@@ -1252,8 +1252,10 @@ function JournalPanel({ user }) {
   const [syncModal,  setSyncModal]  = useState(null)
   const [profitEdit, setProfitEdit] = useState(null)
   const [profitVal,  setProfitVal]  = useState('')
-  const [costEdit,   setCostEdit]   = useState(null)   // 부대비용 편집 중인 _id
-  const [costVal,    setCostVal]    = useState('')     // 부대비용 입력값
+  const [costEdit,   setCostEdit]   = useState(null)
+  const [costVal,    setCostVal]    = useState('')
+  const [dateEdit,   setDateEdit]   = useState(null)   // 날짜 수정 중인 _id
+  const [dateVal,    setDateVal]    = useState('')     // 날짜 입력값
 
   const TRADE_TABS = [
     { id:'all',  label:'전체' },
@@ -1375,6 +1377,23 @@ function JournalPanel({ user }) {
       setItems(prev=>prev.map(x=>x._id===it._id?{...x,fee:val,tax:0}:x))
       setCostEdit(null)
       setCostVal('')
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
+
+  // 날짜 수동 수정 (결제일→체결일 보정)
+  const saveDateManual = async (it) => {
+    if (!user) return
+    const val = fromHtml(dateVal)
+    if (!val || val.length !== 8) return
+    setSaving(true)
+    try {
+      const col = it._col==='trades' ? 'trades' : 'cashflow'
+      const ref = doc(db,'users',user.uid,'portfolio',col,'records',it._id)
+      await updateDoc(ref, { date: val })
+      setItems(prev=>prev.map(x=>x._id===it._id?{...x,date:val}:x))
+      setDateEdit(null)
+      setDateVal('')
     } catch(e){ console.error(e) }
     setSaving(false)
   }
@@ -1783,11 +1802,52 @@ function JournalPanel({ user }) {
                           <td style={{padding:0}}>
                             <div style={{width:4,minHeight:34,height:'100%',background:barColor,borderRadius:2}}/>
                           </td>
-                          {/* 날짜 */}
-                          <td style={{textAlign:'left'}}>
-                            <div style={{fontSize:11,color:'var(--text-secondary)',fontVariantNumeric:'tabular-nums'}}>
-                              {fmtDate(it.date)}
-                            </div>
+                          {/* 날짜 — 클릭 수정 가능 */}
+                          <td style={{textAlign:'left',position:'relative'}}>
+                            {dateEdit===it._id ? (
+                              <div style={{position:'absolute',top:0,left:0,zIndex:30,
+                                background:'var(--bg-panel)',border:'1px solid var(--accent-mid)',
+                                borderRadius:8,padding:'10px 12px',boxShadow:'0 6px 20px rgba(0,0,0,.15)',
+                                minWidth:210,whiteSpace:'nowrap'}}>
+                                <div style={{fontSize:11,color:'var(--text-secondary)',marginBottom:6,fontWeight:600}}>
+                                  체결일 수정
+                                </div>
+                                <div style={{fontSize:10,color:'var(--text-dim)',marginBottom:6}}>
+                                  결제일(T+2)이 잘못 표시된 경우 실제 체결일로 수정
+                                </div>
+                                <div style={{display:'flex',gap:4,alignItems:'center'}}>
+                                  <input
+                                    autoFocus
+                                    type="date"
+                                    value={dateVal}
+                                    onChange={e=>setDateVal(e.target.value)}
+                                    onKeyDown={e=>{
+                                      if(e.key==='Enter') saveDateManual(it)
+                                      if(e.key==='Escape'){ setDateEdit(null); setDateVal('') }
+                                    }}
+                                    max={toHtml(today())}
+                                    style={{flex:1,padding:'4px 7px',fontSize:12,
+                                      border:'1px solid var(--accent-mid)',borderRadius:5,outline:'none'}}
+                                  />
+                                  <button className="pp-btn primary"
+                                    style={{padding:'4px 8px',fontSize:11}}
+                                    onClick={()=>saveDateManual(it)}
+                                    disabled={saving}>{saving?'…':'✓'}</button>
+                                  <button className="pp-btn"
+                                    style={{padding:'4px 6px',fontSize:11}}
+                                    onClick={()=>{ setDateEdit(null); setDateVal('') }}>✕</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div onClick={()=>{ setDateEdit(it._id); setDateVal(toHtml(it.date)) }}
+                                title="클릭하여 체결일 수정"
+                                style={{fontSize:11,color:'var(--text-secondary)',fontVariantNumeric:'tabular-nums',
+                                  cursor:'pointer',borderBottom:'1px dashed transparent'}}
+                                onMouseEnter={e=>e.currentTarget.style.borderBottomColor='var(--text-dim)'}
+                                onMouseLeave={e=>e.currentTarget.style.borderBottomColor='transparent'}>
+                                {fmtDate(it.date)}
+                              </div>
+                            )}
                           </td>
                           {/* 구분 뱃지 */}
                           <td style={{textAlign:'left'}}>
@@ -1978,16 +2038,16 @@ function JournalPanel({ user }) {
                               </div>
                             )}
                           </td>
-                          {/* 삭제 (수동만) */}
+                          {/* 삭제 — 수동은 항상, 자동도 허용 (재동기화로 복구 가능) */}
                           <td style={{width:28}}>
-                            {isManual && (
-                              <button style={{border:'none',background:'none',cursor:'pointer',
-                                color:'#CBD5E1',fontSize:13,padding:'2px 4px',opacity:deleting===it._id?.5:1}}
-                                onClick={()=>deleteItem(it)} disabled={deleting===it._id}
-                                title="수동 항목 삭제">
-                                {deleting===it._id?'…':'✕'}
-                              </button>
-                            )}
+                            <button style={{border:'none',background:'none',cursor:'pointer',
+                              color: isManual?'#EF4444':'#CBD5E1',
+                              fontSize:13,padding:'2px 4px',
+                              opacity:deleting===it._id?.5:1}}
+                              onClick={()=>deleteItem(it)} disabled={deleting===it._id}
+                              title={isManual?'수동 항목 삭제':'삭제 (📥 재동기화로 복구 가능)'}>
+                              {deleting===it._id?'…':'✕'}
+                            </button>
                           </td>
                         </tr>
                       )
