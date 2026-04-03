@@ -1184,12 +1184,39 @@ function JournalPanel({ user }) {
     return cnt
   })()
 
-  // 입출금 중복 항목 Map (날짜+금액 기준) — tbody에서 중복 표시용
+  // 입출금 중복 항목 Map
   const dupMap = {}
   items.filter(x=>x._col==='cashflow').forEach(x=>{
     const k = makeCfContentKey(x)
     dupMap[k] = (dupMap[k]||0)+1
   })
+
+  // 종목별 매수 집계 (평균단가, 최초매수일) — 현재 조회 기간 기준
+  const buyStatMap = {}
+  items.filter(x=>x._col==='trades'&&x.type==='buy'&&x.code).forEach(x=>{
+    const c = x.code
+    if (!buyStatMap[c]) buyStatMap[c] = { totalAmt:0, totalQty:0, firstDate:x.date }
+    buyStatMap[c].totalAmt += Number(x.amount||0)
+    buyStatMap[c].totalQty += Number(x.qty||0)
+    if (x.date < buyStatMap[c].firstDate) buyStatMap[c].firstDate = x.date
+  })
+  // 평균단가 계산
+  Object.values(buyStatMap).forEach(v=>{
+    v.avgPrice = v.totalQty > 0 ? Math.round(v.totalAmt / v.totalQty) : 0
+  })
+
+  // 보유기간: 매수일 ~ 매도일 (또는 오늘) 일수 계산
+  const calcHoldDays = (it) => {
+    if (!it.code || it._col !== 'trades') return null
+    const stat = buyStatMap[it.code]
+    const startDate = stat?.firstDate || it.date
+    const endDate   = it.type === 'sell' ? it.date : today()
+    if (!startDate || !endDate) return null
+    const d1 = new Date(`${startDate.slice(0,4)}-${startDate.slice(4,6)}-${startDate.slice(6,8)}`)
+    const d2 = new Date(`${endDate.slice(0,4)}-${endDate.slice(4,6)}-${endDate.slice(6,8)}`)
+    const days = Math.floor((d2 - d1) / 86400000)
+    return days >= 0 ? days : null
+  }
 
   const typeColor = (it) => {
     if (it.type==='buy')  return '#EF4444'
@@ -1312,11 +1339,11 @@ function JournalPanel({ user }) {
             <table className="pp-table" style={{minWidth:640}}>
               <thead><tr>
                 <th style={{textAlign:'left',width:5,padding:0}}></th>
-                <th style={{textAlign:'left',width:80}}>날짜</th>
+                <th style={{textAlign:'left',width:90}}>날짜 · 기간</th>
                 <th style={{textAlign:'left'}}>종목 / 항목</th>
-                <th style={{width:130}}>매수 (단가×수량)</th>
-                <th style={{width:130}}>매도 (단가×수량)</th>
-                <th style={{width:120}}>손익 · 비용</th>
+                <th style={{width:140}}>매수 총금액<br/><span style={{fontWeight:400,letterSpacing:0}}>단가 × 수량</span></th>
+                <th style={{width:140}}>매도 총금액<br/><span style={{fontWeight:400,letterSpacing:0}}>단가 × 수량</span></th>
+                <th style={{width:130}}>손익 · 세금/수수료</th>
                 <th style={{textAlign:'left',minWidth:140}}>메모 · 진입근거</th>
                 <th style={{width:24}}></th>
               </tr></thead>
@@ -1329,6 +1356,11 @@ function JournalPanel({ user }) {
                   const cat      = isCash ? getCfCat(it.category||it.type) : null
                   const isDup    = isCash && (dupMap[makeCfContentKey(it)]||0) > 1
                   const barColor = isDup ? '#EF4444' : isManual ? '#D97706' : '#E2E8F0'
+                  const holdDays = calcHoldDays(it)
+                  const avgPrice = it.code && buyStatMap[it.code]?.avgPrice
+                  const totalAmt = Number(it.amount||0)   // 이미 총금액
+                  const fee      = Number(it.fee||0)
+                  const tax      = Number(it.tax||0)
 
                   return (
                     <tr key={`${it._id}_${i}`}
@@ -1340,12 +1372,19 @@ function JournalPanel({ user }) {
                         <div style={{width:4,height:'100%',minHeight:34,background:barColor,borderRadius:2}}/>
                       </td>
 
-                      {/* ② 날짜 + 구분 뱃지 (세로) */}
+                      {/* ② 날짜 + 구분 뱃지 + 보유기간 */}
                       <td style={{textAlign:'left',paddingLeft:8}}>
                         <div style={{fontSize:11,color:'var(--text-secondary)',whiteSpace:'nowrap',
                           fontVariantNumeric:'tabular-nums'}}>
                           {fmtDate(it.date)}
                         </div>
+                        {/* 보유기간 표시 */}
+                        {holdDays !== null && (
+                          <div style={{fontSize:10,color:'var(--text-dim)',marginTop:1,
+                            fontVariantNumeric:'tabular-nums'}}>
+                            {isBuy ? `보유${holdDays}일` : `${holdDays}일 보유`}
+                          </div>
+                        )}
                         <div style={{marginTop:3}}>
                           {isCash ? (
                             catEdit===it._id ? (
@@ -1418,34 +1457,50 @@ function JournalPanel({ user }) {
                         {isDup && <div style={{fontSize:10,color:'#EF4444',fontWeight:700,marginTop:2}}>⚠ 중복</div>}
                       </td>
 
-                      {/* ④ 매수 금액 — 빈값(-) 제거 */}
+                      {/* ④ 매수 총금액 */}
                       <td>
                         {(isBuy||isCash) ? (
                           <div>
-                            <div style={{fontWeight:700,fontSize:12,fontVariantNumeric:'tabular-nums'}}>
-                              {fmt(it.amount||0)}
+                            {/* 총금액 — 메인 */}
+                            <div style={{fontWeight:700,fontSize:13,fontVariantNumeric:'tabular-nums',
+                              color:'var(--text-primary)'}}>
+                              {fmt(totalAmt)}
                             </div>
-                            {isBuy && it.price && it.qty &&
-                              <div style={{fontSize:10,color:'var(--text-dim)',fontVariantNumeric:'tabular-nums'}}>
-                                {fmt(it.price)}×{fmt(it.qty)}
+                            {/* 단가 × 수량 — 보조 */}
+                            {isBuy && it.price && it.qty && (
+                              <div style={{fontSize:10,color:'var(--text-dim)',fontVariantNumeric:'tabular-nums',marginTop:1}}>
+                                {fmt(it.price)}원 × {fmt(it.qty)}주
                               </div>
-                            }
+                            )}
+                            {/* 평균단가 (분할매수 시) */}
+                            {isBuy && avgPrice && avgPrice !== Number(it.price||0) && (
+                              <div style={{fontSize:10,color:'#D97706',fontVariantNumeric:'tabular-nums',marginTop:1}}>
+                                평균 {fmt(avgPrice)}원
+                              </div>
+                            )}
                           </div>
                         ) : null}
                       </td>
 
-                      {/* ⑤ 매도 금액 — 빈값(-) 제거 */}
+                      {/* ⑤ 매도 총금액 */}
                       <td>
                         {isSell ? (
                           <div>
-                            <div style={{fontWeight:700,fontSize:12,fontVariantNumeric:'tabular-nums'}}>
-                              {fmt(it.amount||0)}
+                            <div style={{fontWeight:700,fontSize:13,fontVariantNumeric:'tabular-nums',
+                              color:'var(--text-primary)'}}>
+                              {fmt(totalAmt)}
                             </div>
-                            {it.price && it.qty &&
-                              <div style={{fontSize:10,color:'var(--text-dim)',fontVariantNumeric:'tabular-nums'}}>
-                                {fmt(it.price)}×{fmt(it.qty)}
+                            {it.price && it.qty && (
+                              <div style={{fontSize:10,color:'var(--text-dim)',fontVariantNumeric:'tabular-nums',marginTop:1}}>
+                                {fmt(it.price)}원 × {fmt(it.qty)}주
                               </div>
-                            }
+                            )}
+                            {/* 매입단가 (비교용) */}
+                            {it.buy_price && (
+                              <div style={{fontSize:10,color:'var(--text-dim)',fontVariantNumeric:'tabular-nums',marginTop:1}}>
+                                매입 {fmt(it.buy_price)}원
+                              </div>
+                            )}
                           </div>
                         ) : null}
                       </td>
@@ -1454,37 +1509,41 @@ function JournalPanel({ user }) {
                       <td>
                         {isSell && it.profit!=null ? (
                           <div>
+                            {/* 실현손익 */}
                             <div className={Number(it.profit)>=0?'up':'down'}
-                              style={{fontWeight:700,fontSize:12,fontVariantNumeric:'tabular-nums'}}>
+                              style={{fontWeight:700,fontSize:13,fontVariantNumeric:'tabular-nums'}}>
                               {Number(it.profit)>=0?'+':''}{fmt(it.profit)}
                             </div>
                             {it.profit_rt!=null &&
-                              <div style={{fontSize:10,
+                              <div style={{fontSize:10,fontWeight:600,
                                 color:Number(it.profit_rt)>=0?'#EF4444':'#3B82F6',
                                 fontVariantNumeric:'tabular-nums'}}>
                                 {Number(it.profit_rt)>=0?'+':''}{Number(it.profit_rt||0).toFixed(2)}%
                               </div>
                             }
-                            {/* 수수료·세금 */}
-                            {(Number(it.fee||0)>0 || Number(it.tax||0)>0) && (
-                              <div style={{fontSize:10,color:'var(--text-dim)',marginTop:2,
-                                borderTop:'1px dashed var(--border-dim)',paddingTop:2,
-                                fontVariantNumeric:'tabular-nums'}}>
-                                {Number(it.fee||0)>0 &&
-                                  <span>수수료 {fmt(it.fee)}</span>}
-                                {Number(it.fee||0)>0 && Number(it.tax||0)>0 &&
-                                  <span style={{margin:'0 3px'}}>·</span>}
-                                {Number(it.tax||0)>0 &&
-                                  <span>세금 {fmt(it.tax)}</span>}
+                            {/* 수수료·세금 구분 표시 */}
+                            {(fee>0 || tax>0) && (
+                              <div style={{fontSize:10,color:'var(--text-dim)',marginTop:3,
+                                borderTop:'1px dashed var(--border-dim)',paddingTop:3,
+                                fontVariantNumeric:'tabular-nums',display:'flex',flexDirection:'column',gap:1}}>
+                                {fee>0 && <span>수수료 -{fmt(fee)}</span>}
+                                {tax>0 && <span>세금 -{fmt(tax)}</span>}
+                                {/* 순손익 (세후) */}
+                                {(fee>0 || tax>0) && (
+                                  <span style={{color:Number(it.profit)-fee-tax>=0?'#EF4444':'#3B82F6',
+                                    fontWeight:600,marginTop:1}}>
+                                    순 {Number(it.profit)-fee-tax>=0?'+':''}{fmt(Number(it.profit)-fee-tax)}
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>
                         ) : (
-                          /* 매수·입출금: 수수료만 표시 */
-                          Number(it.fee||0)>0 ? (
+                          /* 매수·입출금: 수수료 표시 */
+                          fee>0 ? (
                             <div style={{fontSize:10,color:'var(--text-dim)',
                               fontVariantNumeric:'tabular-nums'}}>
-                              수수료 {fmt(it.fee)}
+                              수수료 {fmt(fee)}
                             </div>
                           ) : null
                         )}
