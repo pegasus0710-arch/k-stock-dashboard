@@ -320,3 +320,99 @@
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: .5; transform: scale(1.3); }
 }
+
+/* ── 매매분석 전용 레이아웃 ──────────────────────────── */
+/* 기간 선택 바 */
+.pp-jrn-period {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--bg-base);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+/* 메인 탭 바 (매매내역 / 입출금) */
+.pp-main-tab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.pp-main-tab {
+  padding: 8px 18px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: all .12s;
+}
+.pp-main-tab span {
+  font-size: 10px;
+  opacity: .6;
+  margin-left: 4px;
+}
+.pp-main-tab.active { color: var(--accent-mid); border-bottom-color: var(--accent-mid); }
+.pp-main-tab:hover:not(.active) { color: var(--text-secondary); }
+
+/* 서브 탭 바 */
+.pp-sub-tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+/* 테이블 최소너비 */
+.pp-jrn-table { min-width: 860px; }
+
+/* 데스크탑: 테이블 표시 / 모바일 카드 숨김 */
+.pp-jrn-desktop { display: block; overflow-x: auto; }
+.pp-jrn-mobile  { display: none; }
+
+/* 모바일 카드 레이아웃 */
+.pp-jrn-card {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-dim);
+}
+.pp-jrn-card:last-child { border-bottom: none; }
+.pp-jrn-card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+.pp-jrn-card-bot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pp-jrn-chip {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+/* 반응형: 768px 이하 → 카드 전환 */
+@media (max-width: 768px) {
+  .pp-jrn-desktop { display: none !important; }
+  .pp-jrn-mobile  {
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg-panel);
+  }
+  .pp-main-tab { padding: 6px 12px; font-size: 11px; }
+  .pp-jrn-period { gap: 4px; padding: 8px 10px; }
+}
