@@ -841,14 +841,18 @@ function AnalysisView({ allTrades, allCashflow }) {
 // ── 카테고리 설정 (입출금 분류) ──────────────────────
 const CF_CATEGORIES = [
   { id:'in',       label:'입금',  color:'#EF4444', bg:'#FEF2F2' },
+  { id:'out',      label:'출금',  color:'#3B82F6', bg:'#EFF6FF' },
   { id:'transfer', label:'이체',  color:'#64748B', bg:'#F1F5F9' },
   { id:'dividend', label:'배당',  color:'#059669', bg:'#ECFDF5' },
   { id:'interest', label:'이자',  color:'#0891B2', bg:'#ECFEFF' },
-  { id:'profit',   label:'수익',  color:'#D97706', bg:'#FFFBEB' },
-  { id:'out',      label:'출금',  color:'#3B82F6', bg:'#EFF6FF' },
+  { id:'other',    label:'기타',  color:'#8B5CF6', bg:'#F5F3FF' },
 ]
 const cfCatMap = Object.fromEntries(CF_CATEGORIES.map(c=>[c.id,c]))
-const getCfCat = cat => cfCatMap[cat] || cfCatMap['in']
+// profit(구 카테고리) → dividend로 마이그레이션, 미분류는 기타
+const getCfCat = cat => {
+  if (cat === 'profit') return cfCatMap['dividend']  // 구 수익 → 배당
+  return cfCatMap[cat] || cfCatMap['other']          // 미분류 → 기타
+}
 
 // 진입근거 태그
 const REASON_TAGS = ['기술적분석','실적기대','테마','분할매수','손절','익절','배당수익','기타']
@@ -1036,6 +1040,7 @@ function JournalPanel({ user }) {
     { id:'dividend', label:'배당' },
     { id:'interest', label:'이자' },
     { id:'transfer', label:'이체' },
+    { id:'other',    label:'기타' },
     { id:'manual',   label:'수동' },
   ]
 
@@ -1088,11 +1093,12 @@ function JournalPanel({ user }) {
   })
   const filteredCf = cashflow.filter(it => {
     if (cfTab==='all')      return true
-    if (cfTab==='in')       return it.type==='in' && !['dividend','interest','transfer'].includes(it.category)
+    if (cfTab==='in')       return it.type==='in' && !['dividend','interest','transfer','other'].includes(it.category)
     if (cfTab==='out')      return it.type==='out'
-    if (cfTab==='dividend') return it.category==='dividend'
+    if (cfTab==='dividend') return it.category==='dividend' || it.category==='profit'
     if (cfTab==='interest') return it.category==='interest'
     if (cfTab==='transfer') return it.category==='transfer'
+    if (cfTab==='other')    return it.category==='other'
     if (cfTab==='manual')   return it.source==='manual'
     return true
   })
@@ -1550,8 +1556,8 @@ function JournalPanel({ user }) {
 
         {/* ══ 입출금 패널 ══ */}
         {!loading && mainTab==='cashflow' && (<>
-          {/* 미분류 안내 */}
-          {items.filter(x=>x._col==='cashflow'&&x.type==='in'&&!['dividend','interest','transfer'].includes(x.category)).length > 0 && (
+          {/* 미분류 안내 - 순수 입금(배당/이자/이체/기타 아닌 것) */}
+          {cashflow.filter(x=>x.type==='in'&&!['dividend','interest','transfer','other','profit'].includes(x.category)).length > 0 && (
             <div style={{padding:'8px 12px',background:'#FFFBEB',border:'1px solid #FCD34D',
               borderRadius:7,fontSize:11,color:'#92400E',marginBottom:10}}>
               ⚠️ 미분류 입금이 있습니다 — 카테고리 뱃지를 클릭해 분류하세요
@@ -1561,11 +1567,12 @@ function JournalPanel({ user }) {
           <div className="pp-sub-tab-bar">
             {CF_TABS.map(t=>{
               const cnt = t.id==='all'      ? cashflow.length
-                : t.id==='in'       ? cashflow.filter(x=>x.type==='in'&&!['dividend','interest','transfer'].includes(x.category)).length
+                : t.id==='in'       ? cashflow.filter(x=>x.type==='in'&&!['dividend','interest','transfer','other','profit'].includes(x.category)).length
                 : t.id==='out'      ? cashflow.filter(x=>x.type==='out').length
-                : t.id==='dividend' ? cashflow.filter(x=>x.category==='dividend').length
+                : t.id==='dividend' ? cashflow.filter(x=>['dividend','profit'].includes(x.category)).length
                 : t.id==='interest' ? cashflow.filter(x=>x.category==='interest').length
                 : t.id==='transfer' ? cashflow.filter(x=>x.category==='transfer').length
+                : t.id==='other'    ? cashflow.filter(x=>x.category==='other').length
                 : cashflow.filter(x=>x.source==='manual').length
               return (
                 <button key={t.id} className={`pp-period-btn ${cfTab===t.id?'active':''}`}
