@@ -1080,6 +1080,13 @@ function JournalPanel({ user }) {
     return cnt
   })()
 
+  // 입출금 중복 항목 Map (날짜+금액 기준) — tbody에서 중복 표시용
+  const dupMap = {}
+  items.filter(x=>x._col==='cashflow').forEach(x=>{
+    const k = makeCfContentKey(x)
+    dupMap[k] = (dupMap[k]||0)+1
+  })
+
   const typeColor = (it) => {
     if (it.type==='buy')  return '#EF4444'
     if (it.type==='sell') return '#3B82F6'
@@ -1178,16 +1185,7 @@ function JournalPanel({ user }) {
                 <th></th>  {/* 삭제 */}
               </tr></thead>
               <tbody>
-                {/* 중복 항목 사전 계산 */}
-                {(() => {
-                  // 입출금 항목별 contentKey 중복 횟수
-                  const dupMap = {}
-                  filtered.filter(x=>x._col==='cashflow').forEach(x=>{
-                    const k = makeCfContentKey(x)
-                    dupMap[k] = (dupMap[k]||0)+1
-                  })
-
-                  return filtered.map((it,i)=>{
+                {filtered.map((it,i)=>{
                   const isManual = it.source==='manual'
                   const isSell   = it.type==='sell'
                   const isBuy    = it.type==='buy'
@@ -1354,8 +1352,7 @@ function JournalPanel({ user }) {
                         )}
                       </td>
                     </tr>
-                  )})}
-                })()}
+                  })}
               </tbody>
             </table>
           </div>
