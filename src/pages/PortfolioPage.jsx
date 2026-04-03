@@ -1296,18 +1296,27 @@ function JournalPanel({ user }) {
             const buyAmt  = buys.reduce((s,x)=>s+Math.abs(Number(x.amount||0)),0)
             const sellAmt = sells.reduce((s,x)=>s+Math.abs(Number(x.amount||0)),0)
 
+            // 건별 세후 순손익 계산 헬퍼
+            const calcNet = x => Math.round(Number(x.profit||0) - Number(x.fee||0) - Number(x.tax||0))
+
             // 실현손익 (profit 있는 매도 건만)
             const sellsWithProfit = sells.filter(x=>x.profit!=null)
-            const fee    = sellsWithProfit.reduce((s,x)=>s+Number(x.fee||0)+Number(x.tax||0),0)
-            const netPL  = sellsWithProfit.reduce((s,x)=>s+(Number(x.profit||0)-Number(x.fee||0)-Number(x.tax||0)),0)
-            const plRt   = sellAmt > 0 ? (netPL/sellAmt*100) : null
+            const winners = sellsWithProfit.filter(x=>calcNet(x)>0)
+            const losers  = sellsWithProfit.filter(x=>calcNet(x)<=0)
 
-            // 승률
-            const winners = sellsWithProfit.filter(x=>(Number(x.profit||0)-Number(x.fee||0)-Number(x.tax||0))>0)
-            const losers  = sellsWithProfit.filter(x=>(Number(x.profit||0)-Number(x.fee||0)-Number(x.tax||0))<=0)
+            const winAmt  = winners.reduce((s,x)=>s+calcNet(x),0)
+            const lossAmt = losers.reduce((s,x)=>s+calcNet(x),0)
+            const netPL   = winAmt + lossAmt
+
+            // 확정 건 매도금액 기준 수익률 (정확한 기준)
+            const winSellAmt  = winners.reduce((s,x)=>s+Math.abs(Number(x.amount||0)),0)
+            const lossSellAmt = losers.reduce((s,x)=>s+Math.abs(Number(x.amount||0)),0)
+            const plSellAmt   = winSellAmt + lossSellAmt  // 확정 건 매도금액
+            const winRt   = winSellAmt  > 0 ? (winAmt /winSellAmt *100) : null
+            const lossRt  = lossSellAmt > 0 ? (lossAmt/lossSellAmt*100) : null
+            const totalRt = plSellAmt   > 0 ? (netPL  /plSellAmt  *100) : null
+
             const winRate = sellsWithProfit.length > 0 ? (winners.length/sellsWithProfit.length*100) : null
-
-            // 전체 부대비용
             const totalCost = trades.reduce((s,x)=>s+Number(x.fee||0)+Number(x.tax||0),0)
 
             return (
@@ -1317,79 +1326,99 @@ function JournalPanel({ user }) {
                   gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))',gap:8}}>
 
                   {/* 매수 */}
-                  <div style={{background:'var(--bg-panel)',borderRadius:8,
-                    border:'.5px solid #F7C1C1',padding:'10px 12px'}}>
-                    <div style={{fontSize:10,color:'#A32D2D',fontWeight:600,marginBottom:5,
-                      display:'flex',alignItems:'center',gap:4}}>
+                  <div style={{background:'var(--bg-panel)',borderRadius:8,border:'.5px solid #F7C1C1',padding:'10px 12px'}}>
+                    <div style={{fontSize:10,color:'#A32D2D',fontWeight:600,marginBottom:5,display:'flex',alignItems:'center',gap:4}}>
                       <div style={{width:5,height:5,borderRadius:'50%',background:'#E24B4A'}}/>매수
                     </div>
-                    <div style={{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',
-                      color:'#791F1F',marginBottom:3}}>{Number(buyAmt).toLocaleString()}</div>
+                    <div style={{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',color:'#791F1F',marginBottom:3}}>
+                      {Number(buyAmt).toLocaleString()}
+                    </div>
                     <div style={{fontSize:10,color:'#E24B4A'}}>{buys.length}건</div>
                   </div>
 
                   {/* 매도 */}
-                  <div style={{background:'var(--bg-panel)',borderRadius:8,
-                    border:'.5px solid #B5D4F4',padding:'10px 12px'}}>
-                    <div style={{fontSize:10,color:'#185FA5',fontWeight:600,marginBottom:5,
-                      display:'flex',alignItems:'center',gap:4}}>
+                  <div style={{background:'var(--bg-panel)',borderRadius:8,border:'.5px solid #B5D4F4',padding:'10px 12px'}}>
+                    <div style={{fontSize:10,color:'#185FA5',fontWeight:600,marginBottom:5,display:'flex',alignItems:'center',gap:4}}>
                       <div style={{width:5,height:5,borderRadius:'50%',background:'#378ADD'}}/>매도
                     </div>
-                    <div style={{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',
-                      color:'#0C447C',marginBottom:3}}>{Number(sellAmt).toLocaleString()}</div>
+                    <div style={{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',color:'#0C447C',marginBottom:3}}>
+                      {Number(sellAmt).toLocaleString()}
+                    </div>
                     <div style={{fontSize:10,color:'#378ADD'}}>{sells.length}건</div>
                   </div>
 
-                  {/* 실현손익 */}
-                  <div style={{background:'var(--bg-panel)',borderRadius:8,
-                    border:`.5px solid ${sellsWithProfit.length===0?'var(--border)':netPL>=0?'#9FE1CB':'#F7C1C1'}`,
-                    padding:'10px 12px'}}>
-                    <div style={{fontSize:10,fontWeight:600,marginBottom:5,
-                      display:'flex',alignItems:'center',gap:4,
-                      color:sellsWithProfit.length===0?'var(--text-dim)':netPL>=0?'#0F6E56':'#A32D2D'}}>
-                      <div style={{width:5,height:5,borderRadius:'50%',
-                        background:sellsWithProfit.length===0?'var(--border)':netPL>=0?'#1D9E75':'#E24B4A'}}/>
-                      실현손익
-                    </div>
-                    {sellsWithProfit.length===0 ? (
-                      <div style={{fontSize:12,color:'var(--text-dim)',marginBottom:3}}>재동기화 필요</div>
-                    ) : (<>
-                      <div style={{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',
-                        marginBottom:3,color:netPL>=0?'#085041':'#791F1F'}}>
-                        {netPL>=0?'+':''}{Number(netPL).toLocaleString()}
-                      </div>
-                      <div style={{fontSize:10,fontVariantNumeric:'tabular-nums',
-                        color:netPL>=0?'#1D9E75':'#E24B4A'}}>
-                        {plRt!=null?`${plRt>=0?'+':''}${plRt.toFixed(2)}% · `:''}{sellsWithProfit.length}건
-                      </div>
-                    </>)}
-                  </div>
-
                   {/* 부대비용 */}
-                  <div style={{background:'var(--bg-panel)',borderRadius:8,
-                    border:'.5px solid #D3D1C7',padding:'10px 12px'}}>
-                    <div style={{fontSize:10,color:'#5F5E5A',fontWeight:600,marginBottom:5,
-                      display:'flex',alignItems:'center',gap:4}}>
+                  <div style={{background:'var(--bg-panel)',borderRadius:8,border:'.5px solid #D3D1C7',padding:'10px 12px'}}>
+                    <div style={{fontSize:10,color:'#5F5E5A',fontWeight:600,marginBottom:5,display:'flex',alignItems:'center',gap:4}}>
                       <div style={{width:5,height:5,borderRadius:'50%',background:'#888780'}}/>부대비용
                     </div>
-                    <div style={{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',
-                      color:'#444441',marginBottom:3}}>{Number(totalCost).toLocaleString()}</div>
+                    <div style={{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',color:'#444441',marginBottom:3}}>
+                      {Math.round(totalCost).toLocaleString()}
+                    </div>
                     <div style={{fontSize:10,color:'#888780'}}>수수료+세금</div>
                   </div>
 
-                  {/* 승률 */}
+                  {/* 실현손익 — 수익/손실 분리 + 합계 (span 2) */}
                   <div style={{background:'var(--bg-panel)',borderRadius:8,
-                    border:'1.5px solid var(--border)',padding:'10px 12px',
-                    gridColumn: 'span 2'}}>
-                    <div style={{fontSize:10,color:'var(--text-dim)',fontWeight:600,marginBottom:5}}>
-                      승률
+                    border:`1.5px solid ${sellsWithProfit.length===0?'var(--border)':netPL>=0?'#9FE1CB':'#F7C1C1'}`,
+                    padding:'10px 12px',gridColumn:'span 2'}}>
+                    <div style={{fontSize:10,fontWeight:600,marginBottom:8,color:'var(--text-secondary)'}}>
+                      실현손익 · {sellsWithProfit.length}건 확정
                     </div>
+                    {sellsWithProfit.length===0 ? (
+                      <div style={{fontSize:12,color:'var(--text-dim)'}}>📥 매매내역 재동기화 필요</div>
+                    ) : (
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+                        {/* 수익 */}
+                        <div>
+                          <div style={{fontSize:10,color:'#0F6E56',marginBottom:3}}>수익 {winners.length}건</div>
+                          <div style={{fontSize:13,fontWeight:700,fontVariantNumeric:'tabular-nums',color:'#085041'}}>
+                            +{winAmt.toLocaleString()}
+                          </div>
+                          {winRt!=null && (
+                            <div style={{fontSize:10,color:'#1D9E75',fontVariantNumeric:'tabular-nums'}}>
+                              +{winRt.toFixed(2)}%
+                            </div>
+                          )}
+                        </div>
+                        {/* 손실 */}
+                        <div>
+                          <div style={{fontSize:10,color:'#A32D2D',marginBottom:3}}>손실 {losers.length}건</div>
+                          <div style={{fontSize:13,fontWeight:700,fontVariantNumeric:'tabular-nums',color:'#791F1F'}}>
+                            {lossAmt.toLocaleString()}
+                          </div>
+                          {lossRt!=null && (
+                            <div style={{fontSize:10,color:'#E24B4A',fontVariantNumeric:'tabular-nums'}}>
+                              {lossRt.toFixed(2)}%
+                            </div>
+                          )}
+                        </div>
+                        {/* 합계 */}
+                        <div style={{borderLeft:'1px solid var(--border)',paddingLeft:8}}>
+                          <div style={{fontSize:10,color:'var(--text-dim)',marginBottom:3}}>합계</div>
+                          <div style={{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',
+                            color:netPL>=0?'#085041':'#791F1F'}}>
+                            {netPL>=0?'+':''}{netPL.toLocaleString()}
+                          </div>
+                          {totalRt!=null && (
+                            <div style={{fontSize:10,fontVariantNumeric:'tabular-nums',
+                              color:totalRt>=0?'#1D9E75':'#E24B4A'}}>
+                              {totalRt>=0?'+':''}{totalRt.toFixed(2)}%
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 승률 */}
+                  <div style={{background:'var(--bg-panel)',borderRadius:8,border:'1.5px solid var(--border)',padding:'10px 12px',gridColumn:'span 2'}}>
+                    <div style={{fontSize:10,color:'var(--text-dim)',fontWeight:600,marginBottom:5}}>승률</div>
                     {winRate===null ? (
                       <div style={{fontSize:12,color:'var(--text-dim)'}}>재동기화 필요</div>
                     ) : (<>
                       <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:6}}>
-                        <div style={{fontSize:20,fontWeight:700,
-                          color:winRate>=50?'#085041':'#791F1F'}}>
+                        <div style={{fontSize:20,fontWeight:700,color:winRate>=50?'#085041':'#791F1F'}}>
                           {winRate.toFixed(1)}%
                         </div>
                         <div style={{fontSize:10,color:'var(--text-dim)'}}>
@@ -1458,8 +1487,8 @@ function JournalPanel({ user }) {
                       const tax       = Number(it.tax||0)
                       const totalCost = fee + tax
                       const rawProfit = it.profit != null ? Number(it.profit) : null
-                      // profit 있으면 세후 계산, 없으면 null
-                      const netProfit = (isSell && rawProfit != null) ? rawProfit - totalCost : null
+                      // profit 있으면 세후 계산 + 반올림 (소수점 제거)
+                      const netProfit = (isSell && rawProfit != null) ? Math.round(rawProfit - totalCost) : null
                       const amount    = Number(it.amount||0)
                       // 수익률: netProfit 기반 우선, 없으면 저장된 profit_rt fallback
                       const netRt = netProfit != null && amount > 0
@@ -1467,7 +1496,7 @@ function JournalPanel({ user }) {
                         : (isSell && it.profit_rt != null)
                           ? Number(it.profit_rt).toFixed(2)
                           : null
-                      const needsSync = isSell && rawProfit == null  // 재동기화 필요 표시용
+                      const needsSync = isSell && rawProfit == null
                       const barColor  = isManual?'#F59E0B':isBuy?'#EF4444':'#3B82F6'
                       return (
                         <tr key={`${it._id}_${i}`}
