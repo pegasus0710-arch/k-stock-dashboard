@@ -162,39 +162,6 @@ export default async function handler(req, res) {
     return relay('/supply/strength', { stk_cd: q.code }, res)
   }
 
-  // 종목별 투자자기관별 수급차트 — /api/kiwoom?type=supply-invsr-chart&code=005930
-  // ka10060: 외국인/기관/개인 일별 순매수 차트
-  if (q.type === 'supply-invsr-chart') {
-    if (!q.code) return res.status(400).json({ error: 'code required' })
-    return relay('/supply/invsr-chart', {
-      stk_cd: q.code,
-      dt:     today(),
-    }, res)
-  }
-
-  // 재무제표 (연간/분기) — /api/kiwoom?type=finance&code=005930&period=annual
-  // 네이버 모바일 API 서버사이드 호출
-  if (q.type === 'finance') {
-    const code   = q.code
-    const period = q.period || 'annual' // annual | quarter
-    if (!code) return res.status(400).json({ error: 'code required' })
-    try {
-      const url = `https://m.stock.naver.com/api/stock/${code}/finance/${period}`
-      const r = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
-          'Referer':    'https://m.stock.naver.com/',
-          'Accept':     'application/json',
-        }
-      })
-      if (!r.ok) throw new Error(`naver ${r.status}`)
-      const data = await r.json()
-      return res.status(200).json(data)
-    } catch (e) {
-      return res.status(500).json({ error: e.message })
-    }
-  }
-
   // ══════════════════════════════════════════════════
   // Phase 2 — 업종 배치
   // ══════════════════════════════════════════════════
@@ -320,6 +287,23 @@ export default async function handler(req, res) {
   // /api/kiwoom?type=account-returns&fr_dt=20250101&to_dt=20250326
   if (q.type === 'account-returns') {
     return relay('/account/returns', {
+      fr_dt: q.fr_dt || '',
+      to_dt: q.to_dt || '',
+    }, res)
+  }
+
+  // /api/kiwoom?type=account-trades&fr_dt=20260301&to_dt=20260403&stk_cd=
+  if (q.type === 'account-trades') {
+    return relay('/account/trades', {
+      fr_dt:  q.fr_dt  || '',
+      to_dt:  q.to_dt  || '',
+      stk_cd: q.stk_cd || '',
+    }, res)
+  }
+
+  // /api/kiwoom?type=account-cashflow&fr_dt=20260301&to_dt=20260403
+  if (q.type === 'account-cashflow') {
+    return relay('/account/cashflow', {
       fr_dt: q.fr_dt || '',
       to_dt: q.to_dt || '',
     }, res)

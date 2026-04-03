@@ -24,8 +24,7 @@ const MENU = [
   { path: '/market',      label: '시장·업종',  sub: '지수·수급·업종' },
   { path: '/etf',         label: 'ETF',        sub: 'ETF 시세·분석' },
   { path: '/watchlist',   label: '관심종목',   sub: '즐겨찾기 종목 모음' },
-  { path: '/portfolio',   label: '포트폴리오', sub: '보유종목·손익' },
-  { path: '/trading-log', label: '매매일지',   sub: '자동생성 일지' },
+  { path: '/portfolio',   label: '포트폴리오', sub: '보유·매매·분석' },
   { path: '/memo',        label: '메모장',     sub: '투자 아이디어·기록' },
   { path: '/news',        label: '뉴스·공시',  sub: '실시간 뉴스' },
 ]
@@ -295,15 +294,14 @@ function GNB() {
 // 그룹B 관리·기록   → 인디고
 // 그룹C 정보·커뮤니케이션 → 슬레이트
 const PAGE_THEMES = {
-  '/dashboard':   'theme-slate',    // C: 전체 조망 → 중립
-  '/chart':       'theme-teal',     // A: 분석 → 틸
-  '/market':      'theme-teal',     // A: 데이터 → 틸
-  '/etf':         'theme-teal',     // A: 분석 → 틸
-  '/watchlist':   'theme-indigo',   // B: 관리 → 인디고
-  '/portfolio':   'theme-indigo',   // B: 관리 → 인디고
-  '/trading-log': 'theme-indigo',   // B: 기록 → 인디고
-  '/memo':        'theme-slate',    // C: 정보 → 슬레이트
-  '/news':        'theme-slate',    // C: 정보 → 슬레이트
+  '/dashboard':   'theme-slate',
+  '/chart':       'theme-teal',
+  '/market':      'theme-teal',
+  '/etf':         'theme-teal',
+  '/watchlist':   'theme-indigo',
+  '/portfolio':   'theme-indigo',
+  '/memo':        'theme-slate',
+  '/news':        'theme-slate',
 }
 
 // ── 메인 레이아웃 ─────────────────────────────────────
@@ -328,7 +326,7 @@ function AppLayout() {
           <Route path="/etf"           element={<ETFPage/>}/>
           <Route path="/watchlist"     element={<WatchlistPage/>}/>
           <Route path="/portfolio"     element={<PortfolioPage/>}/>
-          <Route path="/trading-log"   element={<TradingLogPage/>}/>
+          <Route path="/trading-log"   element={<Navigate to="/portfolio" replace/>}/>
           <Route path="/memo"          element={<MemoPage/>}/>
           <Route path="/news"          element={<NewsPage/>}/>
           <Route path="*"             element={<Navigate to="/dashboard" replace/>}/>
