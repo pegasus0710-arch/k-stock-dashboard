@@ -139,6 +139,37 @@ function KpiBar({ data }) {
 // ── 보유현황 패널 ─────────────────────────────────────
 function HoldingsPanel({ data, loading, onRefresh, user }) {
   const [firstBuyMap, setFirstBuyMap] = useState({})
+  const [market,      setMarket]      = useState(null)  // 장 상태
+  const [refreshTick, setRefreshTick] = useState(0)     // 라이브 자동갱신 트리거
+
+  // 장 상태 조회
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const r = await fetch('/api/kiwoom?type=market-status')
+        const d = await r.json()
+        setMarket(d)
+      } catch {}
+    }
+    fetchStatus()
+    const t = setInterval(fetchStatus, 60000)  // 1분마다 갱신
+    return () => clearInterval(t)
+  }, [])
+
+  // 장중 라이브: 30초마다 자동 새로고침
+  useEffect(() => {
+    if (!market?.is_live) return
+    const t = setInterval(() => {
+      setRefreshTick(n => n + 1)
+    }, 30000)
+    return () => clearInterval(t)
+  }, [market?.is_live])
+
+  useEffect(() => {
+    if (refreshTick > 0) onRefresh()
+  }, [refreshTick])
+
+  // 최초 매수일 조회
   useEffect(() => {
     if (!user || !data?.holdings?.length) return
     ;(async () => {
@@ -192,8 +223,30 @@ function HoldingsPanel({ data, loading, onRefresh, user }) {
     <div className="pp-panel">
       <div className="pp-panel-hdr">
         <div>
-          <div className="pp-panel-title">보유현황</div>
-          <div className="pp-panel-sub">키움 실시간 잔고 · {data.holdings.length}종목</div>
+          <div className="pp-panel-title" style={{display:'flex',alignItems:'center',gap:8}}>
+            보유현황
+            {/* 장 상태 배지 */}
+            {market && (
+              <span style={{
+                fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:8,
+                color: market.is_live ? '#059669' : '#64748B',
+                background: market.is_live ? '#ECFDF5' : '#F1F5F9',
+                border: `1px solid ${market.is_live ? '#6EE7B7' : '#CBD5E1'}`,
+                display:'inline-flex', alignItems:'center', gap:4,
+              }}>
+                {market.is_live && (
+                  <span style={{width:6,height:6,borderRadius:'50%',background:'#059669',
+                    animation:'pp-pulse 1.5s ease-in-out infinite',display:'inline-block'}}/>
+                )}
+                {market.label}
+              </span>
+            )}
+          </div>
+          <div className="pp-panel-sub">
+            키움 실시간 잔고 · {data.holdings.length}종목
+            {market?.is_live && <span style={{color:'#059669',marginLeft:6}}>· 30초마다 자동 갱신</span>}
+            {market && !market.is_live && <span style={{color:'var(--text-dim)',marginLeft:6}}>· 전일 종가 기준</span>}
+          </div>
         </div>
         <button className="pp-btn" onClick={onRefresh}>↺ 새로고침</button>
       </div>
@@ -204,7 +257,7 @@ function HoldingsPanel({ data, loading, onRefresh, user }) {
             <tr>
               <th style={{textAlign:'left'}}>종목</th>
               <th>현재가</th>
-              <th>당일 등락</th>
+              <th>{market?.is_live ? '당일 등락 🔴' : '전일 등락'}</th>
               <th>보유수량</th>
               <th>평균단가</th>
               <th>평가금액</th>
@@ -216,9 +269,10 @@ function HoldingsPanel({ data, loading, onRefresh, user }) {
           </thead>
           <tbody>
             {data.holdings.map(h => {
-              const fluPrc = Number(h.cur_prc||0) - Number(h.pred_close_pric||0)
-              const fluRt  = Number(h.pred_close_pric||0) > 0
-                ? (fluPrc / Number(h.pred_close_pric) * 100) : 0
+              // flu_rt: 서버가 직접 계산한 전일대비 등락률 우선 사용
+              const fluRt  = Number(h.flu_rt  || 0)
+              const fluPrc = Number(h.pred_pre || 0) ||
+                             (Number(h.cur_prc||0) - Number(h.pred_close_pric||0))
               const poss   = Number(h.poss_rt||0)
               const barW   = Math.round((poss / maxPoss) * 100)
               const days   = calcDays(h.stk_cd)

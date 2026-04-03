@@ -314,3 +314,9 @@
   .pp-kpi-card { min-width: 80px; padding: 8px 10px; }
   .pp-kpi-value { font-size: 15px; }
 }
+
+/* ── 라이브 펄스 애니메이션 ─────────────────────────── */
+@keyframes pp-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .5; transform: scale(1.3); }
+}

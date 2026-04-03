@@ -134,6 +134,17 @@ export default async function handler(req, res) {
     return relay('/supply/market-flow', {}, res)
   }
 
+  // 장 운영 상태 — /api/kiwoom?type=market-status
+  if (q.type === 'market-status') {
+    try {
+      const r = await fetch(`${KIWOOM_SERVER}/market/status`, { signal: AbortSignal.timeout(5000) })
+      const data = await r.json()
+      return res.status(200).json(data)
+    } catch(err) {
+      return res.status(200).json({ session:'unknown', label:'', is_live:false })
+    }
+  }
+
   // 일별 기관 매매 종목 — /api/kiwoom?type=supply-institution&market=001&trde_tp=2
   // trde_tp: 1=순매도, 2=순매수
   if (q.type === 'supply-institution') {
@@ -315,17 +326,10 @@ export default async function handler(req, res) {
 
   // /api/kiwoom?type=account-realized&fr_dt=20260301&to_dt=20260403&stk_cd=
   if (q.type === 'account-realized') {
-    // ImportPanel은 POST body로 { fr_dt, to_dt, codes[] } 전달
-    // 기존 GET 방식(stk_cd 쿼리 파라미터)과 모두 지원
-    let body = {}
-    if (req.method === 'POST') {
-      try { body = await req.json() } catch { body = {} }
-    }
     return relay('/account/realized', {
-      fr_dt:  body.fr_dt  || q.fr_dt  || '',
-      to_dt:  body.to_dt  || q.to_dt  || '',
-      codes:  body.codes  || [],            // 매도 종목 코드 배열 (ImportPanel용)
-      stk_cd: body.stk_cd || q.stk_cd || '', // 단일 종목 (기존 호환)
+      fr_dt:  q.fr_dt  || '',
+      to_dt:  q.to_dt  || '',
+      stk_cd: q.stk_cd || '',
     }, res)
   }
 
@@ -338,7 +342,6 @@ export default async function handler(req, res) {
       'sector-all', 'sector-stocks', 'sector-heatmap',
       'etf-info', 'etf-list', 'etf-profit', 'etf-holdings',
       'account-balance', 'account-holdings', 'account-orders', 'account-returns',
-      'account-trades', 'account-cashflow', 'account-realized',
     ],
   })
 }
