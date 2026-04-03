@@ -507,15 +507,211 @@ function CashflowPanel({ user }) {
 }
 
 // ── 기간분석 패널 ─────────────────────────────────────
+// ── 성과분석 SVG 막대차트 ─────────────────────────────
+function BarChart({ data, height=120 }) {
+  if (!data?.length) return null
+  const max = Math.max(...data.map(d=>Math.max(Math.abs(d.buy||0), Math.abs(d.sell||0))), 1)
+  const W = 100 / data.length
+  return (
+    <svg viewBox={`0 0 ${data.length*44} ${height+30}`} style={{width:'100%',display:'block'}}>
+      {data.map((d,i)=>{
+        const bh = (d.buy||0)/max*(height-10)
+        const sh = (d.sell||0)/max*(height-10)
+        const x  = i*44
+        return (
+          <g key={d.label}>
+            {bh>0 && <rect x={x+4}  y={height-bh-5} width={16} height={bh} fill="#EF4444" rx="2" opacity=".8"/>}
+            {sh>0 && <rect x={x+22} y={height-sh-5} width={16} height={sh} fill="#3B82F6" rx="2" opacity=".8"/>}
+            <text x={x+22} y={height+16} textAnchor="middle" fontSize="10" fill="#94A3B8">{d.label}</text>
+          </g>
+        )
+      })}
+      {/* 범례 */}
+      <rect x={0} y={0} width={8} height={8} fill="#EF4444" rx="1"/>
+      <text x={12} y={8} fontSize="9" fill="#94A3B8">매수</text>
+      <rect x={36} y={0} width={8} height={8} fill="#3B82F6" rx="1"/>
+      <text x={48} y={8} fontSize="9" fill="#94A3B8">매도</text>
+    </svg>
+  )
+}
+
+// ── 성과분석 탭 ───────────────────────────────────────
+function AnalysisView({ allTrades, allCashflow }) {
+  const [period, setPeriod] = useState('month') // all|year|month|custom
+  const [customFr, setCustomFr] = useState(daysAgo(90))
+  const [customTo, setCustomTo] = useState(today())
+
+  const now = new Date()
+  const curYear  = now.getFullYear().toString()
+  const curMonth = `${curYear}${String(now.getMonth()+1).padStart(2,'0')}`
+
+  // 기간 필터
+  const filterItems = (items) => {
+    if (period==='year')   return items.filter(it=>it.date?.startsWith(curYear))
+    if (period==='month')  return items.filter(it=>it.date?.startsWith(curMonth))
+    if (period==='custom') return items.filter(it=>it.date>=customFr && it.date<=customTo)
+    return items  // all
+  }
+
+  const trades   = filterItems(allTrades)
+  const cashflow = filterItems(allCashflow)
+  const buys     = trades.filter(t=>t.type==='buy')
+  const sells    = trades.filter(t=>t.type==='sell')
+  const inflows  = cashflow.filter(c=>c.type==='in')
+  const outflows = cashflow.filter(c=>c.type==='out')
+
+  const totalBuy    = buys.reduce((s,t)=>s+Number(t.amount||0),0)
+  const totalSell   = sells.reduce((s,t)=>s+Number(t.amount||0),0)
+  const totalFee    = trades.reduce((s,t)=>s+Number(t.fee||0),0)
+  const totalIn     = inflows.reduce((s,c)=>s+Number(c.amount||0),0)
+  const totalOut    = outflows.reduce((s,c)=>s+Number(c.amount||0),0)
+  const tradeCount  = trades.length
+  const buyCount    = buys.length
+  const sellCount   = sells.length
+
+  // 월별 집계 (최근 12개월)
+  const monthly = {}
+  const allItems = [...allTrades, ...allCashflow]
+  allItems.forEach(it=>{
+    if(!it.date) return
+    const ym = it.date.slice(0,6)
+    if(!monthly[ym]) monthly[ym]={ label:ym.slice(4)+'월', buy:0, sell:0, ym }
+    if(it.type==='buy')  monthly[ym].buy  += Number(it.amount||0)
+    if(it.type==='sell') monthly[ym].sell += Number(it.amount||0)
+  })
+  const monthlyArr = Object.values(monthly)
+    .sort((a,b)=>a.ym.localeCompare(b.ym))
+    .slice(-12)
+
+  // 종목별 집계
+  const byCode = {}
+  trades.forEach(t=>{
+    if(!t.code) return
+    if(!byCode[t.code]) byCode[t.code]={ name:t.name, code:t.code, buyAmt:0, sellAmt:0, buyQty:0, sellQty:0, fee:0 }
+    if(t.type==='buy')  { byCode[t.code].buyAmt  += Number(t.amount||0); byCode[t.code].buyQty  += Number(t.qty||0) }
+    if(t.type==='sell') { byCode[t.code].sellAmt += Number(t.amount||0); byCode[t.code].sellQty += Number(t.qty||0) }
+    byCode[t.code].fee += Number(t.fee||0)
+  })
+  const byCodeArr = Object.values(byCode)
+    .sort((a,b)=>(b.buyAmt+b.sellAmt)-(a.buyAmt+a.sellAmt))
+
+  // 연도 목록 (데이터 있는 연도)
+  const years = [...new Set(allItems.map(it=>it.date?.slice(0,4)).filter(Boolean))].sort().reverse()
+
+  const PERIODS = [
+    { id:'all',    label:'전체' },
+    { id:'year',   label:'올해' },
+    { id:'month',  label:'이번달' },
+    { id:'custom', label:'직접입력' },
+  ]
+
+  return (
+    <div>
+      {/* 기간 선택 */}
+      <div className="pp-period-bar" style={{marginBottom:16}}>
+        {PERIODS.map(p=>(
+          <button key={p.id} className={`pp-period-btn ${period===p.id?'active':''}`}
+            onClick={()=>setPeriod(p.id)}>{p.label}</button>
+        ))}
+        {period==='custom' && (
+          <>
+            <input type="date" className="pp-date-input"
+              value={toHtml(customFr)} onChange={e=>setCustomFr(fromHtml(e.target.value))} max={toHtml(today())}/>
+            <span className="pp-period-sep">~</span>
+            <input type="date" className="pp-date-input"
+              value={toHtml(customTo)} onChange={e=>setCustomTo(fromHtml(e.target.value))} max={toHtml(today())}/>
+          </>
+        )}
+      </div>
+
+      {/* 요약 카드 */}
+      <div className="pp-stat-grid" style={{gridTemplateColumns:'repeat(4,1fr)',marginBottom:20}}>
+        {[
+          { label:'총 매수금액', value: fmtM(totalBuy),   sub:`${buyCount}건`,   color:'#EF4444' },
+          { label:'총 매도금액', value: fmtM(totalSell),  sub:`${sellCount}건`,  color:'#3B82F6' },
+          { label:'총 수수료',   value: fmtM(totalFee),   sub:'매수+매도',       color:'var(--text-dim)' },
+          { label:'순 입금',     value: fmtM(totalIn-totalOut), sub:`입금${inflows.length}건`, color:'var(--text-primary)' },
+        ].map(c=>(
+          <div key={c.label} className="pp-stat-item">
+            <div className="pp-stat-label">{c.label}</div>
+            <div className="pp-stat-value" style={{fontSize:15,color:c.color}}>{c.value}</div>
+            <div style={{fontSize:10,color:'var(--text-dim)',marginTop:2}}>{c.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 월별 거래 차트 */}
+      {monthlyArr.length>0 && (
+        <div style={{marginBottom:24}}>
+          <div className="pp-panel-title" style={{fontSize:13,marginBottom:10}}>
+            월별 매수·매도 금액
+          </div>
+          <BarChart data={monthlyArr} height={120}/>
+        </div>
+      )}
+
+      {/* 종목별 집계 */}
+      {byCodeArr.length>0 && (
+        <>
+          <div className="pp-panel-title" style={{fontSize:13,marginBottom:10}}>종목별 거래 집계</div>
+          <div className="pp-table-wrap">
+            <table className="pp-table">
+              <thead><tr>
+                <th style={{textAlign:'left'}}>종목</th>
+                <th>매수금액</th>
+                <th>매수수량</th>
+                <th>매도금액</th>
+                <th>매도수량</th>
+                <th>수수료</th>
+                <th>순거래</th>
+              </tr></thead>
+              <tbody>
+                {byCodeArr.map(s=>(
+                  <tr key={s.code}>
+                    <td>
+                      <div className="pp-stock-name">{s.name}</div>
+                      <div className="pp-stock-code">{s.code}</div>
+                    </td>
+                    <td style={{color:'#EF4444'}}>{fmtM(s.buyAmt)}</td>
+                    <td>{fmt(s.buyQty)}</td>
+                    <td style={{color:'#3B82F6'}}>{fmtM(s.sellAmt)}</td>
+                    <td>{fmt(s.sellQty)}</td>
+                    <td style={{color:'var(--text-dim)'}}>{fmt(s.fee)}</td>
+                    <td style={{fontWeight:700,color:s.sellAmt-s.buyAmt>=0?'#EF4444':'#3B82F6'}}>
+                      {fmtM(s.sellAmt - s.buyAmt)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {tradeCount===0 && (
+        <div className="pp-empty">
+          <div className="pp-empty-icon">📊</div>
+          <div className="pp-empty-title">분석할 데이터 없음</div>
+          <div className="pp-empty-sub">매매내역 탭에서 저장 후 확인하세요.</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── 매매일지 패널 (일지 + 성과분석 탭) ──────────────
 function JournalPanel({ user }) {
-  const [frDt, setFrDt]       = useState(daysAgo(30))
-  const [toDt, setToDt]       = useState(today())
-  const [tab,  setTab]        = useState('all')   // all|buy|sell|cashflow
-  const [items, setItems]     = useState([])
-  const [loading, setLoading] = useState(true)
-  const [editId, setEditId]   = useState(null)
-  const [editText, setEditText]= useState('')
-  const [saving, setSaving]   = useState(false)
+  const [view,  setView]        = useState('log')   // log | analysis
+  const [frDt,  setFrDt]        = useState(daysAgo(30))
+  const [toDt,  setToDt]        = useState(today())
+  const [tab,   setTab]         = useState('all')
+  const [items, setItems]       = useState([])
+  const [allTrades, setAllTrades]       = useState([])
+  const [allCashflow, setAllCashflow]   = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [editId, setEditId]     = useState(null)
+  const [editText, setEditText] = useState('')
+  const [saving, setSaving]     = useState(false)
 
   const TABS = [
     { id:'all',      label:'전체' },
@@ -524,7 +720,7 @@ function JournalPanel({ user }) {
     { id:'cashflow', label:'입출금' },
   ]
 
-  // Firestore에서 trades + cashflow 병합 로드
+  // 일지용: 기간 내 데이터
   const load = useCallback(async () => {
     if (!user) return
     setLoading(true)
@@ -541,13 +737,32 @@ function JournalPanel({ user }) {
       ])
       const trades   = tSnap.docs.map(d=>({ ...d.data(), _id:d.id, _col:'trades' }))
       const cashflow = cSnap.docs.map(d=>({ ...d.data(), _id:d.id, _col:'cashflow' }))
-      const merged   = [...trades, ...cashflow].sort((a,b)=>b.date.localeCompare(a.date))
-      setItems(merged)
+      setItems([...trades, ...cashflow].sort((a,b)=>b.date.localeCompare(a.date)))
     } catch(e){ console.error(e) }
     setLoading(false)
   }, [user, frDt, toDt])
 
+  // 성과분석용: 전체 데이터 (기간 제한 없음)
+  const loadAll = useCallback(async () => {
+    if (!user) return
+    try {
+      const [tSnap, cSnap] = await Promise.all([
+        getDocs(query(
+          collection(db,'users',user.uid,'portfolio','trades','records'),
+          orderBy('date','desc')
+        )).catch(()=>({ docs:[] })),
+        getDocs(query(
+          collection(db,'users',user.uid,'portfolio','cashflow','records'),
+          orderBy('date','desc')
+        )).catch(()=>({ docs:[] })),
+      ])
+      setAllTrades(tSnap.docs.map(d=>d.data()))
+      setAllCashflow(cSnap.docs.map(d=>d.data()))
+    } catch(e){ console.error(e) }
+  }, [user])
+
   useEffect(()=>{ load() }, [load])
+  useEffect(()=>{ if(view==='analysis') loadAll() }, [view, loadAll])
 
   const filtered = items.filter(it => {
     if (tab==='all')      return true
@@ -557,7 +772,6 @@ function JournalPanel({ user }) {
     return true
   })
 
-  // 메모 저장
   const saveMemo = async (it) => {
     if (!user) return
     setSaving(true)
@@ -582,92 +796,110 @@ function JournalPanel({ user }) {
 
   return (
     <div className="pp-panel">
+      {/* 상단: 뷰 탭 + 새로고침 */}
       <div className="pp-panel-hdr">
-        <div className="pp-panel-title">매매일지</div>
-        <button className="pp-btn" onClick={load} disabled={loading}>↺ 새로고침</button>
-      </div>
-
-      <PeriodBar frDt={frDt} toDt={toDt} onChange={(f,t)=>{setFrDt(f);setToDt(t)}}/>
-
-      {/* 카테고리 탭 */}
-      <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
-        {TABS.map(t=>(
-          <button key={t.id} className={`pp-period-btn ${tab===t.id?'active':''}`}
-            onClick={()=>setTab(t.id)}>{t.label}
-            {t.id!=='all'&&<span style={{marginLeft:4,fontSize:10,opacity:.7}}>
-              {items.filter(x=>t.id==='cashflow'?x._col==='cashflow':x.type===t.id).length}
-            </span>}
-          </button>
-        ))}
-      </div>
-
-      {loading && <div className="pp-loading"><div className="pp-spinner"/><span>내역 불러오는 중...</span></div>}
-
-      {!loading && filtered.length===0 && (
-        <div className="pp-empty">
-          <div className="pp-empty-icon">📓</div>
-          <div className="pp-empty-title">저장된 내역 없음</div>
-          <div className="pp-empty-sub">매매내역·입출금 탭에서 조회 후<br/>Firestore에 저장하면 여기에 표시됩니다.</div>
+        <div style={{display:'flex',gap:4}}>
+          {[{id:'log',label:'📓 일지'},{id:'analysis',label:'📊 성과분석'}].map(v=>(
+            <button key={v.id} className={`pp-period-btn ${view===v.id?'active':''}`}
+              style={{fontWeight:view===v.id?700:500}}
+              onClick={()=>setView(v.id)}>{v.label}</button>
+          ))}
         </div>
+        <button className="pp-btn" onClick={view==='log'?load:loadAll} disabled={loading}>↺</button>
+      </div>
+
+      {/* ── 일지 탭 ── */}
+      {view==='log' && (
+        <>
+          <PeriodBar frDt={frDt} toDt={toDt} onChange={(f,t)=>{setFrDt(f);setToDt(t)}}/>
+
+          <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
+            {TABS.map(t=>(
+              <button key={t.id} className={`pp-period-btn ${tab===t.id?'active':''}`}
+                onClick={()=>setTab(t.id)}>{t.label}
+                {t.id!=='all' && <span style={{marginLeft:4,fontSize:10,opacity:.7}}>
+                  {items.filter(x=>t.id==='cashflow'?x._col==='cashflow':x.type===t.id).length}
+                </span>}
+              </button>
+            ))}
+          </div>
+
+          {loading && <div className="pp-loading"><div className="pp-spinner"/><span>불러오는 중...</span></div>}
+
+          {!loading && filtered.length===0 && (
+            <div className="pp-empty">
+              <div className="pp-empty-icon">📓</div>
+              <div className="pp-empty-title">저장된 내역 없음</div>
+              <div className="pp-empty-sub">매매내역·입출금 탭에서 조회 후<br/>Firestore에 저장하면 여기에 표시됩니다.</div>
+            </div>
+          )}
+
+          {!loading && filtered.length>0 && (
+            <div className="pp-table-wrap">
+              <table className="pp-table">
+                <thead><tr>
+                  <th style={{textAlign:'left'}}>날짜</th>
+                  <th style={{textAlign:'left'}}>구분</th>
+                  <th style={{textAlign:'left'}}>종목/항목</th>
+                  <th>금액</th>
+                  <th>수량</th>
+                  <th>단가</th>
+                  <th style={{textAlign:'left',minWidth:140}}>메모</th>
+                </tr></thead>
+                <tbody>
+                  {filtered.map((it,i)=>(
+                    <tr key={`${it._id}_${i}`}>
+                      <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11}}>{fmtDate(it.date)}</td>
+                      <td style={{textAlign:'left'}}>
+                        <span style={{color:typeColor(it),fontWeight:700,fontSize:12}}>{typeLabel(it)}</span>
+                      </td>
+                      <td style={{textAlign:'left'}}>
+                        {it.name
+                          ? <><div className="pp-stock-name">{it.name}</div><div className="pp-stock-code">{it.code}</div></>
+                          : <span style={{fontSize:11,color:'var(--text-dim)'}}>{it.rmrk_nm||it.io_tp_nm||'-'}</span>
+                        }
+                      </td>
+                      <td>{fmt(it.amount||it.exct_amt||0)}</td>
+                      <td>{it.qty?fmt(it.qty):'-'}</td>
+                      <td>{it.price?fmt(it.price):'-'}</td>
+                      <td style={{textAlign:'left'}}>
+                        {editId===it._id ? (
+                          <div style={{display:'flex',gap:4,alignItems:'center'}}>
+                            <input autoFocus value={editText} onChange={e=>setEditText(e.target.value)}
+                              onKeyDown={e=>{ if(e.key==='Enter') saveMemo(it); if(e.key==='Escape') setEditId(null) }}
+                              style={{flex:1,padding:'3px 6px',fontSize:11,border:'1px solid var(--accent-mid)',borderRadius:4,outline:'none'}}
+                              placeholder="매매 이유 입력 후 Enter"/>
+                            <button className="pp-btn" style={{padding:'2px 6px',fontSize:10}} onClick={()=>saveMemo(it)} disabled={saving}>
+                              {saving?'…':'저장'}
+                            </button>
+                            <button className="pp-btn" style={{padding:'2px 6px',fontSize:10}} onClick={()=>setEditId(null)}>✕</button>
+                          </div>
+                        ) : (
+                          <div style={{display:'flex',gap:4,alignItems:'center',cursor:'pointer'}}
+                            onClick={()=>{setEditId(it._id);setEditText(it.memo||'')}}>
+                            <span style={{
+                              fontSize:11,
+                              color: it.memo ? 'var(--text-primary)' : 'var(--text-dim)',
+                              fontStyle: it.memo ? 'normal' : 'italic',
+                            }}>
+                              {it.memo || '+ 메모 추가'}
+                            </span>
+                            {it.memo && <span style={{color:'var(--accent-mid)',fontSize:10}}>✎</span>}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
-      {!loading && filtered.length>0 && (
-        <div className="pp-table-wrap">
-          <table className="pp-table">
-            <thead><tr>
-              <th style={{textAlign:'left'}}>날짜</th>
-              <th style={{textAlign:'left'}}>구분</th>
-              <th style={{textAlign:'left'}}>종목/항목</th>
-              <th>금액</th>
-              <th>수량</th>
-              <th>단가</th>
-              <th style={{textAlign:'left',minWidth:140}}>메모</th>
-            </tr></thead>
-            <tbody>
-              {filtered.map((it,i)=>(
-                <tr key={`${it._id}_${i}`}>
-                  <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11}}>{fmtDate(it.date)}</td>
-                  <td style={{textAlign:'left'}}>
-                    <span style={{color:typeColor(it),fontWeight:700,fontSize:12}}>{typeLabel(it)}</span>
-                  </td>
-                  <td style={{textAlign:'left'}}>
-                    {it.name
-                      ? <><div className="pp-stock-name">{it.name}</div><div className="pp-stock-code">{it.code}</div></>
-                      : <span style={{fontSize:11,color:'var(--text-dim)'}}>{it.rmrk_nm||it.io_tp_nm||'-'}</span>
-                    }
-                  </td>
-                  <td>{fmt(it.amount||it.exct_amt||0)}</td>
-                  <td>{it.qty ? fmt(it.qty) : '-'}</td>
-                  <td>{it.price ? fmt(it.price) : '-'}</td>
-                  <td style={{textAlign:'left'}}>
-                    {editId===it._id ? (
-                      <div style={{display:'flex',gap:4,alignItems:'center'}}>
-                        <input autoFocus value={editText} onChange={e=>setEditText(e.target.value)}
-                          onKeyDown={e=>{ if(e.key==='Enter') saveMemo(it); if(e.key==='Escape') setEditId(null) }}
-                          style={{flex:1,padding:'3px 6px',fontSize:11,border:'1px solid var(--accent-mid)',borderRadius:4,outline:'none'}}
-                          placeholder="매매 이유 입력 후 Enter"/>
-                        <button className="pp-btn" style={{padding:'2px 6px',fontSize:10}} onClick={()=>saveMemo(it)} disabled={saving}>
-                          {saving?'…':'저장'}
-                        </button>
-                        <button className="pp-btn" style={{padding:'2px 6px',fontSize:10}} onClick={()=>setEditId(null)}>✕</button>
-                      </div>
-                    ) : (
-                      <div style={{display:'flex',gap:4,alignItems:'center',cursor:'pointer'}} onClick={()=>{setEditId(it._id);setEditText(it.memo||'')}}>
-                        <span style={{
-                          fontSize:11, color: it.memo ? 'var(--text-primary)' : 'var(--text-dim)',
-                          fontStyle: it.memo ? 'normal' : 'italic',
-                        }}>
-                          {it.memo || '+ 메모 추가'}
-                        </span>
-                        {it.memo && <span style={{color:'var(--accent-mid)',fontSize:10}}>✎</span>}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* ── 성과분석 탭 ── */}
+      {view==='analysis' && (
+        <AnalysisView allTrades={allTrades} allCashflow={allCashflow}/>
       )}
     </div>
   )
