@@ -19,23 +19,23 @@ import './layout.css'
 const APP_VERSION = 'v0.6'
 
 const MENU = [
-  { path: '/dashboard',   label: '대시보드',   sub: '시장 전체 현황',     icon: '📊' },
-  { path: '/chart',       label: '차트 분석',  sub: '종목 검색·차트',     icon: '📈' },
-  { path: '/market',      label: '시장·업종',  sub: '지수·수급·업종',     icon: '🏦' },
-  { path: '/etf',         label: 'ETF',        sub: 'ETF 시세·분석',      icon: '🧩' },
-  { path: '/watchlist',   label: '관심종목',   sub: '즐겨찾기 종목 모음',  icon: '⭐' },
-  { path: '/portfolio',   label: '포트폴리오', sub: '보유종목·손익',       icon: '💼' },
-  { path: '/trading-log', label: '매매일지',   sub: '자동생성 일지',       icon: '📓' },
-  { path: '/memo',        label: '메모장',     sub: '투자 아이디어·기록',  icon: '📝' },
-  { path: '/news',        label: '뉴스·공시',  sub: '실시간 뉴스',        icon: '📰' },
+  { path: '/dashboard',   label: '대시보드',   sub: '시장 전체 현황' },
+  { path: '/chart',       label: '차트 분석',  sub: '종목 검색·차트' },
+  { path: '/market',      label: '시장·업종',  sub: '지수·수급·업종' },
+  { path: '/etf',         label: 'ETF',        sub: 'ETF 시세·분석' },
+  { path: '/watchlist',   label: '관심종목',   sub: '즐겨찾기 종목 모음' },
+  { path: '/portfolio',   label: '포트폴리오', sub: '보유종목·손익' },
+  { path: '/trading-log', label: '매매일지',   sub: '자동생성 일지' },
+  { path: '/memo',        label: '메모장',     sub: '투자 아이디어·기록' },
+  { path: '/news',        label: '뉴스·공시',  sub: '실시간 뉴스' },
 ]
 
 const BOTTOM_TABS = [
-  { path: '/dashboard', label: '홈',   icon: '📊' },
-  { path: '/chart',     label: '차트', icon: '📈' },
-  { path: '/watchlist', label: '관심', icon: '⭐' },
-  { path: '/portfolio', label: '포폴', icon: '💼' },
-  { path: '/memo',      label: '메모', icon: '📝' },
+  { path: '/dashboard', label: '홈',   icon: '⊞' },
+  { path: '/chart',     label: '차트', icon: '↗' },
+  { path: '/watchlist', label: '관심', icon: '★' },
+  { path: '/portfolio', label: '포폴', icon: '◈' },
+  { path: '/memo',      label: '메모', icon: '≡' },
 ]
 
 // ── 보호된 라우트 ─────────────────────────────────────
@@ -265,12 +265,11 @@ function GNB() {
         <span className="gnb-logo-text">Stock</span>
       </div>
 
-      {/* 메뉴 탭 */}
+      {/* 메뉴 탭 — 텍스트 전용, 활성 탭은 하단 라인만 */}
       <div className="gnb-menu">
         {MENU.map(item => (
           <NavLink key={item.path} to={item.path}
             className={({ isActive }) => `gnb-item ${isActive ? 'active' : ''}`}>
-            <span className="gnb-item-icon">{item.icon}</span>
             <span className="gnb-item-label">{item.label}</span>
             {item.path === '/memo' && <span className="gnb-item-badge">N</span>}
           </NavLink>
@@ -291,24 +290,27 @@ function GNB() {
   )
 }
 
-// ── 페이지별 테마 컬러 맵 ─────────────────────────────
+// ── 페이지별 테마 (3그룹) ──────────────────────────────
+// 그룹A 데이터·분석 → 틸
+// 그룹B 관리·기록   → 인디고
+// 그룹C 정보·커뮤니케이션 → 슬레이트
 const PAGE_THEMES = {
-  '/dashboard':   'theme-blue',
-  '/chart':       'theme-green',
-  '/market':      'theme-orange',
-  '/etf':         'theme-purple',
-  '/watchlist':   'theme-gold',
-  '/portfolio':   'theme-teal',
-  '/trading-log': 'theme-indigo',
-  '/memo':        'theme-slate',
-  '/news':        'theme-slate',
+  '/dashboard':   'theme-slate',    // C: 전체 조망 → 중립
+  '/chart':       'theme-teal',     // A: 분석 → 틸
+  '/market':      'theme-teal',     // A: 데이터 → 틸
+  '/etf':         'theme-teal',     // A: 분석 → 틸
+  '/watchlist':   'theme-indigo',   // B: 관리 → 인디고
+  '/portfolio':   'theme-indigo',   // B: 관리 → 인디고
+  '/trading-log': 'theme-indigo',   // B: 기록 → 인디고
+  '/memo':        'theme-slate',    // C: 정보 → 슬레이트
+  '/news':        'theme-slate',    // C: 정보 → 슬레이트
 }
 
 // ── 메인 레이아웃 ─────────────────────────────────────
 function AppLayout() {
   const location = useLocation()
   const themeKey = Object.keys(PAGE_THEMES).find(k => location.pathname.startsWith(k))
-  const themeClass = PAGE_THEMES[themeKey] || 'theme-blue'
+  const themeClass = PAGE_THEMES[themeKey] || 'theme-slate'
 
   return (
     <div className={`app-layout ${themeClass}`}>
