@@ -1192,6 +1192,29 @@ function JournalPanel({ user }) {
       {/* ── 내역 탭 ── */}
       {view==='log' && (<>
 
+        {/* 기간 선택 */}
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:12,flexWrap:'wrap',
+          padding:'10px 12px',background:'var(--bg-base)',borderRadius:8,
+          border:'1px solid var(--border)'}}>
+          <span style={{fontSize:11,color:'var(--text-dim)',fontWeight:600,marginRight:2}}>조회기간</span>
+          {[{l:'1개월',d:30},{l:'3개월',d:90},{l:'6개월',d:180}].map(p=>(
+            <button key={p.d} className={`pp-period-btn ${frDt===daysAgo(p.d)&&toDt===today()?'active':''}`}
+              onClick={()=>{ setFrDt(daysAgo(p.d)); setToDt(today()) }}>
+              {p.l}
+            </button>
+          ))}
+          <input type="date" className="pp-date-input" value={toHtml(frDt)}
+            onChange={e=>setFrDt(fromHtml(e.target.value))} max={toHtml(today())}/>
+          <span className="pp-period-sep">~</span>
+          <input type="date" className="pp-date-input" value={toHtml(toDt)}
+            onChange={e=>setToDt(fromHtml(e.target.value))} max={toHtml(today())}/>
+          {items.length > 0 && (
+            <span style={{marginLeft:'auto',fontSize:11,color:'var(--text-dim)'}}>
+              {fmtDate(frDt)} ~ {fmtDate(toDt)} · {items.length}건
+            </span>
+          )}
+        </div>
+
         {/* 미분류 입금 안내 */}
         {unclassifiedCount > 0 && (
           <div style={{padding:'8px 12px',background:'#FFFBEB',border:'1px solid #FCD34D',borderRadius:7,
