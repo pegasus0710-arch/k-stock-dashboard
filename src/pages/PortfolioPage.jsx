@@ -842,16 +842,15 @@ function AnalysisView({ allTrades, allCashflow }) {
 const CF_CATEGORIES = [
   { id:'in',       label:'입금',  color:'#EF4444', bg:'#FEF2F2' },
   { id:'out',      label:'출금',  color:'#3B82F6', bg:'#EFF6FF' },
-  { id:'transfer', label:'이체',  color:'#64748B', bg:'#F1F5F9' },
   { id:'dividend', label:'배당',  color:'#059669', bg:'#ECFDF5' },
   { id:'interest', label:'이자',  color:'#0891B2', bg:'#ECFEFF' },
   { id:'other',    label:'기타',  color:'#8B5CF6', bg:'#F5F3FF' },
 ]
 const cfCatMap = Object.fromEntries(CF_CATEGORIES.map(c=>[c.id,c]))
-// profit(구 카테고리) → dividend로 마이그레이션, 미분류는 기타
 const getCfCat = cat => {
-  if (cat === 'profit') return cfCatMap['dividend']  // 구 수익 → 배당
-  return cfCatMap[cat] || cfCatMap['other']          // 미분류 → 기타
+  if (cat === 'profit')   return cfCatMap['dividend']  // 구 수익 → 배당
+  if (cat === 'transfer') return cfCatMap['in']         // 이체 → 입금
+  return cfCatMap[cat] || cfCatMap['other']
 }
 
 // 진입근거 태그
@@ -1039,7 +1038,6 @@ function JournalPanel({ user }) {
     { id:'out',      label:'출금' },
     { id:'dividend', label:'배당' },
     { id:'interest', label:'이자' },
-    { id:'transfer', label:'이체' },
     { id:'other',    label:'기타' },
     { id:'manual',   label:'수동' },
   ]
@@ -1093,11 +1091,10 @@ function JournalPanel({ user }) {
   })
   const filteredCf = cashflow.filter(it => {
     if (cfTab==='all')      return true
-    if (cfTab==='in')       return it.type==='in' && !['dividend','interest','transfer','other'].includes(it.category)
+    if (cfTab==='in')       return it.type==='in' && !['dividend','interest','other'].includes(it.category)
     if (cfTab==='out')      return it.type==='out'
     if (cfTab==='dividend') return it.category==='dividend' || it.category==='profit'
     if (cfTab==='interest') return it.category==='interest'
-    if (cfTab==='transfer') return it.category==='transfer'
     if (cfTab==='other')    return it.category==='other'
     if (cfTab==='manual')   return it.source==='manual'
     return true
@@ -1557,69 +1554,126 @@ function JournalPanel({ user }) {
         {/* ══ 입출금 패널 ══ */}
         {!loading && mainTab==='cashflow' && (<>
 
-          {/* 카테고리별 합산 요약 바 */}
+          {/* 카테고리별 합산 카드 + 비율 바 */}
           {cashflow.length > 0 && (() => {
-            const sum = (filter) => cashflow.filter(filter).reduce((s,x)=>s+Number(x.amount||0),0)
-            const dividend = sum(x=>['dividend','profit'].includes(x.category))
-            const interest = sum(x=>x.category==='interest')
-            const inAmt    = sum(x=>x.type==='in'&&!['dividend','interest','transfer','other','profit'].includes(x.category))
-            const outAmt   = sum(x=>x.type==='out')
-            const transfer = sum(x=>x.category==='transfer')
-            const other    = sum(x=>x.category==='other')
-            const netTotal = cashflow.reduce((s,x)=>s+Number(x.amount||0),0)
-            const chips = [
-              { label:'배당', val:dividend, color:'#059669', bg:'#ECFDF5', show: dividend!==0 },
-              { label:'이자', val:interest, color:'#0891B2', bg:'#ECFEFF', show: interest!==0 },
-              { label:'입금', val:inAmt,    color:'#EF4444', bg:'#FEF2F2', show: inAmt!==0 },
-              { label:'출금', val:outAmt,   color:'#3B82F6', bg:'#EFF6FF', show: outAmt!==0 },
-              { label:'이체', val:transfer, color:'#64748B', bg:'#F1F5F9', show: transfer!==0 },
-              { label:'기타', val:other,    color:'#8B5CF6', bg:'#F5F3FF', show: other!==0 },
+            const sumAmt = f => cashflow.filter(f).reduce((s,x)=>s+Math.abs(Number(x.amount||0)),0)
+            const sumCnt = f => cashflow.filter(f).length
+
+            const isIn  = x => x.type==='in' && !['dividend','interest','other','profit'].includes(x.category)
+            const isDiv = x => ['dividend','profit'].includes(x.category)
+            const isInt = x => x.category==='interest'
+            const isOut = x => x.type==='out'
+            const isOth = x => x.category==='other'
+
+            const divAmt=sumAmt(isDiv), divCnt=sumCnt(isDiv)
+            const intAmt=sumAmt(isInt), intCnt=sumCnt(isInt)
+            const inAmt =sumAmt(isIn),  inCnt =sumCnt(isIn)
+            const outAmt=sumAmt(isOut), outCnt=sumCnt(isOut)
+            const othAmt=sumAmt(isOth), othCnt=sumCnt(isOth)
+
+            const netIn    = divAmt+intAmt+inAmt+othAmt  // 출금 제외 수입 합계
+            const netTotal = netIn - outAmt               // 순합산
+
+            // 비율바용 (출금 제외)
+            const barTotal = divAmt+intAmt+inAmt+othAmt || 1
+
+            const cards = [
+              { label:'배당', amt:divAmt, cnt:divCnt, neg:false, bc:'#9FE1CB', lc:'#0F6E56', vc:'#085041', dot:'#1D9E75', bar:'#1D9E75', show:divCnt>0 },
+              { label:'이자', amt:intAmt, cnt:intCnt, neg:false, bc:'#B5D4F4', lc:'#185FA5', vc:'#0C447C', dot:'#378ADD', bar:'#378ADD', show:intCnt>0 },
+              { label:'입금', amt:inAmt,  cnt:inCnt,  neg:false, bc:'#F7C1C1', lc:'#A32D2D', vc:'#791F1F', dot:'#E24B4A', bar:'#E24B4A', show:inCnt>0  },
+              { label:'출금', amt:outAmt, cnt:outCnt, neg:true,  bc:'#B5D4F4', lc:'#185FA5', vc:'#0C447C', dot:'#378ADD', bar:null,      show:outCnt>0 },
+              { label:'기타', amt:othAmt, cnt:othCnt, neg:false, bc:'#D3D1C7', lc:'#5F5E5A', vc:'#444441', dot:'#888780', bar:'#B4B2A9', show:othCnt>0 },
             ].filter(c=>c.show)
+
             return (
-              <div style={{display:'flex',flexWrap:'wrap',gap:6,padding:'10px 12px',
-                background:'var(--bg-base)',border:'1px solid var(--border)',
-                borderRadius:8,marginBottom:10,alignItems:'center'}}>
-                {chips.map(c=>(
-                  <div key={c.label} style={{display:'flex',alignItems:'center',gap:4}}>
-                    <span style={{padding:'2px 7px',borderRadius:6,fontSize:11,fontWeight:600,
-                      color:c.color,background:c.bg,border:`1px solid ${c.color}33`}}>
-                      {c.label}
-                    </span>
-                    <span style={{fontSize:12,fontWeight:700,fontVariantNumeric:'tabular-nums',
-                      color:c.val>=0?'#B91C1C':'#1D4ED8'}}>
-                      {c.val>=0?'+':''}{Number(c.val).toLocaleString()}
-                    </span>
+              <div style={{background:'var(--bg-base)',border:'1px solid var(--border)',
+                borderRadius:10,padding:'12px 14px',marginBottom:10}}>
+                {/* 카드 그리드 */}
+                <div style={{display:'grid',
+                  gridTemplateColumns:`repeat(auto-fit,minmax(110px,1fr))`,
+                  gap:8,marginBottom:12}}>
+                  {cards.map(c=>(
+                    <div key={c.label} style={{background:'var(--bg-panel)',borderRadius:8,
+                      border:`0.5px solid ${c.bc}`,padding:'10px 12px'}}>
+                      <div style={{fontSize:10,color:c.lc,fontWeight:600,marginBottom:5,
+                        display:'flex',alignItems:'center',gap:4}}>
+                        <div style={{width:5,height:5,borderRadius:'50%',background:c.dot,flexShrink:0}}/>
+                        {c.label}
+                      </div>
+                      <div style={{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',
+                        color:c.vc,marginBottom:3}}>
+                        {c.neg?'-':'+'}{Number(c.amt).toLocaleString()}
+                      </div>
+                      <div style={{fontSize:10,color:c.dot}}>{c.cnt}건</div>
+                    </div>
+                  ))}
+                  {/* 순합산 카드 */}
+                  <div style={{background:'var(--bg-panel)',borderRadius:8,
+                    border:'1.5px solid var(--border)',padding:'10px 12px'}}>
+                    <div style={{fontSize:10,color:'var(--text-dim)',fontWeight:600,marginBottom:5}}>
+                      순합산
+                    </div>
+                    <div style={{fontSize:15,fontWeight:700,fontVariantNumeric:'tabular-nums',
+                      color:netTotal>=0?'#B91C1C':'#1D4ED8',marginBottom:3}}>
+                      {netTotal>=0?'+':''}{Number(netTotal).toLocaleString()}
+                    </div>
+                    <div style={{fontSize:10,color:'var(--text-dim)'}}>{cashflow.length}건 전체</div>
                   </div>
-                ))}
-                {/* 구분선 + 순합산 */}
-                <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:6,
-                  paddingLeft:12,borderLeft:'1px solid var(--border)'}}>
-                  <span style={{fontSize:11,color:'var(--text-dim)'}}>순합산</span>
-                  <span style={{fontSize:13,fontWeight:700,fontVariantNumeric:'tabular-nums',
-                    color:netTotal>=0?'#B91C1C':'#1D4ED8'}}>
-                    {netTotal>=0?'+':''}{Number(netTotal).toLocaleString()}원
-                  </span>
+                </div>
+
+                {/* 비율 바 — 출금 제외, 수입 구성 */}
+                <div>
+                  <div style={{fontSize:10,color:'var(--text-dim)',marginBottom:5}}>
+                    수입 구성 비율
+                  </div>
+                  <div style={{display:'flex',height:6,borderRadius:3,overflow:'hidden',gap:1}}>
+                    {[
+                      { amt:divAmt, color:'#1D9E75' },
+                      { amt:intAmt, color:'#378ADD' },
+                      { amt:inAmt,  color:'#E24B4A' },
+                      { amt:othAmt, color:'#B4B2A9' },
+                    ].filter(b=>b.amt>0).map((b,i,arr)=>(
+                      <div key={i} style={{
+                        flex:b.amt, background:b.color,
+                        borderRadius: i===0?'3px 0 0 3px': i===arr.length-1?'0 3px 3px 0':'0'
+                      }}/>
+                    ))}
+                  </div>
+                  <div style={{display:'flex',gap:12,marginTop:6,flexWrap:'wrap'}}>
+                    {[
+                      { label:'배당', amt:divAmt, color:'#1D9E75', show:divAmt>0 },
+                      { label:'이자', amt:intAmt, color:'#378ADD', show:intAmt>0 },
+                      { label:'입금', amt:inAmt,  color:'#E24B4A', show:inAmt>0  },
+                      { label:'기타', amt:othAmt, color:'#B4B2A9', show:othAmt>0 },
+                    ].filter(l=>l.show).map(l=>(
+                      <span key={l.label} style={{fontSize:10,color:'var(--text-dim)',
+                        display:'flex',alignItems:'center',gap:3}}>
+                        <span style={{display:'inline-block',width:8,height:8,
+                          borderRadius:1,background:l.color}}/>
+                        {l.label} {(l.amt/barTotal*100).toFixed(1)}%
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
             )
           })()}
 
-          {/* 미분류 안내 - 순수 입금(배당/이자/이체/기타 아닌 것) */}
-          {cashflow.filter(x=>x.type==='in'&&!['dividend','interest','transfer','other','profit'].includes(x.category)).length > 0 && (
+          {/* 미분류 안내 */}
+          {cashflow.filter(x=>x.type==='in'&&!['dividend','interest','other','profit'].includes(x.category)===false && x.category==='other').length > 0 && (
             <div style={{padding:'8px 12px',background:'#FFFBEB',border:'1px solid #FCD34D',
               borderRadius:7,fontSize:11,color:'#92400E',marginBottom:10}}>
-              ⚠️ 미분류 입금이 있습니다 — 카테고리 뱃지를 클릭해 분류하세요
+              ⚠️ 미분류 항목이 있습니다 — 카테고리 뱃지를 클릭해 분류하세요
             </div>
           )}
           {/* 서브 탭 */}
           <div className="pp-sub-tab-bar">
             {CF_TABS.map(t=>{
               const cnt = t.id==='all'      ? cashflow.length
-                : t.id==='in'       ? cashflow.filter(x=>x.type==='in'&&!['dividend','interest','transfer','other','profit'].includes(x.category)).length
+                : t.id==='in'       ? cashflow.filter(x=>x.type==='in'&&!['dividend','interest','other','profit'].includes(x.category)).length
                 : t.id==='out'      ? cashflow.filter(x=>x.type==='out').length
                 : t.id==='dividend' ? cashflow.filter(x=>['dividend','profit'].includes(x.category)).length
                 : t.id==='interest' ? cashflow.filter(x=>x.category==='interest').length
-                : t.id==='transfer' ? cashflow.filter(x=>x.category==='transfer').length
                 : t.id==='other'    ? cashflow.filter(x=>x.category==='other').length
                 : cashflow.filter(x=>x.source==='manual').length
               return (

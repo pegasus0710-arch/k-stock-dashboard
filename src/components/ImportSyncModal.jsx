@@ -24,14 +24,14 @@ const matchKey = item => `${item.date}_${Math.abs(Number(item.amount||0))}`
 const CAT_COLOR = {
   dividend: { label:'배당', color:'#059669', bg:'#ECFDF5' },
   interest:  { label:'이자', color:'#0891B2', bg:'#ECFEFF' },
-  transfer:  { label:'이체', color:'#64748B', bg:'#F1F5F9' },
   in:        { label:'입금', color:'#EF4444', bg:'#FEF2F2' },
   out:       { label:'출금', color:'#3B82F6', bg:'#EFF6FF' },
   trade:     { label:'거래', color:'#8B5CF6', bg:'#F5F3FF' },
   other:     { label:'기타', color:'#8B5CF6', bg:'#F5F3FF' },
 }
 const getCat = cat => {
-  if (cat === 'profit') return CAT_COLOR['dividend']  // 구 수익 → 배당
+  if (cat === 'profit')   return CAT_COLOR['dividend']  // 구 수익 → 배당
+  if (cat === 'transfer') return CAT_COLOR['in']         // 이체 → 입금
   return CAT_COLOR[cat] || CAT_COLOR['other']
 }
 
