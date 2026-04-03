@@ -1556,6 +1556,54 @@ function JournalPanel({ user }) {
 
         {/* ══ 입출금 패널 ══ */}
         {!loading && mainTab==='cashflow' && (<>
+
+          {/* 카테고리별 합산 요약 바 */}
+          {cashflow.length > 0 && (() => {
+            const sum = (filter) => cashflow.filter(filter).reduce((s,x)=>s+Number(x.amount||0),0)
+            const dividend = sum(x=>['dividend','profit'].includes(x.category))
+            const interest = sum(x=>x.category==='interest')
+            const inAmt    = sum(x=>x.type==='in'&&!['dividend','interest','transfer','other','profit'].includes(x.category))
+            const outAmt   = sum(x=>x.type==='out')
+            const transfer = sum(x=>x.category==='transfer')
+            const other    = sum(x=>x.category==='other')
+            const netTotal = cashflow.reduce((s,x)=>s+Number(x.amount||0),0)
+            const chips = [
+              { label:'배당', val:dividend, color:'#059669', bg:'#ECFDF5', show: dividend!==0 },
+              { label:'이자', val:interest, color:'#0891B2', bg:'#ECFEFF', show: interest!==0 },
+              { label:'입금', val:inAmt,    color:'#EF4444', bg:'#FEF2F2', show: inAmt!==0 },
+              { label:'출금', val:outAmt,   color:'#3B82F6', bg:'#EFF6FF', show: outAmt!==0 },
+              { label:'이체', val:transfer, color:'#64748B', bg:'#F1F5F9', show: transfer!==0 },
+              { label:'기타', val:other,    color:'#8B5CF6', bg:'#F5F3FF', show: other!==0 },
+            ].filter(c=>c.show)
+            return (
+              <div style={{display:'flex',flexWrap:'wrap',gap:6,padding:'10px 12px',
+                background:'var(--bg-base)',border:'1px solid var(--border)',
+                borderRadius:8,marginBottom:10,alignItems:'center'}}>
+                {chips.map(c=>(
+                  <div key={c.label} style={{display:'flex',alignItems:'center',gap:4}}>
+                    <span style={{padding:'2px 7px',borderRadius:6,fontSize:11,fontWeight:600,
+                      color:c.color,background:c.bg,border:`1px solid ${c.color}33`}}>
+                      {c.label}
+                    </span>
+                    <span style={{fontSize:12,fontWeight:700,fontVariantNumeric:'tabular-nums',
+                      color:c.val>=0?'#B91C1C':'#1D4ED8'}}>
+                      {c.val>=0?'+':''}{Number(c.val).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+                {/* 구분선 + 순합산 */}
+                <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:6,
+                  paddingLeft:12,borderLeft:'1px solid var(--border)'}}>
+                  <span style={{fontSize:11,color:'var(--text-dim)'}}>순합산</span>
+                  <span style={{fontSize:13,fontWeight:700,fontVariantNumeric:'tabular-nums',
+                    color:netTotal>=0?'#B91C1C':'#1D4ED8'}}>
+                    {netTotal>=0?'+':''}{Number(netTotal).toLocaleString()}원
+                  </span>
+                </div>
+              </div>
+            )
+          })()}
+
           {/* 미분류 안내 - 순수 입금(배당/이자/이체/기타 아닌 것) */}
           {cashflow.filter(x=>x.type==='in'&&!['dividend','interest','transfer','other','profit'].includes(x.category)).length > 0 && (
             <div style={{padding:'8px 12px',background:'#FFFBEB',border:'1px solid #FCD34D',
