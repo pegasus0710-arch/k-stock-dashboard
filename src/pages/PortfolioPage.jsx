@@ -20,14 +20,32 @@ const fmtR = n => { const v=Number(n||0); return (v>0?'+':'')+v.toFixed(2)+'%' }
 const sign = n => Number(n||0)>=0?'up':'down'
 const today     = () => new Date().toISOString().slice(0,10).replace(/-/g,'')
 const daysAgo   = d  => { const dt=new Date(); dt.setDate(dt.getDate()-d); return dt.toISOString().slice(0,10).replace(/-/g,'') }
-const toHtml    = s  => s ? `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` : ''   // YYYYMMDD → YYYY-MM-DD
-const fromHtml  = s  => s ? s.replace(/-/g,'') : ''                                    // YYYY-MM-DD → YYYYMMDD
-const maxDate   = (fr, months=3) => {  // fr 날짜 기준 최대 조회 종료일 (3개월 제한)
+const toHtml    = s  => s ? `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` : ''
+const fromHtml  = s  => s ? s.replace(/-/g,'') : ''
+const maxDate   = (fr, months=3) => {
   const d = new Date(`${fr.slice(0,4)}-${fr.slice(4,6)}-${fr.slice(6,8)}`)
   d.setMonth(d.getMonth() + months)
   return d.toISOString().slice(0,10).replace(/-/g,'')
 }
 const fmtDate = s => s?`${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}`:''
+
+// 요일 포함 날짜 포맷: 20260404 → 2026.04.04(토)
+const DOW = ['일','월','화','수','목','금','토']
+const fmtDateWithDay = s => {
+  if (!s) return ''
+  const d = new Date(`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`)
+  return `${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}(${DOW[d.getDay()]})`
+}
+
+// 기간 프리셋 헬퍼
+const yyyymmdd = d => d.toISOString().slice(0,10).replace(/-/g,'')
+const thisMonthStart = () => { const d=new Date(); d.setDate(1); return yyyymmdd(d) }
+const prevMonthStart = () => { const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); return yyyymmdd(d) }
+const prevMonthEnd   = () => { const d=new Date(); d.setDate(0); return yyyymmdd(d) }
+const thisYearStart  = () => { const d=new Date(); d.setMonth(0); d.setDate(1); return yyyymmdd(d) }
+const prevYearStart  = () => { const d=new Date(); d.setFullYear(d.getFullYear()-1); d.setMonth(0); d.setDate(1); return yyyymmdd(d) }
+const prevYearEnd    = () => { const d=new Date(); d.setFullYear(d.getFullYear()-1); d.setMonth(11); d.setDate(31); return yyyymmdd(d) }
+const allTimeStart   = () => '20200101'
 
 // trade_id 중복 방지용 해시
 const makeTradeId = t => t.trade_id || `${t.date}_${t.code}_${t.type}_${t.price}_${t.qty}`
@@ -1025,6 +1043,10 @@ function JournalPanel({ user }) {
   const [catEdit,    setCatEdit]    = useState(null)
   const [deleting,   setDeleting]   = useState(null)
   const [syncModal,  setSyncModal]  = useState(null)
+  const [profitEdit, setProfitEdit] = useState(null)
+  const [profitVal,  setProfitVal]  = useState('')
+  const [costEdit,   setCostEdit]   = useState(null)   // 부대비용 편집 중인 _id
+  const [costVal,    setCostVal]    = useState('')     // 부대비용 입력값
 
   const TRADE_TABS = [
     { id:'all',  label:'전체' },
@@ -1114,6 +1136,41 @@ function JournalPanel({ user }) {
       setItems(prev=>prev.map(x=>x._id===it._id?{...x,memo:editText}:x))
       setEditId(null)
     } catch(e){ console.error(e) }
+
+  // 수익금 수동 저장 (API 조회 불가 건 직접 입력)
+  const saveProfitManual = async (it) => {
+    if (!user) return
+    const val = Number(profitVal)
+    if (isNaN(val)) return
+    setSaving(true)
+    try {
+      const ref = doc(db,'users',user.uid,'portfolio','trades','records',it._id)
+      const fee = Number(it.fee||0)
+      const tax = Number(it.tax||0)
+      const profit = val + fee + tax
+      await updateDoc(ref, { profit, source: it.source||'auto' })
+      setItems(prev=>prev.map(x=>x._id===it._id?{...x,profit}:x))
+      setProfitEdit(null)
+      setProfitVal('')
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
+
+  // 부대비용 수동 수정
+  const saveCostManual = async (it) => {
+    if (!user) return
+    const val = Number(costVal)
+    if (isNaN(val) || val < 0) return
+    setSaving(true)
+    try {
+      const ref = doc(db,'users',user.uid,'portfolio','trades','records',it._id)
+      await updateDoc(ref, { fee: val, tax: 0 })
+      setItems(prev=>prev.map(x=>x._id===it._id?{...x,fee:val,tax:0}:x))
+      setCostEdit(null)
+      setCostVal('')
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
     setSaving(false)
   }
 
@@ -1257,18 +1314,32 @@ function JournalPanel({ user }) {
 
         {/* 기간 선택 */}
         <div className="pp-jrn-period">
-          <span style={{fontSize:11,color:'var(--text-dim)',fontWeight:600}}>조회기간</span>
-          {[{l:'1개월',d:30},{l:'3개월',d:90},{l:'6개월',d:180}].map(p=>(
-            <button key={p.d} className={`pp-period-btn ${frDt===daysAgo(p.d)&&toDt===today()?'active':''}`}
-              onClick={()=>{ setFrDt(daysAgo(p.d)); setToDt(today()) }}>{p.l}</button>
+          {/* 프리셋 버튼 */}
+          {[
+            { l:'당월', fr:thisMonthStart(), to:today() },
+            { l:'전월', fr:prevMonthStart(), to:prevMonthEnd() },
+            { l:'올해', fr:thisYearStart(),  to:today() },
+            { l:'전년', fr:prevYearStart(),  to:prevYearEnd() },
+            { l:'전체', fr:allTimeStart(),   to:today() },
+          ].map(p=>(
+            <button key={p.l}
+              className={`pp-period-btn ${frDt===p.fr&&toDt===p.to?'active':''}`}
+              onClick={()=>{ setFrDt(p.fr); setToDt(p.to) }}>{p.l}</button>
           ))}
-          <input type="date" className="pp-date-input" value={toHtml(frDt)}
-            onChange={e=>setFrDt(fromHtml(e.target.value))} max={toHtml(today())}/>
+          {/* 커스텀 날짜 입력 — 달력 아이콘 + 요일 표시 */}
+          <div className="pp-datepick-wrap">
+            <span className="pp-datepick-label">{fmtDateWithDay(frDt)}</span>
+            <input type="date" className="pp-datepick-input" value={toHtml(frDt)}
+              onChange={e=>setFrDt(fromHtml(e.target.value))} max={toHtml(today())}/>
+          </div>
           <span className="pp-period-sep">~</span>
-          <input type="date" className="pp-date-input" value={toHtml(toDt)}
-            onChange={e=>setToDt(fromHtml(e.target.value))} max={toHtml(today())}/>
+          <div className="pp-datepick-wrap">
+            <span className="pp-datepick-label">{fmtDateWithDay(toDt)}</span>
+            <input type="date" className="pp-datepick-input" value={toHtml(toDt)}
+              onChange={e=>setToDt(fromHtml(e.target.value))} max={toHtml(today())}/>
+          </div>
           <span style={{marginLeft:'auto',fontSize:11,color:'var(--text-dim)'}}>
-            {fmtDate(frDt)} ~ {fmtDate(toDt)} · {items.length}건
+            {items.length}건
           </span>
         </div>
 
@@ -1555,27 +1626,109 @@ function JournalPanel({ user }) {
                               {fmt(amount)}
                             </div>
                           </td>
-                          {/* 부대비용 */}
-                          <td>
-                            {totalCost > 0
-                              ? <div style={{fontSize:11,color:'var(--text-dim)',fontVariantNumeric:'tabular-nums'}}>
-                                  {fmt(totalCost)}
+                          {/* 부대비용 — 클릭 시 수정 가능 */}
+                          <td style={{position:'relative'}}>
+                            {costEdit===it._id ? (
+                              <div style={{position:'absolute',top:0,left:0,zIndex:30,
+                                background:'var(--bg-panel)',border:'1px solid var(--accent-mid)',
+                                borderRadius:8,padding:'10px 12px',boxShadow:'0 6px 20px rgba(0,0,0,.15)',
+                                minWidth:190,whiteSpace:'nowrap'}}>
+                                <div style={{fontSize:11,color:'var(--text-secondary)',marginBottom:6,fontWeight:600}}>
+                                  부대비용 수정 (수수료+세금)
                                 </div>
-                              : <div style={{color:'var(--text-dim)',fontSize:11}}>-</div>
-                            }
+                                <div style={{display:'flex',gap:4,alignItems:'center'}}>
+                                  <input
+                                    autoFocus
+                                    type="number"
+                                    value={costVal}
+                                    onChange={e=>setCostVal(e.target.value)}
+                                    onKeyDown={e=>{
+                                      if(e.key==='Enter') saveCostManual(it)
+                                      if(e.key==='Escape'){ setCostEdit(null); setCostVal('') }
+                                    }}
+                                    placeholder="예: 762"
+                                    style={{flex:1,padding:'4px 7px',fontSize:12,
+                                      border:'1px solid var(--accent-mid)',borderRadius:5,outline:'none',
+                                      fontVariantNumeric:'tabular-nums',minWidth:90}}
+                                  />
+                                  <button className="pp-btn primary"
+                                    style={{padding:'4px 8px',fontSize:11}}
+                                    onClick={()=>saveCostManual(it)}
+                                    disabled={saving}>{saving?'…':'✓'}</button>
+                                  <button className="pp-btn"
+                                    style={{padding:'4px 6px',fontSize:11}}
+                                    onClick={()=>{ setCostEdit(null); setCostVal('') }}>✕</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                onClick={()=>{ setCostEdit(it._id); setCostVal(String(totalCost||0)) }}
+                                title="클릭하여 부대비용 수정"
+                                style={{cursor:'pointer',fontSize:11,color:'var(--text-dim)',
+                                  fontVariantNumeric:'tabular-nums',
+                                  borderBottom: totalCost>0 ? '1px dashed var(--border)' : 'none',
+                                  display:'inline-block'}}>
+                                {totalCost > 0 ? fmt(totalCost) : '-'}
+                              </div>
+                            )}
                           </td>
                           {/* 수익금 (세후) */}
-                          <td>
+                          <td style={{position:'relative'}}>
                             {netProfit!=null ? (
                               <div style={{fontWeight:700,fontSize:13,fontVariantNumeric:'tabular-nums',
                                 color:netProfit>=0?'#B91C1C':'#1D4ED8'}}>
                                 {netProfit>=0?'+':''}{fmt(netProfit)}
                               </div>
                             ) : needsSync ? (
-                              <div style={{fontSize:10,color:'#D97706',cursor:'pointer'}}
-                                title="📥 매매내역 버튼으로 재동기화하면 수익금이 표시됩니다">
-                                재동기화 필요
-                              </div>
+                              profitEdit===it._id ? (
+                                /* 인라인 입력 팝업 */
+                                <div style={{position:'absolute',top:0,left:0,zIndex:30,
+                                  background:'var(--bg-panel)',border:'1px solid var(--accent-mid)',
+                                  borderRadius:8,padding:'10px 12px',boxShadow:'0 6px 20px rgba(0,0,0,.15)',
+                                  minWidth:220,whiteSpace:'nowrap'}}>
+                                  <div style={{fontSize:11,color:'var(--text-secondary)',marginBottom:6,fontWeight:600}}>
+                                    순손익 직접 입력 (세후)
+                                  </div>
+                                  <div style={{fontSize:10,color:'var(--text-dim)',marginBottom:6}}>
+                                    부대비용({fmt(Number(it.fee||0)+Number(it.tax||0))}원) 제외한 순손익
+                                  </div>
+                                  <div style={{display:'flex',gap:4,alignItems:'center'}}>
+                                    <input
+                                      autoFocus
+                                      type="number"
+                                      value={profitVal}
+                                      onChange={e=>setProfitVal(e.target.value)}
+                                      onKeyDown={e=>{
+                                        if(e.key==='Enter') saveProfitManual(it)
+                                        if(e.key==='Escape'){ setProfitEdit(null); setProfitVal('') }
+                                      }}
+                                      placeholder="예: -64828 또는 +12000"
+                                      style={{flex:1,padding:'4px 7px',fontSize:12,
+                                        border:'1px solid var(--accent-mid)',borderRadius:5,outline:'none',
+                                        fontVariantNumeric:'tabular-nums',minWidth:120}}
+                                    />
+                                    <button className="pp-btn primary"
+                                      style={{padding:'4px 8px',fontSize:11}}
+                                      onClick={()=>saveProfitManual(it)}
+                                      disabled={saving}>
+                                      {saving?'…':'✓'}
+                                    </button>
+                                    <button className="pp-btn"
+                                      style={{padding:'4px 6px',fontSize:11}}
+                                      onClick={()=>{ setProfitEdit(null); setProfitVal('') }}>
+                                      ✕
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{fontSize:10,color:'#D97706',cursor:'pointer',
+                                  padding:'2px 5px',borderRadius:4,border:'1px dashed #D97706',
+                                  display:'inline-block'}}
+                                  onClick={()=>{ setProfitEdit(it._id); setProfitVal('') }}
+                                  title="클릭하여 순손익 직접 입력">
+                                  ✏ 수동입력
+                                </div>
+                              )
                             ) : (
                               <div style={{color:'var(--text-dim)',fontSize:11}}>-</div>
                             )}

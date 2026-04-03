@@ -416,3 +416,41 @@
   .pp-main-tab { padding: 6px 12px; font-size: 11px; }
   .pp-jrn-period { gap: 4px; padding: 8px 10px; }
 }
+
+/* ── 커스텀 날짜 피커 ────────────────────────────────── */
+.pp-datepick-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.pp-datepick-label {
+  font-size: 11px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  padding: 4px 8px;
+  border: 0.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+.pp-datepick-label:hover {
+  border-color: var(--accent-mid);
+  color: var(--accent-mid);
+}
+.pp-datepick-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  border: none;
+  padding: 0;
+}
+/* 요일 강조 */
+.pp-datepick-label em {
+  font-style: normal;
+  color: var(--accent-mid);
+}
