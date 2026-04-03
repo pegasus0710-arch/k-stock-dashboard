@@ -203,25 +203,29 @@ function TickerBanner() {
         }))
       }).catch(()=>{})
 
-    // 해외 지수 (Yahoo Finance)
-    const OVERSEAS = [
-      { symbol:'^GSPC',  label:'S&P500' },
-      { symbol:'^IXIC',  label:'나스닥' },
-      { symbol:'^N225',  label:'니케이' },
-      { symbol:'^VIX',   label:'VIX'   },
-      { symbol:'DX-Y.NYB', label:'DXY' },
-      { symbol:'KRW=X',  label:'환율'  },
-    ]
-    OVERSEAS.forEach(({symbol, label}) => {
-      fetch(`/api/kis?type=yahoo-quote&symbol=${encodeURIComponent(symbol)}`)
-        .then(r=>r.json())
-        .then(d=>{
-          if(!d.price) return
-          setTickers(prev => prev.map(t =>
-            t.label===label ? {...t, value: Number(d.price).toLocaleString(undefined,{maximumFractionDigits:2}), change: d.changeRate||0} : t
-          ))
-        }).catch(()=>{})
-    })
+    // 해외 지수 — 기존 global-batch 타입 활용 (kis.js에서 Yahoo Finance 프록시)
+    fetch('/api/kis?type=global-batch&symbols=SP500,NASDAQ,N225,VIX,DXY,USD')
+      .then(r=>r.json())
+      .then(d=>{
+        const MAP = {
+          'SP500':  'S&P500',
+          'NASDAQ': '나스닥',
+          'N225':   '니케이',
+          'VIX':    'VIX',
+          'DXY':    'DXY',
+          'USD':    '환율',
+        }
+        setTickers(prev => prev.map(t => {
+          const key = Object.keys(MAP).find(k => MAP[k] === t.label)
+          const item = key && d[key]
+          if(!item || !item.price) return t
+          return {
+            ...t,
+            value: Number(item.price).toLocaleString(undefined, {maximumFractionDigits:2}),
+            change: item.changeRate || 0,
+          }
+        }))
+      }).catch(()=>{})
   }, [])
 
   // 티커 아이템
