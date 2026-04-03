@@ -45,7 +45,7 @@ const MENU = [
 ]
 
 // ── 기간 선택 바 (달력 UI) ─────────────────────────────
-function PeriodBar({ frDt, toDt, onChange }) {
+function PeriodBar({ frDt, toDt, onChange, onSearch }) {
   const PRESETS = [
     { label: '1개월', days: 30  },
     { label: '3개월', days: 90  },
@@ -56,7 +56,9 @@ function PeriodBar({ frDt, toDt, onChange }) {
 
   const applyPreset = (days) => {
     setActive(days); setWarn('')
-    onChange(daysAgo(days), today())
+    const fr = daysAgo(days), to = today()
+    onChange(fr, to)
+    onSearch && onSearch(fr, to)   // 프리셋 클릭 시 자동 조회
   }
 
   const handleFr = (e) => {
@@ -246,10 +248,10 @@ function TradesPanel({ user }) {
 
   useEffect(() => { loadDbTrades() }, [loadDbTrades])
 
-  const fetchTrades = async () => {
-    setLoading(true); setTrades([])
+  const fetchTrades = async (fr=frDt, to=toDt) => {
+    setLoading(true); setTrades([]); setSaved(0)
     try {
-      const res = await fetch(`/api/kiwoom?type=account-trades&fr_dt=${frDt}&to_dt=${toDt}`)
+      const res = await fetch(`/api/kiwoom?type=account-trades&fr_dt=${fr}&to_dt=${to}`)
       const data = await res.json()
       setTrades(data.trades || [])
     } catch(e) { console.error(e) }
@@ -296,9 +298,11 @@ function TradesPanel({ user }) {
 
       {viewMode==='api' && (
         <>
-          <PeriodBar frDt={frDt} toDt={toDt} onChange={(f,t)=>{setFrDt(f);setToDt(t)}}/>
+          <PeriodBar frDt={frDt} toDt={toDt}
+            onChange={(f,t)=>{setFrDt(f);setToDt(t)}}
+            onSearch={(f,t)=>{ setFrDt(f); setToDt(t); fetchTrades(f,t) }}/>
           <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
-            <button className="pp-btn primary" onClick={fetchTrades} disabled={loading}>
+            <button className="pp-btn primary" onClick={()=>fetchTrades()} disabled={loading}>
               {loading?'조회 중...':'조회'}
             </button>
             {trades.length>0 && (
@@ -381,10 +385,10 @@ function CashflowPanel({ user }) {
 
   useEffect(() => { loadDbFlows() }, [loadDbFlows])
 
-  const fetchFlows = async () => {
-    setLoading(true); setFlows([])
+  const fetchFlows = async (fr=frDt, to=toDt) => {
+    setLoading(true); setFlows([]); setSaved(0)
     try {
-      const res = await fetch(`/api/kiwoom?type=account-cashflow&fr_dt=${frDt}&to_dt=${toDt}`)
+      const res = await fetch(`/api/kiwoom?type=account-cashflow&fr_dt=${fr}&to_dt=${to}`)
       const data = await res.json()
       setFlows(data.cashflow || [])
     } catch(e) { console.error(e) }
@@ -432,9 +436,11 @@ function CashflowPanel({ user }) {
 
       {viewMode==='api' && (
         <>
-          <PeriodBar frDt={frDt} toDt={toDt} onChange={(f,t)=>{setFrDt(f);setToDt(t)}}/>
+          <PeriodBar frDt={frDt} toDt={toDt}
+            onChange={(f,t)=>{setFrDt(f);setToDt(t)}}
+            onSearch={(f,t)=>{ setFrDt(f); setToDt(t); fetchFlows(f,t) }}/>
           <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center',flexWrap:'wrap'}}>
-            <button className="pp-btn primary" onClick={fetchFlows} disabled={loading}>{loading?'조회 중...':'조회'}</button>
+            <button className="pp-btn primary" onClick={()=>fetchFlows()} disabled={loading}>{loading?'조회 중...':'조회'}</button>
             {flows.length>0 && <button className="pp-btn" onClick={saveFlows} disabled={saving}>{saving?'저장 중...':'저장'}</button>}
             {saved>0 && <span className="pp-save-badge">✓ {saved}건 저장</span>}
           </div>
