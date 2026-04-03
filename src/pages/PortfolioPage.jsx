@@ -1334,11 +1334,17 @@ function JournalPanel({ user }) {
                       const fee       = Number(it.fee||0)
                       const tax       = Number(it.tax||0)
                       const totalCost = fee + tax
-                      const rawProfit = Number(it.profit||0)
-                      const netProfit = (isSell && it.profit!=null) ? rawProfit - totalCost : null
+                      const rawProfit = it.profit != null ? Number(it.profit) : null
+                      // profit 있으면 세후 계산, 없으면 null
+                      const netProfit = (isSell && rawProfit != null) ? rawProfit - totalCost : null
                       const amount    = Number(it.amount||0)
-                      const netRt     = (netProfit!=null && amount>0)
-                        ? (netProfit/amount*100).toFixed(2) : null
+                      // 수익률: netProfit 기반 우선, 없으면 저장된 profit_rt fallback
+                      const netRt = netProfit != null && amount > 0
+                        ? (netProfit/amount*100).toFixed(2)
+                        : (isSell && it.profit_rt != null)
+                          ? Number(it.profit_rt).toFixed(2)
+                          : null
+                      const needsSync = isSell && rawProfit == null  // 재동기화 필요 표시용
                       const barColor  = isManual?'#F59E0B':isBuy?'#EF4444':'#3B82F6'
                       return (
                         <tr key={`${it._id}_${i}`}
@@ -1408,23 +1414,34 @@ function JournalPanel({ user }) {
                           </td>
                           {/* 수익금 (세후) */}
                           <td>
-                            {netProfit!=null
-                              ? <div style={{fontWeight:700,fontSize:13,fontVariantNumeric:'tabular-nums',
-                                  color:netProfit>=0?'#B91C1C':'#1D4ED8'}}>
-                                  {netProfit>=0?'+':''}{fmt(netProfit)}
-                                </div>
-                              : <div style={{color:'var(--text-dim)',fontSize:11}}>-</div>
-                            }
+                            {netProfit!=null ? (
+                              <div style={{fontWeight:700,fontSize:13,fontVariantNumeric:'tabular-nums',
+                                color:netProfit>=0?'#B91C1C':'#1D4ED8'}}>
+                                {netProfit>=0?'+':''}{fmt(netProfit)}
+                              </div>
+                            ) : needsSync ? (
+                              <div style={{fontSize:10,color:'#D97706',cursor:'pointer'}}
+                                title="📥 매매내역 버튼으로 재동기화하면 수익금이 표시됩니다">
+                                재동기화 필요
+                              </div>
+                            ) : (
+                              <div style={{color:'var(--text-dim)',fontSize:11}}>-</div>
+                            )}
                           </td>
-                          {/* 수익률 (세후) */}
+                          {/* 수익률 (세후 or fallback) */}
                           <td>
-                            {netRt!=null
-                              ? <div style={{fontSize:12,fontWeight:600,fontVariantNumeric:'tabular-nums',
-                                  color:Number(netRt)>=0?'#B91C1C':'#1D4ED8'}}>
-                                  {Number(netRt)>=0?'+':''}{netRt}%
-                                </div>
-                              : <div style={{color:'var(--text-dim)',fontSize:11}}>-</div>
-                            }
+                            {netRt!=null ? (
+                              <div style={{fontSize:12,fontWeight:600,fontVariantNumeric:'tabular-nums',
+                                color:Number(netRt)>=0?'#B91C1C':'#1D4ED8'}}>
+                                {Number(netRt)>=0?'+':''}{netRt}%
+                                {/* profit_rt fallback 시 보조 표시 */}
+                                {netProfit==null && it.profit_rt!=null && (
+                                  <div style={{fontSize:9,color:'var(--text-dim)',fontWeight:400}}>세전</div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{color:'var(--text-dim)',fontSize:11}}>-</div>
+                            )}
                           </td>
                           {/* 메모 */}
                           <td style={{textAlign:'left'}}>
