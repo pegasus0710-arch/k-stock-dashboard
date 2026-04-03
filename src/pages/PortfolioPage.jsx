@@ -1627,20 +1627,22 @@ function JournalPanel({ user }) {
                             </div>
                           </td>
                           {/* 카테고리 뱃지 (클릭 편집) */}
-                          <td style={{textAlign:'left'}}>
+                          <td style={{textAlign:'left', position:'relative'}}>
                             {catEdit===it._id ? (
-                              <div style={{display:'flex',flexWrap:'wrap',gap:3,background:'white',
-                                border:'1px solid var(--border)',borderRadius:6,padding:4,
-                                position:'absolute',zIndex:10,boxShadow:'0 4px 12px rgba(0,0,0,.1)'}}>
+                              <div style={{display:'flex',flexWrap:'wrap',gap:3,background:'var(--bg-panel)',
+                                border:'1px solid var(--border)',borderRadius:8,padding:6,
+                                position:'absolute',top:'100%',left:0,zIndex:20,
+                                boxShadow:'0 6px 16px rgba(0,0,0,.12)',minWidth:180}}>
                                 {CF_CATEGORIES.map(c=>(
                                   <button key={c.id}
-                                    style={{padding:'2px 8px',borderRadius:8,fontSize:10,
+                                    style={{padding:'3px 10px',borderRadius:8,fontSize:11,
                                       border:`1px solid ${c.color}`,background:c.bg,
                                       color:c.color,cursor:'pointer',fontWeight:700}}
                                     onClick={()=>updateCat(it,c.id)}>{c.label}</button>
                                 ))}
-                                <button style={{padding:'2px 6px',fontSize:10,
-                                  border:'1px solid var(--border)',borderRadius:8,cursor:'pointer'}}
+                                <button style={{padding:'3px 8px',fontSize:11,
+                                  border:'1px solid var(--border)',borderRadius:8,
+                                  cursor:'pointer',color:'var(--text-dim)',background:'var(--bg-panel)'}}
                                   onClick={()=>setCatEdit(null)}>✕</button>
                               </div>
                             ) : (

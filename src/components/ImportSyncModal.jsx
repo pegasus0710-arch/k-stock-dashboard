@@ -28,8 +28,12 @@ const CAT_COLOR = {
   in:        { label:'입금', color:'#EF4444', bg:'#FEF2F2' },
   out:       { label:'출금', color:'#3B82F6', bg:'#EFF6FF' },
   trade:     { label:'거래', color:'#8B5CF6', bg:'#F5F3FF' },
+  other:     { label:'기타', color:'#8B5CF6', bg:'#F5F3FF' },
 }
-const getCat = cat => CAT_COLOR[cat] || CAT_COLOR['in']
+const getCat = cat => {
+  if (cat === 'profit') return CAT_COLOR['dividend']  // 구 수익 → 배당
+  return CAT_COLOR[cat] || CAT_COLOR['other']
+}
 
 export default function ImportSyncModal({ type, user, onClose, onSaved }) {
   const isTrades = type === 'trades'
