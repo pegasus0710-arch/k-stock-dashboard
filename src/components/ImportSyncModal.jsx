@@ -47,20 +47,17 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
   const [deleting,  setDeleting]  = useState(null)
   const [fetched,   setFetched]   = useState(false)
 
-  // Firestore 저장 내역 로드 — 기간 필터링 (frDt~toDt)
+  // Firestore 저장 내역 로드 — 기간 필터링 (frDt~toDt), 최신 데이터 반환
   const loadDb = useCallback(async (fr, to) => {
-    if (!user) return
+    if (!user) return []
     const snap = await getDocs(
       collection(db, 'users', user.uid, 'portfolio', colPath, 'records')
     ).catch(() => ({ docs: [] }))
-    // 기간 필터: 조회한 경우만 기간 적용, 최초 로드는 전체
     const all = snap.docs.map(d => ({ ...d.data(), _id: d.id }))
       .sort((a,b) => (b.date||'').localeCompare(a.date||''))
-    if (fr && to) {
-      setDbItems(all.filter(it => it.date >= fr && it.date <= to))
-    } else {
-      setDbItems(all)
-    }
+    const filtered = (fr && to) ? all.filter(it => it.date >= fr && it.date <= to) : all
+    setDbItems(filtered)
+    return filtered  // ← 최신 데이터 반환 (autoCheck race condition 해결)
   }, [user, colPath])
 
   // 초기에는 아무것도 로드 안 함 — 조회 버튼 클릭 시 fetchApi에서 양쪽 동시 로드
@@ -112,13 +109,14 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
 
       setApiItems(items)
       setFetched(true)
-      // 오른쪽 패널도 동일 기간으로 갱신
-      await loadDb(frDt, toDt)
+      // 오른쪽 패널도 동일 기간으로 갱신 — 최신 DB 데이터 반환받음
+      const freshDbItems = await loadDb(frDt, toDt)
 
-      // 미저장 항목 자동 체크
+      // 미저장 항목 자동 체크 — 최신 DB 데이터 기준으로 판별
+      const freshKeySet = new Set((freshDbItems || []).map(matchKey))
       const autoCheck = new Set()
       items.forEach((it, i) => {
-        if (!dbKeySet.has(matchKey(it))) autoCheck.add(i)
+        if (!freshKeySet.has(matchKey(it))) autoCheck.add(i)
       })
       setChecked(autoCheck)
     } catch(e) { console.error(e) }
