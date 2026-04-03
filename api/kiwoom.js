@@ -292,20 +292,24 @@ export default async function handler(req, res) {
     }, res)
   }
 
-  // /api/kiwoom?type=account-trades&fr_dt=20260301&to_dt=20260403&stk_cd=
+  // /api/kiwoom?type=account-trades&fr_dt=20260301&to_dt=20260403&tp=3
+  // tp: 3=전체매매, 4=매수, 5=매도
   if (q.type === 'account-trades') {
     return relay('/account/trades', {
       fr_dt:  q.fr_dt  || '',
       to_dt:  q.to_dt  || '',
+      tp:     q.tp     || '3',
       stk_cd: q.stk_cd || '',
     }, res)
   }
 
-  // /api/kiwoom?type=account-cashflow&fr_dt=20260301&to_dt=20260403
+  // /api/kiwoom?type=account-cashflow&fr_dt=20260301&to_dt=20260403&tp=1
+  // tp: 1=입출금전체, 6=입금, 7=출금
   if (q.type === 'account-cashflow') {
     return relay('/account/cashflow', {
       fr_dt: q.fr_dt || '',
       to_dt: q.to_dt || '',
+      tp:    q.tp    || '1',
     }, res)
   }
 

@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { db } from '../firebase'
 import {
   collection, addDoc, getDocs, query,
-  where, orderBy, Timestamp, writeBatch, doc
+  where, orderBy, Timestamp, writeBatch, doc, updateDoc
 } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import './PortfolioPage.css'
@@ -17,8 +17,15 @@ const fmt  = n => Number(n||0).toLocaleString()
 const fmtM = n => { const v=Number(n||0); return Math.abs(v)>=100000000?(v/100000000).toFixed(1)+'억':Math.abs(v)>=10000?(v/10000).toFixed(0)+'만':fmt(v) }
 const fmtR = n => { const v=Number(n||0); return (v>0?'+':'')+v.toFixed(2)+'%' }
 const sign = n => Number(n||0)>=0?'up':'down'
-const today = () => new Date().toISOString().slice(0,10).replace(/-/g,'')
-const daysAgo = d => { const dt=new Date(); dt.setDate(dt.getDate()-d); return dt.toISOString().slice(0,10).replace(/-/g,'') }
+const today     = () => new Date().toISOString().slice(0,10).replace(/-/g,'')
+const daysAgo   = d  => { const dt=new Date(); dt.setDate(dt.getDate()-d); return dt.toISOString().slice(0,10).replace(/-/g,'') }
+const toHtml    = s  => s ? `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` : ''   // YYYYMMDD → YYYY-MM-DD
+const fromHtml  = s  => s ? s.replace(/-/g,'') : ''                                    // YYYY-MM-DD → YYYYMMDD
+const maxDate   = (fr, months=3) => {  // fr 날짜 기준 최대 조회 종료일 (3개월 제한)
+  const d = new Date(`${fr.slice(0,4)}-${fr.slice(4,6)}-${fr.slice(6,8)}`)
+  d.setMonth(d.getMonth() + months)
+  return d.toISOString().slice(0,10).replace(/-/g,'')
+}
 const fmtDate = s => s?`${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}`:''
 
 // trade_id 중복 방지용 해시
@@ -31,38 +38,69 @@ const SECTOR_COLORS = ['#4F46E5','#0D9488','#D97706','#EF4444','#8B5CF6','#10B98
 // ── 메뉴 목록 ──────────────────────────────────────────
 const MENU = [
   { id: 'holdings', label: '보유현황' },
-  { id: 'profit',   label: '손익현황' },
   { id: 'trades',   label: '매매내역' },
   { id: 'cashflow', label: '입출금' },
-  { id: 'stats',    label: '기간분석' },
+  { id: 'journal',  label: '매매일지' },
   { id: 'ai',       label: 'AI 진단' },
 ]
 
-// ── 기간 선택 바 ───────────────────────────────────────
+// ── 기간 선택 바 (달력 UI) ─────────────────────────────
 function PeriodBar({ frDt, toDt, onChange }) {
   const PRESETS = [
-    { label: '1개월', days: 30 },
-    { label: '3개월', days: 90 },
+    { label: '1개월', days: 30  },
+    { label: '3개월', days: 90  },
     { label: '6개월', days: 180 },
   ]
   const [active, setActive] = useState(30)
+  const [warn, setWarn]     = useState('')
 
   const applyPreset = (days) => {
-    setActive(days)
+    setActive(days); setWarn('')
     onChange(daysAgo(days), today())
   }
 
+  const handleFr = (e) => {
+    const fr = fromHtml(e.target.value)
+    setActive(null)
+    // 3개월 초과 시 경고
+    const limit = maxDate(fr, 3)
+    if (toDt > limit) {
+      setWarn('최대 3개월 조회 가능 (키움 API 제한)')
+      onChange(fr, limit)
+    } else {
+      setWarn('')
+      onChange(fr, toDt)
+    }
+  }
+  const handleTo = (e) => {
+    const to = fromHtml(e.target.value)
+    setActive(null)
+    const limit = maxDate(frDt, 3)
+    if (to > limit) {
+      setWarn('최대 3개월 조회 가능 (키움 API 제한)')
+      onChange(frDt, limit)
+    } else {
+      setWarn('')
+      onChange(frDt, to)
+    }
+  }
+
   return (
-    <div className="pp-period-bar">
-      {PRESETS.map(p => (
-        <button key={p.days} className={`pp-period-btn ${active===p.days?'active':''}`}
-          onClick={()=>applyPreset(p.days)}>{p.label}</button>
-      ))}
-      <input type="text" className="pp-date-input" placeholder="YYYYMMDD" maxLength={8}
-        value={frDt} onChange={e=>{setActive(null);onChange(e.target.value, toDt)}}/>
-      <span className="pp-period-sep">~</span>
-      <input type="text" className="pp-date-input" placeholder="YYYYMMDD" maxLength={8}
-        value={toDt} onChange={e=>{setActive(null);onChange(frDt, e.target.value)}}/>
+    <div>
+      <div className="pp-period-bar">
+        {PRESETS.map(p => (
+          <button key={p.days} className={`pp-period-btn ${active===p.days?'active':''}`}
+            onClick={()=>applyPreset(p.days)}>{p.label}</button>
+        ))}
+        <input type="date" className="pp-date-input"
+          value={toHtml(frDt)} onChange={handleFr}
+          max={toHtml(today())}/>
+        <span className="pp-period-sep">~</span>
+        <input type="date" className="pp-date-input"
+          value={toHtml(toDt)} onChange={handleTo}
+          max={toHtml(today())}/>
+      </div>
+      {warn && <div style={{fontSize:11,color:'#d97706',marginBottom:8}}>⚠️ {warn}</div>}
     </div>
   )
 }
@@ -101,13 +139,9 @@ function HoldingsPanel({ data, loading, onRefresh }) {
     </div>
   )
 
-  // 섹터 집계 (단순: 보유비중 기반)
-  const sectors = data.holdings.reduce((acc, h) => {
-    const s = h.sector || '기타'
-    acc[s] = (acc[s]||0) + Math.abs(Number(h.poss_rt||0))
-    return acc
-  }, {})
-  const sectorArr = Object.entries(sectors).sort((a,b)=>b[1]-a[1])
+  const best  = [...data.holdings].sort((a,b)=>Number(b.prft_rt)-Number(a.prft_rt))[0]
+  const worst = [...data.holdings].sort((a,b)=>Number(a.prft_rt)-Number(b.prft_rt))[0]
+  const avgRt = data.holdings.reduce((s,h)=>s+Number(h.prft_rt||0),0)/data.holdings.length
 
   return (
     <div className="pp-panel">
@@ -125,6 +159,7 @@ function HoldingsPanel({ data, loading, onRefresh }) {
             <tr>
               <th style={{textAlign:'left'}}>종목</th>
               <th>현재가</th>
+              <th>당일 등락</th>
               <th>보유수량</th>
               <th>평균단가</th>
               <th>평가금액</th>
@@ -134,95 +169,59 @@ function HoldingsPanel({ data, loading, onRefresh }) {
             </tr>
           </thead>
           <tbody>
-            {data.holdings.map(h => (
-              <tr key={h.stk_cd}>
-                <td>
-                  <div className="pp-stock-name">{h.stk_nm}</div>
-                  <div className="pp-stock-code">{h.stk_cd}</div>
-                </td>
-                <td>{fmt(h.cur_prc)}</td>
-                <td>{fmt(h.rmnd_qty)}</td>
-                <td>{fmt(h.pur_pric)}</td>
-                <td>{fmt(h.evlt_amt)}</td>
-                <td className={sign(h.evltv_prft)}>{(Number(h.evltv_prft)>=0?'+':'')+fmt(h.evltv_prft)}</td>
-                <td className={sign(h.prft_rt)}>{fmtR(h.prft_rt)}</td>
-                <td>{Number(h.poss_rt||0).toFixed(1)}%</td>
-              </tr>
-            ))}
+            {data.holdings.map(h => {
+              const fluPrc = Number(h.cur_prc||0) - Number(h.pred_close_pric||0)
+              const fluRt  = Number(h.pred_close_pric||0) > 0 ? (fluPrc / Number(h.pred_close_pric) * 100) : 0
+              return (
+                <tr key={h.stk_cd}>
+                  <td>
+                    <div className="pp-stock-name">{h.stk_nm}</div>
+                    <div className="pp-stock-code">{h.stk_cd}</div>
+                  </td>
+                  <td>{fmt(h.cur_prc)}</td>
+                  <td className={fluPrc>=0?'up':'down'}>
+                    <div style={{fontWeight:700}}>{fluPrc>=0?'+':''}{fmt(fluPrc)}</div>
+                    <div style={{fontSize:10}}>{fluRt>=0?'+':''}{fluRt.toFixed(2)}%</div>
+                  </td>
+                  <td>{fmt(h.rmnd_qty)}</td>
+                  <td>{fmt(h.pur_pric)}</td>
+                  <td>{fmt(h.evlt_amt)}</td>
+                  <td className={sign(h.evltv_prft)}>{(Number(h.evltv_prft)>=0?'+':'')+fmt(h.evltv_prft)}</td>
+                  <td className={sign(h.prft_rt)}>{fmtR(h.prft_rt)}</td>
+                  <td>{Number(h.poss_rt||0).toFixed(1)}%</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
 
-      {sectorArr.length > 0 && (
-        <>
-          <div className="pp-panel-title" style={{fontSize:13,marginBottom:10}}>섹터 비중</div>
-          <div className="pp-sector-list">
-            {sectorArr.map(([name, pct], i) => (
-              <div key={name} className="pp-sector-row">
-                <div className="pp-sector-dot" style={{background:SECTOR_COLORS[i%SECTOR_COLORS.length]}}/>
-                <span className="pp-sector-name">{name}</span>
-                <div className="pp-sector-bar">
-                  <div className="pp-sector-fill" style={{width:`${Math.min(pct,100)}%`, background:SECTOR_COLORS[i%SECTOR_COLORS.length]}}/>
-                </div>
-                <span className="pp-sector-pct">{pct.toFixed(1)}%</span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+      {/* 요약 */}
+      <div className="pp-stat-grid">
+        <div className="pp-stat-item">
+          <div className="pp-stat-label">평균 수익률</div>
+          <div className="pp-stat-value" style={{fontSize:14,color:avgRt>=0?'#EF4444':'#3B82F6'}}>{avgRt>=0?'+':''}{avgRt.toFixed(2)}%</div>
+        </div>
+        <div className="pp-stat-item">
+          <div className="pp-stat-label">보유 종목수</div>
+          <div className="pp-stat-value" style={{fontSize:14}}>{data.holdings.length}종목</div>
+        </div>
+        <div className="pp-stat-item">
+          <div className="pp-stat-label">최고 수익</div>
+          <div style={{fontSize:12,fontWeight:700,color:'#EF4444'}}>{best?.stk_nm}</div>
+          <div style={{fontSize:11,color:'var(--text-dim)'}}>{fmtR(best?.prft_rt)}</div>
+        </div>
+        <div className="pp-stat-item">
+          <div className="pp-stat-label">최저 수익</div>
+          <div style={{fontSize:12,fontWeight:700,color:'#3B82F6'}}>{worst?.stk_nm}</div>
+          <div style={{fontSize:11,color:'var(--text-dim)'}}>{fmtR(worst?.prft_rt)}</div>
+        </div>
+      </div>
     </div>
   )
 }
 
 // ── 손익현황 패널 ─────────────────────────────────────
-function ProfitPanel({ data }) {
-  const [tab, setTab] = useState('unrealized')
-  if (!data?.holdings?.length) return (
-    <div className="pp-panel">
-      <div className="pp-empty"><div className="pp-empty-icon">📊</div><div className="pp-empty-title">보유종목 없음</div></div>
-    </div>
-  )
-  const maxAbs = Math.max(...data.holdings.map(h=>Math.abs(Number(h.evltv_prft||0))), 1)
-  return (
-    <div className="pp-panel">
-      <div className="pp-panel-hdr">
-        <div className="pp-panel-title">손익현황</div>
-        <div style={{display:'flex',gap:6}}>
-          {['unrealized','realized'].map(t=>(
-            <button key={t} className={`pp-period-btn ${tab===t?'active':''}`} onClick={()=>setTab(t)}>
-              {t==='unrealized'?'미실현':'실현'}
-            </button>
-          ))}
-        </div>
-      </div>
-      {tab==='unrealized' && (
-        <div className="pp-bar-chart">
-          {[...data.holdings].sort((a,b)=>Number(b.prft_rt||0)-Number(a.prft_rt||0)).map(h=>{
-            const pct = Math.abs(Number(h.evltv_prft||0))/maxAbs*100
-            const up  = Number(h.evltv_prft||0)>=0
-            return (
-              <div key={h.stk_cd} className="pp-bar-row">
-                <div className="pp-bar-label" title={h.stk_nm}>{h.stk_nm}</div>
-                <div className="pp-bar-track">
-                  <div className={`pp-bar-fill ${up?'up':'down'}`} style={{width:`${pct}%`}}/>
-                </div>
-                <div className={`pp-bar-value ${up?'up':'down'}`}>{fmtR(h.prft_rt)}</div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-      {tab==='realized' && (
-        <div className="pp-empty">
-          <div className="pp-empty-icon">📋</div>
-          <div className="pp-empty-title">매매내역에서 실현손익 집계</div>
-          <div className="pp-empty-sub">매매내역 탭에서 데이터를 저장하면<br/>이 곳에서 실현손익을 확인할 수 있습니다.</div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ── 매매내역 패널 ─────────────────────────────────────
 function TradesPanel({ user }) {
   const [frDt, setFrDt] = useState(daysAgo(30))
@@ -502,149 +501,172 @@ function CashflowPanel({ user }) {
 }
 
 // ── 기간분석 패널 ─────────────────────────────────────
-function StatsPanel({ user }) {
-  const [frDt, setFrDt]     = useState(daysAgo(180))
-  const [toDt, setToDt]     = useState(today())
-  const [loading, setLoading] = useState(false)
-  const [stats, setStats]   = useState(null)
+function JournalPanel({ user }) {
+  const [frDt, setFrDt]       = useState(daysAgo(30))
+  const [toDt, setToDt]       = useState(today())
+  const [tab,  setTab]        = useState('all')   // all|buy|sell|cashflow
+  const [items, setItems]     = useState([])
+  const [loading, setLoading] = useState(true)
+  const [editId, setEditId]   = useState(null)
+  const [editText, setEditText]= useState('')
+  const [saving, setSaving]   = useState(false)
 
-  const analyze = useCallback(async () => {
+  const TABS = [
+    { id:'all',      label:'전체' },
+    { id:'buy',      label:'매수' },
+    { id:'sell',     label:'매도' },
+    { id:'cashflow', label:'입출금' },
+  ]
+
+  // Firestore에서 trades + cashflow 병합 로드
+  const load = useCallback(async () => {
     if (!user) return
     setLoading(true)
     try {
-      // Firestore에서 기간 내 매매내역 조회
-      const q = query(
-        collection(db,'users',user.uid,'portfolio','trades','records'),
-        where('date','>=', frDt),
-        where('date','<=', toDt),
-        orderBy('date','asc')
-      )
-      const snap = await getDocs(q)
-      const trades = snap.docs.map(d=>d.data())
-
-      if (!trades.length) { setStats({ empty: true }); setLoading(false); return }
-
-      // 집계
-      const buys  = trades.filter(t=>t.type==='buy')
-      const sells = trades.filter(t=>t.type==='sell')
-      const totalBuy  = buys.reduce((s,t)=>s+Number(t.amount||0),0)
-      const totalSell = sells.reduce((s,t)=>s+Number(t.amount||0),0)
-      const totalFee  = trades.reduce((s,t)=>s+Number(t.fee||0),0)
-
-      // 월별 집계
-      const monthly = {}
-      sells.forEach(t => {
-        const ym = t.date.slice(0,6) // YYYYMM
-        if (!monthly[ym]) monthly[ym] = { sell:0, buy:0 }
-        monthly[ym].sell += Number(t.amount||0)
-      })
-      buys.forEach(t => {
-        const ym = t.date.slice(0,6)
-        if (!monthly[ym]) monthly[ym] = { sell:0, buy:0 }
-        monthly[ym].buy += Number(t.amount||0)
-      })
-      const monthlyArr = Object.entries(monthly).sort((a,b)=>a[0].localeCompare(b[0]))
-        .map(([ym,v])=>({ ym, profit: v.sell - v.buy }))
-
-      // 종목별
-      const byCode = {}
-      trades.forEach(t => {
-        if (!byCode[t.code]) byCode[t.code] = { name:t.name, count:0, totalAmt:0 }
-        byCode[t.code].count++
-        byCode[t.code].totalAmt += Number(t.amount||0)
-      })
-      const topCodes = Object.entries(byCode).sort((a,b)=>b[1].count-a[1].count).slice(0,5)
-
-      setStats({ trades, buys, sells, totalBuy, totalSell, totalFee, monthlyArr, topCodes, empty:false })
-    } catch(e) { console.error(e) }
+      const [tSnap, cSnap] = await Promise.all([
+        getDocs(query(
+          collection(db,'users',user.uid,'portfolio','trades','records'),
+          where('date','>=', frDt), where('date','<=', toDt), orderBy('date','desc')
+        )).catch(()=>({ docs:[] })),
+        getDocs(query(
+          collection(db,'users',user.uid,'portfolio','cashflow','records'),
+          where('date','>=', frDt), where('date','<=', toDt), orderBy('date','desc')
+        )).catch(()=>({ docs:[] })),
+      ])
+      const trades   = tSnap.docs.map(d=>({ ...d.data(), _id:d.id, _col:'trades' }))
+      const cashflow = cSnap.docs.map(d=>({ ...d.data(), _id:d.id, _col:'cashflow' }))
+      const merged   = [...trades, ...cashflow].sort((a,b)=>b.date.localeCompare(a.date))
+      setItems(merged)
+    } catch(e){ console.error(e) }
     setLoading(false)
   }, [user, frDt, toDt])
 
-  useEffect(() => { analyze() }, [])
+  useEffect(()=>{ load() }, [load])
 
-  const maxProfit = stats?.monthlyArr?.length ? Math.max(...stats.monthlyArr.map(m=>Math.abs(m.profit)),1) : 1
+  const filtered = items.filter(it => {
+    if (tab==='all')      return true
+    if (tab==='buy')      return it.type==='buy'
+    if (tab==='sell')     return it.type==='sell'
+    if (tab==='cashflow') return it._col==='cashflow'
+    return true
+  })
+
+  // 메모 저장
+  const saveMemo = async (it) => {
+    if (!user) return
+    setSaving(true)
+    try {
+      const colPath = it._col==='trades' ? 'trades' : 'cashflow'
+      const ref = doc(db,'users',user.uid,'portfolio',colPath,'records',it._id)
+      await updateDoc(ref, { memo: editText })
+      setItems(prev=>prev.map(x=>x._id===it._id?{...x,memo:editText}:x))
+      setEditId(null)
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
+
+  const typeLabel = (it) => {
+    if (it._col==='cashflow') return it.type==='in' ? '입금' : '출금'
+    return it.type==='buy' ? '매수' : '매도'
+  }
+  const typeColor = (it) => {
+    if (it._col==='cashflow') return it.type==='in' ? '#EF4444' : '#3B82F6'
+    return it.type==='buy' ? '#EF4444' : '#3B82F6'
+  }
 
   return (
     <div className="pp-panel">
       <div className="pp-panel-hdr">
-        <div className="pp-panel-title">기간분석</div>
-        <button className="pp-btn" onClick={analyze} disabled={loading}>↺ 분석</button>
+        <div className="pp-panel-title">매매일지</div>
+        <button className="pp-btn" onClick={load} disabled={loading}>↺ 새로고침</button>
       </div>
 
       <PeriodBar frDt={frDt} toDt={toDt} onChange={(f,t)=>{setFrDt(f);setToDt(t)}}/>
 
-      {loading && <div className="pp-loading"><div className="pp-spinner"/><span>분석 중...</span></div>}
+      {/* 카테고리 탭 */}
+      <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
+        {TABS.map(t=>(
+          <button key={t.id} className={`pp-period-btn ${tab===t.id?'active':''}`}
+            onClick={()=>setTab(t.id)}>{t.label}
+            {t.id!=='all'&&<span style={{marginLeft:4,fontSize:10,opacity:.7}}>
+              {items.filter(x=>t.id==='cashflow'?x._col==='cashflow':x.type===t.id).length}
+            </span>}
+          </button>
+        ))}
+      </div>
 
-      {stats?.empty && !loading && (
+      {loading && <div className="pp-loading"><div className="pp-spinner"/><span>내역 불러오는 중...</span></div>}
+
+      {!loading && filtered.length===0 && (
         <div className="pp-empty">
-          <div className="pp-empty-icon">📈</div>
-          <div className="pp-empty-title">분석할 내역 없음</div>
-          <div className="pp-empty-sub">매매내역 탭에서 데이터를 저장하면<br/>기간별 분석이 가능합니다.</div>
+          <div className="pp-empty-icon">📓</div>
+          <div className="pp-empty-title">저장된 내역 없음</div>
+          <div className="pp-empty-sub">매매내역·입출금 탭에서 조회 후<br/>Firestore에 저장하면 여기에 표시됩니다.</div>
         </div>
       )}
 
-      {stats && !stats.empty && !loading && (
-        <>
-          <div className="pp-stat-grid">
-            <div className="pp-stat-item">
-              <div className="pp-stat-label">총 거래</div>
-              <div className="pp-stat-value">{stats.trades.length}건</div>
-            </div>
-            <div className="pp-stat-item">
-              <div className="pp-stat-label">매수금액</div>
-              <div className="pp-stat-value">{fmtM(stats.totalBuy)}</div>
-            </div>
-            <div className="pp-stat-item">
-              <div className="pp-stat-label">매도금액</div>
-              <div className="pp-stat-value">{fmtM(stats.totalSell)}</div>
-            </div>
-            <div className="pp-stat-item">
-              <div className="pp-stat-label">수수료 합계</div>
-              <div className="pp-stat-value">{fmtM(stats.totalFee)}</div>
-            </div>
-          </div>
-
-          {stats.monthlyArr.length>0 && (
-            <>
-              <div className="pp-panel-title" style={{fontSize:13,marginBottom:12}}>월별 매매 손익 추이</div>
-              <div className="pp-month-chart">
-                {stats.monthlyArr.map(m => {
-                  const h = Math.abs(m.profit)/maxProfit*100
-                  const up = m.profit>=0
-                  return (
-                    <div key={m.ym} className="pp-month-col">
-                      <div className="pp-month-bar-wr">
-                        <div className={`pp-month-bar ${up?'up':'down'}`} style={{height:`${Math.max(h,2)}%`}}/>
+      {!loading && filtered.length>0 && (
+        <div className="pp-table-wrap">
+          <table className="pp-table">
+            <thead><tr>
+              <th style={{textAlign:'left'}}>날짜</th>
+              <th style={{textAlign:'left'}}>구분</th>
+              <th style={{textAlign:'left'}}>종목/항목</th>
+              <th>금액</th>
+              <th>수량</th>
+              <th>단가</th>
+              <th style={{textAlign:'left',minWidth:140}}>메모</th>
+            </tr></thead>
+            <tbody>
+              {filtered.map((it,i)=>(
+                <tr key={`${it._id}_${i}`}>
+                  <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11}}>{fmtDate(it.date)}</td>
+                  <td style={{textAlign:'left'}}>
+                    <span style={{color:typeColor(it),fontWeight:700,fontSize:12}}>{typeLabel(it)}</span>
+                  </td>
+                  <td style={{textAlign:'left'}}>
+                    {it.name
+                      ? <><div className="pp-stock-name">{it.name}</div><div className="pp-stock-code">{it.code}</div></>
+                      : <span style={{fontSize:11,color:'var(--text-dim)'}}>{it.rmrk_nm||it.io_tp_nm||'-'}</span>
+                    }
+                  </td>
+                  <td>{fmt(it.amount||it.exct_amt||0)}</td>
+                  <td>{it.qty ? fmt(it.qty) : '-'}</td>
+                  <td>{it.price ? fmt(it.price) : '-'}</td>
+                  <td style={{textAlign:'left'}}>
+                    {editId===it._id ? (
+                      <div style={{display:'flex',gap:4,alignItems:'center'}}>
+                        <input autoFocus value={editText} onChange={e=>setEditText(e.target.value)}
+                          onKeyDown={e=>{ if(e.key==='Enter') saveMemo(it); if(e.key==='Escape') setEditId(null) }}
+                          style={{flex:1,padding:'3px 6px',fontSize:11,border:'1px solid var(--accent-mid)',borderRadius:4,outline:'none'}}
+                          placeholder="매매 이유 입력 후 Enter"/>
+                        <button className="pp-btn" style={{padding:'2px 6px',fontSize:10}} onClick={()=>saveMemo(it)} disabled={saving}>
+                          {saving?'…':'저장'}
+                        </button>
+                        <button className="pp-btn" style={{padding:'2px 6px',fontSize:10}} onClick={()=>setEditId(null)}>✕</button>
                       </div>
-                      <div className="pp-month-lbl">{m.ym.slice(4)}월</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </>
-          )}
-
-          {stats.topCodes.length>0 && (
-            <>
-              <div className="pp-panel-title" style={{fontSize:13,marginBottom:10,marginTop:20}}>거래 빈도 TOP 5</div>
-              <div className="pp-bar-chart">
-                {stats.topCodes.map(([code,v],i)=>(
-                  <div key={code} className="pp-bar-row">
-                    <div className="pp-bar-label" title={v.name}>{v.name}</div>
-                    <div className="pp-bar-track">
-                      <div className="pp-bar-fill up" style={{width:`${v.count/stats.topCodes[0][1].count*100}%`}}/>
-                    </div>
-                    <div className="pp-bar-value" style={{color:'var(--text-secondary)'}}>{v.count}건</div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </>
+                    ) : (
+                      <div style={{display:'flex',gap:4,alignItems:'center',cursor:'pointer'}} onClick={()=>{setEditId(it._id);setEditText(it.memo||'')}}>
+                        <span style={{
+                          fontSize:11, color: it.memo ? 'var(--text-primary)' : 'var(--text-dim)',
+                          fontStyle: it.memo ? 'normal' : 'italic',
+                        }}>
+                          {it.memo || '+ 메모 추가'}
+                        </span>
+                        {it.memo && <span style={{color:'var(--accent-mid)',fontSize:10}}>✎</span>}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )
 }
+
 
 // ── AI 진단 패널 ──────────────────────────────────────
 function AIPanel({ holdingsData, user }) {
@@ -808,12 +830,11 @@ export default function PortfolioPage() {
   const renderPanel = () => {
     switch(activeMenu) {
       case 'holdings': return <HoldingsPanel data={holdData} loading={holdLoading} onRefresh={loadHoldings}/>
-      case 'profit':   return <ProfitPanel data={holdData}/>
       case 'trades':   return <TradesPanel user={user}/>
       case 'cashflow': return <CashflowPanel user={user}/>
-      case 'stats':    return <StatsPanel user={user}/>
+      case 'journal':  return <JournalPanel user={user}/>
       case 'ai':       return <AIPanel holdingsData={holdData} user={user}/>
-      default:         return null
+      default:         return <HoldingsPanel data={holdData} loading={holdLoading} onRefresh={loadHoldings}/>
     }
   }
 
@@ -838,8 +859,8 @@ export default function PortfolioPage() {
 
       {/* 메인 콘텐츠 */}
       <div className="pp-main">
-        {/* KPI 상단 고정 */}
-        {holdData && <KpiBar data={holdData}/>}
+        {/* KPI — 보유현황에서만 표시 */}
+        {activeMenu==='holdings' && holdData && <KpiBar data={holdData}/>}
         {/* 패널 */}
         {renderPanel()}
       </div>
