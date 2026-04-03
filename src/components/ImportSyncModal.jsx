@@ -64,6 +64,10 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
 
   // 저장된 항목 matchKey Set
   const dbKeySet = new Set(dbItems.map(matchKey))
+  // profit 없는 저장된 매도 건 Set (업데이트 필요)
+  const needsUpdateKeySet = new Set(
+    dbItems.filter(d => d.type==='sell' && d.profit==null).map(matchKey)
+  )
 
   // API 조회
   const fetchApi = async () => {
@@ -112,11 +116,15 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
       // 오른쪽 패널도 동일 기간으로 갱신 — 최신 DB 데이터 반환받음
       const freshDbItems = await loadDb(frDt, toDt)
 
-      // 미저장 항목 자동 체크 — 최신 DB 데이터 기준으로 판별
+      // 미저장 + 업데이트 필요 항목 자동 체크
       const freshKeySet = new Set((freshDbItems || []).map(matchKey))
+      const freshNeedsUpdateSet = new Set(
+        (freshDbItems || []).filter(d => d.type==='sell' && d.profit==null).map(matchKey)
+      )
       const autoCheck = new Set()
       items.forEach((it, i) => {
-        if (!freshKeySet.has(matchKey(it))) autoCheck.add(i)
+        const key = matchKey(it)
+        if (!freshKeySet.has(key) || freshNeedsUpdateSet.has(key)) autoCheck.add(i)
       })
       setChecked(autoCheck)
     } catch(e) { console.error(e) }
@@ -124,8 +132,8 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
   }
 
   // 체크박스 토글
-  const toggleCheck = (idx, isSaved) => {
-    if (isSaved) return  // 이미 저장된 항목은 토글 불가
+  const toggleCheck = (idx, isSaved, needsUpdate) => {
+    if (isSaved && !needsUpdate) return  // 완전히 저장된 항목만 토글 불가
     setChecked(prev => {
       const next = new Set(prev)
       next.has(idx) ? next.delete(idx) : next.add(idx)
@@ -135,11 +143,11 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
 
   // 전체 선택 (미저장만)
   const toggleAll = () => {
-    const unsaved = apiItems.map((it, i) => ({ it, i }))
-      .filter(({ it }) => !dbKeySet.has(matchKey(it)))
+    const selectable = apiItems.map((it, i) => ({ it, i }))
+      .filter(({ it }) => !dbKeySet.has(matchKey(it)) || needsUpdateKeySet.has(matchKey(it)))
       .map(({ i }) => i)
-    const allChecked = unsaved.every(i => checked.has(i))
-    setChecked(allChecked ? new Set() : new Set(unsaved))
+    const allChecked = selectable.every(i => checked.has(i))
+    setChecked(allChecked ? new Set() : new Set(selectable))
   }
 
   // 선택 항목 Firestore 저장
@@ -296,30 +304,34 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
                 </div>
               )}
               {fetched && apiItems.map((it, idx) => {
-                const isSaved = dbKeySet.has(matchKey(it))
-                const isChecked = checked.has(idx)
+                const isSaved     = dbKeySet.has(matchKey(it))
+                const needsUpdate = needsUpdateKeySet.has(matchKey(it))  // 저장됨 but profit 없음
+                const isLocked    = isSaved && !needsUpdate              // 완전 저장 → 체크 불가
+                const isChecked   = checked.has(idx)
                 const isBuy  = it.type === 'buy'
                 const isSell = it.type === 'sell'
                 const cat    = getCat(it.category || it.type)
                 return (
                   <div key={idx}
-                    onClick={() => toggleCheck(idx, isSaved)}
+                    onClick={() => toggleCheck(idx, isSaved, needsUpdate)}
                     style={{
                       display:'flex', alignItems:'flex-start', gap:10,
                       padding:'10px 14px', borderBottom:'1px solid var(--border-dim)',
-                      background: isSaved ? 'var(--bg-base)' : isChecked ? '#EFF6FF' : 'white',
-                      cursor: isSaved ? 'default' : 'pointer',
-                      opacity: isSaved ? .55 : 1,
+                      background: isLocked ? 'var(--bg-base)'
+                        : needsUpdate ? '#FFFBEB'
+                        : isChecked ? '#EFF6FF' : 'white',
+                      cursor: isLocked ? 'default' : 'pointer',
+                      opacity: isLocked ? .5 : 1,
                       transition:'background .1s',
                     }}>
                     {/* 체크박스 */}
                     <div style={{
                       width:16, height:16, borderRadius:4, flexShrink:0, marginTop:2,
-                      border:`2px solid ${isSaved?'var(--border)':isChecked?'var(--accent-mid)':'var(--border)'}`,
-                      background: isChecked&&!isSaved ? 'var(--accent-mid)' : 'white',
+                      border:`2px solid ${isLocked?'var(--border)':isChecked?'var(--accent-mid)':'var(--border)'}`,
+                      background: isChecked && !isLocked ? 'var(--accent-mid)' : 'white',
                       display:'flex', alignItems:'center', justifyContent:'center',
                     }}>
-                      {isChecked && !isSaved && (
+                      {isChecked && !isLocked && (
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                           <path d="M1.5 5L4 7.5L8.5 2.5" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
                         </svg>
@@ -340,8 +352,11 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
                           <span style={{fontSize:10,padding:'0 5px',borderRadius:6,fontWeight:700,
                             color:cat.color, background:cat.bg}}>{cat.label}</span>
                         )}
-                        {isSaved && (
+                        {isLocked && (
                           <span style={{fontSize:10,color:'#059669',fontWeight:600}}>✅ 저장됨</span>
+                        )}
+                        {needsUpdate && (
+                          <span style={{fontSize:10,color:'#D97706',fontWeight:600}}>⚠ 수익금 업데이트 필요</span>
                         )}
                       </div>
                       <div style={{display:'flex', alignItems:'center', gap:6}}>
