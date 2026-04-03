@@ -18,14 +18,21 @@ const fmt  = n => Number(n||0).toLocaleString()
 const fmtM = n => { const v=Number(n||0); return Math.abs(v)>=100000000?(v/100000000).toFixed(1)+'억':Math.abs(v)>=10000?(v/10000).toFixed(0)+'만':fmt(v) }
 const fmtR = n => { const v=Number(n||0); return (v>0?'+':'')+v.toFixed(2)+'%' }
 const sign = n => Number(n||0)>=0?'up':'down'
-const today     = () => new Date().toISOString().slice(0,10).replace(/-/g,'')
-const daysAgo   = d  => { const dt=new Date(); dt.setDate(dt.getDate()-d); return dt.toISOString().slice(0,10).replace(/-/g,'') }
+// 로컬 날짜 YYYYMMDD 변환 (UTC 시간대 오류 방지)
+const yyyymmdd = d => {
+  const y  = d.getFullYear()
+  const m  = String(d.getMonth()+1).padStart(2,'0')
+  const dd = String(d.getDate()).padStart(2,'0')
+  return `${y}${m}${dd}`
+}
+const today     = () => yyyymmdd(new Date())
+const daysAgo   = d  => { const dt=new Date(); dt.setDate(dt.getDate()-d); return yyyymmdd(dt) }
 const toHtml    = s  => s ? `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` : ''
 const fromHtml  = s  => s ? s.replace(/-/g,'') : ''
 const maxDate   = (fr, months=3) => {
   const d = new Date(`${fr.slice(0,4)}-${fr.slice(4,6)}-${fr.slice(6,8)}`)
   d.setMonth(d.getMonth() + months)
-  return d.toISOString().slice(0,10).replace(/-/g,'')
+  return yyyymmdd(d)
 }
 const fmtDate = s => s?`${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}`:''
 
@@ -37,12 +44,13 @@ const fmtDateWithDay = s => {
   return `${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}(${DOW[d.getDay()]})`
 }
 
-// 기간 프리셋 헬퍼
-const yyyymmdd = d => d.toISOString().slice(0,10).replace(/-/g,'')
+// 기간 프리셋 헬퍼 — 로컬 시간 기반
 const thisMonthStart = () => { const d=new Date(); d.setDate(1); return yyyymmdd(d) }
+const thisMonthEnd   = () => { const d=new Date(); d.setMonth(d.getMonth()+1); d.setDate(0); return yyyymmdd(d) }
 const prevMonthStart = () => { const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); return yyyymmdd(d) }
 const prevMonthEnd   = () => { const d=new Date(); d.setDate(0); return yyyymmdd(d) }
 const thisYearStart  = () => { const d=new Date(); d.setMonth(0); d.setDate(1); return yyyymmdd(d) }
+const thisYearEnd    = () => { const d=new Date(); d.setMonth(11); d.setDate(31); return yyyymmdd(d) }
 const prevYearStart  = () => { const d=new Date(); d.setFullYear(d.getFullYear()-1); d.setMonth(0); d.setDate(1); return yyyymmdd(d) }
 const prevYearEnd    = () => { const d=new Date(); d.setFullYear(d.getFullYear()-1); d.setMonth(11); d.setDate(31); return yyyymmdd(d) }
 const allTimeStart   = () => '20200101'
@@ -1316,11 +1324,11 @@ function JournalPanel({ user }) {
         <div className="pp-jrn-period">
           {/* 프리셋 버튼 */}
           {[
-            { l:'당월', fr:thisMonthStart(), to:today() },
+            { l:'당월', fr:thisMonthStart(), to:thisMonthEnd() },
             { l:'전월', fr:prevMonthStart(), to:prevMonthEnd() },
-            { l:'올해', fr:thisYearStart(),  to:today() },
-            { l:'전년', fr:prevYearStart(),  to:prevYearEnd() },
-            { l:'전체', fr:allTimeStart(),   to:today() },
+            { l:'올해', fr:thisYearStart(),  to:thisYearEnd()  },
+            { l:'전년', fr:prevYearStart(),  to:prevYearEnd()  },
+            { l:'전체', fr:allTimeStart(),   to:today()        },
           ].map(p=>(
             <button key={p.l}
               className={`pp-period-btn ${frDt===p.fr&&toDt===p.to?'active':''}`}
