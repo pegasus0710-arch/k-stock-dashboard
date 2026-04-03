@@ -8,6 +8,7 @@ import {
   where, orderBy, Timestamp, writeBatch, doc, updateDoc, deleteDoc
 } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
+import ImportSyncModal from '../components/ImportSyncModal'
 import './PortfolioPage.css'
 
 const CLAUDE_KEY = import.meta.env.VITE_CLAUDE_API_KEY
@@ -916,6 +917,7 @@ function JournalPanel({ user }) {
   const [showAdd,    setShowAdd]    = useState(false)
   const [catEdit,    setCatEdit]    = useState(null)  // 카테고리 인라인 편집 중인 _id
   const [deleting,   setDeleting]   = useState(null)
+  const [syncModal,  setSyncModal]  = useState(null)  // 'trades' | 'cashflow' | null
 
   const TABS = [
     { id:'all',      label:'전체' },
@@ -1111,9 +1113,15 @@ function JournalPanel({ user }) {
               ⚠️ 중복 {dupCount}건 제거
             </button>
           )}
-          {view==='log' && (
+          {view==='log' && (<>
+            <button className="pp-btn"
+              onClick={()=>setSyncModal('trades')}
+              style={{fontSize:11}}>📥 매매내역</button>
+            <button className="pp-btn"
+              onClick={()=>setSyncModal('cashflow')}
+              style={{fontSize:11}}>📥 입출금</button>
             <button className="pp-btn primary" onClick={()=>setShowAdd(true)}>+ 수동 추가</button>
-          )}
+          </>)}
           <button className="pp-btn" onClick={view==='log'?load:loadAll} disabled={loading}>↺</button>
         </div>
       </div>
@@ -1121,6 +1129,16 @@ function JournalPanel({ user }) {
       {/* 수동 추가 모달 */}
       {showAdd && (
         <AddEntryModal user={user} onClose={()=>setShowAdd(false)} onSaved={load}/>
+      )}
+
+      {/* 비교 동기화 모달 */}
+      {syncModal && (
+        <ImportSyncModal
+          type={syncModal}
+          user={user}
+          onClose={()=>setSyncModal(null)}
+          onSaved={()=>{ load(); setSyncModal(null) }}
+        />
       )}
 
       {/* ── 가져오기 패널 (토글) ── */}
