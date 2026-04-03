@@ -12,10 +12,20 @@ import {
 // ── 유틸 ──────────────────────────────────────────────
 const fmt    = n => Number(n||0).toLocaleString()
 const fmtD   = s => s ? `${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}` : ''
-const today  = () => new Date().toISOString().slice(0,10).replace(/-/g,'')
-const daysAgo = d => { const dt=new Date(); dt.setDate(dt.getDate()-d); return dt.toISOString().slice(0,10).replace(/-/g,'') }
+const yyyymmdd = d => {
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0')
+  return `${y}${m}${dd}`
+}
+const today   = () => yyyymmdd(new Date())
+const daysAgo = d => { const dt=new Date(); dt.setDate(dt.getDate()-d); return yyyymmdd(dt) }
 const toHtml  = s => s ? `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` : ''
 const fromHtml = s => s ? s.replace(/-/g,'') : ''
+const DOW_M = ['일','월','화','수','목','금','토']
+const fmtDateDay = s => {
+  if (!s) return ''
+  const d = new Date(`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`)
+  return `${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}(${DOW_M[d.getDay()]})`
+}
 
 // 매칭 키: 날짜 + 절대금액 조합
 const matchKey = item => `${item.date}_${Math.abs(Number(item.amount||0))}`
@@ -249,15 +259,28 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
                 cursor:'pointer'}}
               onClick={()=>{ setFrDt(daysAgo(p.d)); setToDt(today()) }}>{p.l}</button>
           ))}
-          <input type="date" value={toHtml(frDt)} onChange={e=>setFrDt(fromHtml(e.target.value))}
-            max={toHtml(today())}
-            style={{padding:'5px 8px',border:'1px solid var(--border)',borderRadius:7,
-              fontSize:12,color:'var(--text-primary)',background:'var(--bg-panel)',outline:'none'}}/>
+          {/* 커스텀 날짜 피커 — 요일 표시 */}
+          <div style={{position:'relative',display:'inline-flex',alignItems:'center'}}>
+            <span style={{fontSize:12,color:'var(--text-primary)',padding:'5px 8px',
+              border:'1px solid var(--border)',borderRadius:7,background:'var(--bg-panel)',
+              cursor:'pointer',whiteSpace:'nowrap',userSelect:'none'}}>
+              {fmtDateDay(frDt)}
+            </span>
+            <input type="date" value={toHtml(frDt)} onChange={e=>setFrDt(fromHtml(e.target.value))}
+              max={toHtml(today())}
+              style={{position:'absolute',inset:0,opacity:0,cursor:'pointer',width:'100%',height:'100%',border:'none',padding:0}}/>
+          </div>
           <span style={{color:'var(--text-dim)',fontSize:12}}>~</span>
-          <input type="date" value={toHtml(toDt)} onChange={e=>setToDt(fromHtml(e.target.value))}
-            max={toHtml(today())}
-            style={{padding:'5px 8px',border:'1px solid var(--border)',borderRadius:7,
-              fontSize:12,color:'var(--text-primary)',background:'var(--bg-panel)',outline:'none'}}/>
+          <div style={{position:'relative',display:'inline-flex',alignItems:'center'}}>
+            <span style={{fontSize:12,color:'var(--text-primary)',padding:'5px 8px',
+              border:'1px solid var(--border)',borderRadius:7,background:'var(--bg-panel)',
+              cursor:'pointer',whiteSpace:'nowrap',userSelect:'none'}}>
+              {fmtDateDay(toDt)}
+            </span>
+            <input type="date" value={toHtml(toDt)} onChange={e=>setToDt(fromHtml(e.target.value))}
+              max={toHtml(today())}
+              style={{position:'absolute',inset:0,opacity:0,cursor:'pointer',width:'100%',height:'100%',border:'none',padding:0}}/>
+          </div>
           <button onClick={fetchApi} disabled={loading}
             style={{padding:'5px 16px',borderRadius:8,fontSize:12,fontWeight:700,
               border:'none',background:'var(--accent-mid)',color:'white',cursor:'pointer',
