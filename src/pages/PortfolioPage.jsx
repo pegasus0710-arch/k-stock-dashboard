@@ -28,10 +28,9 @@ const maxDate   = (fr, months=3) => {  // fr 날짜 기준 최대 조회 종료�
 }
 const fmtDate = s => s?`${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}`:''
 
-// trade_id: 서버에서 trde_no 포함한 완전한 ID 반환 → 그대로 사용
-// 서버 미반환 시 폴백 (수동 항목 등)
-const makeTradeId = t => t.trade_id || `${t.date}_${t.code}_${t.type}_${t.price}_${t.qty}`
-const makeCfId    = t => t.trade_id || `${t.date}_${t.type}_${t.amount}`
+// trade_id 중복 방지용 해시
+const makeTradeId = t => `${t.date}_${t.code}_${t.type}_${t.price}_${t.qty}`
+const makeCfId    = t => `${t.date}_${t.type}_${t.amount}`
 
 // 섹터 색상
 const SECTOR_COLORS = ['#4F46E5','#0D9488','#D97706','#EF4444','#8B5CF6','#10B981','#F59E0B','#6366F1']
@@ -252,41 +251,39 @@ function TradesPanel({ user }) {
   const fetchTrades = async (fr=frDt, to=toDt) => {
     setLoading(true); setTrades([]); setSaved(0)
     try {
-      const tradeRes = await fetch(`/api/kiwoom?type=account-trades&fr_dt=${fr}&to_dt=${to}`).then(r=>r.json())
-      const rawTrades = tradeRes.trades || []
+      // 매매내역 + 실현손익 동시 조회
+      const [tradeRes, realRes] = await Promise.all([
+        fetch(`/api/kiwoom?type=account-trades&fr_dt=${fr}&to_dt=${to}`).then(r=>r.json()),
+        fetch(`/api/kiwoom?type=account-realized&fr_dt=${fr}&to_dt=${to}`).then(r=>r.json()).catch(()=>({})),
+      ])
+      const rawTrades   = tradeRes.trades   || []
+      const realizedArr = realRes.realized  || []
+      const byKey       = realRes.by_key    || {}
 
-      // 매도 종목 코드 리스트 추출 → realized API에 전달
-      const sellCodes = [...new Set(rawTrades.filter(t=>t.type==='sell').map(t=>t.code).filter(Boolean))]
-      const realRes = sellCodes.length > 0
-        ? await fetch(`/api/kiwoom?type=account-realized&fr_dt=${fr}&to_dt=${to}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fr_dt: fr, to_dt: to, codes: sellCodes })
-          }).then(r=>r.json()).catch(()=>({}))
-        : {}
-
-      const realizedArr = realRes.realized || []
-      const byKey       = realRes.by_key   || {}
-      const byCode      = realRes.by_code  || {}
-
-      // 매도 건에 실현손익 병합 (3단계 매칭)
+      // 매도 건에 실현손익 병합 (다단계 매칭)
       const merged = rawTrades.map(t => {
         if (t.type !== 'sell') return t
-        // 1차: date+code 정확 매칭
-        const key1 = `${t.date}_${t.code}`
-        let matches = byKey[key1] || []
-        // 2차: code만 폴백 (날짜 형식 불일치 대비)
-        if (!matches.length) matches = byCode[t.code] || []
-        // 3차: 전체에서 code + 수량 근사 매칭
+        // 1차: date+code by_key 정확 매칭
+        const key   = `${t.date}_${t.code}`
+        let matches = byKey[key] || []
+        // 2차: code만으로 폴백 (날짜 형식 불일치 대비)
         if (!matches.length) {
           matches = realizedArr.filter(r =>
-            r.code === t.code && Math.abs(Number(r.qty||0) - Number(t.qty||0)) < 2
+            r.code === t.code &&
+            Math.abs(Number(r.qty||0) - Number(t.qty||0)) < 2
           )
         }
         if (!matches.length) return t
+        // 수량 일치 우선, 없으면 첫 번째
         const best = matches.find(m => Number(m.qty||0) === Number(t.qty||0)) || matches[0]
-        return { ...t, profit: best.profit, profit_rt: best.profit_rt,
-                 buy_price: best.buy_price, fee: best.fee || t.fee, tax: best.tax || 0 }
+        return {
+          ...t,
+          profit:    best.profit,
+          profit_rt: best.profit_rt,
+          buy_price: best.buy_price,
+          fee:       best.fee || t.fee,
+          tax:       best.tax || 0,
+        }
       })
       setTrades(merged)
     } catch(e) { console.error(e) }
@@ -298,20 +295,14 @@ function TradesPanel({ user }) {
     setSaving(true)
     let newCount = 0
     try {
-      const existing = new Set(dbTrades.map(t => makeTradeId(t)))
+      const existing = new Set(dbTrades.map(t=>makeTradeId(t)))
       const batch = writeBatch(db)
       const col = collection(db,'users',user.uid,'portfolio','trades','records')
       for (const t of trades) {
         const id = makeTradeId(t)
-        // api↔manual 교차 중복: 기존 저장 ID와 겹치면 skip
         if (existing.has(id)) continue
         const ref = doc(col, id)
-        batch.set(ref, {
-          ...t,
-          source:   t.source   || 'api',
-          category: t.category || 'trade',
-          savedAt: Timestamp.now(),
-        })
+        batch.set(ref, { ...t, savedAt: Timestamp.now() })
         newCount++
       }
       if (newCount > 0) await batch.commit()
@@ -321,16 +312,7 @@ function TradesPanel({ user }) {
     setSaving(false)
   }
 
-  // 이미 저장된 trade_id Set (테이블 시각 구분용)
-  const savedIdSet = new Set(dbTrades.map(t => makeTradeId(t)))
-
   const displayData = viewMode === 'db' ? dbTrades : trades
-
-  // 50건 페이지네이션
-  const PAGE_SIZE = 50
-  const [page, setPage] = useState(1)
-  const totalPages = Math.ceil(displayData.length / PAGE_SIZE)
-  const pageData   = displayData.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE)
 
   return (
     <div className="pp-panel">
@@ -375,74 +357,51 @@ function TradesPanel({ user }) {
       )}
 
       {!loading && displayData.length>0 && (
-        <>
-          <div style={{fontSize:11,color:'var(--text-dim)',marginBottom:6}}>
-            총 {displayData.length}건
-            {viewMode==='api' && ` · 저장됨 ${savedIdSet.size}건 · 신규 ${displayData.length - trades.filter(t=>savedIdSet.has(makeTradeId(t))).length}건`}
-          </div>
-          <div className="pp-table-wrap">
-            <table className="pp-table">
-              <thead>
-                <tr>
-                  <th style={{textAlign:'left'}}>날짜</th>
-                  <th style={{textAlign:'left'}}>종목</th>
-                  <th>구분</th>
-                  <th>수량</th>
-                  <th>단가</th>
-                  <th>금액</th>
-                  <th>실현손익</th>
-                  <th>수수료</th>
+        <div className="pp-table-wrap">
+          <table className="pp-table">
+            <thead>
+              <tr>
+                <th style={{textAlign:'left'}}>날짜</th>
+                <th style={{textAlign:'left'}}>종목</th>
+                <th>구분</th>
+                <th>수량</th>
+                <th>단가</th>
+                <th>금액</th>
+                <th>실현손익</th>
+                <th>수수료</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayData.map((t,i)=>(
+                <tr key={i}>
+                  <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11}}>{fmtDate(t.date)}</td>
+                  <td>
+                    <div className="pp-stock-name">{t.name}</div>
+                    <div className="pp-stock-code">{t.code}</div>
+                  </td>
+                  <td><span style={{color:t.type==='buy'?'#EF4444':'#3B82F6',fontWeight:700}}>{t.type==='buy'?'매수':'매도'}</span></td>
+                  <td>{fmt(t.qty)}</td>
+                  <td>{fmt(t.price)}</td>
+                  <td>{fmt(t.amount)}</td>
+                  <td>
+                    {t.type==='sell' && t.profit!=null
+                      ? <div>
+                          <div className={Number(t.profit)>=0?'up':'down'} style={{fontWeight:700}}>
+                            {Number(t.profit)>=0?'+':''}{fmt(t.profit)}
+                          </div>
+                          <div style={{fontSize:10,color:Number(t.profit_rt)>=0?'#EF4444':'#3B82F6'}}>
+                            {Number(t.profit_rt)>=0?'+':''}{Number(t.profit_rt||0).toFixed(2)}%
+                          </div>
+                        </div>
+                      : <span style={{color:'var(--text-dim)',fontSize:11}}>{t.type==='buy'?'-':'미집계'}</span>
+                    }
+                  </td>
+                  <td>{fmt(t.fee)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {pageData.map((t,i)=>{
-                  const tid     = makeTradeId(t)
-                  const isSaved = savedIdSet.has(tid)
-                  const isManual = t.source === 'manual'
-                  const rowBg   = isManual ? '#FFF7ED' : isSaved ? '#F8FAFC' : 'white'
-                  return (
-                    <tr key={i} style={{background: rowBg}}>
-                      <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11}}>
-                        {fmtDate(t.date)}
-                        {isManual && <span style={{fontSize:9,color:'#D97706',marginLeft:4,background:'#FEF3C7',padding:'1px 4px',borderRadius:3}}>수동</span>}
-                        {isSaved && !isManual && <span style={{fontSize:9,color:'#64748B',marginLeft:4}}>저장됨</span>}
-                      </td>
-                      <td>
-                        <div className="pp-stock-name">{t.name}</div>
-                        <div className="pp-stock-code">{t.code}</div>
-                      </td>
-                      <td><span style={{color:t.type==='buy'?'#EF4444':'#3B82F6',fontWeight:700}}>{t.type==='buy'?'매수':'매도'}</span></td>
-                      <td>{fmt(t.qty)}</td>
-                      <td>{fmt(t.price)}</td>
-                      <td>{fmt(t.amount)}</td>
-                      <td>
-                        {t.type==='sell' && t.profit!=null
-                          ? <div>
-                              <div className={Number(t.profit)>=0?'up':'down'} style={{fontWeight:700}}>
-                                {Number(t.profit)>=0?'+':''}{fmt(t.profit)}
-                              </div>
-                              <div style={{fontSize:10,color:Number(t.profit_rt)>=0?'#EF4444':'#3B82F6'}}>
-                                {Number(t.profit_rt)>=0?'+':''}{Number(t.profit_rt||0).toFixed(2)}%
-                              </div>
-                            </div>
-                          : <span style={{color:'var(--text-dim)',fontSize:11}}>{t.type==='buy'?'-':'미집계'}</span>
-                        }
-                      </td>
-                      <td>{fmt(t.fee)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-          {totalPages > 1 && (
-            <div style={{display:'flex',justifyContent:'center',alignItems:'center',gap:8,marginTop:12}}>
-              <button className="pp-btn" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}>◀</button>
-              <span style={{fontSize:12,color:'var(--text-secondary)'}}>{page} / {totalPages}</span>
-              <button className="pp-btn" onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages}>▶</button>
-            </div>
-          )}
-        </>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )
@@ -493,12 +452,7 @@ function CashflowPanel({ user }) {
         const id = makeCfId(f)
         if (existing.has(id)) continue
         const ref = doc(col, id)
-        batch.set(ref, {
-          ...f,
-          source:   f.source   || 'api',
-          category: f.category || f.type,
-          savedAt: Timestamp.now(),
-        })
+        batch.set(ref, { ...f, savedAt: Timestamp.now() })
         newCount++
       }
       if (newCount > 0) await batch.commit()
@@ -508,34 +462,9 @@ function CashflowPanel({ user }) {
     setSaving(false)
   }
 
-  // 카테고리별 뱃지 스타일
-  const catBadge = cat => {
-    const map = {
-      dividend: { label:'배당', color:'#059669', bg:'#ECFDF5' },
-      interest:  { label:'이자', color:'#0891B2', bg:'#ECFEFF' },
-      transfer:  { label:'이체', color:'#64748B', bg:'#F1F5F9' },
-      in:        { label:'입금', color:'#EF4444', bg:'#FEF2F2' },
-      out:       { label:'출금', color:'#3B82F6', bg:'#EFF6FF' },
-    }
-    return map[cat] || { label:cat||'기타', color:'#94A3B8', bg:'#F8FAFC' }
-  }
-
-  // 인라인 메모 수정
-  const [editMemoId, setEditMemoId] = useState(null)
-  const [memoInput,  setMemoInput]  = useState('')
-  const saveMemo = async (f) => {
-    if (!user) return
-    const id  = makeCfId(f)
-    const ref = doc(db,'users',user.uid,'portfolio','cashflow','records', id)
-    await updateDoc(ref, { memo: memoInput }).catch(()=>{})
-    setDbFlows(prev => prev.map(r => makeCfId(r)===id ? {...r, memo: memoInput} : r))
-    setEditMemoId(null)
-  }
-
   const displayData = viewMode === 'db' ? dbFlows : flows
-  const totalIn  = displayData.filter(f=>f.type==='in'||f.category==='dividend'||f.category==='interest').reduce((s,f)=>s+Number(f.amount||0), 0)
+  const totalIn  = displayData.filter(f=>f.type==='in').reduce((s,f)=>s+Number(f.amount||0), 0)
   const totalOut = displayData.filter(f=>f.type==='out').reduce((s,f)=>s+Number(f.amount||0), 0)
-  const dividendTotal = displayData.filter(f=>f.category==='dividend').reduce((s,f)=>s+Number(f.amount||0), 0)
 
   return (
     <div className="pp-panel">
@@ -578,8 +507,8 @@ function CashflowPanel({ user }) {
             <div className="pp-stat-value">{fmtM(totalIn-totalOut)}</div>
           </div>
           <div className="pp-stat-item">
-            <div className="pp-stat-label">배당·이자</div>
-            <div className="pp-stat-value" style={{color:'#059669'}}>{dividendTotal>0?'+':''}{fmtM(dividendTotal)}</div>
+            <div className="pp-stat-label">거래 건수</div>
+            <div className="pp-stat-value">{displayData.length}건</div>
           </div>
         </div>
       )}
@@ -599,46 +528,21 @@ function CashflowPanel({ user }) {
           <table className="pp-table">
             <thead><tr>
               <th style={{textAlign:'left'}}>날짜</th>
-              <th style={{textAlign:'left'}}>카테고리</th>
+              <th style={{textAlign:'left'}}>구분</th>
               <th>금액</th>
               <th>잔고</th>
               <th style={{textAlign:'left'}}>메모</th>
             </tr></thead>
             <tbody>
-              {displayData.map((f,i)=>{
-                const cat  = catBadge(f.category || f.type)
-                const cfId = makeCfId(f)
-                return (
-                  <tr key={i} style={{background: f.category==='dividend'?'#F0FDF4': f.category==='interest'?'#ECFEFF':'white'}}>
-                    <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11}}>{fmtDate(f.date)}</td>
-                    <td style={{textAlign:'left'}}>
-                      <span style={{display:'inline-block',padding:'2px 7px',borderRadius:10,fontSize:10,fontWeight:700,
-                        color:cat.color,background:cat.bg,border:`1px solid ${cat.color}22`}}>
-                        {cat.label}
-                      </span>
-                    </td>
-                    <td className={f.type==='in'||f.category==='dividend'||f.category==='interest'?'up':'down'}>
-                      {f.type==='in'||f.category==='dividend'||f.category==='interest'?'+':'-'}{fmt(f.amount)}
-                    </td>
-                    <td>{fmt(f.balance)}</td>
-                    <td style={{textAlign:'left'}}>
-                      {viewMode==='db' && editMemoId===cfId
-                        ? <div style={{display:'flex',gap:4}}>
-                            <input value={memoInput} onChange={e=>setMemoInput(e.target.value)}
-                              style={{fontSize:11,padding:'3px 6px',border:'1px solid var(--border)',borderRadius:5,width:140}}
-                              autoFocus onKeyDown={e=>e.key==='Enter'&&saveMemo(f)}/>
-                            <button className="pp-btn" style={{padding:'2px 8px',fontSize:10}} onClick={()=>saveMemo(f)}>저장</button>
-                            <button className="pp-btn" style={{padding:'2px 8px',fontSize:10}} onClick={()=>setEditMemoId(null)}>취소</button>
-                          </div>
-                        : <span style={{fontSize:11,color:'var(--text-dim)',cursor:viewMode==='db'?'pointer':'default'}}
-                            onClick={()=>{if(viewMode==='db'){setEditMemoId(cfId);setMemoInput(f.memo||'')}}}>
-                            {f.memo||f.io_tp_nm||f.rmrk_nm||<span style={{color:'#CBD5E1',fontStyle:'italic'}}>+메모</span>}
-                          </span>
-                      }
-                    </td>
-                  </tr>
-                )
-              })}
+              {displayData.map((f,i)=>(
+                <tr key={i}>
+                  <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11}}>{fmtDate(f.date)}</td>
+                  <td style={{textAlign:'left'}}><span style={{color:f.type==='in'?'#EF4444':'#3B82F6',fontWeight:700}}>{f.type==='in'?'입금':'출금'}</span></td>
+                  <td className={f.type==='in'?'up':'down'}>{f.type==='in'?'+':'-'}{fmt(f.amount)}</td>
+                  <td>{fmt(f.balance)}</td>
+                  <td style={{textAlign:'left',fontFamily:'var(--font-kr,sans-serif)',fontSize:11,color:'var(--text-dim)'}}>{f.io_tp_nm||f.memo||''}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -856,34 +760,7 @@ function AnalysisView({ allTrades, allCashflow }) {
         </div>
       )}
 
-      {/* 배당·이자 수익 집계 (있을 때만) */}
-      {(() => {
-        const divItems = allCashflow.filter(c => c.category==='dividend'||c.category==='interest')
-        const divTotal = divItems.reduce((s,c)=>s+Number(c.amount||0), 0)
-        if (!divTotal) return null
-        return (
-          <div style={{padding:'10px 14px',background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:8,fontSize:12,color:'#166534',marginBottom:16,display:'flex',gap:16,alignItems:'center'}}>
-            <span>💰 배당·이자 수익</span>
-            <span style={{fontWeight:800,fontSize:15}}>+{fmtM(divTotal)}</span>
-            <span style={{color:'#4ADE80',fontSize:11}}>{divItems.length}건 · 저장된 입출금 내역 기준</span>
-          </div>
-        )
-      })()}
-
-      {/* Phase 4-1: 데이터 없을 때 CTA (탭 추가 없이 단일 화면) */}
-      {!hasProfitData && trades.length === 0 && (
-        <div style={{padding:'16px',background:'#FFFBEB',border:'1px solid #FCD34D',borderRadius:10,marginBottom:16,textAlign:'center'}}>
-          <div style={{fontSize:14,fontWeight:700,color:'#92400E',marginBottom:8}}>📊 성과분석 데이터 없음</div>
-          <div style={{fontSize:12,color:'#B45309',marginBottom:12}}>
-            매매내역 탭에서 조회 후 저장하면 승률·R:R·종목별 수익이 계산됩니다.
-          </div>
-          <div style={{fontSize:11,color:'#D97706'}}>
-            ① 매매내역 탭 클릭 → ② 기간 선택 후 조회 → ③ Firestore 저장 버튼 클릭
-          </div>
-        </div>
-      )}
-
-      {!hasProfitData && trades.length > 0 && (
+      {!hasProfitData && (
         <div style={{padding:'8px 12px',background:'#FFFBEB',border:'1px solid #FCD34D',borderRadius:7,fontSize:11,color:'#92400E',marginBottom:16}}>
           ℹ️ 실현손익 데이터는 매매내역 탭에서 <strong>조회 후 저장</strong>하면 승률·R:R이 계산됩니다.
         </div>
@@ -954,27 +831,197 @@ function AnalysisView({ allTrades, allCashflow }) {
 }
 
 // ── 매매일지 패널 (일지 + 성과분석 탭) ──────────────
+// ── 카테고리 설정 (입출금 분류) ──────────────────────
+const CF_CATEGORIES = [
+  { id:'in',       label:'입금',  color:'#EF4444', bg:'#FEF2F2' },
+  { id:'transfer', label:'이체',  color:'#64748B', bg:'#F1F5F9' },
+  { id:'dividend', label:'배당',  color:'#059669', bg:'#ECFDF5' },
+  { id:'interest', label:'이자',  color:'#0891B2', bg:'#ECFEFF' },
+  { id:'profit',   label:'수익',  color:'#D97706', bg:'#FFFBEB' },
+  { id:'out',      label:'출금',  color:'#3B82F6', bg:'#EFF6FF' },
+]
+const cfCatMap = Object.fromEntries(CF_CATEGORIES.map(c=>[c.id,c]))
+const getCfCat = cat => cfCatMap[cat] || cfCatMap['in']
+
+// 진입근거 태그
+const REASON_TAGS = ['기술적분석','실적기대','테마','분할매수','손절','익절','배당수익','기타']
+
+// ── 수동 추가 모달 (JournalPanel 내장) ───────────────
+function AddEntryModal({ user, onClose, onSaved }) {
+  const [type,    setType]    = useState('buy')
+  const [date,    setDate]    = useState(toHtml(today()))
+  const [code,    setCode]    = useState('')
+  const [name,    setName]    = useState('')
+  const [price,   setPrice]   = useState('')
+  const [qty,     setQty]     = useState('')
+  const [amount,  setAmount]  = useState('')
+  const [cat,     setCat]     = useState('in')
+  const [memo,    setMemo]    = useState('')
+  const [reason,  setReason]  = useState('')
+  const [saving,  setSaving]  = useState(false)
+
+  const isTrade = type==='buy'||type==='sell'
+  const tradeId = `manual_${Date.now()}_${Math.random().toString(36).slice(2,7)}`
+
+  const save = async () => {
+    if (!user) return
+    setSaving(true)
+    try {
+      const dt = fromHtml(date)
+      if (isTrade) {
+        const amt = Number(price||0)*Number(qty||0) || Number(amount||0)
+        const ref = doc(
+          collection(db,'users',user.uid,'portfolio','trades','records'), tradeId
+        )
+        await (await import('firebase/firestore')).setDoc(ref, {
+          trade_id: tradeId, date: dt, code, name,
+          type, qty: Number(qty||0), price: Number(price||0),
+          amount: amt, fee: 0, source: 'manual', category: 'trade',
+          memo, reason_tag: reason, savedAt: (await import('firebase/firestore')).Timestamp.now(),
+        })
+      } else {
+        const cfId = `manual_${Date.now()}_${Math.random().toString(36).slice(2,7)}`
+        const ref = doc(
+          collection(db,'users',user.uid,'portfolio','cashflow','records'), cfId
+        )
+        const flowType = cat==='out' ? 'out' : 'in'
+        await (await import('firebase/firestore')).setDoc(ref, {
+          trade_id: cfId, date: dt, type: flowType,
+          category: cat, source: 'manual',
+          amount: Number(amount||0), balance: 0,
+          rmrk_nm: name||memo, memo, savedAt: (await import('firebase/firestore')).Timestamp.now(),
+        })
+      }
+      onSaved()
+      onClose()
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
+
+  return (
+    <div className="pp-modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="pp-modal">
+        <div className="pp-modal-hdr">
+          <span className="pp-modal-title">수동 내역 추가</span>
+          <button className="pp-btn" onClick={onClose}>✕</button>
+        </div>
+        {/* 구분 선택 */}
+        <div className="pp-modal-row">
+          <label className="pp-modal-label">구분</label>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            {[{v:'buy',l:'매수'},{v:'sell',l:'매도'},{v:'cashflow',l:'입출금'}].map(t=>(
+              <button key={t.v} className={`pp-period-btn ${type===t.v?'active':''}`}
+                onClick={()=>setType(t.v)}>{t.l}</button>
+            ))}
+          </div>
+        </div>
+        {/* 날짜 */}
+        <div className="pp-modal-row">
+          <label className="pp-modal-label">날짜</label>
+          <input type="date" className="pp-date-input" value={date}
+            onChange={e=>setDate(e.target.value)} max={toHtml(today())}/>
+        </div>
+        {/* 종목 (거래) */}
+        {isTrade && (<>
+          <div className="pp-modal-row">
+            <label className="pp-modal-label">종목코드</label>
+            <input className="pp-modal-input" value={code} onChange={e=>setCode(e.target.value)} placeholder="예: 005930"/>
+          </div>
+          <div className="pp-modal-row">
+            <label className="pp-modal-label">종목명</label>
+            <input className="pp-modal-input" value={name} onChange={e=>setName(e.target.value)} placeholder="예: 삼성전자"/>
+          </div>
+          <div className="pp-modal-row">
+            <label className="pp-modal-label">단가</label>
+            <input className="pp-modal-input" type="number" value={price} onChange={e=>setPrice(e.target.value)} placeholder="0"/>
+          </div>
+          <div className="pp-modal-row">
+            <label className="pp-modal-label">수량</label>
+            <input className="pp-modal-input" type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="0"/>
+          </div>
+          {price&&qty&&<div style={{fontSize:11,color:'var(--text-dim)',marginBottom:8,paddingLeft:90}}>
+            ≈ {fmt(Number(price)*Number(qty))}원
+          </div>}
+          {/* 진입근거 태그 */}
+          <div className="pp-modal-row">
+            <label className="pp-modal-label">진입근거</label>
+            <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+              {REASON_TAGS.map(r=>(
+                <button key={r}
+                  style={{padding:'3px 8px',borderRadius:12,fontSize:11,border:'1px solid',cursor:'pointer',
+                    borderColor:reason===r?'var(--accent-mid)':'var(--border)',
+                    background:reason===r?'var(--accent-light)':'var(--bg-panel)',
+                    color:reason===r?'var(--accent-mid)':'var(--text-secondary)'}}
+                  onClick={()=>setReason(prev=>prev===r?'':r)}>{r}</button>
+              ))}
+            </div>
+          </div>
+        </>)}
+        {/* 입출금 */}
+        {!isTrade && (<>
+          <div className="pp-modal-row">
+            <label className="pp-modal-label">카테고리</label>
+            <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+              {CF_CATEGORIES.map(c=>(
+                <button key={c.id}
+                  style={{padding:'3px 10px',borderRadius:12,fontSize:11,border:`1px solid ${cat===c.id?c.color:' var(--border)'}`,
+                    background:cat===c.id?c.bg:'var(--bg-panel)',color:cat===c.id?c.color:'var(--text-secondary)',
+                    cursor:'pointer',fontWeight:cat===c.id?700:400}}
+                  onClick={()=>setCat(c.id)}>{c.label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="pp-modal-row">
+            <label className="pp-modal-label">항목명</label>
+            <input className="pp-modal-input" value={name} onChange={e=>setName(e.target.value)} placeholder="예: 삼성전자 배당금"/>
+          </div>
+          <div className="pp-modal-row">
+            <label className="pp-modal-label">금액</label>
+            <input className="pp-modal-input" type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0"/>
+          </div>
+        </>)}
+        {/* 메모 공통 */}
+        <div className="pp-modal-row">
+          <label className="pp-modal-label">메모</label>
+          <input className="pp-modal-input" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="매매 이유, 기억할 내용..."/>
+        </div>
+        <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:16}}>
+          <button className="pp-btn" onClick={onClose}>취소</button>
+          <button className="pp-btn primary" onClick={save} disabled={saving}>
+            {saving?'저장 중...':'저장'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── 매매일지 패널 ─────────────────────────────────────
 function JournalPanel({ user }) {
-  const [view,  setView]        = useState('log')   // log | analysis
-  const [frDt,  setFrDt]        = useState(daysAgo(30))
-  const [toDt,  setToDt]        = useState(today())
-  const [tab,   setTab]         = useState('all')
-  const [items, setItems]       = useState([])
-  const [allTrades, setAllTrades]       = useState([])
-  const [allCashflow, setAllCashflow]   = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [editId, setEditId]     = useState(null)
-  const [editText, setEditText] = useState('')
-  const [saving, setSaving]     = useState(false)
+  const [view,       setView]       = useState('log')
+  const [frDt,       setFrDt]       = useState(daysAgo(30))
+  const [toDt,       setToDt]       = useState(today())
+  const [tab,        setTab]        = useState('all')
+  const [items,      setItems]      = useState([])
+  const [allTrades,  setAllTrades]  = useState([])
+  const [allCashflow,setAllCashflow]= useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [editId,     setEditId]     = useState(null)
+  const [editText,   setEditText]   = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const [showAdd,    setShowAdd]    = useState(false)
+  const [catEdit,    setCatEdit]    = useState(null)  // 카테고리 인라인 편집 중인 _id
+  const [deleting,   setDeleting]   = useState(null)
 
   const TABS = [
     { id:'all',      label:'전체' },
     { id:'buy',      label:'매수' },
     { id:'sell',     label:'매도' },
-    { id:'cashflow', label:'입출금' },
+    { id:'dividend', label:'배당' },
+    { id:'transfer', label:'이체' },
+    { id:'manual',   label:'수동입력' },
   ]
 
-  // 일지용: 기간 내 데이터
   const load = useCallback(async () => {
     if (!user) return
     setLoading(true)
@@ -982,33 +1029,26 @@ function JournalPanel({ user }) {
       const [tSnap, cSnap] = await Promise.all([
         getDocs(query(
           collection(db,'users',user.uid,'portfolio','trades','records'),
-          where('date','>=', frDt), where('date','<=', toDt), orderBy('date','desc')
-        )).catch(()=>({ docs:[] })),
+          where('date','>=',frDt), where('date','<=',toDt), orderBy('date','desc')
+        )).catch(()=>({docs:[]})),
         getDocs(query(
           collection(db,'users',user.uid,'portfolio','cashflow','records'),
-          where('date','>=', frDt), where('date','<=', toDt), orderBy('date','desc')
-        )).catch(()=>({ docs:[] })),
+          where('date','>=',frDt), where('date','<=',toDt), orderBy('date','desc')
+        )).catch(()=>({docs:[]})),
       ])
-      const trades   = tSnap.docs.map(d=>({ ...d.data(), _id:d.id, _col:'trades' }))
-      const cashflow = cSnap.docs.map(d=>({ ...d.data(), _id:d.id, _col:'cashflow' }))
-      setItems([...trades, ...cashflow].sort((a,b)=>b.date.localeCompare(a.date)))
+      const trades   = tSnap.docs.map(d=>({...d.data(), _id:d.id, _col:'trades'}))
+      const cashflow = cSnap.docs.map(d=>({...d.data(), _id:d.id, _col:'cashflow'}))
+      setItems([...trades,...cashflow].sort((a,b)=>b.date.localeCompare(a.date)))
     } catch(e){ console.error(e) }
     setLoading(false)
   }, [user, frDt, toDt])
 
-  // 성과분석용: 전체 데이터 (기간 제한 없음)
   const loadAll = useCallback(async () => {
     if (!user) return
     try {
       const [tSnap, cSnap] = await Promise.all([
-        getDocs(query(
-          collection(db,'users',user.uid,'portfolio','trades','records'),
-          orderBy('date','desc')
-        )).catch(()=>({ docs:[] })),
-        getDocs(query(
-          collection(db,'users',user.uid,'portfolio','cashflow','records'),
-          orderBy('date','desc')
-        )).catch(()=>({ docs:[] })),
+        getDocs(query(collection(db,'users',user.uid,'portfolio','trades','records'), orderBy('date','desc'))).catch(()=>({docs:[]})),
+        getDocs(query(collection(db,'users',user.uid,'portfolio','cashflow','records'), orderBy('date','desc'))).catch(()=>({docs:[]})),
       ])
       setAllTrades(tSnap.docs.map(d=>d.data()))
       setAllCashflow(cSnap.docs.map(d=>d.data()))
@@ -1018,20 +1058,24 @@ function JournalPanel({ user }) {
   useEffect(()=>{ load() }, [load])
   useEffect(()=>{ if(view==='analysis') loadAll() }, [view, loadAll])
 
+  // 탭 필터
   const filtered = items.filter(it => {
     if (tab==='all')      return true
     if (tab==='buy')      return it.type==='buy'
     if (tab==='sell')     return it.type==='sell'
-    if (tab==='cashflow') return it._col==='cashflow'
+    if (tab==='dividend') return it.category==='dividend'
+    if (tab==='transfer') return it.category==='transfer'||it.category==='in'||it.category==='out'
+    if (tab==='manual')   return it.source==='manual'
     return true
   })
 
+  // 메모 저장
   const saveMemo = async (it) => {
     if (!user) return
     setSaving(true)
     try {
-      const colPath = it._col==='trades' ? 'trades' : 'cashflow'
-      const ref = doc(db,'users',user.uid,'portfolio',colPath,'records',it._id)
+      const col = it._col==='trades' ? 'trades' : 'cashflow'
+      const ref = doc(db,'users',user.uid,'portfolio',col,'records',it._id)
       await updateDoc(ref, { memo: editText })
       setItems(prev=>prev.map(x=>x._id===it._id?{...x,memo:editText}:x))
       setEditId(null)
@@ -1039,117 +1083,293 @@ function JournalPanel({ user }) {
     setSaving(false)
   }
 
-  const typeLabel = (it) => {
-    if (it._col==='cashflow') return it.type==='in' ? '입금' : '출금'
-    return it.type==='buy' ? '매수' : '매도'
+  // 카테고리 업데이트 (입출금 재분류)
+  const updateCat = async (it, newCat) => {
+    if (!user) return
+    try {
+      const col = it._col==='cashflow' ? 'cashflow' : 'trades'
+      const ref = doc(db,'users',user.uid,'portfolio',col,'records',it._id)
+      const flowType = newCat==='out' ? 'out' : 'in'
+      await updateDoc(ref, { category: newCat, type: flowType, category_updated_at: Timestamp.now() })
+      setItems(prev=>prev.map(x=>x._id===it._id?{...x,category:newCat,type:flowType}:x))
+      setCatEdit(null)
+    } catch(e){ console.error(e) }
   }
+
+  // 수동 항목 삭제 (source==='manual'만)
+  const deleteItem = async (it) => {
+    if (!user || it.source!=='manual') return
+    if (!window.confirm(`"${it.name||it.rmrk_nm||'항목'}"을 삭제하시겠습니까?`)) return
+    setDeleting(it._id)
+    try {
+      const col = it._col==='trades' ? 'trades' : 'cashflow'
+      const { deleteDoc: delDoc } = await import('firebase/firestore')
+      const ref = doc(db,'users',user.uid,'portfolio',col,'records',it._id)
+      await delDoc(ref)
+      setItems(prev=>prev.filter(x=>x._id!==it._id))
+    } catch(e){ console.error(e) }
+    setDeleting(null)
+  }
+
+  // 배당 미분류 건 (입금이지만 category가 'in'인 것 — 수동 재분류 대상)
+  const unclassifiedCount = items.filter(it=>it._col==='cashflow'&&it.category==='in').length
+
   const typeColor = (it) => {
-    if (it._col==='cashflow') return it.type==='in' ? '#EF4444' : '#3B82F6'
-    return it.type==='buy' ? '#EF4444' : '#3B82F6'
+    if (it.type==='buy')  return '#EF4444'
+    if (it.type==='sell') return '#3B82F6'
+    if (it.type==='in')   return '#059669'
+    return '#94A3B8'
   }
 
   return (
     <div className="pp-panel">
-      {/* 상단: 뷰 탭 + 새로고침 */}
+      {/* 상단 헤더 */}
       <div className="pp-panel-hdr">
         <div style={{display:'flex',gap:4}}>
           {[{id:'log',label:'📓 일지'},{id:'analysis',label:'📊 성과분석'}].map(v=>(
             <button key={v.id} className={`pp-period-btn ${view===v.id?'active':''}`}
-              style={{fontWeight:view===v.id?700:500}}
-              onClick={()=>setView(v.id)}>{v.label}</button>
+              style={{fontWeight:view===v.id?700:500}} onClick={()=>setView(v.id)}>{v.label}</button>
           ))}
         </div>
-        <button className="pp-btn" onClick={view==='log'?load:loadAll} disabled={loading}>↺</button>
+        <div style={{display:'flex',gap:6}}>
+          {view==='log' && (
+            <button className="pp-btn primary" onClick={()=>setShowAdd(true)}>+ 수동 추가</button>
+          )}
+          <button className="pp-btn" onClick={view==='log'?load:loadAll} disabled={loading}>↺</button>
+        </div>
       </div>
 
+      {/* 수동 추가 모달 */}
+      {showAdd && (
+        <AddEntryModal user={user} onClose={()=>setShowAdd(false)} onSaved={load}/>
+      )}
+
       {/* ── 일지 탭 ── */}
-      {view==='log' && (
-        <>
-          <PeriodBar frDt={frDt} toDt={toDt} onChange={(f,t)=>{setFrDt(f);setToDt(t)}}/>
+      {view==='log' && (<>
+        <PeriodBar frDt={frDt} toDt={toDt} onChange={(f,t)=>{setFrDt(f);setToDt(t)}}/>
 
-          <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
-            {TABS.map(t=>(
-              <button key={t.id} className={`pp-period-btn ${tab===t.id?'active':''}`}
-                onClick={()=>setTab(t.id)}>{t.label}
-                {t.id!=='all' && <span style={{marginLeft:4,fontSize:10,opacity:.7}}>
-                  {items.filter(x=>t.id==='cashflow'?x._col==='cashflow':x.type===t.id).length}
-                </span>}
-              </button>
-            ))}
+        {/* 미분류 입금 안내 */}
+        {unclassifiedCount > 0 && (
+          <div style={{padding:'8px 12px',background:'#FFFBEB',border:'1px solid #FCD34D',borderRadius:7,
+            fontSize:11,color:'#92400E',marginBottom:10,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span>⚠️ 미분류 입금 {unclassifiedCount}건 — 배당/이자/이체로 재분류하세요 (카테고리 셀 클릭)</span>
+            <button className="pp-period-btn" onClick={()=>setTab('transfer')} style={{fontSize:10}}>확인</button>
           </div>
+        )}
 
-          {loading && <div className="pp-loading"><div className="pp-spinner"/><span>불러오는 중...</span></div>}
+        {/* 탭 필터 */}
+        <div style={{display:'flex',gap:5,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
+          {TABS.map(t=>{
+            const cnt = t.id==='all' ? items.length
+              : t.id==='buy'      ? items.filter(x=>x.type==='buy').length
+              : t.id==='sell'     ? items.filter(x=>x.type==='sell').length
+              : t.id==='dividend' ? items.filter(x=>x.category==='dividend').length
+              : t.id==='transfer' ? items.filter(x=>['in','out','transfer'].includes(x.category)).length
+              : items.filter(x=>x.source==='manual').length
+            return (
+              <button key={t.id} className={`pp-period-btn ${tab===t.id?'active':''}`}
+                onClick={()=>setTab(t.id)}>
+                {t.label}
+                <span style={{marginLeft:4,fontSize:10,opacity:.7}}>{cnt}</span>
+              </button>
+            )
+          })}
+        </div>
 
-          {!loading && filtered.length===0 && (
-            <div className="pp-empty">
-              <div className="pp-empty-icon">📓</div>
-              <div className="pp-empty-title">저장된 내역 없음</div>
-              <div className="pp-empty-sub">매매내역·입출금 탭에서 조회 후<br/>Firestore에 저장하면 여기에 표시됩니다.</div>
-            </div>
-          )}
+        {loading && <div className="pp-loading"><div className="pp-spinner"/><span>불러오는 중...</span></div>}
 
-          {!loading && filtered.length>0 && (
-            <div className="pp-table-wrap">
-              <table className="pp-table">
-                <thead><tr>
-                  <th style={{textAlign:'left'}}>날짜</th>
-                  <th style={{textAlign:'left'}}>구분</th>
-                  <th style={{textAlign:'left'}}>종목/항목</th>
-                  <th>금액</th>
-                  <th>수량</th>
-                  <th>단가</th>
-                  <th style={{textAlign:'left',minWidth:140}}>메모</th>
-                </tr></thead>
-                <tbody>
-                  {filtered.map((it,i)=>(
-                    <tr key={`${it._id}_${i}`}>
-                      <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11}}>{fmtDate(it.date)}</td>
-                      <td style={{textAlign:'left'}}>
-                        <span style={{color:typeColor(it),fontWeight:700,fontSize:12}}>{typeLabel(it)}</span>
+        {!loading && filtered.length===0 && (
+          <div className="pp-empty">
+            <div className="pp-empty-icon">📓</div>
+            <div className="pp-empty-title">저장된 내역 없음</div>
+            <div className="pp-empty-sub">매매내역·입출금 탭에서 조회 후 저장하거나<br/>"+ 수동 추가" 버튼으로 직접 입력하세요.</div>
+          </div>
+        )}
+
+        {!loading && filtered.length>0 && (
+          <div className="pp-table-wrap" style={{overflowX:'auto'}}>
+            <table className="pp-table" style={{minWidth:820}}>
+              <thead><tr>
+                <th style={{textAlign:'left',width:16}}></th>  {/* 출처 바 */}
+                <th style={{textAlign:'left'}}>날짜</th>
+                <th style={{textAlign:'left'}}>구분·출처</th>
+                <th style={{textAlign:'left'}}>종목/항목</th>
+                <th>매수금액(단가×수량)</th>
+                <th>매도금액(단가×수량)</th>
+                <th>실현손익</th>
+                <th style={{textAlign:'left',minWidth:150}}>메모·진입근거</th>
+                <th></th>  {/* 삭제 */}
+              </tr></thead>
+              <tbody>
+                {filtered.map((it,i)=>{
+                  const isManual = it.source==='manual'
+                  const isSell   = it.type==='sell'
+                  const isBuy    = it.type==='buy'
+                  const isCash   = it._col==='cashflow'
+                  const cat      = isCash ? getCfCat(it.category||it.type) : null
+                  const barColor = isManual ? '#D97706' : '#E2E8F0'
+
+                  return (
+                    <tr key={`${it._id}_${i}`}
+                      style={{background: isManual?'#FFFDF7':'white'}}
+                      className="pp-journal-row">
+                      {/* 출처 컬러 바 */}
+                      <td style={{padding:0,width:4}}>
+                        <div style={{width:3,height:'100%',minHeight:36,background:barColor,borderRadius:2}}/>
                       </td>
+
+                      {/* 날짜 */}
+                      <td style={{textAlign:'left',fontFamily:'monospace',fontSize:11,whiteSpace:'nowrap'}}>
+                        {fmtDate(it.date)}
+                      </td>
+
+                      {/* 구분 + 출처 뱃지 */}
+                      <td style={{textAlign:'left'}}>
+                        <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                          {isCash ? (
+                            /* 카테고리 인라인 드롭다운 */
+                            catEdit===it._id ? (
+                              <div style={{display:'flex',flexWrap:'wrap',gap:3,background:'white',
+                                border:'1px solid var(--border)',borderRadius:6,padding:4,position:'relative',zIndex:10}}>
+                                {CF_CATEGORIES.map(c=>(
+                                  <button key={c.id}
+                                    style={{padding:'2px 8px',borderRadius:10,fontSize:10,border:`1px solid ${c.color}`,
+                                      background:c.bg,color:c.color,cursor:'pointer',fontWeight:700}}
+                                    onClick={()=>updateCat(it,c.id)}>{c.label}</button>
+                                ))}
+                                <button style={{padding:'2px 6px',fontSize:10,border:'1px solid var(--border)',
+                                  borderRadius:10,cursor:'pointer',color:'var(--text-dim)'}}
+                                  onClick={()=>setCatEdit(null)}>✕</button>
+                              </div>
+                            ) : (
+                              <span style={{display:'inline-flex',alignItems:'center',gap:4,cursor:'pointer'}}
+                                onClick={()=>setCatEdit(it._id)} title="클릭해서 카테고리 변경">
+                                <span style={{padding:'2px 7px',borderRadius:10,fontSize:10,fontWeight:700,
+                                  color:cat.color,background:cat.bg,border:`1px solid ${cat.color}33`}}>
+                                  {cat.label}
+                                </span>
+                                <span style={{fontSize:9,color:'var(--text-dim)'}}>▼</span>
+                              </span>
+                            )
+                          ) : (
+                            <span style={{color:typeColor(it),fontWeight:700,fontSize:12}}>
+                              {isBuy?'매수':isSell?'매도':it.type==='in'?'입금':'출금'}
+                            </span>
+                          )}
+                          <span style={{fontSize:9,padding:'1px 5px',borderRadius:8,
+                            color:isManual?'#D97706':'#94A3B8',
+                            background:isManual?'#FEF3C7':'#F1F5F9',
+                            display:'inline-block',width:'fit-content'}}>
+                            {isManual?'✏ 수동':'🔗 자동'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* 종목/항목 */}
                       <td style={{textAlign:'left'}}>
                         {it.name
-                          ? <><div className="pp-stock-name">{it.name}</div><div className="pp-stock-code">{it.code}</div></>
+                          ? <><div className="pp-stock-name">{it.name}</div>
+                              <div className="pp-stock-code">{it.code}</div></>
                           : <span style={{fontSize:11,color:'var(--text-dim)'}}>{it.rmrk_nm||it.io_tp_nm||'-'}</span>
                         }
                       </td>
-                      <td>{fmt(it.amount||it.exct_amt||0)}</td>
-                      <td>{it.qty?fmt(it.qty):'-'}</td>
-                      <td>{it.price?fmt(it.price):'-'}</td>
+
+                      {/* 매수 금액·단가·수량 */}
+                      <td>
+                        {isBuy||isCash ? (
+                          <div style={{textAlign:'right'}}>
+                            <div style={{fontWeight:700,fontSize:12}}>{fmt(it.amount||0)}</div>
+                            {isBuy && it.price && it.qty &&
+                              <div style={{fontSize:10,color:'var(--text-dim)'}}>
+                                {fmt(it.price)}×{fmt(it.qty)}
+                              </div>
+                            }
+                          </div>
+                        ) : <span style={{color:'var(--text-dim)'}}>-</span>}
+                      </td>
+
+                      {/* 매도 금액·단가·수량 */}
+                      <td>
+                        {isSell ? (
+                          <div style={{textAlign:'right'}}>
+                            <div style={{fontWeight:700,fontSize:12}}>{fmt(it.amount||0)}</div>
+                            {it.price && it.qty &&
+                              <div style={{fontSize:10,color:'var(--text-dim)'}}>
+                                {fmt(it.price)}×{fmt(it.qty)}
+                              </div>
+                            }
+                          </div>
+                        ) : <span style={{color:'var(--text-dim)'}}>-</span>}
+                      </td>
+
+                      {/* 실현손익 */}
+                      <td>
+                        {isSell && it.profit!=null ? (
+                          <div style={{textAlign:'right'}}>
+                            <div className={Number(it.profit)>=0?'up':'down'} style={{fontWeight:700,fontSize:12}}>
+                              {Number(it.profit)>=0?'+':''}{fmt(it.profit)}
+                            </div>
+                            {it.profit_rt!=null &&
+                              <div style={{fontSize:10,color:Number(it.profit_rt)>=0?'#EF4444':'#3B82F6'}}>
+                                {Number(it.profit_rt)>=0?'+':''}{Number(it.profit_rt||0).toFixed(2)}%
+                              </div>
+                            }
+                          </div>
+                        ) : <span style={{color:'var(--text-dim)',fontSize:11}}>-</span>}
+                      </td>
+
+                      {/* 메모 + 진입근거 */}
                       <td style={{textAlign:'left'}}>
                         {editId===it._id ? (
                           <div style={{display:'flex',gap:4,alignItems:'center'}}>
                             <input autoFocus value={editText} onChange={e=>setEditText(e.target.value)}
                               onKeyDown={e=>{ if(e.key==='Enter') saveMemo(it); if(e.key==='Escape') setEditId(null) }}
-                              style={{flex:1,padding:'3px 6px',fontSize:11,border:'1px solid var(--accent-mid)',borderRadius:4,outline:'none'}}
-                              placeholder="매매 이유 입력 후 Enter"/>
-                            <button className="pp-btn" style={{padding:'2px 6px',fontSize:10}} onClick={()=>saveMemo(it)} disabled={saving}>
-                              {saving?'…':'저장'}
-                            </button>
-                            <button className="pp-btn" style={{padding:'2px 6px',fontSize:10}} onClick={()=>setEditId(null)}>✕</button>
+                              style={{flex:1,padding:'3px 6px',fontSize:11,border:'1px solid var(--accent-mid)',
+                                borderRadius:4,outline:'none',minWidth:80}}
+                              placeholder="메모 입력 후 Enter"/>
+                            <button className="pp-btn" style={{padding:'2px 5px',fontSize:10}}
+                              onClick={()=>saveMemo(it)} disabled={saving}>{saving?'…':'✓'}</button>
+                            <button className="pp-btn" style={{padding:'2px 5px',fontSize:10}}
+                              onClick={()=>setEditId(null)}>✕</button>
                           </div>
                         ) : (
-                          <div style={{display:'flex',gap:4,alignItems:'center',cursor:'pointer'}}
-                            onClick={()=>{setEditId(it._id);setEditText(it.memo||'')}}>
-                            <span style={{
-                              fontSize:11,
-                              color: it.memo ? 'var(--text-primary)' : 'var(--text-dim)',
-                              fontStyle: it.memo ? 'normal' : 'italic',
-                            }}>
-                              {it.memo || '+ 메모 추가'}
+                          <div onClick={()=>{setEditId(it._id);setEditText(it.memo||'')}}
+                            style={{cursor:'pointer',minHeight:20}}>
+                            {it.reason_tag && (
+                              <span style={{fontSize:9,padding:'1px 5px',borderRadius:8,
+                                background:'var(--accent-light)',color:'var(--accent-mid)',
+                                fontWeight:700,marginRight:4}}>{it.reason_tag}</span>
+                            )}
+                            <span style={{fontSize:11,
+                              color:it.memo?'var(--text-primary)':'var(--text-dim)',
+                              fontStyle:it.memo?'normal':'italic'}}>
+                              {it.memo||'+ 메모'}
                             </span>
-                            {it.memo && <span style={{color:'var(--accent-mid)',fontSize:10}}>✎</span>}
                           </div>
                         )}
                       </td>
+
+                      {/* 삭제 (수동 항목만) */}
+                      <td style={{width:28}}>
+                        {isManual && (
+                          <button
+                            style={{border:'none',background:'none',cursor:'pointer',color:'#EF4444',
+                              fontSize:14,padding:'2px 4px',opacity:deleting===it._id?.5:1}}
+                            onClick={()=>deleteItem(it)}
+                            disabled={deleting===it._id}
+                            title="삭제 (수동 항목만)">
+                            {deleting===it._id ? '…' : '✕'}
+                          </button>
+                        )}
+                      </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </>)}
 
       {/* ── 성과분석 탭 ── */}
       {view==='analysis' && (
@@ -1279,54 +1499,6 @@ export default function PortfolioPage() {
   const [holdLoading,setHoldLoading]    = useState(false)
   const dragRef = useRef(null)
   const pageRef = useRef(null)
-
-  // ── Phase 2-5: 기존 문서 마이그레이션 (최초 1회) ────────
-  useEffect(() => {
-    if (!user) return
-    const migKey = 'pp_migration_v2_done'
-    try {
-      if (localStorage.getItem(migKey)) return
-    } catch {}
-    const migrate = async () => {
-      try {
-        // trades 마이그레이션
-        const tSnap = await getDocs(collection(db,'users',user.uid,'portfolio','trades','records'))
-        const tBatch = writeBatch(db)
-        let tChanged = 0
-        tSnap.docs.forEach(d => {
-          const data = d.data()
-          if (!data.category || !data.source) {
-            tBatch.update(d.ref, {
-              source:   data.source   || 'api',
-              category: data.category || 'trade',
-            })
-            tChanged++
-          }
-        })
-        if (tChanged > 0) await tBatch.commit()
-        // cashflow 마이그레이션
-        const cSnap = await getDocs(collection(db,'users',user.uid,'portfolio','cashflow','records'))
-        const cBatch = writeBatch(db)
-        let cChanged = 0
-        cSnap.docs.forEach(d => {
-          const data = d.data()
-          if (!data.category || !data.source) {
-            const cat = data.type === 'in' ? 'in' : 'out'
-            cBatch.update(d.ref, {
-              source:   data.source   || 'api',
-              category: data.category || cat,
-              memo:     data.memo     || '',
-            })
-            cChanged++
-          }
-        })
-        if (cChanged > 0) await cBatch.commit()
-        console.log(`[migration v2] trades:${tChanged} cashflow:${cChanged}`)
-        try { localStorage.setItem(migKey, '1') } catch {}
-      } catch(e) { console.warn('[migration v2] 실패, 다음 접속 시 재시도:', e) }
-    }
-    migrate()
-  }, [user])
 
   // 보유종목 로드
   const loadHoldings = useCallback(async () => {

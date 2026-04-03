@@ -396,80 +396,97 @@
   .pp-kpi-value { font-size: 14px; }
 }
 
-/* ── Phase 3 신규 — pp- 접두사 준수 ──────────────────── */
-
-/* 수동 입력 행 배경 (pp-table 내 인라인 style 보조) */
-.pp-table tr.pp-row-manual { background: #FFF7ED; }
-.pp-table tr.pp-row-saved  { background: #F8FAFC; }
-
-/* 카테고리 뱃지 (인라인 style로 처리, CSS는 컨테이너만) */
-.pp-cat-badge {
-  display: inline-block;
-  padding: 2px 7px;
-  border-radius: 10px;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-/* 페이지네이션 */
-.pp-pagination {
+/* ── 수동 추가 모달 ───────────────────────────────────── */
+.pp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 1000;
   display: flex;
+  align-items: center;
   justify-content: center;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
 }
-.pp-pagination span {
-  font-size: 12px;
-  color: var(--text-secondary);
+.pp-modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 24px;
+  width: min(480px, 95vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
 }
-
-/* 배당 수익 배너 */
-.pp-dividend-banner {
-  padding: 10px 14px;
-  background: #F0FDF4;
-  border: 1px solid #86EFAC;
-  border-radius: 8px;
-  font-size: 12px;
-  color: #166534;
-  margin-bottom: 16px;
+.pp-modal-hdr {
   display: flex;
-  gap: 16px;
   align-items: center;
-}
-
-/* 성과분석 CTA 배너 */
-.pp-analysis-cta {
-  padding: 16px;
-  background: #FFFBEB;
-  border: 1px solid #FCD34D;
-  border-radius: 10px;
+  justify-content: space-between;
   margin-bottom: 16px;
-  text-align: center;
 }
-.pp-analysis-cta-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #92400E;
-  margin-bottom: 8px;
+.pp-modal-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary);
 }
-.pp-analysis-cta-sub {
-  font-size: 12px;
-  color: #B45309;
+.pp-modal-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   margin-bottom: 12px;
 }
+.pp-modal-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  min-width: 64px;
+  padding-top: 6px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  flex-shrink: 0;
+}
+.pp-modal-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  outline: none;
+  font-family: inherit;
+}
+.pp-modal-input:focus { border-color: var(--accent-mid); }
 
-/* 저장됨 / 수동 라벨 */
-.pp-source-label {
-  font-size: 9px;
-  padding: 1px 4px;
-  border-radius: 3px;
-  margin-left: 4px;
+/* ── 매매일지 행 ──────────────────────────────────────── */
+.pp-journal-row:hover .pp-journal-del { opacity: 1; }
+.pp-journal-del {
+  opacity: 0;
+  transition: opacity .15s;
 }
-.pp-source-label.manual {
-  color: #D97706;
-  background: #FEF3C7;
+
+/* ── 카테고리 드롭다운 ────────────────────────────────── */
+.pp-cat-drop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  position: absolute;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,.1);
 }
-.pp-source-label.saved {
-  color: #64748B;
+
+/* ── 미분류 경고 배너 ─────────────────────────────────── */
+.pp-unclassified-banner {
+  padding: 8px 12px;
+  background: #FFFBEB;
+  border: 1px solid #FCD34D;
+  border-radius: 7px;
+  font-size: 11px;
+  color: #92400E;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
