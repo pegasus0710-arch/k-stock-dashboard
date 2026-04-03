@@ -395,3 +395,81 @@
   .pp-kpi-card { min-width: 80px; padding: 8px 10px; }
   .pp-kpi-value { font-size: 14px; }
 }
+
+/* ── Phase 3 신규 — pp- 접두사 준수 ──────────────────── */
+
+/* 수동 입력 행 배경 (pp-table 내 인라인 style 보조) */
+.pp-table tr.pp-row-manual { background: #FFF7ED; }
+.pp-table tr.pp-row-saved  { background: #F8FAFC; }
+
+/* 카테고리 뱃지 (인라인 style로 처리, CSS는 컨테이너만) */
+.pp-cat-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* 페이지네이션 */
+.pp-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.pp-pagination span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* 배당 수익 배너 */
+.pp-dividend-banner {
+  padding: 10px 14px;
+  background: #F0FDF4;
+  border: 1px solid #86EFAC;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #166534;
+  margin-bottom: 16px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+/* 성과분석 CTA 배너 */
+.pp-analysis-cta {
+  padding: 16px;
+  background: #FFFBEB;
+  border: 1px solid #FCD34D;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+.pp-analysis-cta-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #92400E;
+  margin-bottom: 8px;
+}
+.pp-analysis-cta-sub {
+  font-size: 12px;
+  color: #B45309;
+  margin-bottom: 12px;
+}
+
+/* 저장됨 / 수동 라벨 */
+.pp-source-label {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+.pp-source-label.manual {
+  color: #D97706;
+  background: #FEF3C7;
+}
+.pp-source-label.saved {
+  color: #64748B;
+}
