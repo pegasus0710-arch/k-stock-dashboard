@@ -1345,6 +1345,8 @@ function JournalPanel({ user }) {
       setItems(prev=>prev.map(x=>x._id===it._id?{...x,memo:editText}:x))
       setEditId(null)
     } catch(e){ console.error(e) }
+    setSaving(false)
+  }
 
   // 수익금 수동 저장 (API 조회 불가 건 직접 입력)
   const saveProfitManual = async (it) => {
@@ -1395,8 +1397,6 @@ function JournalPanel({ user }) {
       setDateEdit(null)
       setDateVal('')
     } catch(e){ console.error(e) }
-    setSaving(false)
-  }
     setSaving(false)
   }
 
