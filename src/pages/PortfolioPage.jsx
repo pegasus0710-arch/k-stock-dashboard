@@ -117,10 +117,11 @@ function PeriodBar({ frDt, toDt, onChange, onSearch }) {
 function KpiBar({ data }) {
   if (!data) return null
   const items = [
-    { label: '총 평가액',  value: fmtM(data.tot_evlt_amt), sub: '원', cls: 'neutral' },
-    { label: '총 매입액',  value: fmtM(data.tot_pur_amt),  sub: '원', cls: 'neutral' },
-    { label: '평가손익',   value: fmtM(data.tot_evlt_pl),  sub: (Number(data.tot_evlt_pl)>=0?'+':'')+'원', cls: sign(data.tot_evlt_pl) },
-    { label: '수익률',     value: fmtR(data.tot_prft_rt),  sub: '',    cls: sign(data.tot_prft_rt) },
+    { label: '총 평가액', value: fmt(data.tot_evlt_amt),  sub: '원', cls: 'neutral' },
+    { label: '총 매입액', value: fmt(data.tot_pur_amt),   sub: '원', cls: 'neutral' },
+    { label: '평가손익',  value: (Number(data.tot_evlt_pl)>=0?'+':'')+fmt(data.tot_evlt_pl),
+      sub: '원', cls: sign(data.tot_evlt_pl) },
+    { label: '수익률',    value: fmtR(data.tot_prft_rt),  sub: '',   cls: sign(data.tot_prft_rt) },
   ]
   return (
     <div className="pp-kpi">
@@ -136,7 +137,48 @@ function KpiBar({ data }) {
 }
 
 // ── 보유현황 패널 ─────────────────────────────────────
-function HoldingsPanel({ data, loading, onRefresh }) {
+function HoldingsPanel({ data, loading, onRefresh, user }) {
+  // 보유일자: Firestore trade records에서 종목별 최초 매수일 조회
+  const [firstBuyMap, setFirstBuyMap] = useState({})
+  useEffect(() => {
+    if (!user || !data?.holdings?.length) return
+    const { collection: col, getDocs: gd, query: q, where, orderBy: ob } =
+      require ? null : null  // Firestore는 상단 import 사용
+    ;(async () => {
+      try {
+        const snap = await getDocs(
+          collection(db,'users',user.uid,'portfolio','trades','records')
+        ).catch(()=>({docs:[]}))
+        const map = {}
+        snap.docs.forEach(d => {
+          const { code, date, type } = d.data()
+          if (type === 'buy' && code) {
+            if (!map[code] || date < map[code]) map[code] = date
+          }
+        })
+        setFirstBuyMap(map)
+      } catch{}
+    })()
+  }, [user, data])
+
+  // 보유일수 계산
+  const calcDays = (stk_cd) => {
+    const firstDate = firstBuyMap[stk_cd]
+    if (!firstDate) return null
+    const d1 = new Date(`${firstDate.slice(0,4)}-${firstDate.slice(4,6)}-${firstDate.slice(6,8)}`)
+    const d2 = new Date()
+    return Math.floor((d2 - d1) / 86400000)
+  }
+
+  // 보유일수 → 색상 + 경고 레벨
+  const dayStyle = (days) => {
+    if (days === null) return { color:'var(--text-dim)', bg:'transparent', label:'-' }
+    if (days < 30)  return { color:'#059669', bg:'#ECFDF5', label:`${days}일` }   // 초록: 정상
+    if (days < 90)  return { color:'#D97706', bg:'#FFFBEB', label:`${days}일` }   // 노랑: 주의
+    if (days < 180) return { color:'#EA580C', bg:'#FFF7ED', label:`${days}일` }   // 주황: 경고
+    return             { color:'#DC2626', bg:'#FEF2F2', label:`${days}일 ⚠` }    // 빨강: 위험
+  }
+
   if (loading) return <div className="pp-loading"><div className="pp-spinner"/><span>보유종목 조회 중...</span></div>
   if (!data?.holdings?.length) return (
     <div className="pp-empty">
@@ -147,9 +189,7 @@ function HoldingsPanel({ data, loading, onRefresh }) {
     </div>
   )
 
-  const best  = [...data.holdings].sort((a,b)=>Number(b.prft_rt)-Number(a.prft_rt))[0]
-  const worst = [...data.holdings].sort((a,b)=>Number(a.prft_rt)-Number(b.prft_rt))[0]
-  const avgRt = data.holdings.reduce((s,h)=>s+Number(h.prft_rt||0),0)/data.holdings.length
+  const maxPoss = Math.max(...data.holdings.map(h => Number(h.poss_rt||0)), 1)
 
   return (
     <div className="pp-panel">
@@ -161,7 +201,7 @@ function HoldingsPanel({ data, loading, onRefresh }) {
         <button className="pp-btn" onClick={onRefresh}>↺ 새로고침</button>
       </div>
 
-      <div className="pp-table-wrap" style={{marginBottom:16}}>
+      <div className="pp-table-wrap">
         <table className="pp-table">
           <thead>
             <tr>
@@ -173,57 +213,68 @@ function HoldingsPanel({ data, loading, onRefresh }) {
               <th>평가금액</th>
               <th>손익금액</th>
               <th>수익률</th>
-              <th>비중</th>
+              <th style={{minWidth:100}}>비중</th>
+              <th>보유일</th>
             </tr>
           </thead>
           <tbody>
             {data.holdings.map(h => {
               const fluPrc = Number(h.cur_prc||0) - Number(h.pred_close_pric||0)
-              const fluRt  = Number(h.pred_close_pric||0) > 0 ? (fluPrc / Number(h.pred_close_pric) * 100) : 0
+              const fluRt  = Number(h.pred_close_pric||0) > 0
+                ? (fluPrc / Number(h.pred_close_pric) * 100) : 0
+              const poss   = Number(h.poss_rt||0)
+              const barW   = Math.round((poss / maxPoss) * 100)
+              const days   = calcDays(h.stk_cd)
+              const ds     = dayStyle(days)
               return (
                 <tr key={h.stk_cd}>
                   <td>
                     <div className="pp-stock-name">{h.stk_nm}</div>
                     <div className="pp-stock-code">{h.stk_cd}</div>
                   </td>
-                  <td>{fmt(h.cur_prc)}</td>
+                  <td style={{fontVariantNumeric:'tabular-nums'}}>{fmt(h.cur_prc)}</td>
                   <td className={fluPrc>=0?'up':'down'}>
-                    <div style={{fontWeight:700}}>{fluPrc>=0?'+':''}{fmt(fluPrc)}</div>
-                    <div style={{fontSize:10}}>{fluRt>=0?'+':''}{fluRt.toFixed(2)}%</div>
+                    <div style={{fontWeight:700,fontVariantNumeric:'tabular-nums'}}>
+                      {fluPrc>=0?'+':''}{fmt(fluPrc)}
+                    </div>
+                    <div style={{fontSize:10,fontVariantNumeric:'tabular-nums'}}>
+                      {fluRt>=0?'+':''}{fluRt.toFixed(2)}%
+                    </div>
                   </td>
-                  <td>{fmt(h.rmnd_qty)}</td>
-                  <td>{fmt(h.pur_pric)}</td>
-                  <td>{fmt(h.evlt_amt)}</td>
-                  <td className={sign(h.evltv_prft)}>{(Number(h.evltv_prft)>=0?'+':'')+fmt(h.evltv_prft)}</td>
+                  <td style={{fontVariantNumeric:'tabular-nums'}}>{fmt(h.rmnd_qty)}</td>
+                  <td style={{fontVariantNumeric:'tabular-nums'}}>{fmt(h.pur_pric)}</td>
+                  <td style={{fontVariantNumeric:'tabular-nums'}}>{fmt(h.evlt_amt)}</td>
+                  <td className={sign(h.evltv_prft)} style={{fontVariantNumeric:'tabular-nums'}}>
+                    {(Number(h.evltv_prft)>=0?'+':'')+fmt(h.evltv_prft)}
+                  </td>
                   <td className={sign(h.prft_rt)}>{fmtR(h.prft_rt)}</td>
-                  <td>{Number(h.poss_rt||0).toFixed(1)}%</td>
+                  {/* 비중 + 데이터 바 */}
+                  <td style={{textAlign:'right'}}>
+                    <div style={{fontSize:11,fontWeight:700,fontVariantNumeric:'tabular-nums',
+                      marginBottom:3}}>{poss.toFixed(1)}%</div>
+                    <div style={{height:5,background:'var(--border)',borderRadius:3,overflow:'hidden'}}>
+                      <div style={{
+                        height:'100%', width:`${barW}%`,
+                        background: poss >= 30 ? '#EF4444' : poss >= 15 ? '#F59E0B' : 'var(--accent-mid)',
+                        borderRadius:3, transition:'width .4s'
+                      }}/>
+                    </div>
+                  </td>
+                  {/* 보유일자 */}
+                  <td>
+                    <span style={{
+                      fontSize:11, fontWeight:600, padding:'2px 7px',
+                      borderRadius:8, color:ds.color, background:ds.bg,
+                      fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap'
+                    }}>
+                      {ds.label}
+                    </span>
+                  </td>
                 </tr>
               )
             })}
           </tbody>
         </table>
-      </div>
-
-      {/* 요약 */}
-      <div className="pp-stat-grid">
-        <div className="pp-stat-item">
-          <div className="pp-stat-label">평균 수익률</div>
-          <div className="pp-stat-value" style={{fontSize:14,color:avgRt>=0?'#EF4444':'#3B82F6'}}>{avgRt>=0?'+':''}{avgRt.toFixed(2)}%</div>
-        </div>
-        <div className="pp-stat-item">
-          <div className="pp-stat-label">보유 종목수</div>
-          <div className="pp-stat-value" style={{fontSize:14}}>{data.holdings.length}종목</div>
-        </div>
-        <div className="pp-stat-item">
-          <div className="pp-stat-label">최고 수익</div>
-          <div style={{fontSize:12,fontWeight:700,color:'#EF4444'}}>{best?.stk_nm}</div>
-          <div style={{fontSize:11,color:'var(--text-dim)'}}>{fmtR(best?.prft_rt)}</div>
-        </div>
-        <div className="pp-stat-item">
-          <div className="pp-stat-label">최저 수익</div>
-          <div style={{fontSize:12,fontWeight:700,color:'#3B82F6'}}>{worst?.stk_nm}</div>
-          <div style={{fontSize:11,color:'var(--text-dim)'}}>{fmtR(worst?.prft_rt)}</div>
-        </div>
       </div>
     </div>
   )
@@ -1141,11 +1192,6 @@ function JournalPanel({ user }) {
         />
       )}
 
-      {/* ── 가져오기 패널 (토글) ── */}
-      {view==='log' && (
-        <ImportPanel user={user} onImported={load}/>
-      )}
-
       {/* ── 내역 탭 ── */}
       {view==='log' && (<>
 
@@ -1575,7 +1621,7 @@ export default function PortfolioPage() {
 
   const renderPanel = () => {
     switch(activeMenu) {
-      case 'holdings': return <HoldingsPanel data={holdData} loading={holdLoading} onRefresh={loadHoldings}/>
+      case 'holdings': return <HoldingsPanel data={holdData} loading={holdLoading} onRefresh={loadHoldings} user={user}/>
       case 'journal':  return <JournalPanel user={user}/>
       case 'ai':       return <AIPanel holdingsData={holdData} user={user}/>
       default:         return <HoldingsPanel data={holdData} loading={holdLoading} onRefresh={loadHoldings}/>

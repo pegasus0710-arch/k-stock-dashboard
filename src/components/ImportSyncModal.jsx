@@ -47,14 +47,20 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
   const [deleting,  setDeleting]  = useState(null)
   const [fetched,   setFetched]   = useState(false)
 
-  // Firestore 저장 내역 로드
-  const loadDb = useCallback(async () => {
+  // Firestore 저장 내역 로드 — 기간 필터링 (frDt~toDt)
+  const loadDb = useCallback(async (fr, to) => {
     if (!user) return
     const snap = await getDocs(
       collection(db, 'users', user.uid, 'portfolio', colPath, 'records')
     ).catch(() => ({ docs: [] }))
-    setDbItems(snap.docs.map(d => ({ ...d.data(), _id: d.id }))
-      .sort((a,b) => (b.date||'').localeCompare(a.date||'')))
+    // 기간 필터: 조회한 경우만 기간 적용, 최초 로드는 전체
+    const all = snap.docs.map(d => ({ ...d.data(), _id: d.id }))
+      .sort((a,b) => (b.date||'').localeCompare(a.date||''))
+    if (fr && to) {
+      setDbItems(all.filter(it => it.date >= fr && it.date <= to))
+    } else {
+      setDbItems(all)
+    }
   }, [user, colPath])
 
   useEffect(() => { loadDb() }, [loadDb])
@@ -98,6 +104,8 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
 
       setApiItems(items)
       setFetched(true)
+      // 오른쪽 패널도 동일 기간으로 갱신
+      await loadDb(frDt, toDt)
 
       // 미저장 항목 자동 체크
       const autoCheck = new Set()
@@ -149,7 +157,7 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
         })
       }
       await batch.commit()
-      await loadDb()
+      await loadDb(frDt, toDt)
       setChecked(new Set())
       onSaved && onSaved()
     } catch(e) { console.error(e) }
@@ -165,7 +173,6 @@ export default function ImportSyncModal({ type, user, onClose, onSaved }) {
       const ref = doc(db, 'users', user.uid, 'portfolio', colPath, 'records', item._id)
       await deleteDoc(ref)
       setDbItems(prev => prev.filter(d => d._id !== item._id))
-      onSaved && onSaved()
     } catch(e) { console.error(e) }
     setDeleting(null)
   }
