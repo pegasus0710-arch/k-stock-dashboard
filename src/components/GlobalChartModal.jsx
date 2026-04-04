@@ -87,6 +87,15 @@ export default function GlobalChartModal({
     getDrawings(`gcm_draw_${symbol}`).then(d => { if (d?.length) setDrawings(d) })
   }, [symbol])
 
+  // Firestore 로드 완료 후 maStyle / showMA 재동기화
+  // (lazy initializer는 마운트 시점에 Firestore가 준비 안 됐을 수 있으므로)
+  useEffect(() => {
+    const savedStyle = getSetting('chart', 'gcm_ma_style', null)
+    if (savedStyle) setMaStyle(savedStyle)
+    const savedShow = getSetting('chart', 'gcm_ma_show', null)
+    if (savedShow) setShowMA(savedShow)
+  }, [getSetting])
+
   const onToggleMA = useCallback((period) => {
     setShowMA(prev => {
       const next = { ...prev, [period]: !prev[period] }
