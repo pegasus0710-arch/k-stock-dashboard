@@ -988,7 +988,9 @@ export default function ChartAnalysisPage() {
       </div>
 
       {/* 사이드바 토글 */}
-      <button className={`cap-sb-toggle ${sidebarOpen?'':'collapsed'}`} onClick={()=>setSidebarOpen(v=>!v)}>
+      <button className={`cap-sb-toggle ${sidebarOpen?'':'collapsed'}`}
+        style={{ left: sidebarOpen ? sidebarW - 12 : 0 }}
+        onClick={()=>setSidebarOpen(v=>!v)}>
         {sidebarOpen?'◀':'▶'}
       </button>
       {/* 사이드바 리사이즈 핸들 */}

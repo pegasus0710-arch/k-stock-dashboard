@@ -19,7 +19,7 @@
 
 /* ?좉? 踰꾪듉 */
 .cap-sb-toggle {
-  position: absolute; left: 280px; top: 50%; transform: translateY(-50%);
+  position: absolute; top: 50%; transform: translateY(-50%);
   width: 16px; height: 44px; background: var(--bg-panel);
   border: 1px solid var(--border); border-left: none;
   border-radius: 0 6px 6px 0; cursor: pointer; z-index: 50;
