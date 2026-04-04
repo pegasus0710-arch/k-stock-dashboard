@@ -394,7 +394,7 @@ export function CandleSvg({
   data, width, height=400,
   showMA=true, enabledMA=new Set([5,20,60,120]), maStyle=null,
   drawings=[], onSvgClick, drawTool='none',
-  selectedIdx, onSelectDrawing,
+  selectedIdx, onSelectDrawing, onEditPrice,
   showSupply=false, supplyData, supplyLoading,
   showVolume=true,
   showBollinger=false, week52=null,
@@ -775,8 +775,13 @@ export function CandleSvg({
           return (
             <g key={i} style={{cursor:'pointer'}} onClick={e=>{e.stopPropagation();onSelectDrawing?.(i)}}>
               <line x1={PAD.left} x2={PAD.left+chartW} y1={y} y2={y} stroke={dc} strokeWidth={isSelected?dw+0.8:dw} strokeDasharray={dd}/>
-              <rect x={PAD.left+chartW} y={y-9} width={64} height={18} fill={isSelected?'rgba(37,99,235,0.15)':'rgba(241,245,249,0.95)'} stroke={dc} rx={3}/>
-              <text x={PAD.left+chartW+4} y={y+4} fontSize={9} fill={dc}>{fmtN(Math.round(d.price))}</text>
+              <rect x={PAD.left+chartW} y={y-9} width={64} height={18} fill={isSelected?'rgba(37,99,235,0.15)':'rgba(241,245,249,0.95)'} stroke={dc} rx={3}
+                onDoubleClick={e=>{e.stopPropagation();onEditPrice?.(i, d.price)}}
+                style={{cursor:'text'}}/>
+              <text x={PAD.left+chartW+4} y={y+4} fontSize={9} fill={dc}
+                onDoubleClick={e=>{e.stopPropagation();onEditPrice?.(i, d.price)}}
+                style={{cursor:'text', userSelect:'none'}}
+                title="더블클릭으로 가격 수정">{fmtN(Math.round(d.price))}</text>
             </g>
           )
         }

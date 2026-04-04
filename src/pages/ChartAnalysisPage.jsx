@@ -514,6 +514,9 @@ export default function ChartAnalysisPage() {
   const [drawState, setDrawState] = useState(null)
   const [drawings,  setDrawings]  = useState([])
   const [mousePos,  setMousePos]  = useState(null)  // 드로잉 호버 프리뷰용
+  // 수평선 가격 직접 편집
+  const [editPriceIdx,  setEditPriceIdx]  = useState(null)
+  const [editPriceVal,  setEditPriceVal]  = useState('')
   // 선 스타일 설정
   const [lineColor, setLineColor] = useState('#f59e0b')
   const [lineWidth, setLineWidth] = useState(1.5)
@@ -740,6 +743,16 @@ export default function ChartAnalysisPage() {
     if (!name) return
     const next = wlCats.map(c => c.id === catId ? { ...c, name } : c)
     setWlCats(next); saveWlCats(next)
+  }
+
+  // 수평선 가격 편집 확정
+  const confirmEditPrice = () => {
+    const num = Number(String(editPriceVal).replace(/,/g,''))
+    if (!isNaN(num) && num > 0 && editPriceIdx !== null) {
+      const next = drawings.map((d,i) => i===editPriceIdx ? {...d, price:num} : d)
+      saveDrawings(next)
+    }
+    setEditPriceIdx(null); setEditPriceVal('')
   }
 
   const saveDrawings = next => {
@@ -1253,6 +1266,40 @@ export default function ChartAnalysisPage() {
                 ? <div className="cap-chart-loading"><div className="cap-spinner"/>차트 불러오는 중...</div>
                 : (<>
                     <div className="cap-chart-wrap" ref={setChartWrap} style={{position:'relative'}}>
+                      {/* 수평선 가격 편집 플로팅 UI */}
+                      {editPriceIdx !== null && (
+                        <div style={{
+                          position:'absolute', top:8, right:80, zIndex:50,
+                          background:'var(--bg-panel)', border:'1px solid var(--accent-mid)',
+                          borderRadius:8, padding:'8px 12px', boxShadow:'var(--shadow-md)',
+                          display:'flex', alignItems:'center', gap:8,
+                        }}>
+                          <span style={{fontSize:11,color:'var(--text-secondary)'}}>가격 수정</span>
+                          <input
+                            autoFocus
+                            style={{
+                              width:110, padding:'4px 8px', border:'1px solid var(--border)',
+                              borderRadius:6, fontSize:12, fontVariantNumeric:'tabular-nums',
+                              color:'var(--text-primary)', background:'var(--bg-base)', outline:'none',
+                            }}
+                            value={editPriceVal}
+                            onChange={e=>setEditPriceVal(e.target.value.replace(/[^0-9,]/g,''))}
+                            onKeyDown={e=>{
+                              if(e.key==='Enter'){e.preventDefault();confirmEditPrice()}
+                              if(e.key==='Escape'){setEditPriceIdx(null);setEditPriceVal('')}
+                            }}
+                            placeholder="가격 입력"
+                          />
+                          <button onClick={confirmEditPrice}
+                            style={{padding:'4px 10px',borderRadius:6,background:'var(--accent-mid)',color:'white',border:'none',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                            확인
+                          </button>
+                          <button onClick={()=>{setEditPriceIdx(null);setEditPriceVal('')}}
+                            style={{padding:'4px 8px',borderRadius:6,background:'var(--bg-base)',border:'1px solid var(--border)',fontSize:11,cursor:'pointer',color:'var(--text-secondary)'}}>
+                            취소
+                          </button>
+                        </div>
+                      )}
                       <CandleSvg
                         data={candles} width={chartW} height={chartH}
                         showMA={showMA} enabledMA={enabledMA} maStyle={maStyle}
@@ -1264,6 +1311,7 @@ export default function ChartAnalysisPage() {
                         lineColor={lineColor} lineWidth={lineWidth} lineDash={lineDash}
                         onChartMouseMove={c => setMousePos(c)}
                         onChartMouseLeave={() => setMousePos(null)}
+                        onEditPrice={(idx, price) => { setEditPriceIdx(idx); setEditPriceVal(String(Math.round(price))) }}
                       />
                       <div
                         style={{position:'absolute',left:72,right:72,bottom:32+volH-3,height:6,cursor:'row-resize',zIndex:20,display:'flex',alignItems:'center',justifyContent:'center'}}
