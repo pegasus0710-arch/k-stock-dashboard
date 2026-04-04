@@ -75,6 +75,17 @@ export default function GlobalChartModal({
   )
   // MA 스타일 팝오버 (어느 MA가 열려 있는지)
   const [maPopover, setMaPopover] = useState(null) // 5 | 20 | 60 | 120 | null
+  // 툴팁 ON/OFF — Firestore 저장
+  const [showTooltip, setShowTooltip] = useState(
+    () => getSetting('chart', 'gcm_show_tooltip', true)
+  )
+  const onToggleTooltip = useCallback(() => {
+    setShowTooltip(prev => {
+      const next = !prev
+      setSetting('chart', 'gcm_show_tooltip', next)
+      return next
+    })
+  }, [setSetting])
 
   // 메모 상태
   const [memoText,   setMemoText]   = useState('')
@@ -86,15 +97,6 @@ export default function GlobalChartModal({
   useEffect(() => {
     getDrawings(`gcm_draw_${symbol}`).then(d => { if (d?.length) setDrawings(d) })
   }, [symbol])
-
-  // Firestore 로드 완료 후 maStyle / showMA 재동기화
-  // (lazy initializer는 마운트 시점에 Firestore가 준비 안 됐을 수 있으므로)
-  useEffect(() => {
-    const savedStyle = getSetting('chart', 'gcm_ma_style', null)
-    if (savedStyle) setMaStyle(savedStyle)
-    const savedShow = getSetting('chart', 'gcm_ma_show', null)
-    if (savedShow) setShowMA(savedShow)
-  }, [getSetting])
 
   const onToggleMA = useCallback((period) => {
     setShowMA(prev => {
@@ -232,12 +234,17 @@ export default function GlobalChartModal({
     saveDrawings(`gcm_draw_${symbol}`, drawings)
   }, [symbol, drawings])
 
-  // 등락율 — prop 대신 로드된 캔들 마지막 2봉으로 계산
-  const computedRate = candles.length >= 2
-    ? (candles[candles.length-1].close - candles[candles.length-2].close)
-      / candles[candles.length-2].close * 100
+  // 등락율/등락금액 — 로드된 캔들 마지막 2봉으로 계산
+  const lastCandle  = candles.length >= 1 ? candles[candles.length-1] : null
+  const prevCandle  = candles.length >= 2 ? candles[candles.length-2] : null
+  const computedRate = lastCandle && prevCandle
+    ? (lastCandle.close - prevCandle.close) / prevCandle.close * 100
     : null
-  const rateColor = computedRate == null ? '#94a3b8' : computedRate > 0 ? '#DC2626' : computedRate < 0 ? '#1D4ED8' : '#94a3b8'
+  const changeAmt  = lastCandle && prevCandle
+    ? lastCandle.close - prevCandle.close
+    : null
+  const livePrice  = lastCandle ? lastCandle.close : currentPrice
+  const rateColor  = computedRate == null ? '#94a3b8' : computedRate > 0 ? '#DC2626' : computedRate < 0 ? '#1D4ED8' : '#94a3b8'
 
   // 드로잉 클릭 핸들러
   const handleChartClick = useCallback((coords) => {
@@ -292,9 +299,16 @@ export default function GlobalChartModal({
         <div className="gcm-header">
           <div className="gcm-title-row">
             <span className="gcm-name">{name}</span>
-            <span className="gcm-price">
-              {fmtNum(currentPrice, currentPrice > 100 ? 2 : 4)}
-            </span>
+            {livePrice > 0 && (
+              <span className="gcm-price">
+                {fmtNum(livePrice, livePrice > 100 ? 0 : 4)}
+              </span>
+            )}
+            {changeAmt != null && (
+              <span className="gcm-change-amt" style={{ color: rateColor }}>
+                {changeAmt >= 0 ? '+' : ''}{fmtNum(changeAmt, livePrice > 100 ? 0 : 4)}
+              </span>
+            )}
             {computedRate != null && (
               <span className="gcm-rate" style={{ color: rateColor }}>
                 ({computedRate >= 0 ? '+' : ''}{fmtNum(computedRate, 2)}%)
@@ -427,6 +441,15 @@ export default function GlobalChartModal({
             {drawings.length > 0 && (
               <span className="gcm-draw-count">{drawings.length}개 저장됨</span>
             )}
+            {/* 툴팁 ON/OFF 버튼 */}
+            <button
+              className={`gcm-draw-act-btn ${showTooltip ? 'gcm-tt-on' : ''}`}
+              onClick={onToggleTooltip}
+              title={showTooltip ? '툴팁 끄기' : '툴팁 켜기'}
+              style={{ marginLeft: 8 }}
+            >
+              {showTooltip ? '💬 툴팁 ON' : '💬 툴팁 OFF'}
+            </button>
           </div>
         </div>
 
@@ -445,7 +468,7 @@ export default function GlobalChartModal({
             <CandleSvg candles={candles} chartType="candle" range={range}
               drawings={drawings} drawTool={drawTool}
               drawPhase={drawPhase} drawPoint1={drawPoint1}
-              mousePos={mousePos} selectedColor={selectedColor}
+              mousePos={showTooltip ? mousePos : null} selectedColor={selectedColor}
               showMA={showMA} onToggleMA={onToggleMA}
               maStyle={maStyle}
               onChartClick={handleChartClick}

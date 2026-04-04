@@ -288,3 +288,18 @@
 }
 .gcm-ma-pop-w:hover  { border-color: var(--accent-mid); color: var(--accent-mid); }
 .gcm-ma-pop-w.active { background: var(--accent-mid); color: white; border-color: var(--accent-mid); }
+
+/* ── 등락금액 표시 ────────────────────────────────── */
+.gcm-change-amt {
+  font-size: 15px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-left: 2px;
+}
+
+/* ── 툴팁 ON 버튼 강조 ───────────────────────────── */
+.gcm-tt-on {
+  background: var(--accent-light) !important;
+  color: var(--accent-mid) !important;
+  border-color: var(--accent-mid) !important;
+  font-weight: 600;
+}
