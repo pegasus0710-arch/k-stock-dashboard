@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { db } from '../firebase'
-import { collection, addDoc, Timestamp } from 'firebase/firestore'
+import { collection, doc, getDoc, setDoc, Timestamp } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import {
   CandleSvg, DrawingToolbar, SupplySubChart, EtfHoldingsPopup, MarkdownView,
@@ -640,17 +640,39 @@ export default function ChartAnalysisPage() {
     fetch(`/api/kiwoom?type=stockbasic&code=${stock.code}`).then(r=>r.json()).then(d=>{if(!d.error)setBasicInfo(d)}).catch(()=>{})
   }
 
-  // ── 메모 (GlobalChartModal과 동일 컬렉션 공유) ──────
+  // ── 메모 (GlobalChartModal과 동일 컬렉션·문서 공유) ──────
   const [memoText,   setMemoText]   = useState('')
   const [memoSaving, setMemoSaving] = useState(false)
   const [memoSaved,  setMemoSaved]  = useState(false)
+  const [memoEditing,setMemoEditing]= useState(false)
+  const [memoLoaded, setMemoLoaded] = useState(false)
+
+  // 종목 변경 시 기존 메모 로드
+  useEffect(() => {
+    if (!user || !selected) { setMemoText(''); setMemoLoaded(false); return }
+    const docId = `chart_${selected.code}`
+    getDoc(doc(db, 'users', user.uid, 'memos', docId)).then(snap => {
+      if (snap.exists()) {
+        setMemoText(snap.data().content || '')
+        setMemoLoaded(true)
+      } else {
+        setMemoText('')
+        setMemoLoaded(false)
+      }
+      setMemoEditing(false)
+    }).catch(() => {})
+  }, [user, selected?.code])
+
   const saveMemo = useCallback(async () => {
     const text = memoText.trim()
-    if (!text || !user || !selected) return
+    if (!user || !selected) return
     setMemoSaving(true)
     try {
       const now = Timestamp.fromDate(new Date())
-      await addDoc(collection(db, 'users', user.uid, 'memos'), {
+      const docId = `chart_${selected.code}`
+      const docRef = doc(db, 'users', user.uid, 'memos', docId)
+      const snap = await getDoc(docRef)
+      await setDoc(docRef, {
         title:      `[차트메모] ${selected.name || selected.code}`,
         content:    text,
         category:   '차트메모',
@@ -660,15 +682,16 @@ export default function ChartAnalysisPage() {
         textColor:  '#1e293b',
         fontSize:   13,
         pinned:     false,
-        createdAt:  now,
+        createdAt:  snap.exists() ? snap.data().createdAt : now,
         updatedAt:  now,
       })
-      setMemoText('')
+      setMemoLoaded(true)
+      setMemoEditing(false)
       setMemoSaved(true)
       setTimeout(() => setMemoSaved(false), 2000)
     } catch(e) { console.error('[cap] memo save error:', e) }
     finally { setMemoSaving(false) }
-  }, [memoText, user, selected, db])
+  }, [memoText, user, selected])
 
   const saveDrawings = next => {
     setDrawings(next)
@@ -948,17 +971,31 @@ export default function ChartAnalysisPage() {
                 <span className="cap-hdr-price" style={{color:pc,fontSize:20,fontWeight:800,marginLeft:4}}>{price.price.toLocaleString()}원</span>
                 <span className="cap-hdr-change" style={{color:pc,fontSize:13,fontWeight:600}}>{sign}{price.change?.toLocaleString()}원 ({sign}{price.changeRate?.toFixed(2)}%)</span>
               </>)}
-              {/* 메모 인풋 — 등락율 옆, GlobalChartModal 공유 */}
+              {/* 메모 — 저장/수정 버튼 포함 */}
               <div className="cap-hdr-memo">
                 <input
                   className="cap-hdr-memo-input"
-                  placeholder="📝 차트 메모 입력 후 Enter..."
+                  placeholder={memoLoaded ? '저장된 메모' : '📝 차트 메모 입력...'}
                   value={memoText}
                   onChange={e=>setMemoText(e.target.value)}
                   onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveMemo()}}}
-                  disabled={memoSaving}
+                  disabled={memoSaving || (memoLoaded && !memoEditing)}
+                  style={{ opacity: (memoLoaded && !memoEditing) ? 0.75 : 1 }}
                 />
                 {memoSaved && <span className="cap-memo-ok">✓ 저장됨</span>}
+                {!memoSaved && (memoLoaded && !memoEditing) && (
+                  <button className="gcm-memo-btn edit"
+                    onClick={()=>setMemoEditing(true)} title="메모 수정">✏️</button>
+                )}
+                {!memoSaved && (!memoLoaded || memoEditing) && (
+                  <button className="gcm-memo-btn save"
+                    onClick={saveMemo} disabled={memoSaving || !memoText.trim()}
+                    title="메모 저장">저장</button>
+                )}
+                {memoEditing && (
+                  <button className="gcm-memo-btn cancel"
+                    onClick={()=>setMemoEditing(false)} title="취소">✕</button>
+                )}
               </div>
               <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
                 <button className={`cap-hdr-btn ${isWatched?'starred':'star'}`} onClick={toggleWatch}>{isWatched?'⭐':'☆'}</button>

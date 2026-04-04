@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { db } from '../firebase'
-import { collection, addDoc, Timestamp } from 'firebase/firestore'
+import { collection, doc, getDoc, setDoc, Timestamp } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import { useUserSettings } from '../hooks/useUserSettings'
 import CandleSvg, { fmtNum, fmtDate, fmtDateLong } from './ui/CandleSvg'
@@ -91,7 +91,25 @@ export default function GlobalChartModal({
   const [memoText,   setMemoText]   = useState('')
   const [memoSaving, setMemoSaving] = useState(false)
   const [memoSaved,  setMemoSaved]  = useState(false)
+  const [memoEditing,setMemoEditing]= useState(false) // 수정 모드
+  const [memoLoaded, setMemoLoaded] = useState(false) // 기존 메모 로드 여부
   const memoRef = useRef(null)
+
+  // 종목 변경 시 기존 메모 로드
+  useEffect(() => {
+    if (!user || !symbol) return
+    const docId = `chart_${symbol}`
+    getDoc(doc(db, 'users', user.uid, 'memos', docId)).then(snap => {
+      if (snap.exists()) {
+        setMemoText(snap.data().content || '')
+        setMemoLoaded(true)
+      } else {
+        setMemoText('')
+        setMemoLoaded(false)
+      }
+      setMemoEditing(false)
+    }).catch(() => {})
+  }, [user, symbol])
 
   // Firestore에서 드로잉 비동기 로드
   useEffect(() => {
@@ -131,14 +149,17 @@ export default function GlobalChartModal({
     setSetting('chart', 'gcm_ma_style', DEFAULT_MA_STYLE)
   }, [setSetting])
 
-  // 메모 저장 — MemoPage 동일 컬렉션 (users/{uid}/memos)
+  // 메모 저장 — 종목별 고정 문서 ID (chart_${symbol}), MemoPage와 공유
   const saveMemo = useCallback(async () => {
     const text = memoText.trim()
-    if (!text || !user) return
+    if (!user || !symbol) return
     setMemoSaving(true)
     try {
       const now = Timestamp.fromDate(new Date())
-      await addDoc(collection(db, 'users', user.uid, 'memos'), {
+      const docId = `chart_${symbol}`
+      const docRef = doc(db, 'users', user.uid, 'memos', docId)
+      const snap = await getDoc(docRef)
+      await setDoc(docRef, {
         title:      `[차트메모] ${name || symbol}`,
         content:    text,
         category:   '차트메모',
@@ -148,10 +169,11 @@ export default function GlobalChartModal({
         textColor:  '#1e293b',
         fontSize:   13,
         pinned:     false,
-        createdAt:  now,
+        createdAt:  snap.exists() ? snap.data().createdAt : now,
         updatedAt:  now,
       })
-      setMemoText('')
+      setMemoLoaded(true)
+      setMemoEditing(false)
       setMemoSaved(true)
       setTimeout(() => setMemoSaved(false), 2000)
     } catch(e) {
@@ -340,18 +362,34 @@ export default function GlobalChartModal({
               ))}
             </div>
 
-            {/* 메모 인풋 — 기간 탭 옆 */}
+            {/* 메모 — 저장/수정 버튼 포함 */}
             <div className="gcm-memo-bar">
               <input
                 ref={memoRef}
                 className="gcm-memo-input"
-                placeholder="📝 차트 메모 입력 후 Enter..."
+                placeholder={memoLoaded ? '저장된 메모' : '📝 차트 메모 입력...'}
                 value={memoText}
                 onChange={e => setMemoText(e.target.value)}
                 onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); saveMemo() }}}
-                disabled={memoSaving}
+                disabled={memoSaving || (memoLoaded && !memoEditing)}
+                style={{ opacity: (memoLoaded && !memoEditing) ? 0.75 : 1 }}
               />
               {memoSaved && <span className="gcm-memo-ok">✓ 저장됨</span>}
+              {!memoSaved && (memoLoaded && !memoEditing) && (
+                <button className="gcm-memo-btn edit"
+                  onClick={() => { setMemoEditing(true); setTimeout(()=>memoRef.current?.focus(),50) }}
+                  title="메모 수정">✏️</button>
+              )}
+              {!memoSaved && (!memoLoaded || memoEditing) && (
+                <button className="gcm-memo-btn save"
+                  onClick={saveMemo} disabled={memoSaving || !memoText.trim()}
+                  title="메모 저장">저장</button>
+              )}
+              {memoEditing && (
+                <button className="gcm-memo-btn cancel"
+                  onClick={() => { setMemoEditing(false) }}
+                  title="취소">✕</button>
+              )}
             </div>
 
             <button className="gcm-close" onClick={onClose}>✕</button>

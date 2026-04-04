@@ -303,3 +303,21 @@
   border-color: var(--accent-mid) !important;
   font-weight: 600;
 }
+
+/* ── 메모 저장/수정/취소 버튼 ───────────────────── */
+.gcm-memo-btn {
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  background: var(--bg-base); white-space: nowrap;
+  transition: all .12s; flex-shrink: 0;
+}
+.gcm-memo-btn.save {
+  background: var(--accent-mid); color: white;
+  border-color: var(--accent-mid);
+}
+.gcm-memo-btn.save:hover:not(:disabled) { opacity: .85; }
+.gcm-memo-btn.save:disabled { opacity: .4; cursor: not-allowed; }
+.gcm-memo-btn.edit { color: var(--accent-mid); border-color: var(--accent-mid); }
+.gcm-memo-btn.edit:hover { background: var(--accent-light); }
+.gcm-memo-btn.cancel { color: #dc2626; border-color: rgba(220,38,38,.3); }
+.gcm-memo-btn.cancel:hover { background: rgba(220,38,38,.08); }
