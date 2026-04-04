@@ -425,6 +425,26 @@ export default function ChartAnalysisPage() {
 
   // ── UI 상태 ───────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  // 사이드바 너비 — localStorage 저장
+  const [sidebarW, setSidebarW] = useState(() => {
+    try { return Number(localStorage.getItem('cap_sidebar_w')) || 280 } catch { return 280 }
+  })
+  const onSidebarResize = useCallback((e) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = sidebarW
+    const onMove = (ev) => {
+      const next = Math.max(180, Math.min(480, startW + ev.clientX - startX))
+      setSidebarW(next)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setSidebarW(prev => { try { localStorage.setItem('cap_sidebar_w', prev) } catch {} return prev })
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [sidebarW])
   const [wlTab, setWlTab] = useState('watch')
   const [wlCats, setWlCats] = useState(()=>getWlCats([]))
   const [selCatId, setSelCatId] = useState('')
@@ -700,6 +720,28 @@ export default function ChartAnalysisPage() {
     finally { setMemoSaving(false) }
   }, [memoText, user, selected])
 
+  // ── 관심종목 카테고리 추가/삭제 ──────────────────
+  const addWlCat = () => {
+    const name = prompt('새 카테고리 이름을 입력하세요')?.trim()
+    if (!name) return
+    const next = [...wlCats, { id: Date.now().toString(), name, stocks: [] }]
+    setWlCats(next); saveWlCats(next)
+  }
+  const delWlCat = (catId) => {
+    if (!window.confirm('카테고리를 삭제하시겠습니까?')) return
+    const next = wlCats.filter(c => c.id !== catId)
+    setWlCats(next); saveWlCats(next)
+    if (selCatId === catId) setSelCatId('')
+  }
+  const renameWlCat = (catId) => {
+    const cat = wlCats.find(c => c.id === catId)
+    if (!cat) return
+    const name = prompt('새 이름을 입력하세요', cat.name)?.trim()
+    if (!name) return
+    const next = wlCats.map(c => c.id === catId ? { ...c, name } : c)
+    setWlCats(next); saveWlCats(next)
+  }
+
   const saveDrawings = next => {
     setDrawings(next)
     if(selected) fbSaveDrawings(`${LS_DRAWINGS}_${selected.code}`, next)
@@ -793,7 +835,7 @@ export default function ChartAnalysisPage() {
     <div className="cap-page">
 
       {/* ── 사이드바 ── */}
-      <div className={`cap-sidebar ${sidebarOpen?'':'collapsed'}`}>
+      <div className={`cap-sidebar ${sidebarOpen?'':'collapsed'}`} style={sidebarOpen?{width:sidebarW,minWidth:sidebarW}:{}}>
         {/* 검색 */}
         <div className="cap-sb-search">
           <div className="cap-sb-search-box">
@@ -801,13 +843,34 @@ export default function ChartAnalysisPage() {
             <input ref={searchRef} className="cap-sb-search-input"
               placeholder={slLoading?'로딩 중...':'종목명·코드 검색'}
               value={query} onChange={e=>search(e.target.value)}
-              onFocus={()=>query&&setShowDrop(true)}
+              onFocus={()=>{ if(query) setShowDrop(true); else if(recent.length) setShowDrop(true) }}
               onKeyDown={handleKey}
               onBlur={()=>setTimeout(()=>setShowDrop(false),150)}/>
             {query&&<button className="cap-sb-clear" onClick={()=>{setQuery('');setResults([]);setShowDrop(false);searchRef.current?.focus()}}>✕</button>}
           </div>
 
           {/* 드롭다운 */}
+          {showDrop&&!query&&recent.length>0&&(
+            <div className="cap-sb-dropdown">
+              <div className="cap-sb-dd-glabel" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span>최근 검색</span>
+                <button style={{fontSize:10,color:'var(--text-dim)',background:'none',border:'none',cursor:'pointer'}}
+                  onClick={e=>{e.stopPropagation();setRecent([]);setShowDrop(false)}}>지우기</button>
+              </div>
+              {recent.slice(0,8).map(r=>{
+                const p=prices[r.code]
+                const rc=p?rateColor(p.changeRate):'var(--text-secondary)'
+                const rs=(p?.changeRate??0)>0?'+':''
+                return (
+                  <button key={r.code} className="cap-sb-dd-item" onClick={()=>select(r)}>
+                    <span className="cap-sb-dd-name">{r.name}</span>
+                    <span className="cap-sb-dd-code">{r.code}</span>
+                    {p?.price>0&&<span style={{fontSize:11,color:rc,fontWeight:700,marginLeft:'auto'}}>{rs}{p.changeRate?.toFixed(1)}%</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
           {showDrop&&results.length>0&&(
             <div className="cap-sb-dropdown">
               {/* 테마 그룹 */}
@@ -848,86 +911,33 @@ export default function ChartAnalysisPage() {
           )}
         </div>
 
-        {/* 최근 검색 — 현재가 + 등락률 표시 */}
-        {recent.length>0&&(
-          <div className="cap-sb-recent">
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-              <span className="cap-sb-recent-label">최근 검색</span>
-              <button style={{fontSize:10,color:'var(--text-dim)',background:'none',border:'none',cursor:'pointer',padding:'0 2px'}}
-                onClick={()=>setRecent([])}>지우기</button>
+        {/* 관심종목 — 카테고리 관리 */}
+        <div className="cap-sb-cat-header">
+          <span className="cap-sb-recent-label">⭐ 관심종목</span>
+          <button className="cap-sb-cat-add" onClick={addWlCat} title="카테고리 추가">+ 카테고리</button>
+        </div>
+        {/* 카테고리 목록 */}
+        <div className="cap-sb-cat-list">
+          {wlCats.map(cat=>(
+            <div key={cat.id}
+              className={`cap-sb-cat-item ${selCatId===cat.id?'active':''}`}
+              onClick={()=>setSelCatId(selCatId===cat.id?'':cat.id)}>
+              <span className="cap-sb-cat-name">{cat.name}</span>
+              <span className="cap-sb-cat-cnt">{cat.stocks.length}</span>
+              <div className="cap-sb-cat-actions" onClick={e=>e.stopPropagation()}>
+                <button title="이름 변경" onClick={()=>renameWlCat(cat.id)}>✏️</button>
+                <button title="삭제" onClick={()=>delWlCat(cat.id)}>🗑</button>
+              </div>
             </div>
-            <div style={{display:'flex',flexDirection:'column',gap:3}}>
-              {recent.slice(0,6).map(r=>{
-                const p=prices[r.code]
-                const rc=p?rateColor(p.changeRate):'var(--text-secondary)'
-                const rs=(p?.changeRate??0)>0?'+':''
-                return (
-                  <button key={r.code} className="cap-sb-chip"
-                    style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 8px',borderRadius:6,background:'var(--bg-base)',border:'1px solid var(--border)',cursor:'pointer',width:'100%',textAlign:'left'}}
-                    onClick={()=>select(r)}>
-                    <span style={{fontSize:12,fontWeight:600,color:'var(--text-primary)'}}>{r.name}</span>
-                    {p?.price>0&&(
-                      <span style={{fontSize:11,color:rc,fontWeight:700}}>
-                        {p.price.toLocaleString()}
-                        <span style={{fontSize:10,marginLeft:3}}>{rs}{p.changeRate?.toFixed(1)}%</span>
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* 관심종목 탭 */}
-        <div className="cap-sb-tabs">
-          <button className={`cap-sb-tab ${wlTab==='watch'?'active':''}`} onClick={()=>setWlTab('watch')}>⭐ 관심</button>
-          <button className={`cap-sb-tab ${wlTab==='hold'?'active':''}`}  onClick={()=>setWlTab('hold')}>💼 보유</button>
+          ))}
+          {wlCats.length===0&&<div className="cap-sb-empty" style={{fontSize:11}}>카테고리를 추가해주세요</div>}
         </div>
 
-        {wlTab==='watch'&&(
-          <select className="cap-sb-cat" value={selCatId} onChange={e=>setSelCatId(e.target.value)}>
-            <option value="">— 카테고리 선택 —</option>
-            {wlCats.map(cat=><option key={cat.id} value={cat.id}>{cat.name} ({cat.stocks.length})</option>)}
-          </select>
-        )}
-
+        {/* 선택된 카테고리 종목 리스트 */}
         <div className="cap-sb-list">
-          {wlTab==='hold'&&(
-            Object.keys(holdings).length===0
-            ? <div className="cap-sb-empty">보유종목 없음<br/><span style={{fontSize:10,color:'var(--text-dim)'}}>계좌 연동 필요</span></div>
-            : Object.entries(holdings).map(([code,h])=>{
-                const p=prices[code]
-                const sname=h.name||stockList.find(s=>s.code===code)?.name||code
-                const rate=h.rate
-                const rc=rate>0?'#ef4444':rate<0?'#2563eb':'var(--text-dim)'
-                const curPrc=p?.price||h.curPrc
-                const pc2=p?rateColor(p.changeRate):'var(--text-secondary)'
-                return (
-                  <button key={code} className={`cap-sb-stock ${selected?.code===code?'active':''}`}
-                    onClick={()=>select({code,name:sname,theme:'보유종목'})}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                      <span className="cap-sb-sname">{sname}</span>
-                      <span style={{fontSize:10,fontWeight:700,color:rc}}>{rate>=0?'+':''}{rate?.toFixed(1)}%</span>
-                    </div>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:2}}>
-                      <span style={{fontSize:10,color:'var(--text-dim)'}}>{h.qty}주</span>
-                      {curPrc>0
-                        ? <span style={{fontSize:11,fontWeight:700,color:pc2}}>{curPrc.toLocaleString()}</span>
-                        : <span style={{fontSize:10,color:'var(--text-dim)'}}>—</span>
-                      }
-                    </div>
-                    {h.evltPrft!==0&&(
-                      <div style={{fontSize:10,color:h.evltPrft>0?'#ef4444':'#2563eb',textAlign:'right',marginTop:1}}>
-                        {h.evltPrft>0?'+':''}{Math.round(h.evltPrft).toLocaleString()}원
-                      </div>
-                    )}
-                  </button>
-                )
-              })
-          )}
-          {wlTab==='watch'&&selCatStocks.length===0&&<div className="cap-sb-empty">{selCatId?'종목 없음':'카테고리 선택'}</div>}
-          {wlTab==='watch'&&selCatStocks.map(s=>{
+          {!selCatId&&<div className="cap-sb-empty" style={{fontSize:11}}>카테고리를 선택하세요</div>}
+          {selCatId&&selCatStocks.length===0&&<div className="cap-sb-empty" style={{fontSize:11}}>종목 없음<br/><span style={{fontSize:10,color:'var(--text-dim)'}}>관심종목 페이지에서 추가</span></div>}
+          {selCatId&&selCatStocks.map(s=>{
             const p=prices[s.code], pc2=p?rateColor(p.changeRate):'var(--text-secondary)', s2=(p?.changeRate??0)>0?'+':''
             return (
               <button key={s.code} className={`cap-sb-stock ${selected?.code===s.code?'active':''}`} onClick={()=>select(s)}>
@@ -943,6 +953,10 @@ export default function ChartAnalysisPage() {
       <button className={`cap-sb-toggle ${sidebarOpen?'':'collapsed'}`} onClick={()=>setSidebarOpen(v=>!v)}>
         {sidebarOpen?'◀':'▶'}
       </button>
+      {/* 사이드바 리사이즈 핸들 */}
+      {sidebarOpen && (
+        <div className="cap-sb-resize-handle" onMouseDown={onSidebarResize} title="드래그하여 너비 조절" style={{left: sidebarW - 3}}/>
+      )}
 
       {/* ── 메인 ── */}
       <div className="cap-main">

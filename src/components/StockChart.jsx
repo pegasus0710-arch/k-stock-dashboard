@@ -44,7 +44,6 @@ export const DRAW_TOOLS = [
   { id:'hline',  label:'━ 수평선'   },
   { id:'trend',  label:'↗ 추세선'   },
   { id:'fib',    label:'🔢 피보나치' },
-  { id:'text',   label:'📝 메모'    },
   { id:'split3', label:'⅓ 3분할'   },
   { id:'split4', label:'¼ 4분할'   },
 ]

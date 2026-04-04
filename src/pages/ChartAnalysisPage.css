@@ -10,7 +10,7 @@
 }
 
 .cap-sidebar {
-  width: 220px; min-width: 220px;
+  width: 280px; min-width: 280px;
   background: var(--bg-panel); border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
   overflow: hidden; flex-shrink: 0; transition: width .2s, min-width .2s;
@@ -19,7 +19,7 @@
 
 /* ?좉? 踰꾪듉 */
 .cap-sb-toggle {
-  position: absolute; left: 220px; top: 50%; transform: translateY(-50%);
+  position: absolute; left: 280px; top: 50%; transform: translateY(-50%);
   width: 16px; height: 44px; background: var(--bg-panel);
   border: 1px solid var(--border); border-left: none;
   border-radius: 0 6px 6px 0; cursor: pointer; z-index: 50;
@@ -537,3 +537,76 @@
   outline: none;
 }
 .cap-draw-select:hover { border-color: var(--accent-mid); }
+
+/* ── 사이드바 리사이즈 핸들 ─────────────────────── */
+.cap-sb-resize-handle {
+  position: absolute;
+  top: 0; bottom: 0;
+  /* left는 JS sidebarW 기준 — 사이드바 우측에 붙음 */
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 50;
+  transition: background .15s;
+}
+.cap-sb-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px; height: 40px;
+  background: var(--border);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.cap-sb-resize-handle:hover { background: rgba(37,99,235,.06); }
+.cap-sb-resize-handle:hover::after { opacity: 1; }
+
+/* ── 관심종목 카테고리 관리 UI ──────────────────── */
+.cap-sb-cat-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px 4px; flex-shrink: 0;
+}
+.cap-sb-cat-add {
+  font-size: 11px; font-weight: 600; color: var(--accent-mid);
+  background: none; border: 1px solid var(--accent-mid);
+  border-radius: 5px; padding: 2px 7px; cursor: pointer;
+  transition: all .12s;
+}
+.cap-sb-cat-add:hover { background: var(--accent-light); }
+
+.cap-sb-cat-list {
+  padding: 0 6px 4px; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.cap-sb-cat-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px; border-radius: 7px; cursor: pointer;
+  border: 1px solid transparent;
+  transition: all .12s; position: relative;
+}
+.cap-sb-cat-item:hover { background: var(--bg-hover); }
+.cap-sb-cat-item.active {
+  background: var(--accent-light);
+  border-color: var(--accent-mid);
+}
+.cap-sb-cat-name {
+  font-size: 12px; font-weight: 600; color: var(--text-primary);
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cap-sb-cat-cnt {
+  font-size: 10px; color: var(--text-dim);
+  background: var(--bg-base); border: 1px solid var(--border);
+  border-radius: 10px; padding: 1px 6px; flex-shrink: 0;
+}
+.cap-sb-cat-actions {
+  display: none; gap: 2px; flex-shrink: 0;
+}
+.cap-sb-cat-item:hover .cap-sb-cat-actions { display: flex; }
+.cap-sb-cat-actions button {
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; padding: 1px 3px; border-radius: 4px;
+  opacity: 0.6; transition: opacity .1s;
+}
+.cap-sb-cat-actions button:hover { opacity: 1; background: var(--bg-hover); }
