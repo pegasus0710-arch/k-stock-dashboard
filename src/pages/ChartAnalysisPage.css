@@ -451,3 +451,20 @@
   font-size: 11px; font-weight: 700;
   color: #16a34a; white-space: nowrap;
 }
+
+/* ── 헤더 메모 인풋 (종목명/등락율 옆) ──────────── */
+.cap-hdr-memo {
+  display: flex; align-items: center; gap: 6px;
+  flex: 1; min-width: 0; margin: 0 8px;
+}
+.cap-hdr-memo-input {
+  flex: 1; min-width: 180px;
+  padding: 5px 12px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 13px;
+  font-family: var(--font-kr, sans-serif);
+  color: var(--text-primary); background: var(--bg-base);
+  outline: none; transition: border-color .12s;
+}
+.cap-hdr-memo-input:focus { border-color: var(--accent-mid); }
+.cap-hdr-memo-input::placeholder { color: var(--text-dim); }
+.cap-hdr-memo-input:disabled { opacity: .6; }

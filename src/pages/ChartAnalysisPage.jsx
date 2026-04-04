@@ -668,7 +668,7 @@ export default function ChartAnalysisPage() {
       setTimeout(() => setMemoSaved(false), 2000)
     } catch(e) { console.error('[cap] memo save error:', e) }
     finally { setMemoSaving(false) }
-  }, [memoText, user, selected])
+  }, [memoText, user, selected, db])
 
   const saveDrawings = next => {
     setDrawings(next)
@@ -948,7 +948,19 @@ export default function ChartAnalysisPage() {
                 <span className="cap-hdr-price" style={{color:pc,fontSize:20,fontWeight:800,marginLeft:4}}>{price.price.toLocaleString()}원</span>
                 <span className="cap-hdr-change" style={{color:pc,fontSize:13,fontWeight:600}}>{sign}{price.change?.toLocaleString()}원 ({sign}{price.changeRate?.toFixed(2)}%)</span>
               </>)}
-              <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
+              {/* 메모 인풋 — 등락율 옆, GlobalChartModal 공유 */}
+              <div className="cap-hdr-memo">
+                <input
+                  className="cap-hdr-memo-input"
+                  placeholder="📝 차트 메모 입력 후 Enter..."
+                  value={memoText}
+                  onChange={e=>setMemoText(e.target.value)}
+                  onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveMemo()}}}
+                  disabled={memoSaving}
+                />
+                {memoSaved && <span className="cap-memo-ok">✓ 저장됨</span>}
+              </div>
+              <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
                 <button className={`cap-hdr-btn ${isWatched?'starred':'star'}`} onClick={toggleWatch}>{isWatched?'⭐':'☆'}</button>
                 {etfMode&&<button className="cap-hdr-btn" onClick={()=>setShowEtf(true)}>🧩</button>}
                 <button className="cap-hdr-btn" onClick={()=>setShowFull(v=>!v)} title={showFull?'전체화면 닫기':'전체화면'}>⛶</button>
@@ -1089,20 +1101,6 @@ export default function ChartAnalysisPage() {
                 )}
               </div>
               {drawState&&<span className="cap-draw-hint" style={{fontSize:10,color:'var(--text-dim)'}}>{drawTool==='trend'?'2번째 점 클릭':'끝점 클릭'}</span>}
-              {/* 메모 인풋 — GlobalChartModal과 동일 컬렉션 공유 */}
-              {selected && (
-                <div className="cap-memo-bar">
-                  <input
-                    className="cap-memo-input"
-                    placeholder="📝 차트 메모 입력 후 Enter..."
-                    value={memoText}
-                    onChange={e=>setMemoText(e.target.value)}
-                    onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveMemo()}}}
-                    disabled={memoSaving}
-                  />
-                  {memoSaved && <span className="cap-memo-ok">✓ 저장됨</span>}
-                </div>
-              )}
               <div className="cap-tb-sp"/>
               {/* 우측 패널 탭 버튼 */}
               {[
