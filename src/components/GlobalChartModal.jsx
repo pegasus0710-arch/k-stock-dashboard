@@ -6,9 +6,21 @@
 //   둘 다 Yahoo Finance OHLC 응답
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { db } from '../firebase'
+import { collection, addDoc, Timestamp } from 'firebase/firestore'
+import { useAuth } from '../context/AuthContext'
 import { useUserSettings } from '../hooks/useUserSettings'
 import CandleSvg, { fmtNum, fmtDate, fmtDateLong } from './ui/CandleSvg'
 import './GlobalChartModal.css'
+
+// ── MA 기본 스타일 ──────────────────────────────────────
+const DEFAULT_MA_STYLE = {
+  5:   { color: '#f59e0b', width: 1.2 },
+  20:  { color: '#a78bfa', width: 2.0 },
+  60:  { color: '#22c55e', width: 1.5 },
+  120: { color: '#f43f5e', width: 1.2 },
+}
+const MA_WIDTH_OPTIONS = [1, 1.5, 2, 2.5, 3]
 
 // ── 기간 탭 정의 ─────────────────────────────────────
 const RANGES = [
@@ -33,6 +45,7 @@ export default function GlobalChartModal({
   changeRate,
   onClose,
 }) {
+  const { user } = useAuth()
   const [range,         setRange]         = useState('6mo')
   const [candles,       setCandles]       = useState([])
   const [loading,       setLoading]       = useState(false)
@@ -51,12 +64,23 @@ export default function GlobalChartModal({
   const [drawPoint1,    setDrawPoint1]    = useState(null)
   const [mousePos,      setMousePos]      = useState(null)
   const [selectedColor, setSelectedColor] = useState('#f59e0b')
-  // MA 설정 — stock 타입은 20/60 기본 ON, 나머지 OFF (팝업 간소화)
+
+  // MA ON/OFF — 전체 기본 ON
   const [showMA, setShowMA] = useState(
-    () => type === 'stock'
-      ? getSetting('chart', `gcm_ma_stock`, { 5:false, 20:true, 60:true, 120:false })
-      : getSetting('chart', 'gcm_ma_settings', { 5:true, 20:true, 60:true, 120:true })
+    () => getSetting('chart', 'gcm_ma_show', { 5:true, 20:true, 60:true, 120:true })
   )
+  // MA 스타일 (색상/두께) — Firestore 저장
+  const [maStyle, setMaStyle] = useState(
+    () => getSetting('chart', 'gcm_ma_style', DEFAULT_MA_STYLE)
+  )
+  // MA 스타일 팝오버 (어느 MA가 열려 있는지)
+  const [maPopover, setMaPopover] = useState(null) // 5 | 20 | 60 | 120 | null
+
+  // 메모 상태
+  const [memoText,   setMemoText]   = useState('')
+  const [memoSaving, setMemoSaving] = useState(false)
+  const [memoSaved,  setMemoSaved]  = useState(false)
+  const memoRef = useRef(null)
 
   // Firestore에서 드로잉 비동기 로드
   useEffect(() => {
@@ -66,11 +90,55 @@ export default function GlobalChartModal({
   const onToggleMA = useCallback((period) => {
     setShowMA(prev => {
       const next = { ...prev, [period]: !prev[period] }
-      const settingKey = type === 'stock' ? 'gcm_ma_stock' : 'gcm_ma_settings'
-      setSetting('chart', settingKey, next)
+      setSetting('chart', 'gcm_ma_show', next)
       return next
     })
-  }, [setSetting, type])
+  }, [setSetting])
+
+  // MA 스타일 변경 (색상 or 두께) — 즉시 Firestore 저장
+  const onMaStyleChange = useCallback((period, key, val) => {
+    setMaStyle(prev => {
+      const next = { ...prev, [period]: { ...prev[period], [key]: val } }
+      setSetting('chart', 'gcm_ma_style', next)
+      return next
+    })
+  }, [setSetting])
+
+  // MA 기본값 초기화
+  const onMaStyleReset = useCallback(() => {
+    setMaStyle(DEFAULT_MA_STYLE)
+    setSetting('chart', 'gcm_ma_style', DEFAULT_MA_STYLE)
+  }, [setSetting])
+
+  // 메모 저장 — MemoPage 동일 컬렉션 (users/{uid}/memos)
+  const saveMemo = useCallback(async () => {
+    const text = memoText.trim()
+    if (!text || !user) return
+    setMemoSaving(true)
+    try {
+      const now = Timestamp.fromDate(new Date())
+      await addDoc(collection(db, 'users', user.uid, 'memos'), {
+        title:      `[차트메모] ${name || symbol}`,
+        content:    text,
+        category:   '차트메모',
+        tags:       ['차트메모', symbol, name].filter(Boolean),
+        bgColor:    '#F0FDF4',
+        titleColor: '#14532D',
+        textColor:  '#1e293b',
+        fontSize:   13,
+        pinned:     false,
+        createdAt:  now,
+        updatedAt:  now,
+      })
+      setMemoText('')
+      setMemoSaved(true)
+      setTimeout(() => setMemoSaved(false), 2000)
+    } catch(e) {
+      console.error('[gcm] memo save error:', e)
+    } finally {
+      setMemoSaving(false)
+    }
+  }, [memoText, user, symbol, name])
 
   // ESC 키
   useEffect(() => {
@@ -239,6 +307,20 @@ export default function GlobalChartModal({
               ))}
             </div>
 
+            {/* 메모 인풋 — 기간 탭 옆 */}
+            <div className="gcm-memo-bar">
+              <input
+                ref={memoRef}
+                className="gcm-memo-input"
+                placeholder="📝 차트 메모 입력 후 Enter..."
+                value={memoText}
+                onChange={e => setMemoText(e.target.value)}
+                onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); saveMemo() }}}
+                disabled={memoSaving}
+              />
+              {memoSaved && <span className="gcm-memo-ok">✓ 저장됨</span>}
+            </div>
+
             <button className="gcm-close" onClick={onClose}>✕</button>
           </div>
         </div>
@@ -270,24 +352,56 @@ export default function GlobalChartModal({
             ))}
           </div>
           <div className="gcm-draw-actions">
-            {/* MA 이동평균선 토글 */}
-            <div className="gcm-ma-toggles">
+            {/* MA 이동평균선 토글 + 스타일 커스터마이징 */}
+            <div className="gcm-ma-toggles" style={{position:'relative'}}>
               {[
-                { p:5,   color:'#f59e0b', label:'MA5'   },
-                { p:20,  color:'#a78bfa', label:'MA20'  },
-                { p:60,  color:'#22c55e', label:'MA60'  },
-                { p:120, color:'#f43f5e', label:'MA120' },
-              ].map(({ p, color, label }) => (
-                <button
-                  key={p}
-                  className={`gcm-ma-toggle ${showMA[p] ? 'active' : ''}`}
-                  style={{ '--ma-color': color }}
-                  title={`${label} ${showMA[p] ? '숨기기' : '표시'}`}
-                  onClick={() => onToggleMA(p)}
-                >
-                  ● {label}
-                </button>
-              ))}
+                { p:5,   label:'MA5'   },
+                { p:20,  label:'MA20'  },
+                { p:60,  label:'MA60'  },
+                { p:120, label:'MA120' },
+              ].map(({ p, label }) => {
+                const style = maStyle[p] || DEFAULT_MA_STYLE[p]
+                return (
+                  <div key={p} style={{position:'relative'}}>
+                    <button
+                      className={`gcm-ma-toggle ${showMA[p] ? 'active' : ''}`}
+                      style={{ '--ma-color': style.color, borderWidth: showMA[p] ? style.width+'px' : '1.5px' }}
+                      title={`${label} 클릭=ON/OFF | 우클릭=스타일 설정`}
+                      onClick={() => onToggleMA(p)}
+                      onContextMenu={e => { e.preventDefault(); setMaPopover(maPopover===p?null:p) }}
+                    >
+                      ● {label}
+                    </button>
+                    {/* 스타일 팝오버 */}
+                    {maPopover === p && (
+                      <div className="gcm-ma-popover" onMouseLeave={() => setMaPopover(null)}>
+                        <div className="gcm-ma-pop-row">
+                          <span>색상</span>
+                          <input type="color" value={style.color}
+                            onChange={e => onMaStyleChange(p, 'color', e.target.value)}
+                            style={{width:32,height:22,border:'none',cursor:'pointer',borderRadius:4}}/>
+                        </div>
+                        <div className="gcm-ma-pop-row">
+                          <span>두께</span>
+                          <div style={{display:'flex',gap:3}}>
+                            {MA_WIDTH_OPTIONS.map(w => (
+                              <button key={w}
+                                className={`gcm-ma-pop-w ${style.width===w?'active':''}`}
+                                onClick={() => onMaStyleChange(p, 'width', w)}>
+                                {w}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              <button className="gcm-draw-act-btn" onClick={onMaStyleReset}
+                title="MA 색상/두께 초기화" style={{fontSize:10,padding:'3px 7px'}}>
+                초기화
+              </button>
             </div>
             <button className="gcm-draw-act-btn"
               disabled={drawings.length === 0}
@@ -324,6 +438,7 @@ export default function GlobalChartModal({
               drawPhase={drawPhase} drawPoint1={drawPoint1}
               mousePos={mousePos} selectedColor={selectedColor}
               showMA={showMA} onToggleMA={onToggleMA}
+              maStyle={maStyle}
               onChartClick={handleChartClick}
               onChartMouseMove={handleMouseMove}
               onChartMouseLeave={handleLeave}

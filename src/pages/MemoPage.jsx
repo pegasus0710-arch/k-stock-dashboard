@@ -26,6 +26,7 @@ const FONT_SIZES = ['12','13','14','15','16','18','20','22','24','28']
 const DEFAULT_CATEGORIES = [
   { name:'기타',     color:'#94a3b8' },
   { name:'AI브리핑', color:'#2563eb' },
+  { name:'차트메모', color:'#16a34a' },
 ]
 const LS_TRASH_DAYS = 'mp_trash_days'
 const TRASH_DAY_OPTIONS = [7, 30, 90]
@@ -464,7 +465,14 @@ export default function MemoPage() {
   const [sortBy,      setSortBy]      = useState(() => lsGet(LS_SORT, 'updated'))
   const [viewMode,    setViewMode]    = useState(() => lsGet(LS_VIEW, 'grid'))
   const [showCatMgr,  setShowCatMgr]  = useState(false)
-  const [categories,  setCategories]  = useState(() => lsGet(LS_CATS, null) || DEFAULT_CATEGORIES)
+  const [categories,  setCategories]  = useState(() => {
+    const saved = lsGet(LS_CATS, null) || DEFAULT_CATEGORIES
+    // '차트메모' 카테고리 없으면 자동 추가 (기존 사용자 마이그레이션)
+    if (!saved.find(c => c.name === '차트메모')) {
+      return [...saved, { name:'차트메모', color:'#16a34a' }]
+    }
+    return saved
+  })
 
   const handleCatsChange = cats => { setCategories(cats); lsSet(LS_CATS, cats) }
   const [trashDays,   setTrashDays]  = useState(() => lsGet(LS_TRASH_DAYS, 30))
