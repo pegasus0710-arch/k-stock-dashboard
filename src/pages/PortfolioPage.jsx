@@ -1062,8 +1062,219 @@ function AnalysisView({ allTrades, allCashflow }) {
   )
 }
 
-// ── 매매분석 패널 (일지 + 성과분석 탭) ──────────────
-// ── 카테고리 설정 (입출금 분류) ──────────────────────
+// ── 기존 내역 수정 모달 ───────────────────────────────
+function EditEntryModal({ user, item, onClose, onSaved }) {
+  const isTrade = item._col === 'trades'
+  const isCash  = item._col === 'cashflow'
+
+  const [date,    setDate]    = useState(toHtml(item.date||today()))
+  const [code,    setCode]    = useState(item.code||'')
+  const [name,    setName]    = useState(item.name||item.rmrk_nm||'')
+  const [type,    setType]    = useState(item.type||'buy')
+  const [price,   setPrice]   = useState(String(item.price||''))
+  const [qty,     setQty]     = useState(String(item.qty||''))
+  const [amount,  setAmount]  = useState(String(Math.abs(Number(item.amount||0))))
+  const [fee,     setFee]     = useState(String(Number(item.fee||0)+Number(item.tax||0)))
+  const [profit,  setProfit]  = useState(
+    item.profit!=null
+      ? String(Math.round(Number(item.profit)-Number(item.fee||0)-Number(item.tax||0)))
+      : ''
+  )
+  const [cat,     setCat]     = useState(item.category||'in')
+  const [memo,    setMemo]    = useState(item.memo||'')
+  const [saving,  setSaving]  = useState(false)
+
+  // 단가×수량 자동 계산
+  const calcAmt = price && qty ? Number(price)*Number(qty) : null
+
+  const save = async () => {
+    if (!user) return
+    setSaving(true)
+    try {
+      const dt  = fromHtml(date)
+      const colPath = isTrade ? 'trades' : 'cashflow'
+      const ref = doc(db,'users',user.uid,'portfolio',colPath,'records',item._id)
+
+      if (isTrade) {
+        const totalFee = Number(fee||0)
+        const netProfit = profit !== '' ? Number(profit) : null
+        // profit 역산: 입력값(순손익) + 부대비용
+        const rawProfit = netProfit != null ? netProfit + totalFee : null
+        const amt = calcAmt || Number(amount||0)
+        const updates = {
+          date, code, name, type,
+          price:  Number(price||0),
+          qty:    Number(qty||0),
+          amount: amt,
+          fee:    totalFee,
+          tax:    0,
+          memo,
+          ...(rawProfit != null ? { profit: rawProfit } : {}),
+        }
+        // date는 YYYYMMDD 형식으로
+        updates.date = dt
+        await updateDoc(ref, updates)
+      } else {
+        const flowType = cat==='out' ? 'out' : 'in'
+        await updateDoc(ref, {
+          date: dt, category: cat, type: flowType,
+          amount: Number(amount||0),
+          rmrk_nm: name, memo,
+        })
+      }
+      onSaved()
+      onClose()
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
+
+  const labelStyle = { fontSize:11, color:'var(--text-dim)', fontWeight:600, width:72, flexShrink:0 }
+  const rowStyle   = { display:'flex', alignItems:'center', gap:10, marginBottom:12 }
+
+  return (
+    <div className="pp-modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="pp-modal" style={{maxWidth:440}}>
+        <div className="pp-modal-hdr">
+          <span className="pp-modal-title">
+            ✏ 내역 수정
+            <span style={{fontSize:10,color:'var(--text-dim)',fontWeight:400,marginLeft:8}}>
+              {isTrade ? (item.name||item.code) : (item.rmrk_nm||'입출금')}
+            </span>
+          </span>
+          <button className="pp-btn" onClick={onClose}>✕</button>
+        </div>
+
+        {/* 날짜 */}
+        <div style={rowStyle}>
+          <label style={labelStyle}>체결일</label>
+          <input type="date" className="pp-date-input" value={date}
+            onChange={e=>setDate(e.target.value)} max={toHtml(today())}
+            style={{flex:1}}/>
+        </div>
+
+        {isTrade && (<>
+          {/* 구분 */}
+          <div style={rowStyle}>
+            <label style={labelStyle}>구분</label>
+            <div style={{display:'flex',gap:6}}>
+              {[{v:'buy',l:'매수',c:'#B91C1C',bg:'#FEF2F2'},{v:'sell',l:'매도',c:'#1D4ED8',bg:'#EFF6FF'}].map(t=>(
+                <button key={t.v}
+                  style={{padding:'4px 14px',borderRadius:6,fontSize:12,fontWeight:600,border:'1px solid',cursor:'pointer',
+                    borderColor:type===t.v?t.c:'var(--border)',
+                    background:type===t.v?t.bg:'var(--bg-panel)',
+                    color:type===t.v?t.c:'var(--text-secondary)'}}
+                  onClick={()=>setType(t.v)}>{t.l}</button>
+              ))}
+            </div>
+          </div>
+          {/* 종목코드 */}
+          <div style={rowStyle}>
+            <label style={labelStyle}>종목코드</label>
+            <input className="pp-modal-input" value={code}
+              onChange={e=>setCode(e.target.value)} placeholder="예: 005930"/>
+          </div>
+          {/* 종목명 */}
+          <div style={rowStyle}>
+            <label style={labelStyle}>종목명</label>
+            <input className="pp-modal-input" value={name}
+              onChange={e=>setName(e.target.value)} placeholder="예: 삼성전자"/>
+          </div>
+          {/* 단가 */}
+          <div style={rowStyle}>
+            <label style={labelStyle}>단가</label>
+            <input className="pp-modal-input" type="number" value={price}
+              onChange={e=>setPrice(e.target.value)} placeholder="0"/>
+          </div>
+          {/* 수량 */}
+          <div style={rowStyle}>
+            <label style={labelStyle}>수량</label>
+            <input className="pp-modal-input" type="number" value={qty}
+              onChange={e=>setQty(e.target.value)} placeholder="0"/>
+          </div>
+          {/* 금액 (자동계산 표시) */}
+          <div style={rowStyle}>
+            <label style={labelStyle}>금액</label>
+            <div style={{flex:1}}>
+              <input className="pp-modal-input" type="number"
+                value={calcAmt!=null ? calcAmt : amount}
+                onChange={e=>setAmount(e.target.value)}
+                placeholder="단가×수량 자동계산"
+                style={{width:'100%'}}
+                readOnly={!!(price&&qty)}/>
+              {calcAmt!=null&&<div style={{fontSize:10,color:'var(--text-dim)',marginTop:2}}>
+                {fmt(Number(price))} × {fmt(Number(qty))}주 = {fmt(calcAmt)}원
+              </div>}
+            </div>
+          </div>
+          {/* 부대비용 */}
+          <div style={rowStyle}>
+            <label style={labelStyle}>부대비용</label>
+            <input className="pp-modal-input" type="number" value={fee}
+              onChange={e=>setFee(e.target.value)} placeholder="수수료+세금"/>
+          </div>
+          {/* 수익금 (매도만) */}
+          {type==='sell' && (
+            <div style={rowStyle}>
+              <label style={labelStyle}>순손익</label>
+              <div style={{flex:1}}>
+                <input className="pp-modal-input" type="number" value={profit}
+                  onChange={e=>setProfit(e.target.value)}
+                  placeholder="세후 순손익 (부대비용 제외 후 금액)"/>
+                <div style={{fontSize:10,color:'var(--text-dim)',marginTop:2}}>
+                  부대비용({fmt(Number(fee||0))}원) 차감 후 실수령 기준
+                </div>
+              </div>
+            </div>
+          )}
+        </>)}
+
+        {isCash && (<>
+          {/* 카테고리 */}
+          <div style={rowStyle}>
+            <label style={labelStyle}>카테고리</label>
+            <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+              {CF_CATEGORIES.map(c=>(
+                <button key={c.id}
+                  style={{padding:'3px 10px',borderRadius:10,fontSize:11,
+                    border:`1px solid ${cat===c.id?c.color:'var(--border)'}`,
+                    background:cat===c.id?c.bg:'var(--bg-panel)',
+                    color:cat===c.id?c.color:'var(--text-secondary)',
+                    cursor:'pointer',fontWeight:cat===c.id?700:400}}
+                  onClick={()=>setCat(c.id)}>{c.label}</button>
+              ))}
+            </div>
+          </div>
+          {/* 항목명 */}
+          <div style={rowStyle}>
+            <label style={labelStyle}>항목명</label>
+            <input className="pp-modal-input" value={name}
+              onChange={e=>setName(e.target.value)} placeholder="예: 삼성전자 배당금"/>
+          </div>
+          {/* 금액 */}
+          <div style={rowStyle}>
+            <label style={labelStyle}>금액</label>
+            <input className="pp-modal-input" type="number" value={amount}
+              onChange={e=>setAmount(e.target.value)} placeholder="0"/>
+          </div>
+        </>)}
+
+        {/* 메모 */}
+        <div style={rowStyle}>
+          <label style={labelStyle}>메모</label>
+          <input className="pp-modal-input" value={memo}
+            onChange={e=>setMemo(e.target.value)} placeholder="매매 이유, 기억할 내용..."/>
+        </div>
+
+        <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:16}}>
+          <button className="pp-btn" onClick={onClose}>취소</button>
+          <button className="pp-btn primary" onClick={save} disabled={saving}>
+            {saving?'저장 중...':'저장'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 const CF_CATEGORIES = [
   { id:'in',       label:'입금',  color:'#EF4444', bg:'#FEF2F2' },
   { id:'out',      label:'출금',  color:'#3B82F6', bg:'#EFF6FF' },
@@ -1254,8 +1465,9 @@ function JournalPanel({ user }) {
   const [profitVal,  setProfitVal]  = useState('')
   const [costEdit,   setCostEdit]   = useState(null)
   const [costVal,    setCostVal]    = useState('')
-  const [dateEdit,   setDateEdit]   = useState(null)   // 날짜 수정 중인 _id
-  const [dateVal,    setDateVal]    = useState('')     // 날짜 입력값
+  const [dateEdit,   setDateEdit]   = useState(null)
+  const [dateVal,    setDateVal]    = useState('')
+  const [editItem,   setEditItem]   = useState(null)  // 전체 수정 모달 대상
 
   const TRADE_TABS = [
     { id:'all',  label:'전체' },
@@ -1529,6 +1741,11 @@ function JournalPanel({ user }) {
       </div>
 
       {showAdd && <AddEntryModal user={user} onClose={()=>setShowAdd(false)} onSaved={load}/>}
+      {editItem && (
+        <EditEntryModal user={user} item={editItem}
+          onClose={()=>setEditItem(null)}
+          onSaved={()=>{ load(); setEditItem(null) }}/>
+      )}
       {syncModal && (
         <ImportSyncModal type={syncModal} user={user}
           onClose={()=>setSyncModal(null)}
@@ -2038,12 +2255,18 @@ function JournalPanel({ user }) {
                               </div>
                             )}
                           </td>
-                          {/* 삭제 — 수동은 항상, 자동도 허용 (재동기화로 복구 가능) */}
-                          <td style={{width:28}}>
-                            <button style={{border:'none',background:'none',cursor:'pointer',
-                              color: isManual?'#EF4444':'#CBD5E1',
-                              fontSize:13,padding:'2px 4px',
-                              opacity:deleting===it._id?.5:1}}
+                          {/* ✏ 전체 편집 + 삭제 */}
+                          <td style={{width:52,textAlign:'right',whiteSpace:'nowrap'}}>
+                            <button
+                              style={{border:'none',background:'none',cursor:'pointer',
+                                color:'var(--text-dim)',fontSize:12,padding:'2px 3px'}}
+                              onClick={()=>setEditItem(it)}
+                              title="전체 수정">✏</button>
+                            <button
+                              style={{border:'none',background:'none',cursor:'pointer',
+                                color: isManual?'#EF4444':'#CBD5E1',
+                                fontSize:13,padding:'2px 4px',
+                                opacity:deleting===it._id?.5:1}}
                               onClick={()=>deleteItem(it)} disabled={deleting===it._id}
                               title={isManual?'수동 항목 삭제':'삭제 (📥 재동기화로 복구 가능)'}>
                               {deleting===it._id?'…':'✕'}
@@ -2382,7 +2605,12 @@ function JournalPanel({ user }) {
                               </div>
                             )}
                           </td>
-                          <td style={{width:28}}>
+                          <td style={{width:52,textAlign:'right',whiteSpace:'nowrap'}}>
+                            <button
+                              style={{border:'none',background:'none',cursor:'pointer',
+                                color:'var(--text-dim)',fontSize:12,padding:'2px 3px'}}
+                              onClick={()=>setEditItem(it)}
+                              title="전체 수정">✏</button>
                             <button style={{border:'none',background:'none',cursor:'pointer',
                               color:isDup?'#EF4444':'#CBD5E1',fontSize:13,padding:'2px 4px',
                               opacity:deleting===it._id?.5:1}}
