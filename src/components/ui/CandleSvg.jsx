@@ -137,10 +137,8 @@ export default function CandleSvg({
   const handleMouseMove = (e) => {
     const c = getSvgCoords(e)
     if (!c) return
-    // 드로잉 좌표는 showTooltip 여부와 무관하게 항상 전달
+    // 드로잉 좌표 + 크로스헤어 위치는 항상 업데이트
     if (onChartMouseMove) onChartMouseMove(c)
-    // 툴팁은 showTooltip ON일 때만 표시
-    if (!showTooltip) return
     if (c.idx >= 0 && c.idx < data.length) {
       setTooltip({
         c:     data[c.idx],
@@ -380,7 +378,7 @@ export default function CandleSvg({
       </svg>
 
       {/* 툴팁 박스 */}
-      {tooltip && drawTool === 'none' && (() => {
+      {tooltip && drawTool === 'none' && showTooltip && (() => {
         const c   = tooltip.c
         const idx = data.indexOf(c)
         const prev = idx > 0 ? data[idx - 1] : null
