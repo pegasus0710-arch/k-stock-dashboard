@@ -1212,7 +1212,7 @@ function EditEntryModal({ user, item, onClose, onSaved }) {
             <input className="pp-modal-input" type="number" value={fee}
               onChange={e=>setFee(e.target.value)} placeholder="수수료+세금"/>
           </div>
-          {/* 수익금 (매도만) */}
+          {/* 실현손익 (매도만) */}
           {type==='sell' && (
             <div style={rowStyle}>
               <label style={labelStyle}>순손익</label>
@@ -1560,7 +1560,7 @@ function JournalPanel({ user }) {
     setSaving(false)
   }
 
-  // 수익금 수동 저장 (API 조회 불가 건 직접 입력)
+  // 실현손익 수동 저장 (API 조회 불가 건 직접 입력)
   const saveProfitManual = async (it) => {
     if (!user) return
     const val = Number(profitVal)
@@ -1987,7 +1987,7 @@ function JournalPanel({ user }) {
                     <th style={{width:60}}>수량</th>
                     <th style={{width:100}}>금액</th>
                     <th style={{width:84}}>부대비용</th>
-                    <th style={{width:96}}>수익금</th>
+                    <th style={{width:96}}>실현손익</th>
                     <th style={{width:64}}>수익률</th>
                     <th style={{textAlign:'left',minWidth:110}}>메모</th>
                     <th style={{width:24}}></th>
@@ -2156,7 +2156,7 @@ function JournalPanel({ user }) {
                               </div>
                             )}
                           </td>
-                          {/* 수익금 (세후) */}
+                          {/* 실현손익 (세후) */}
                           <td style={{position:'relative'}}>
                             {netProfit!=null ? (
                               <div style={{fontWeight:700,fontSize:13,fontVariantNumeric:'tabular-nums',
