@@ -379,6 +379,9 @@ export default function ChartAnalysisPage() {
     if (cfg.showStoch!=null) setShowStoch(cfg.showStoch)
     if (cfg.enabledMA)       setEnabledMA(new Set(cfg.enabledMA))
     if (cfg.volH)            setVolH(cfg.volH)
+    // MA 스타일 재동기화
+    const savedMaStyle = getSetting('chart', 'cap_ma_style', null)
+    if (savedMaStyle) setMaStyle(savedMaStyle)
     if (cfg.subH_rsi || cfg.subH_macd || cfg.subH_stoch) {
       setSubHeights(prev => ({
         rsi:   cfg.subH_rsi   || prev.rsi,
@@ -460,9 +463,34 @@ export default function ChartAnalysisPage() {
   const [minDays,   setMinDays]   = useState(1)
   const [showMA,    setShowMA]    = useState(_cfg.showMA  ?? true)
   const [enabledMA, setEnabledMA] = useState(new Set(_cfg.enabledMA || [5,10,20,60,120]))
+
+  // MA 색상/두께 커스터마이징 — GlobalChartModal과 동일 키 체계
+  const DEFAULT_CAP_MA_STYLE = {
+    5:   { color: '#f59e0b', width: 1.2 },
+    10:  { color: '#94a3b8', width: 1.0 },
+    20:  { color: '#a78bfa', width: 2.0 },
+    60:  { color: '#22c55e', width: 1.5 },
+    120: { color: '#f43f5e', width: 1.2 },
+  }
+  const [maStyle, setMaStyle] = useState(
+    () => getSetting('chart', 'cap_ma_style', DEFAULT_CAP_MA_STYLE) || DEFAULT_CAP_MA_STYLE
+  )
+  const [maPopover, setMaPopover] = useState(null) // 5|10|20|60|120|null
+  const onMaStyleChange = (p, key, val) => {
+    setMaStyle(prev => {
+      const next = { ...prev, [p]: { ...prev[p], [key]: val } }
+      setSetting('chart', 'cap_ma_style', next)
+      return next
+    })
+  }
+  const onMaStyleReset = () => {
+    setMaStyle(DEFAULT_CAP_MA_STYLE)
+    setSetting('chart', 'cap_ma_style', DEFAULT_CAP_MA_STYLE)
+  }
   const [drawTool,  setDrawTool]  = useState('none')
   const [drawState, setDrawState] = useState(null)
   const [drawings,  setDrawings]  = useState([])
+  const [mousePos,  setMousePos]  = useState(null)  // 드로잉 호버 프리뷰용
   const [selIdx,    setSelIdx]    = useState(null)
   const [textInput, setTextInput] = useState(null)
   const [chartWrap, setChartWrap] = useState(null)
@@ -470,8 +498,8 @@ export default function ChartAnalysisPage() {
   const [chartH,    setChartH]    = useState(500)
 
   // ── 지표 토글 (Firestore 설정 저장) ─────────────────
-  const [showBB,    setShowBB]    = useState(_cfg.showBB    ?? true)
-  const [showRSI,   setShowRSI]   = useState(_cfg.showRSI   ?? true)
+  const [showBB,    setShowBB]    = useState(_cfg.showBB    ?? false)
+  const [showRSI,   setShowRSI]   = useState(_cfg.showRSI   ?? false)
   const [showMACD,  setShowMACD]  = useState(_cfg.showMACD  ?? false)
   const [showStoch, setShowStoch] = useState(_cfg.showStoch ?? false)
   const [showSup,   setShowSup]   = useState(false)
@@ -611,6 +639,36 @@ export default function ChartAnalysisPage() {
     // basicInfo 로드
     fetch(`/api/kiwoom?type=stockbasic&code=${stock.code}`).then(r=>r.json()).then(d=>{if(!d.error)setBasicInfo(d)}).catch(()=>{})
   }
+
+  // ── 메모 (GlobalChartModal과 동일 컬렉션 공유) ──────
+  const [memoText,   setMemoText]   = useState('')
+  const [memoSaving, setMemoSaving] = useState(false)
+  const [memoSaved,  setMemoSaved]  = useState(false)
+  const saveMemo = useCallback(async () => {
+    const text = memoText.trim()
+    if (!text || !user || !selected) return
+    setMemoSaving(true)
+    try {
+      const now = Timestamp.fromDate(new Date())
+      await addDoc(collection(db, 'users', user.uid, 'memos'), {
+        title:      `[차트메모] ${selected.name || selected.code}`,
+        content:    text,
+        category:   '차트메모',
+        tags:       ['차트메모', selected.code, selected.name].filter(Boolean),
+        bgColor:    '#F0FDF4',
+        titleColor: '#14532D',
+        textColor:  '#1e293b',
+        fontSize:   13,
+        pinned:     false,
+        createdAt:  now,
+        updatedAt:  now,
+      })
+      setMemoText('')
+      setMemoSaved(true)
+      setTimeout(() => setMemoSaved(false), 2000)
+    } catch(e) { console.error('[cap] memo save error:', e) }
+    finally { setMemoSaving(false) }
+  }, [memoText, user, selected])
 
   const saveDrawings = next => {
     setDrawings(next)
@@ -968,12 +1026,42 @@ export default function ChartAnalysisPage() {
               <div className="cap-tb-sep"/>
               {/* MA */}
               <button className={`cap-ma-tog ${showMA?'on':''}`} onClick={()=>setShowMA(v=>!v)}>MA</button>
-              {showMA&&<div className="cap-ma-chips">
-                {MA_SETTINGS.map(({p,color,label})=>(
-                  <button key={p} className={`cap-ma-chip ${enabledMA.has(p)?'on':'off'}`}
-                    style={enabledMA.has(p)?{color,borderColor:color,background:color+'18'}:{}}
-                    onClick={()=>toggleMA(p)}>{label}</button>
-                ))}
+              {showMA&&<div className="cap-ma-chips" style={{position:'relative'}}>
+                {MA_SETTINGS.map(({p,label})=>{
+                  const s = maStyle?.[p] || { color:'#94a3b8', width:1 }
+                  return (
+                    <div key={p} style={{position:'relative'}}>
+                      <button
+                        className={`cap-ma-chip ${enabledMA.has(p)?'on':'off'}`}
+                        style={enabledMA.has(p)?{color:s.color,borderColor:s.color,background:s.color+'18'}:{}}
+                        title={`${label} 클릭=ON/OFF | 우클릭=스타일 설정`}
+                        onClick={()=>toggleMA(p)}
+                        onContextMenu={e=>{e.preventDefault();setMaPopover(maPopover===p?null:p)}}
+                      >{label}</button>
+                      {maPopover===p&&(
+                        <div className="cap-ma-popover" onMouseLeave={()=>setMaPopover(null)}>
+                          <div className="cap-ma-pop-row">
+                            <span>색상</span>
+                            <input type="color" value={s.color}
+                              onChange={e=>onMaStyleChange(p,'color',e.target.value)}
+                              style={{width:32,height:22,border:'none',cursor:'pointer',borderRadius:4}}/>
+                          </div>
+                          <div className="cap-ma-pop-row">
+                            <span>두께</span>
+                            <div style={{display:'flex',gap:3}}>
+                              {[1,1.5,2,2.5,3].map(w=>(
+                                <button key={w}
+                                  className={`cap-ma-pop-w ${s.width===w?'active':''}`}
+                                  onClick={()=>onMaStyleChange(p,'width',w)}>{w}</button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                <button className="cap-ma-reset" onClick={onMaStyleReset} title="MA 초기화">↺</button>
               </div>}
               <div className="cap-tb-sep"/>
               {/* 지표 */}
@@ -995,11 +1083,26 @@ export default function ChartAnalysisPage() {
                       <button key={t.id} className={`cap-draw-item ${drawTool===t.id?'on':''}`}
                         onClick={()=>{setDrawTool(t.id);setDrawState(null);setDrawMenuOpen(false)}}>{t.label}</button>
                     ))}
+                    {drawings.length>0&&<button className="cap-draw-item" onClick={()=>{saveDrawings(drawings.slice(0,-1));setDrawState(null)}}>↩ 실행취소</button>}
                     {drawings.length>0&&<button className="cap-draw-item del" onClick={()=>{saveDrawings([]);setDrawState(null);setDrawMenuOpen(false)}}>🗑 초기화</button>}
                   </div>
                 )}
               </div>
               {drawState&&<span className="cap-draw-hint" style={{fontSize:10,color:'var(--text-dim)'}}>{drawTool==='trend'?'2번째 점 클릭':'끝점 클릭'}</span>}
+              {/* 메모 인풋 — GlobalChartModal과 동일 컬렉션 공유 */}
+              {selected && (
+                <div className="cap-memo-bar">
+                  <input
+                    className="cap-memo-input"
+                    placeholder="📝 차트 메모 입력 후 Enter..."
+                    value={memoText}
+                    onChange={e=>setMemoText(e.target.value)}
+                    onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveMemo()}}}
+                    disabled={memoSaving}
+                  />
+                  {memoSaved && <span className="cap-memo-ok">✓ 저장됨</span>}
+                </div>
+              )}
               <div className="cap-tb-sp"/>
               {/* 우측 패널 탭 버튼 */}
               {[
@@ -1035,11 +1138,14 @@ export default function ChartAnalysisPage() {
                     <div className="cap-chart-wrap" ref={setChartWrap} style={{position:'relative'}}>
                       <CandleSvg
                         data={candles} width={chartW} height={chartH}
-                        showMA={showMA} enabledMA={enabledMA}
+                        showMA={showMA} enabledMA={enabledMA} maStyle={maStyle}
                         drawings={drawings} onSvgClick={handleInlineClick}
                         drawTool={drawTool} selectedIdx={selIdx} onSelectDrawing={setSelIdx}
                         showBollinger={showBB} week52={chartHighLow} period={period}
                         volHeight={volH}
+                        mousePos={mousePos}
+                        onChartMouseMove={c => setMousePos(c)}
+                        onChartMouseLeave={() => setMousePos(null)}
                       />
                       <div
                         style={{position:'absolute',left:72,right:72,bottom:32+volH-3,height:6,cursor:'row-resize',zIndex:20,display:'flex',alignItems:'center',justifyContent:'center'}}
