@@ -7,7 +7,6 @@ import DashboardPage     from './pages/DashboardPage'
 import ChartAnalysisPage from './pages/ChartAnalysisPage'
 import MarketPage        from './pages/MarketPage'
 import ETFPage           from './pages/ETFPage'
-import WatchlistPage     from './pages/WatchlistPage'
 import PortfolioPage     from './pages/PortfolioPage'
 import MemoPage          from './pages/MemoPage'
 import NewsPage          from './pages/NewsPage'
@@ -22,7 +21,6 @@ const MENU = [
   { path: '/chart',       label: '차트 분석',  sub: '종목 검색·차트' },
   { path: '/market',      label: '시장·업종',  sub: '지수·수급·업종' },
   { path: '/etf',         label: 'ETF',        sub: 'ETF 시세·분석' },
-  { path: '/watchlist',   label: '관심종목',   sub: '즐겨찾기 종목 모음' },
   { path: '/portfolio',   label: '포트폴리오', sub: '보유·매매·분석' },
   { path: '/memo',        label: '메모장',     sub: '투자 아이디어·기록' },
   { path: '/news',        label: '뉴스·공시',  sub: '실시간 뉴스' },
@@ -31,7 +29,6 @@ const MENU = [
 const BOTTOM_TABS = [
   { path: '/dashboard', label: '홈',   icon: '⊞' },
   { path: '/chart',     label: '차트', icon: '↗' },
-  { path: '/watchlist', label: '관심', icon: '★' },
   { path: '/portfolio', label: '포폴', icon: '◈' },
   { path: '/memo',      label: '메모', icon: '≡' },
 ]
@@ -297,7 +294,6 @@ const PAGE_THEMES = {
   '/chart':       'theme-teal',
   '/market':      'theme-teal',
   '/etf':         'theme-teal',
-  '/watchlist':   'theme-indigo',
   '/portfolio':   'theme-indigo',
   '/memo':        'theme-slate',
   '/news':        'theme-slate',
@@ -323,7 +319,6 @@ function AppLayout() {
           <Route path="/chart"         element={<ChartAnalysisPage/>}/>
           <Route path="/market"        element={<MarketPage/>}/>
           <Route path="/etf"           element={<ETFPage/>}/>
-          <Route path="/watchlist"     element={<WatchlistPage/>}/>
           <Route path="/portfolio"     element={<PortfolioPage/>}/>
           <Route path="/trading-log"   element={<Navigate to="/portfolio" replace/>}/>
           <Route path="/memo"          element={<MemoPage/>}/>
