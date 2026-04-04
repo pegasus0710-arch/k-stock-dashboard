@@ -814,7 +814,6 @@ function AnalysisView({ allTrades, allCashflow }) {
   const hasProfitData=sellsWithProfit.length>0
   const nc = v=>v>=0?'#B91C1C':'#1D4ED8'
   const gc = v=>v>=0?'#085041':'#791F1F'   // 초록/빨강 (성과용)
-  const totalBuyAmt = buys.reduce((s,x)=>s+Math.abs(Number(x.amount||0)),0)
 
   return (
     <div>
