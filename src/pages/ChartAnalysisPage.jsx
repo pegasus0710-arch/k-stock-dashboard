@@ -961,20 +961,17 @@ export default function ChartAnalysisPage() {
             Object.keys(holdings).length===0
             ? <div className="cap-sb-empty">보유종목 없음<br/><span style={{fontSize:10,color:'var(--text-dim)'}}>계좌 연동 필요</span></div>
             : Object.entries(holdings).map(([code,h])=>{
-                const p=prices[code]
                 const sname=h.name||stockList.find(s=>s.code===code)?.name||code
                 const rate=h.rate
                 const rc=rate>0?'#ef4444':rate<0?'#2563eb':'var(--text-dim)'
-                const curPrc=p?.price||h.curPrc
-                const pc2=p?rateColor(p.changeRate):'var(--text-secondary)'
                 return (
                   <button key={code} className={`cap-sb-hold ${selected?.code===code?'active':''}`}
                     onClick={()=>select({code,name:sname,theme:'보유종목'})}>
                     <span className="cap-sb-hold-name">{sname}</span>
                     <span className="cap-sb-hold-rate" style={{color:rc}}>{rate>=0?'+':''}{rate?.toFixed(1)}%</span>
                     <span className="cap-sb-hold-qty">{h.qty}주 · {code}</span>
-                    <span className="cap-sb-hold-price" style={{color:pc2}}>
-                      {curPrc>0?curPrc.toLocaleString():'—'}
+                    <span className="cap-sb-hold-price" style={{color:'var(--text-secondary)'}}>
+                      평균 {h.avg>0?h.avg.toLocaleString():'—'}원
                     </span>
                     {h.evltPrft!==0&&(
                       <span className="cap-sb-hold-pnl" style={{color:h.evltPrft>0?'#ef4444':'#2563eb'}}>
