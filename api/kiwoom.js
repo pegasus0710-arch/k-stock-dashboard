@@ -173,6 +173,18 @@ export default async function handler(req, res) {
     return relay('/supply/strength', { stk_cd: q.code }, res)
   }
 
+  // 투자자별 수급 차트(누적) — /api/kiwoom?type=invsr-chart&code=005930
+  if (q.type === 'invsr-chart') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/supply/invsr-chart', { stk_cd: q.code }, res)
+  }
+
+  // 기관 종목별 매매 — /api/kiwoom?type=supply-institution-stock&code=005930
+  if (q.type === 'supply-institution-stock') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/supply/institution', { stk_cd: q.code }, res)
+  }
+
   // ══════════════════════════════════════════════════
   // Phase 2 — 업종 배치
   // ══════════════════════════════════════════════════
@@ -338,7 +350,8 @@ export default async function handler(req, res) {
     valid: [
       'price', 'hoga', 'stock-chart', 'index-chart', 'index-price', 'index-52week',
       'supply-foreign', 'supply-investor', 'supply-institution',
-      'supply-short', 'supply-strength', 'market-flow',
+      'supply-short', 'supply-strength', 'supply-institution-stock',
+      'invsr-chart', 'market-flow',
       'sector-all', 'sector-stocks', 'sector-heatmap',
       'etf-info', 'etf-list', 'etf-profit', 'etf-holdings',
       'account-balance', 'account-holdings', 'account-orders', 'account-returns',

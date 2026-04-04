@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import './StockChartModal.css'
 import FinancialChart from './FinancialChart'
+import { useUserSettings } from '../hooks/useUserSettings'
 
 const CLAUDE_KEY = import.meta.env.VITE_CLAUDE_API_KEY
 
@@ -375,28 +376,41 @@ function CandleChart({ data, width, height, showMA, enabledMA, drawings, onSvgCl
   )
 }
 
-// ── VolumeChart ────────────────────────────────────────
-function VolumeChart({ data, width, height }) {
+// ── VolumeChart (거래량/거래대금 토글) ─────────────────
+function VolumeChart({ data, width, height, showAmount=false }) {
   if (!data||data.length===0) return null
   const PAD={top:4,right:72,bottom:4,left:8}
   const W=width-PAD.left-PAD.right, H=height-PAD.top-PAD.bottom
-  const maxV=Math.max(...data.map(d=>d.volume||0),1)
+  // 거래대금 = volume × close (근사), 거래량 직접 사용
+  const values = data.map(d => showAmount
+    ? (d.amount || (d.volume * d.close) || 0)   // 대금 필드 또는 근사계산
+    : (d.volume || 0)
+  )
+  const maxV=Math.max(...values, 1)
   const barW=Math.max(1,Math.min(12,W/data.length-1))
   const bx=i=>PAD.left+(i+0.5)*(W/data.length)
   const py=v=>PAD.top+H-(v/maxV)*H
-  // 거래량 MA20
-  const vma = calcVolumeMA(data, 20)
+  // MA20
+  const vma = data.map((_,i)=>{
+    if(i<19) return null
+    return values.slice(i-19,i+1).reduce((s,v)=>s+v,0)/20
+  })
   const vmaPts = vma.map((v,i)=>v!=null?`${bx(i)},${py(v)}`:null).filter(Boolean).join(' ')
+  // 최대값 레이블 포맷
+  const fmtVal = v => showAmount
+    ? (v>=100000000?(v/100000000).toFixed(0)+'억':(v/10000).toFixed(0)+'만')
+    : (v>=10000?(v/10000).toFixed(0)+'만':String(Math.round(v)))
+  const label = showAmount ? '거래대금' : '거래량'
   return (
     <svg width={width} height={height} style={{display:'block',background:'#F8FAFF'}}>
-      <text x={PAD.left+W+5} y={PAD.top+10} fontSize={9} fill="#94a3b8">거래량</text>
+      <text x={PAD.left+W+5} y={PAD.top+10} fontSize={9} fill="#94a3b8">{label}</text>
+      <text x={PAD.left+W+5} y={PAD.top+22} fontSize={8} fill="#cbd5e1">{fmtVal(maxV)}</text>
       {data.map((d,i)=>{
-        const barH=maxV>0?(d.volume/maxV)*H:0
+        const barH=maxV>0?(values[i]/maxV)*H:0
         const isUp=d.close>=d.open
         return <rect key={i} x={bx(i)-barW/2} y={PAD.top+H-barH} width={barW} height={Math.max(1,barH)}
           fill={isUp?'#FCA5A5':'#93C5FD'} opacity={0.8}/>
       })}
-      {/* 거래량 MA20 (노란선) */}
       {vmaPts&&<polyline points={vmaPts} fill="none" stroke="#f59e0b" strokeWidth={1.2} opacity={0.85}/>}
     </svg>
   )
@@ -597,6 +611,52 @@ function StochasticChart({ data, width }) {
   )
 }
 
+// ── 이격도 서브차트 (20일선 기준) ──────────────────────
+function DisparityChart({ data, width }) {
+  const H=75, PAD={top:14,right:72,bottom:4,left:8}
+  const W=width-PAD.left-PAD.right
+  const innerH=H-PAD.top-PAD.bottom
+  const ma20 = calcMA(data, 20)
+  // 이격도 = (현재가 / MA20) × 100
+  const disp = data.map((d,i) => ma20[i] ? +(d.close / ma20[i] * 100).toFixed(2) : null)
+  const vals  = disp.filter(v => v != null)
+  if (!vals.length) return null
+  const minV = Math.min(...vals, 95), maxV = Math.max(...vals, 105)
+  const rng  = maxV - minV || 1
+  const bx   = i => PAD.left + (i+0.5) * (W / data.length)
+  const py   = v => PAD.top + innerH * (1 - (v-minV)/rng)
+  const pts  = disp.map((v,i) => v!=null ? `${bx(i)},${py(v)}` : null).filter(Boolean).join(' ')
+  const h100 = py(100)  // 기준선(100)
+  const h110 = minV < 110 && maxV > 110 ? py(110) : null
+  const h90  = minV < 90  && maxV > 90  ? py(90)  : null
+  const last  = disp[disp.length-1]
+  const lastCol = last == null ? '#8b5cf6' : last >= 105 ? '#ef4444' : last <= 95 ? '#3b82f6' : '#8b5cf6'
+  return (
+    <svg width={width} height={H} style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
+      {/* 110 과열 / 90 침체 */}
+      {h110 && <rect x={PAD.left} y={PAD.top} width={W} height={Math.max(0,h110-PAD.top)} fill="rgba(239,68,68,0.05)"/>}
+      {h90  && <rect x={PAD.left} y={h90}     width={W} height={Math.max(0,PAD.top+innerH-h90)} fill="rgba(59,130,246,0.05)"/>}
+      {/* 110선 */}
+      {h110 && <line x1={PAD.left} x2={PAD.left+W} y1={h110} y2={h110} stroke="#ef4444" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.6}/>}
+      {/* 100 기준선 */}
+      <line x1={PAD.left} x2={PAD.left+W} y1={h100} y2={h100} stroke="#94a3b8" strokeWidth={0.8} strokeDasharray="4,3" opacity={0.7}/>
+      {/* 90선 */}
+      {h90 && <line x1={PAD.left} x2={PAD.left+W} y1={h90} y2={h90} stroke="#3b82f6" strokeWidth={0.5} strokeDasharray="3,3" opacity={0.6}/>}
+      {/* 이격도 라인 */}
+      {pts && <polyline points={pts} fill="none" stroke="#8b5cf6" strokeWidth={1.4}/>}
+      {/* 레이블 */}
+      <text x={4} y={PAD.top+8} fontSize={9} fill="#94a3b8" fontWeight="700">이격도(20)</text>
+      {h110 && <text x={PAD.left+W+5} y={h110+3} fontSize={8} fill="#ef4444">110</text>}
+      <text x={PAD.left+W+5} y={h100+3} fontSize={8} fill="#94a3b8">100</text>
+      {h90  && <text x={PAD.left+W+5} y={h90+3}  fontSize={8} fill="#3b82f6">90</text>}
+      {/* 현재값 */}
+      {last != null && (
+        <text x={PAD.left+W+5} y={py(last)+4} fontSize={9} fill={lastCol} fontWeight="700">{last.toFixed(1)}</text>
+      )}
+    </svg>
+  )
+}
+
 // ── NewsPanel ──────────────────────────────────────────
 function NewsPanel({ stock }) {
   const [news,    setNews]    = useState([])
@@ -674,6 +734,8 @@ function NewsPanel({ stock }) {
 
 // ══════════════════════════════════════════════════════
 export default function StockChartModal({ stock, onClose }) {
+  const { getDrawings, saveDrawings: fsaveDrawings } = useUserSettings()
+
   const [period,     setPeriod]    = useState('day')
   const [scope,      setScope]     = useState('5')
   const [range,      setRange]     = useState(3)
@@ -686,13 +748,16 @@ export default function StockChartModal({ stock, onClose }) {
   const [basicInfo,  setBasicInfo] = useState(null)
   const [stockInfo,  setStockInfo] = useState(null)
   const [activeTab,  setActiveTab] = useState('chart')
-  const [showSupply,    setShowSupply]    = useState(false)  // ← 기본 OFF
+  const [showSupply,    setShowSupply]    = useState(false)
   const [supplyData,    setSupplyData]    = useState(null)
   const [supplyLoading, setSupplyLoading] = useState(false)
-  const [showBollinger,  setShowBollinger]  = useState(true)   // 볼린저밴드 기본 ON
-  const [showRSI,        setShowRSI]        = useState(true)   // RSI 기본 ON
-  const [showMACD,       setShowMACD]       = useState(false)  // MACD 기본 OFF
-  const [showStochastic, setShowStochastic] = useState(false)  // 스토캐스틱 기본 OFF
+  const [invsrData,     setInvsrData]     = useState(null)   // 수급차트(외국인/투신 누적)
+  const [showAmount,    setShowAmount]    = useState(false)  // 거래대금/거래량 토글
+  const [showBollinger,  setShowBollinger]  = useState(true)
+  const [showRSI,        setShowRSI]        = useState(true)
+  const [showMACD,       setShowMACD]       = useState(false)
+  const [showStochastic, setShowStochastic] = useState(false)
+  const [showDisparity,  setShowDisparity]  = useState(true)   // 이격도 기본 ON
   const [showFinancial, setShowFinancial] = useState(false) // 재무제표 팝업
   // 드로잉
   const [drawings,   setDrawings]  = useState(()=>stock?.code?lsGet(`smc_draw_${stock.code}`,[]):[])
@@ -777,11 +842,12 @@ export default function StockChartModal({ stock, onClose }) {
     if (!stock?.code||supplyData) return
     setSupplyLoading(true)
     try {
-      const [f,sh,st,inst]=await Promise.allSettled([
+      const [f,sh,st,inst,invsr]=await Promise.allSettled([
         fetch(`/api/kiwoom?type=supply-foreign&code=${stock.code}`).then(r=>r.json()),
         fetch(`/api/kiwoom?type=supply-short&code=${stock.code}&days=30`).then(r=>r.json()),
         fetch(`/api/kiwoom?type=supply-strength&code=${stock.code}`).then(r=>r.json()),
         fetch(`/api/kiwoom?type=supply-institution-stock&code=${stock.code}`).then(r=>r.json()),
+        fetch(`/api/kiwoom?type=invsr-chart&code=${stock.code}`).then(r=>r.json()),
       ])
       setSupplyData({
         foreign:     f.status==='fulfilled'&&!f.value?.error    ? f.value.data||[]    : [],
@@ -789,6 +855,10 @@ export default function StockChartModal({ stock, onClose }) {
         strength:    st.status==='fulfilled'&&!st.value?.error  ? st.value.data||[]   : [],
         institution: inst.status==='fulfilled'&&!inst.value?.error ? inst.value.data||[] : [],
       })
+      // 외국인/투신 누적 수급 차트용
+      if (invsr.status==='fulfilled'&&!invsr.value?.error) {
+        setInvsrData(invsr.value.data||[])
+      }
     } catch {} finally { setSupplyLoading(false) }
   },[stock?.code, supplyData])
 
@@ -796,7 +866,20 @@ export default function StockChartModal({ stock, onClose }) {
   useEffect(()=>{ fetchInfos() },[fetchInfos])
   useEffect(()=>{ if(showSupply) fetchSupply() },[showSupply])
 
-  const saveDrawings = next=>{ setDrawings(next); if(stock?.code) lsSet(`smc_draw_${stock.code}`,next) }
+  // Firestore 드로잉 비동기 로드
+  useEffect(() => {
+    if (!stock?.code) return
+    getDrawings(`smc_draw_${stock.code}`).then(d => { if (d?.length) setDrawings(d) })
+  }, [stock?.code])
+
+  // 드로잉 저장 — localStorage + Firestore 동시
+  const saveDrawings = useCallback(next => {
+    setDrawings(next)
+    if (stock?.code) {
+      lsSet(`smc_draw_${stock.code}`, next)
+      fsaveDrawings(`smc_draw_${stock.code}`, next)
+    }
+  }, [stock?.code, fsaveDrawings])
   const toggleMA = p=>setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
 
   // SVG 클릭 핸들러
@@ -970,6 +1053,16 @@ export default function StockChartModal({ stock, onClose }) {
                 onClick={()=>setShowStochastic(v=>!v)} title="스토캐스틱(14,3)">
                 Stoch
               </button>
+              <button className={`smc-scope-btn ${showDisparity?'active':''}`}
+                onClick={()=>setShowDisparity(v=>!v)} title="이격도(20일선 기준)">
+                이격도
+              </button>
+              {/* 거래대금/거래량 토글 */}
+              <button className={`smc-scope-btn ${showAmount?'active':''}`}
+                onClick={()=>setShowAmount(v=>!v)}
+                title={showAmount?'거래량으로 전환':'거래대금으로 전환'}>
+                {showAmount?'대금':'거래량'}
+              </button>
               {/* 수급 버튼 */}
               <button className={`smc-scope-btn ${showSupply?'active':''}`}
                 onClick={()=>setShowSupply(v=>!v)}>
@@ -1015,22 +1108,24 @@ export default function StockChartModal({ stock, onClose }) {
                     showBollinger={showBollinger}
                     week52={week52}/>
               }
-              <VolumeChart data={chartData} width={chartWidth} height={VOL_H}/>
+              <VolumeChart data={chartData} width={chartWidth} height={VOL_H} showAmount={showAmount}/>
 
               {/* 보조지표 서브차트 */}
               {showRSI        && <RSIChart        data={chartData} width={chartWidth}/>}
               {showMACD       && <MACDChart       data={chartData} width={chartWidth}/>}
               {showStochastic && <StochasticChart data={chartData} width={chartWidth}/>}
+              {showDisparity  && <DisparityChart  data={chartData} width={chartWidth}/>}
 
               {/* 수급 서브차트 */}
               {showSupply&&(
                 <div className="smc-supply-section">
                   {supplyLoading&&<div className="smc-supply-loading">⟳ 수급 데이터 불러오는 중...</div>}
+                  {!supplyLoading&&invsrData&&invsrData.length>0&&(
+                    <CumulativeSupplyChart data={invsrData} width={chartWidth}/>
+                  )}
                   {!supplyLoading&&supplyData&&(<>
-                    <SupplyMiniChart title="🌐 외국인 순매수" data={(supplyData.foreign||[]).map(r=>({date:r.dt,value:Number(r.chg_qty||0)}))} color="#3b82f6" type="bar" width={chartWidth}/>
-                    <SupplyMiniChart title="🏦 기관 순매수"   data={(supplyData.institution||[]).map(r=>({date:r.dt,value:Number(r.netprps_qty||0)}))} color="#7c3aed" type="bar" width={chartWidth}/>
-                    <SupplyMiniChart title="📉 공매도 비중"   data={(supplyData.short||[]).map(r=>({date:r.dt,value:parseFloat(r.trde_wght||0)}))} color="#f59e0b" type="line" width={chartWidth}/>
-                    <SupplyMiniChart title="⚡ 체결강도"      data={(supplyData.strength||[]).map(r=>({date:r.dt,value:parseFloat(r.cntr_str||100)-100}))} color="#10b981" type="line" width={chartWidth}/>
+                    <SupplyMiniChart title="📉 공매도 비중" data={(supplyData.short||[]).map(r=>({date:r.dt,value:parseFloat(r.trde_wght||0)}))} color="#f59e0b" type="line" width={chartWidth}/>
+                    <SupplyMiniChart title="⚡ 체결강도"    data={(supplyData.strength||[]).map(r=>({date:r.dt,value:parseFloat(r.cntr_str||100)-100}))} color="#10b981" type="line" width={chartWidth}/>
                   </>)}
                 </div>
               )}
@@ -1081,7 +1176,108 @@ export default function StockChartModal({ stock, onClose }) {
   )
 }
 
-// ── 수급 미니차트 ──────────────────────────────────────
+// ── 누적 수급 차트 (외국인/투신 누적 + 일별 막대) ──────
+function CumulativeSupplyChart({ data, width }) {
+  // data: [{dt, foreign, invtrt, orgn, penfnd, ...}] — 날짜 오름차순
+  if (!data?.length) return null
+  const sorted = [...data].sort((a,b)=>a.dt.localeCompare(b.dt))
+
+  // 누적합 계산
+  let cumForeign=0, cumInvtrt=0
+  const cumData = sorted.map(d=>{
+    cumForeign += Number(d.foreign||0)
+    cumInvtrt  += Number(d.invtrt||0)
+    return { dt:d.dt, foreign:d.foreign, invtrt:d.invtrt,
+             cumF:cumForeign, cumI:cumInvtrt }
+  })
+
+  const H_DAILY=60, H_CUMUL=80
+  const PAD={top:16,right:72,bottom:4,left:8}
+  const W=width-PAD.left-PAD.right
+  const n=cumData.length
+  const barW=Math.max(1,Math.min(8,W/n*0.7))
+  const bx=i=>PAD.left+(i+0.5)*(W/n)
+
+  // 일별 막대 스케일
+  const dailyVals=[...cumData.map(d=>Math.abs(Number(d.foreign||0))),...cumData.map(d=>Math.abs(Number(d.invtrt||0)))]
+  const maxD=Math.max(...dailyVals,1)
+  const midD=PAD.top+H_DAILY/2
+  const pyD=v=>midD-(v/maxD)*(H_DAILY/2-2)
+
+  // 누적 라인 스케일
+  const cumulVals=[...cumData.map(d=>d.cumF),...cumData.map(d=>d.cumI)]
+  const minC=Math.min(...cumulVals), maxC=Math.max(...cumulVals)
+  const rngC=maxC-minC||1
+  const yOff=PAD.top+H_DAILY+16
+  const pyC=v=>yOff+H_CUMUL-((v-minC)/rngC)*H_CUMUL
+  const y0C=pyC(0)
+
+  const ptsForeign=cumData.map((d,i)=>`${bx(i)},${pyC(d.cumF)}`).join(' ')
+  const ptsInvtrt =cumData.map((d,i)=>`${bx(i)},${pyC(d.cumI)}`).join(' ')
+
+  const fmtV=v=>{const a=Math.abs(v);return a>=10000?(a/10000).toFixed(0)+'만':(a>=1000?(a/1000).toFixed(0)+'천':String(Math.round(a)))}
+  const lastF=cumData[n-1]?.cumF, lastI=cumData[n-1]?.cumI
+
+  return (
+    <svg width={width} height={PAD.top+H_DAILY+H_CUMUL+24}
+      style={{display:'block',background:'#F8FAFF',borderTop:'1px solid #E2E8F0'}}>
+
+      {/* 섹션 제목 */}
+      <text x={4} y={PAD.top+8} fontSize={9} fill="#94a3b8" fontWeight="700">일별 순매수(금액)</text>
+      <text x={PAD.left+12} y={PAD.top+8} fontSize={8} fill="#3b82f6">■ 외국인</text>
+      <text x={PAD.left+56} y={PAD.top+8} fontSize={8} fill="#7c3aed">■ 투신</text>
+
+      {/* 0 기준선 */}
+      <line x1={PAD.left} x2={PAD.left+W} y1={midD} y2={midD}
+        stroke="rgba(15,23,42,0.08)" strokeWidth={0.7}/>
+
+      {/* 일별 막대 — 외국인(파랑) / 투신(보라) 나란히 */}
+      {cumData.map((d,i)=>{
+        const fv=Number(d.foreign||0), iv=Number(d.invtrt||0)
+        const fH=Math.max(1,Math.abs(fv/maxD)*(H_DAILY/2-2))
+        const iH=Math.max(1,Math.abs(iv/maxD)*(H_DAILY/2-2))
+        const x=bx(i)
+        return (
+          <g key={i}>
+            <rect x={x-barW-0.5} y={fv>=0?midD-fH:midD} width={barW} height={fH}
+              fill={fv>=0?'#3b82f6':'#93c5fd'} opacity={0.75}/>
+            <rect x={x+0.5} y={iv>=0?midD-iH:midD} width={barW} height={iH}
+              fill={iv>=0?'#7c3aed':'#c4b5fd'} opacity={0.75}/>
+          </g>
+        )
+      })}
+
+      {/* 누적 구분선 */}
+      <line x1={0} x2={width} y1={yOff-4} y2={yOff-4}
+        stroke="#E2E8F0" strokeWidth={0.5}/>
+      <text x={4} y={yOff+10} fontSize={9} fill="#94a3b8" fontWeight="700">누적 순매수</text>
+
+      {/* 0 기준선 */}
+      {minC<=0&&maxC>=0&&(
+        <line x1={PAD.left} x2={PAD.left+W} y1={y0C} y2={y0C}
+          stroke="rgba(15,23,42,0.1)" strokeWidth={0.8} strokeDasharray="3,3"/>
+      )}
+
+      {/* 누적 라인 */}
+      <polyline points={ptsForeign} fill="none" stroke="#3b82f6" strokeWidth={1.8} opacity={0.9}/>
+      <polyline points={ptsInvtrt}  fill="none" stroke="#7c3aed" strokeWidth={1.5} opacity={0.85}/>
+
+      {/* 최종값 레이블 */}
+      {lastF!=null&&(
+        <text x={PAD.left+W+5} y={pyC(lastF)+4} fontSize={9}
+          fill={lastF>=0?'#3b82f6':'#93c5fd'} fontWeight="700">
+          {lastF>=0?'+':''}{fmtV(lastF)}
+        </text>
+      )}
+      {lastI!=null&&(
+        <text x={PAD.left+W+5} y={pyC(lastI)+4} fontSize={9}
+          fill={lastI>=0?'#7c3aed':'#c4b5fd'} fontWeight="700">
+          {lastI>=0?'+':''}{fmtV(lastI)}
+        </text>
+      )}
+    </svg>
+  )
+}
 function SupplyMiniChart({ title, data, color, type, width }) {
   if (!data?.length) return null
   const PAD={top:18,right:8,bottom:4,left:72}

@@ -24,6 +24,8 @@ const RANGES = [
 export default function GlobalChartModal({
   // 해외지수: type='global', symbol='SP500', name='S&P 500'
   // 환율:     type='forex',  symbol='KRW',   name='USD/KRW'
+  // 국내종목: type='stock',  symbol='005930', name='삼성전자'  ← NEW
+  // 국내지수: type='global', symbol='KS11'/'KQ11'  (기존 유지)
   type = 'global',
   symbol,
   name,
@@ -49,9 +51,11 @@ export default function GlobalChartModal({
   const [drawPoint1,    setDrawPoint1]    = useState(null)
   const [mousePos,      setMousePos]      = useState(null)
   const [selectedColor, setSelectedColor] = useState('#f59e0b')
-  // MA 설정 — Firestore에서 로드 (기본값: 전체 ON)
+  // MA 설정 — stock 타입은 20/60 기본 ON, 나머지 OFF (팝업 간소화)
   const [showMA, setShowMA] = useState(
-    () => getSetting('chart', 'gcm_ma_settings', { 5:true, 20:true, 60:true, 120:true })
+    () => type === 'stock'
+      ? getSetting('chart', `gcm_ma_stock`, { 5:false, 20:true, 60:true, 120:false })
+      : getSetting('chart', 'gcm_ma_settings', { 5:true, 20:true, 60:true, 120:true })
   )
 
   // Firestore에서 드로잉 비동기 로드
@@ -62,10 +66,11 @@ export default function GlobalChartModal({
   const onToggleMA = useCallback((period) => {
     setShowMA(prev => {
       const next = { ...prev, [period]: !prev[period] }
-      setSetting('chart', 'gcm_ma_settings', next)
+      const settingKey = type === 'stock' ? 'gcm_ma_stock' : 'gcm_ma_settings'
+      setSetting('chart', settingKey, next)
       return next
     })
-  }, [setSetting])
+  }, [setSetting, type])
 
   // ESC 키
   useEffect(() => {
@@ -92,22 +97,29 @@ export default function GlobalChartModal({
     setError('')
 
     // KOSPI(KS11)/KOSDAQ(KQ11) → 키움 index-chart API (실시간, 당일 반영)
+    // 국내종목(stock) → 키움 stock-chart API
     // 그 외 → Yahoo Finance (/api/kis)
     const isKiwoom = symbol === 'KS11' || symbol === 'KQ11'
+    const isStock  = type === 'stock'
     const inds_cd  = symbol === 'KS11' ? '001' : '101'
+
+    // 키움 기간 매핑 (지수/종목 공용)
+    const kiwoomPeriodMap = {
+      '1mo': { period:'day',  cnt:22  },
+      '3mo': { period:'day',  cnt:65  },
+      '6mo': { period:'day',  cnt:130 },
+      '1y':  { period:'week', cnt:52  },
+      '5y':  { period:'week', cnt:260 },
+    }
 
     let url, kiwoomBody = null
     if (isKiwoom) {
-      // range → 키움 period/봉수 매핑
-      const periodMap = {
-        '1mo': { period:'day',  cnt:22  },
-        '3mo': { period:'day',  cnt:65  },
-        '6mo': { period:'day',  cnt:130 },
-        '1y':  { period:'week', cnt:52  },
-        '5y':  { period:'week', cnt:260 },
-      }
-      const { period } = periodMap[range] || periodMap['6mo']
+      const { period } = kiwoomPeriodMap[range] || kiwoomPeriodMap['6mo']
       url = `/api/kiwoom?type=index-chart&inds_cd=${inds_cd}&period=${period}`
+    } else if (isStock) {
+      // 국내 개별종목 — stock-chart API
+      const { period } = kiwoomPeriodMap[range] || kiwoomPeriodMap['6mo']
+      url = `/api/kiwoom?type=stock-chart&code=${symbol}&period=${period}`
     } else if (type === 'forex') {
       url = `/api/kis?type=forex-chart&pair=${symbol}&range=${range}`
     } else {
@@ -119,21 +131,18 @@ export default function GlobalChartModal({
       .then(data => {
         if (data.error) throw new Error(data.error)
         let candles = data.candles || []
-        // 키움 응답: time 필드가 date 필드 역할 — CandleSvg 호환
-        if (isKiwoom) {
-          // 기간에 맞는 봉수 슬라이싱
-          const cntMap = { '1mo':22, '3mo':65, '6mo':130, '1y':52, '5y':260 }
-          const cnt = cntMap[range] || 130
-          candles = candles.slice(-cnt)
-          // time → date 매핑, server.py에서 이미 /100 처리됨
-          candles = candles.map(c => ({
+        // 키움 응답(지수/종목) — time → date 정규화
+        if (isKiwoom || isStock) {
+          const { cnt } = kiwoomPeriodMap[range] || kiwoomPeriodMap['6mo']
+          candles = candles.slice(-cnt).map(c => ({
             ...c,
-            date:  c.time || c.date,
-            open:  c.open  || 0,
-            high:  c.high  || 0,
-            low:   c.low   || 0,
-            close: c.close || 0,
-          }))
+            date:  c.time || c.date || '',
+            open:  Number(c.open  || 0),
+            high:  Number(c.high  || 0),
+            low:   Number(c.low   || 0),
+            close: Number(c.close || 0),
+            volume: Number(c.volume || c.vol || 0),
+          })).filter(c => c.close > 0)
         }
         setCandles(candles)
       })
@@ -322,10 +331,15 @@ export default function GlobalChartModal({
           )}
         </div>
 
-        {/* 데이터 출처 + 리사이즈 핸들 */}
         <div className="gcm-footer">
-          <span>데이터: {(symbol==='KS11'||symbol==='KQ11') ? '키움증권 REST API' : 'Yahoo Finance'} · {candles.length}개 봉 · 캔들 차트
-          {drawings.length > 0 && ` · ✏️ 드로잉 ${drawings.length}개 저장됨`}</span>
+          <span>
+            데이터: {
+              (symbol==='KS11'||symbol==='KQ11'||type==='stock')
+                ? '키움증권 REST API'
+                : 'Yahoo Finance'
+            } · {candles.length}개 봉 · 캔들 차트
+            {drawings.length > 0 && ` · ✏️ 드로잉 ${drawings.length}개 저장됨`}
+          </span>
           <span className="gcm-resize-handle" onMouseDown={onResizeMouseDown} title="드래그해서 크기 조절">⤡</span>
         </div>
       </div>
