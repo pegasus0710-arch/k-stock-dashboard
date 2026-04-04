@@ -98,6 +98,16 @@ export default function GlobalChartModal({
     getDrawings(`gcm_draw_${symbol}`).then(d => { if (d?.length) setDrawings(d) })
   }, [symbol])
 
+  // Firestore 로드 완료 후 설정값 재동기화 (lazy initializer는 로드 전 실행될 수 있음)
+  useEffect(() => {
+    const savedStyle   = getSetting('chart', 'gcm_ma_style',     null)
+    const savedShow    = getSetting('chart', 'gcm_ma_show',      null)
+    const savedTooltip = getSetting('chart', 'gcm_show_tooltip', null)
+    if (savedStyle   != null) setMaStyle(savedStyle)
+    if (savedShow    != null) setShowMA(savedShow)
+    if (savedTooltip != null) setShowTooltip(savedTooltip)
+  }, [getSetting])
+
   const onToggleMA = useCallback((period) => {
     setShowMA(prev => {
       const next = { ...prev, [period]: !prev[period] }
