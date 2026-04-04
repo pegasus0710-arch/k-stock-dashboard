@@ -58,7 +58,7 @@ export default function GlobalChartModal({
   const { getSetting, setSetting, getDrawings, saveDrawings } = useUserSettings()
 
   // 드로잉 상태 — Firestore 로드 (비동기, 초기값은 localStorage 폴백)
-  const [drawings,      setDrawings]      = useState(() => { try { return JSON.parse(localStorage.getItem(`gcm_draw_${symbol}`)) || [] } catch { return [] } })
+  const [drawings,      setDrawings]      = useState(() => { try { return JSON.parse(localStorage.getItem(`cap_drawings_v2_${symbol}`)) || [] } catch { return [] } })
   const [drawTool,      setDrawTool]      = useState('none')
   const [drawPhase,     setDrawPhase]     = useState(0)
   const [drawPoint1,    setDrawPoint1]    = useState(null)
@@ -95,7 +95,7 @@ export default function GlobalChartModal({
 
   // Firestore에서 드로잉 비동기 로드
   useEffect(() => {
-    getDrawings(`gcm_draw_${symbol}`).then(d => { if (d?.length) setDrawings(d) })
+    getDrawings(`cap_drawings_v2_${symbol}`).then(d => { if (d?.length) setDrawings(d) })
   }, [symbol])
 
   // Firestore 로드 완료 후 설정값 재동기화 (lazy initializer는 로드 전 실행될 수 있음)
@@ -241,7 +241,7 @@ export default function GlobalChartModal({
 
   // 드로잉 저장 — Firestore + localStorage 동기화
   useEffect(() => {
-    saveDrawings(`gcm_draw_${symbol}`, drawings)
+    saveDrawings(`cap_drawings_v2_${symbol}`, drawings)
   }, [symbol, drawings])
 
   // 등락율/등락금액 — 로드된 캔들 마지막 2봉으로 계산

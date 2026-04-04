@@ -328,116 +328,6 @@ function ResizeDivider({ onDrag, label }) {
   )
 }
 
-// ── FullscreenChart ───────────────────────────────────
-function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClose }) {
-  const [period,    setPeriod]  = useState(initPeriod||'day')
-  const [scope,     setScope]   = useState('5')
-  const [range,     setRange]   = useState(initRange||3)
-  const [minDays,   setMinDays] = useState(1)
-  const [showMA,    setShowMA]  = useState(initMA??true)
-  const [enabledMA, setEnabledMA] = useState(initEMA||new Set([5,10,20,60,120]))
-  const [drawTool, setDrawTool] = useState('none')
-  const [drawState, setDrawState] = useState(null)
-  const [drawings, setDrawings] = useState(()=>lsGet(`${LS_DRAWINGS}_${stock.code}`,[]))
-  const [selIdx, setSelIdx] = useState(null)
-  const [textOverlay, setTextOverlay] = useState(null)
-  const [wrapEl, setWrapEl] = useState(null)
-  const [width, setWidth] = useState(1200)
-  const [fsShowSupply, setFsShowSupply] = useState(false)
-  const [fsSupplyData, setFsSupplyData] = useState(null)
-  const [fsSupplyLoad, setFsSupplyLoad] = useState(false)
-  const [fsBasicInfo, setFsBasicInfo]   = useState(null)
-  const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
-  const candles = useMemo(()=>{
-    if(period!=='min') return filterByRange(allData,range)
-    // 분봉: dayKey 기준으로 최근 minDays 영업일만 필터
-    const days=[...new Set(allData.map(c=>c.dayKey).filter(Boolean))].sort()
-    if(!days.length) return allData
-    const cutDay=days.at(-minDays)||days[0]
-    return allData.filter(c=>!c.dayKey||(c.dayKey>=cutDay))
-  },[allData,range,period,minDays])
-
-  useEffect(()=>{ if(!wrapEl) return; const ro=new ResizeObserver(([e])=>setWidth(e.contentRect.width)); ro.observe(wrapEl); setWidth(wrapEl.clientWidth); return()=>ro.disconnect() },[wrapEl])
-  useEffect(()=>{ const fn=e=>e.key==='Escape'&&onClose(); window.addEventListener('keydown',fn); return()=>window.removeEventListener('keydown',fn) },[onClose])
-  useEffect(()=>{
-    fetch(`/api/kiwoom?type=stockbasic&code=${stock.code}`).then(r=>r.json()).then(d=>{ if(!d.error) setFsBasicInfo(d) }).catch(()=>{})
-  },[stock.code])
-
-  const saveD = next => { setDrawings(next); lsSet(`${LS_DRAWINGS}_${stock.code}`, next) }
-  function handleSvgClick(args) {
-    const r=handleDrawClick({ drawTool,setDrawTool,drawState,setDrawState,drawings,saveDrawings:saveD,...args,data:candles })
-    if(r?.textOverlay) setTextOverlay(r.textOverlay)
-  }
-
-  return (
-    <div className="cap-fs">
-      <div className="cap-fs-tb">
-        <span className="cap-fs-title">{stock.name}</span>
-        <span className="cap-fs-code">{stock.code}</span>
-        <div className="cap-fs-sep"/>
-        <div className="cap-fs-group">{PERIODS.map(p=><button key={p.key} className={`cap-fs-btn ${period===p.key?'active':''}`} onClick={()=>setPeriod(p.key)}>{p.label}</button>)}</div>
-        {period==='min'&&(<>
-          <div className="cap-fs-sep"/>
-          <div className="cap-fs-group">{MIN_SCOPES.map(s=><button key={s} className={`cap-fs-btn ${scope===s?'active':''}`} onClick={()=>setScope(s)}>{s}분</button>)}</div>
-          <div className="cap-fs-sep"/>
-          <div className="cap-fs-group">
-            {[{label:'당일',days:1},{label:'3일',days:3},{label:'5일',days:5},{label:'10일',days:10},{label:'20일',days:20},{label:'30일',days:30}]
-              .map(r=><button key={r.days} className={`cap-fs-btn ${minDays===r.days?'active':''}`} onClick={()=>setMinDays(r.days)}>{r.label}</button>)}
-          </div>
-        </>)}
-        {period!=='min'&&<><div className="cap-fs-sep"/><div className="cap-fs-group">{RANGES.map(r=><button key={r.label} className={`cap-fs-btn ${range===r.months?'active':''}`} onClick={()=>{setRange(r.months)}}>{r.label}</button>)}</div></>}
-        <div className="cap-fs-sep"/>
-        <div className="cap-fs-group">
-          <button className={`cap-fs-btn ${showMA?'active':''}`} onClick={()=>setShowMA(v=>!v)}>MA</button>
-          {showMA&&MA_SETTINGS.map(m=><button key={m.p} className={`cap-fs-btn cap-fs-ma ${enabledMA.has(m.p)?'active':''}`} style={enabledMA.has(m.p)?{color:m.color,borderColor:m.color}:{}} onClick={()=>toggleMA(m.p)}>{m.label}</button>)}
-        </div>
-        <div className="cap-fs-sep"/>
-        <div className="cap-fs-group">
-          {DRAW_TOOLS.map(t=><button key={t.id} className={`cap-fs-btn ${drawTool===t.id?'active':''}`} onClick={()=>{setDrawTool(t.id);setDrawState(null)}}>{t.label}</button>)}
-          {drawings.length>0&&<button className="cap-fs-btn cap-fs-del" onClick={()=>{saveD([]);setDrawState(null)}}>🗑 초기화</button>}
-        </div>
-        <div style={{marginLeft:'auto',display:'flex',gap:5,alignItems:'center'}}>
-          {drawState&&<div className="cap-fs-hint">{drawTool==='trend'?'2번째 점 클릭':'끝점 클릭'}</div>}
-          {fsSupplyLoad&&<span style={{fontSize:11,color:'var(--text-secondary)'}}>⟳</span>}
-          <button className={`cap-fs-btn ${fsShowSupply?'active':''}`} onClick={()=>setFsShowSupply(v=>!v)}>📊 수급</button>
-          <button className="cap-fs-close" onClick={onClose}>✕ 닫기</button>
-        </div>
-      </div>
-      {fsBasicInfo&&Object.keys(fsBasicInfo).length>0&&(
-        <div className="cap-fs-info">
-          {[
-            fsBasicInfo.mac?['시가총액',(Number(String(fsBasicInfo.mac).replace(/,/g,''))/100000000).toFixed(0)+'억']:null,
-            fsBasicInfo.per&&fsBasicInfo.per!=='0'?['PER',Number(fsBasicInfo.per).toFixed(1)+'배']:null,
-            fsBasicInfo.pbr&&fsBasicInfo.pbr!=='0'?['PBR',Number(fsBasicInfo.pbr).toFixed(2)+'배']:null,
-            fsBasicInfo.eps&&fsBasicInfo.eps!=='0'?['EPS',Number(fsBasicInfo.eps).toLocaleString('ko-KR')+'원']:null,
-            fsBasicInfo.roe&&fsBasicInfo.roe!=='0'?['ROE',Number(fsBasicInfo.roe).toFixed(1)+'%']:null,
-            fsBasicInfo.for_exh_rt?['외국인',fsBasicInfo.for_exh_rt+'%']:null,
-          ].filter(Boolean).map(([l,v])=>(
-            <div key={l} className="cap-fs-info-item"><span className="cap-fs-info-label">{l}</span><span className="cap-fs-info-val">{v}</span></div>
-          ))}
-        </div>
-      )}
-      <div className="cap-fs-body" ref={setWrapEl}>
-        {loading&&<div className="cap-fs-loading"><div className="cap-spinner"/>불러오는 중...</div>}
-        {!loading&&candles.length>0&&<CandleSvg data={candles} width={width} height={chartH} showMA={showMA} enabledMA={enabledMA} drawings={drawings} onSvgClick={handleSvgClick} drawTool={drawTool} selectedIdx={selIdx} onSelectDrawing={setSelIdx} period={period}/>}
-        {!loading&&!candles.length&&<div style={{padding:80,textAlign:'center',color:'var(--text-secondary)'}}>데이터가 없습니다</div>}
-        {fsShowSupply&&fsSupplyData&&<SupplySubChart supplyData={fsSupplyData} candles={candles}/>}
-        {fsShowSupply&&fsSupplyLoad&&<div style={{padding:12,textAlign:'center',background:'var(--bg-base)',color:'var(--text-secondary)',fontSize:12}}><div className="cap-spinner" style={{display:'inline-block',marginRight:6}}/>수급 로딩 중...</div>}
-      </div>
-      {textOverlay&&(
-        <div className="cap-text-popup-fs" style={{display:'flex',gap:6,alignItems:'center',padding:'8px 14px',background:'var(--bg-panel)',borderTop:'1px solid var(--border)',flexShrink:0}}>
-          <input autoFocus style={{flex:1,padding:'6px 10px',background:'var(--bg-base)',border:'1px solid var(--border)',borderRadius:6,fontSize:12,color:'var(--text-primary)',outline:'none',fontFamily:'inherit'}} placeholder="메모 입력 후 Enter"
-            onKeyDown={e=>{
-              if(e.key==='Enter'&&e.target.value.trim()){saveD([...drawings,{type:'text',price:textOverlay.price,bxVal:textOverlay.x,text:e.target.value.trim()}]);setTextOverlay(null);setDrawTool('none')}
-              if(e.key==='Escape') setTextOverlay(null)
-            }}/>
-          <button style={{background:'none',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-secondary)',cursor:'pointer',padding:'5px 9px',fontSize:11}} onClick={()=>setTextOverlay(null)}>✕</button>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ══════════════════════════════════════════════════════
 // 메인 ChartAnalysisPage
 // ══════════════════════════════════════════════════════
@@ -449,7 +339,7 @@ export default function ChartAnalysisPage() {
   const [dropIdx,  setDropIdx]  = useState(-1)
   const [selected, setSelected] = useState(null)
   // Firestore 설정 훅
-  const { getSetting, setSetting, getDrawings, saveDrawings: fbSaveDrawings, getWatchlist, saveWatchlist, getWlCats, saveWlCats } = useUserSettings()
+  const { ready, getSetting, setSetting, getDrawings, saveDrawings: fbSaveDrawings, getWatchlist, saveWatchlist, getWlCats, saveWlCats } = useUserSettings()
   const { user } = useAuth()
 
   const [recent,   setRecent]   = useState(()=>lsGet(LS_RECENT,[]))
@@ -461,7 +351,6 @@ export default function ChartAnalysisPage() {
     const recentList = fbRecent?.length ? fbRecent : lsGet(LS_RECENT, [])
     if (recentList?.length) {
       setRecent(recentList)
-      // 마지막 검색 종목 자동 선택 (stockList 로드 후)
       const last = recentList[0]
       if (last) {
         setSelected(last)
@@ -474,6 +363,30 @@ export default function ChartAnalysisPage() {
     const fbWatch = getWatchlist([])
     if (fbWatch?.length) setWatchlist(fbWatch)
   }, []) // 마운트 1회만
+
+  // ── Firestore 로드 완료 시 차트 설정 동기화 ──────────
+  // useState 초기값은 동기이므로 ready=true 후 Firestore 값으로 덮어씀
+  useEffect(() => {
+    if (!ready) return
+    const cfg = getSetting('chart', 'cap_chart_config', {})
+    if (cfg.period)          setPeriod(cfg.period)
+    if (cfg.scope)           setScope(cfg.scope)
+    if (cfg.range   != null) setRange(cfg.range)
+    if (cfg.showMA  != null) setShowMA(cfg.showMA)
+    if (cfg.showBB  != null) setShowBB(cfg.showBB)
+    if (cfg.showRSI != null) setShowRSI(cfg.showRSI)
+    if (cfg.showMACD!= null) setShowMACD(cfg.showMACD)
+    if (cfg.showStoch!=null) setShowStoch(cfg.showStoch)
+    if (cfg.enabledMA)       setEnabledMA(new Set(cfg.enabledMA))
+    if (cfg.volH)            setVolH(cfg.volH)
+    if (cfg.subH_rsi || cfg.subH_macd || cfg.subH_stoch) {
+      setSubHeights(prev => ({
+        rsi:   cfg.subH_rsi   || prev.rsi,
+        macd:  cfg.subH_macd  || prev.macd,
+        stoch: cfg.subH_stoch || prev.stoch,
+      }))
+    }
+  }, [ready]) // ready true 되는 시점 1회
 
   // 보유종목 로드 (계좌 API)
   useEffect(() => {
@@ -511,6 +424,12 @@ export default function ChartAnalysisPage() {
   const [selCatId, setSelCatId] = useState('')
   const [activeView, setActiveView] = useState('chart') // 'chart'|'ai'
   const [showFull, setShowFull] = useState(false)
+  // 전체화면 ESC 닫기
+  useEffect(() => {
+    const fn = e => { if (e.key === 'Escape' && showFull) setShowFull(false) }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [showFull])
   const [drawMenuOpen, setDrawMenuOpen] = useState(false)
   const [infoPopup, setInfoPopup] = useState(null) // 'disc'|'news'|'si'
   // 우측 정보 패널
@@ -530,7 +449,11 @@ export default function ChartAnalysisPage() {
   const infoRef = useRef(null)
 
   // ── 차트 컨트롤 (Firestore 설정 저장) ────────────────
-  const _cfg = getSetting('chart', 'cap_chart_config', {})
+  // getSetting은 Firestore cache 기반 (첫 렌더 시 비어있음)
+  // → localStorage를 직접 읽어 즉시 복원 (setSetting이 localStorage도 함께 저장함)
+  const _cfg = (() => {
+    try { return JSON.parse(localStorage.getItem('cap_chart_config')) || {} } catch { return {} }
+  })()
   const [period,    setPeriod]    = useState(_cfg.period  || 'day')
   const [scope,     setScope]     = useState(_cfg.scope   || '5')
   const [range,     setRange]     = useState(_cfg.range   ?? 3)
@@ -554,18 +477,32 @@ export default function ChartAnalysisPage() {
   const [showSup,   setShowSup]   = useState(false)
 
   // 설정 변경 저장 헬퍼
-  const saveChartCfg = (patch) => {
-    const prev = getSetting('chart', 'cap_chart_config', {})
-    setSetting('chart', 'cap_chart_config', { ...prev, ...patch })
-  }
+  // ── 차트 설정 일괄 저장 (상태 변경 감지) ────────────
+  // 각 항목에 saveChartCfg 호출 대신, 상태 변경 시 useEffect로 한 번에 저장
+  // Strict Mode / 클로저 이슈 완전 우회
+  useEffect(() => {
+    const cfg = {
+      period, scope, range,
+      showMA, enabledMA: [...enabledMA],
+      showBB, showRSI, showMACD, showStoch,
+      subH_rsi:   subHeights.rsi,
+      subH_macd:  subHeights.macd,
+      subH_stoch: subHeights.stoch,
+      volH,
+    }
+    try { localStorage.setItem('cap_chart_config', JSON.stringify(cfg)) } catch {}
+    setSetting('chart', 'cap_chart_config', cfg)
+  }, [period, scope, range, showMA, enabledMA, showBB, showRSI, showMACD, showStoch, subHeights, volH])
 
   // ── 서브차트 높이 (드래그 리사이즈) ──────────────
-  const [subHeights, setSubHeights] = useState({ rsi:80, macd:96, stoch:74 })
-  const [volH, setVolH] = useState(56)  // 거래량 바 높이
-
+  const [subHeights, setSubHeights] = useState({
+    rsi:   _cfg.subH_rsi   || 80,
+    macd:  _cfg.subH_macd  || 96,
+    stoch: _cfg.subH_stoch || 74,
+  })
+  const [volH, setVolH] = useState(_cfg.volH || 56)
   const updateSubH = (key, delta) => setSubHeights(prev => ({
-    ...prev,
-    [key]: Math.max(50, Math.min(200, prev[key] + delta))
+    ...prev, [key]: Math.max(50, Math.min(200, prev[key] + delta))
   }))
   const updateVolH = delta => setVolH(prev => Math.max(30, Math.min(150, prev + delta)))
 
@@ -682,7 +619,7 @@ export default function ChartAnalysisPage() {
     setDrawings(next)
     if(selected) fbSaveDrawings(`${LS_DRAWINGS}_${selected.code}`, next)
   }
-  const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); saveChartCfg({enabledMA:[...n]}); return n })
+  const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
   const handleInlineClick = args => { const r=handleDrawClick({drawTool,setDrawTool,drawState,setDrawState,drawings,saveDrawings,...args,data:candles}); if(r?.textOverlay) setTextInput(r.textOverlay) }
 
   const toggleWatch = () => {
@@ -959,7 +896,7 @@ export default function ChartAnalysisPage() {
               <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
                 <button className={`cap-hdr-btn ${isWatched?'starred':'star'}`} onClick={toggleWatch}>{isWatched?'⭐':'☆'}</button>
                 {etfMode&&<button className="cap-hdr-btn" onClick={()=>setShowEtf(true)}>🧩</button>}
-                <button className="cap-hdr-btn" onClick={()=>setShowFull(true)}>⛶</button>
+                <button className="cap-hdr-btn" onClick={()=>setShowFull(v=>!v)} title={showFull?'전체화면 닫기':'전체화면'}>⛶</button>
                 <button className="cap-hdr-btn x" onClick={()=>{setSelected(null);setQuery('')}}>✕</button>
               </div>
             </div>
@@ -987,7 +924,13 @@ export default function ChartAnalysisPage() {
                 </div>
               ))}
               {/* 재무 버튼 */}
-              <button className="cap-hdr-btn" style={{marginLeft:'auto',alignSelf:'center',flexShrink:0}} onClick={()=>setShowFin(true)}>📊 재무</button>
+              <button className="cap-hdr-btn" style={{marginLeft:'auto',alignSelf:'center',flexShrink:0}} onClick={()=>{
+                setShowFin(true)
+                if(!basicInfo && selected?.code){
+                  fetch(`/api/kiwoom?type=stockbasic&code=${selected.code}`)
+                    .then(r=>r.json()).then(d=>{if(!d.error)setBasicInfo(d)}).catch(()=>{})
+                }
+              }}>📊 재무</button>
             </div>
           </div>
 
@@ -998,12 +941,12 @@ export default function ChartAnalysisPage() {
               <div className="cap-tg">
                 {PERIODS.map(p=><button key={p.key} className={`cap-tg-btn ${period===p.key?'active':''}`}
                   onClick={()=>{
-                    setPeriod(p.key); saveChartCfg({period:p.key})
+                    setPeriod(p.key)
                     setDrawState(null)
-                    if(p.key==='month'){setRange(12);saveChartCfg({period:p.key,range:12})}
-                    if(p.key==='week') {setRange(6); saveChartCfg({period:p.key,range:6})}
-                    if(p.key==='day')  {setRange(3); saveChartCfg({period:p.key,range:3})}
-                    if(p.key==='year') {setRange(0); saveChartCfg({period:p.key,range:0})}
+                    if(p.key==='month'){setRange(12)}
+                    if(p.key==='week') {setRange(6)}
+                    if(p.key==='day')  {setRange(3)}
+                    if(p.key==='year') {setRange(0)}
                   }}>{p.label}</button>)}
               </div>
               <div className="cap-tb-sep"/>
@@ -1022,12 +965,12 @@ export default function ChartAnalysisPage() {
               </>) : (
                 <div className="cap-tg">
                   {RANGES.map(r=><button key={r.label} className={`cap-tg-btn ${range===r.months?'active':''}`}
-                    onClick={()=>{setRange(r.months);saveChartCfg({range:r.months})}}>{r.label}</button>)}
+                    onClick={()=>setRange(r.months)}>{r.label}</button>)}
                 </div>
               )}
               <div className="cap-tb-sep"/>
               {/* MA */}
-              <button className={`cap-ma-tog ${showMA?'on':''}`} onClick={()=>{setShowMA(v=>{saveChartCfg({showMA:!v});return !v})}}>MA</button>
+              <button className={`cap-ma-tog ${showMA?'on':''}`} onClick={()=>setShowMA(v=>!v)}>MA</button>
               {showMA&&<div className="cap-ma-chips">
                 {MA_SETTINGS.map(({p,color,label})=>(
                   <button key={p} className={`cap-ma-chip ${enabledMA.has(p)?'on':'off'}`}
@@ -1038,10 +981,10 @@ export default function ChartAnalysisPage() {
               <div className="cap-tb-sep"/>
               {/* 지표 */}
               <div className="cap-ind">
-                <button className={`cap-ind-btn bb ${showBB?'on':''}`}     onClick={()=>{setShowBB(v=>{saveChartCfg({showBB:!v});return !v})}}>BB</button>
-                <button className={`cap-ind-btn rsi ${showRSI?'on':''}`}   onClick={()=>{setShowRSI(v=>{saveChartCfg({showRSI:!v});return !v})}}>RSI</button>
-                <button className={`cap-ind-btn macd ${showMACD?'on':''}`}  onClick={()=>{setShowMACD(v=>{saveChartCfg({showMACD:!v});return !v})}}>MACD</button>
-                <button className={`cap-ind-btn stoch ${showStoch?'on':''}`} onClick={()=>{setShowStoch(v=>{saveChartCfg({showStoch:!v});return !v})}}>Stoch</button>
+                <button className={`cap-ind-btn bb ${showBB?'on':''}`}     onClick={()=>setShowBB(v=>!v)}>BB</button>
+                <button className={`cap-ind-btn rsi ${showRSI?'on':''}`}   onClick={()=>setShowRSI(v=>!v)}>RSI</button>
+                <button className={`cap-ind-btn macd ${showMACD?'on':''}`}  onClick={()=>setShowMACD(v=>!v)}>MACD</button>
+                <button className={`cap-ind-btn stoch ${showStoch?'on':''}`} onClick={()=>setShowStoch(v=>!v)}>Stoch</button>
               </div>
               <div className="cap-tb-sep"/>
               {/* 드로잉 */}
@@ -1078,7 +1021,9 @@ export default function ChartAnalysisPage() {
                   {t.label}
                 </button>
               ))}
-              <button className="cap-tb-btn" onClick={()=>setShowFull(true)}>⛶</button>
+              <button className="cap-tb-btn" onClick={()=>setShowFull(v=>!v)} title={showFull?'전체화면 닫기':'전체화면'}>
+                {showFull ? '✕ 닫기' : '⛶'}
+              </button>
             </div>
           </div>
 
@@ -1086,7 +1031,7 @@ export default function ChartAnalysisPage() {
           <div style={{display:'flex',flex:1,overflow:'hidden',minHeight:0}}>
 
             {/* 차트 영역 */}
-            <div className="cap-canvas" style={{flex:1,overflow:'hidden',minWidth:0,display:'flex',flexDirection:'column'}}>
+            <div className={`cap-canvas${showFull ? ' cap-canvas-full' : ''}`} style={{flex:1,overflow:'hidden',minWidth:0,display:'flex',flexDirection:'column'}}>
               {chartLoading
                 ? <div className="cap-chart-loading"><div className="cap-spinner"/>차트 불러오는 중...</div>
                 : (<>
@@ -1365,7 +1310,6 @@ export default function ChartAnalysisPage() {
     </div>
 
     {/* 전체화면 */}
-    {showFull&&selected&&<FullscreenChart stock={selected} initPeriod={period} initRange={range} initMA={showMA} initEMA={enabledMA} onClose={()=>setShowFull(false)}/>}
     {/* ETF 구성종목 */}
     {showEtf&&selected&&<EtfHoldingsPopup code={selected.code} name={selected.name} onClose={()=>setShowEtf(false)}/>}
     {/* 재무제표 */}
