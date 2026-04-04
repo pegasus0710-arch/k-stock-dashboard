@@ -582,23 +582,25 @@
 }
 .cap-sb-cat-item {
   display: flex; align-items: center; gap: 6px;
-  padding: 6px 8px; border-radius: 7px; cursor: pointer;
+  padding: 7px 10px; border-radius: 7px; cursor: pointer;
   border: 1px solid transparent;
   transition: all .12s; position: relative;
+  border-left: 3px solid transparent;
 }
-.cap-sb-cat-item:hover { background: var(--bg-hover); }
+.cap-sb-cat-item:hover { background: var(--bg-hover); border-left-color: var(--border); }
 .cap-sb-cat-item.active {
   background: var(--accent-light);
   border-color: var(--accent-mid);
+  border-left-color: var(--accent-mid);
 }
 .cap-sb-cat-name {
-  font-size: 12px; font-weight: 600; color: var(--text-primary);
+  font-size: 12px; font-weight: 700; color: var(--text-primary);
   flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .cap-sb-cat-cnt {
-  font-size: 10px; color: var(--text-dim);
-  background: var(--bg-base); border: 1px solid var(--border);
-  border-radius: 10px; padding: 1px 6px; flex-shrink: 0;
+  font-size: 10px; color: var(--accent-mid); font-weight: 700;
+  background: var(--accent-light); border: 1px solid var(--accent-mid);
+  border-radius: 10px; padding: 1px 7px; flex-shrink: 0;
 }
 .cap-sb-cat-actions {
   display: none; gap: 2px; flex-shrink: 0;
@@ -610,3 +612,60 @@
   opacity: 0.6; transition: opacity .1s;
 }
 .cap-sb-cat-actions button:hover { opacity: 1; background: var(--bg-hover); }
+
+/* ── 관심종목 종목행 줄무늬 배경 ────────────────── */
+.cap-sb-list .cap-sb-stock:nth-child(even) {
+  background: rgba(15,23,42,0.02);
+}
+.cap-sb-list .cap-sb-stock:nth-child(even):hover { background: var(--bg-hover); }
+
+/* ── 보유종목 전용 레이아웃 ─────────────────────── */
+.cap-sb-hold {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 1px 6px;
+  padding: 7px 10px;
+  width: 100%; text-align: left; background: none;
+  border: none; border-bottom: 1px solid var(--border-dim);
+  cursor: pointer; transition: background .08s;
+  font-family: var(--font-kr, sans-serif);
+}
+.cap-sb-hold:hover  { background: var(--bg-hover); }
+.cap-sb-hold.active { background: var(--accent-light); }
+
+/* 1행 좌: 종목명 */
+.cap-sb-hold-name {
+  font-size: 12px; font-weight: 700; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  grid-column: 1; grid-row: 1;
+}
+/* 1행 우: 수익률% */
+.cap-sb-hold-rate {
+  font-size: 11px; font-weight: 700;
+  grid-column: 2; grid-row: 1;
+  text-align: right; align-self: center;
+}
+/* 2행 좌: 수량 */
+.cap-sb-hold-qty {
+  font-size: 10px; color: var(--text-dim);
+  grid-column: 1; grid-row: 2;
+}
+/* 2행 우: 현재가 */
+.cap-sb-hold-price {
+  font-size: 11px; font-weight: 700;
+  grid-column: 2; grid-row: 2;
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+/* 3행: 평가손익 (full width) */
+.cap-sb-hold-pnl {
+  font-size: 10px; font-weight: 600;
+  grid-column: 1 / -1; grid-row: 3;
+  text-align: right; margin-top: 1px;
+}
+
+/* 줄무늬 */
+.cap-sb-list .cap-sb-hold:nth-child(even) {
+  background: rgba(15,23,42,0.02);
+}
+.cap-sb-list .cap-sb-hold:nth-child(even):hover { background: var(--bg-hover); }

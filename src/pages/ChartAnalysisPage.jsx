@@ -955,23 +955,18 @@ export default function ChartAnalysisPage() {
                 const curPrc=p?.price||h.curPrc
                 const pc2=p?rateColor(p.changeRate):'var(--text-secondary)'
                 return (
-                  <button key={code} className={`cap-sb-stock ${selected?.code===code?'active':''}`}
+                  <button key={code} className={`cap-sb-hold ${selected?.code===code?'active':''}`}
                     onClick={()=>select({code,name:sname,theme:'보유종목'})}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                      <span className="cap-sb-sname">{sname}</span>
-                      <span style={{fontSize:10,fontWeight:700,color:rc}}>{rate>=0?'+':''}{rate?.toFixed(1)}%</span>
-                    </div>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:2}}>
-                      <span style={{fontSize:10,color:'var(--text-dim)'}}>{h.qty}주</span>
-                      {curPrc>0
-                        ? <span style={{fontSize:11,fontWeight:700,color:pc2}}>{curPrc.toLocaleString()}</span>
-                        : <span style={{fontSize:10,color:'var(--text-dim)'}}>—</span>
-                      }
-                    </div>
+                    <span className="cap-sb-hold-name">{sname}</span>
+                    <span className="cap-sb-hold-rate" style={{color:rc}}>{rate>=0?'+':''}{rate?.toFixed(1)}%</span>
+                    <span className="cap-sb-hold-qty">{h.qty}주 · {code}</span>
+                    <span className="cap-sb-hold-price" style={{color:pc2}}>
+                      {curPrc>0?curPrc.toLocaleString():'—'}
+                    </span>
                     {h.evltPrft!==0&&(
-                      <div style={{fontSize:10,color:h.evltPrft>0?'#ef4444':'#2563eb',textAlign:'right',marginTop:1}}>
+                      <span className="cap-sb-hold-pnl" style={{color:h.evltPrft>0?'#ef4444':'#2563eb'}}>
                         {h.evltPrft>0?'+':''}{Math.round(h.evltPrft).toLocaleString()}원
-                      </div>
+                      </span>
                     )}
                   </button>
                 )
