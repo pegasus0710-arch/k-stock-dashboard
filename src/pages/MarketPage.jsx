@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import ChartModal from '../components/ChartModal'
+import GlobalChartModal from '../components/GlobalChartModal'
 import { fmt, fmtRate, rateColor, getKstStatus } from '../utils/format'
 import './MarketPage.css'
 
@@ -685,7 +685,14 @@ export default function MarketPage() {
         </div>
       )}
 
-      {chartStock && <ChartModal code={chartStock.code} name={chartStock.name} onClose={() => setChartStock(null)}/>}
+      {chartStock && (
+        <GlobalChartModal
+          type="stock"
+          symbol={chartStock.code}
+          name={chartStock.name}
+          onClose={() => setChartStock(null)}
+        />
+      )}
     </div>
   )
 }
