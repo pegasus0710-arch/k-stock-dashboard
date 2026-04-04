@@ -242,3 +242,64 @@
 .cp-act-clear:hover:not(:disabled) { border-color: #ef4444; color: #ef4444; }
 .cp-draw-count { font-size: 10px; color: var(--accent-mid); font-weight: 700; }
 .cp-hint { font-size: 10px; color: var(--text-dim); margin-left: 4px; }
+
+/* ── 메모 인풋 바 ────────────────────────────────── */
+.gcm-memo-bar {
+  display: flex; align-items: center; gap: 6px;
+  flex: 1; min-width: 0;
+}
+.gcm-memo-input {
+  flex: 1; min-width: 120px; max-width: 280px;
+  padding: 5px 10px; border: 1px solid var(--border);
+  border-radius: 7px; font-size: 12px;
+  font-family: var(--font-kr, sans-serif);
+  color: var(--text-primary); background: var(--bg-base);
+  outline: none; transition: border-color .12s;
+}
+.gcm-memo-input:focus { border-color: var(--accent-mid); }
+.gcm-memo-input::placeholder { color: var(--text-dim); }
+.gcm-memo-input:disabled { opacity: .6; }
+.gcm-memo-ok {
+  font-size: 11px; font-weight: 700;
+  color: #16a34a; white-space: nowrap;
+  animation: gcm-fadein .2s ease;
+}
+@keyframes gcm-fadein { from{opacity:0} to{opacity:1} }
+
+/* ── MA 스타일 팝오버 ────────────────────────────── */
+.gcm-ma-popover {
+  position: absolute; top: calc(100% + 6px); left: 0;
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px;
+  box-shadow: var(--shadow-md); z-index: 100;
+  display: flex; flex-direction: column; gap: 8px;
+  min-width: 180px;
+}
+.gcm-ma-pop-row {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 10px;
+  font-size: 11px; color: var(--text-secondary);
+}
+.gcm-ma-pop-w {
+  padding: 2px 6px; border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-base); color: var(--text-secondary);
+  font-size: 10px; cursor: pointer; transition: all .1s;
+}
+.gcm-ma-pop-w:hover  { border-color: var(--accent-mid); color: var(--accent-mid); }
+.gcm-ma-pop-w.active { background: var(--accent-mid); color: white; border-color: var(--accent-mid); }
+
+/* ── 등락금액 표시 ────────────────────────────────── */
+.gcm-change-amt {
+  font-size: 15px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-left: 2px;
+}
+
+/* ── 툴팁 ON 버튼 강조 ───────────────────────────── */
+.gcm-tt-on {
+  background: var(--accent-light) !important;
+  color: var(--accent-mid) !important;
+  border-color: var(--accent-mid) !important;
+  font-weight: 600;
+}

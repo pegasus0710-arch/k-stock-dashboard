@@ -39,6 +39,7 @@ export default function CandleSvg({
   mousePos = null,
   selectedColor = '#f59e0b',
   showMA = { 5:true, 20:true, 60:true, 120:true },
+  showTooltip = true,
   onChartClick,
   onChartMouseMove,
   onChartMouseLeave,
@@ -136,15 +137,16 @@ export default function CandleSvg({
   const handleMouseMove = (e) => {
     const c = getSvgCoords(e)
     if (!c) return
+    // 드로잉 좌표 + 크로스헤어 위치는 항상 업데이트
+    if (onChartMouseMove) onChartMouseMove(c)
     if (c.idx >= 0 && c.idx < data.length) {
       setTooltip({
         c:     data[c.idx],
         x:     toX(c.idx),
-        svgY:  c.svgY,           // 마우스 Y (크로스헤어 가로선용)
-        price: c.price,           // 마우스 위치 가격 (Y축 버블용)
+        svgY:  c.svgY,
+        price: c.price,
       })
     }
-    if (onChartMouseMove) onChartMouseMove(c)
   }
   const handleClick = (e) => { const c = getSvgCoords(e); if (c && onChartClick) onChartClick(c) }
   const handleLeave = () => { setTooltip(null); if (onChartMouseLeave) onChartMouseLeave() }
@@ -376,7 +378,7 @@ export default function CandleSvg({
       </svg>
 
       {/* 툴팁 박스 */}
-      {tooltip && drawTool === 'none' && (() => {
+      {tooltip && drawTool === 'none' && showTooltip && (() => {
         const c   = tooltip.c
         const idx = data.indexOf(c)
         const prev = idx > 0 ? data[idx - 1] : null

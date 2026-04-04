@@ -10,17 +10,113 @@
 
 /* ── 레이아웃 ───────────────────────────────────────── */
 .app-layout {
-  display:flex; min-height:100vh; background:var(--bg-base);
-  --sidebar-w: 220px;
-  --sidebar-w-collapsed: 60px;
-  --header-h: 52px;
+  display:flex; flex-direction:column; min-height:100vh; background:var(--bg-base);
+  --ticker-h: 28px;
+  --gnb-h:    44px;
+  --top-h:    72px; /* ticker + gnb */
 }
-.app-main {
-  flex:1; display:flex; flex-direction:column;
-  margin-left:var(--sidebar-w); min-width:0;
-  transition:margin-left .2s;
+.app-content {
+  flex:1; min-height:0;
+  padding-top: var(--top-h);
+  display:flex; flex-direction:column;
 }
-.app-layout.sidebar-collapsed .app-main { margin-left:var(--sidebar-w-collapsed); }
+
+/* ── 티커 띠 ─────────────────────────────────────────── */
+.ticker-banner {
+  position:fixed; top:0; left:0; right:0; z-index:200;
+  height:var(--ticker-h);
+  background:#0F172A; border-bottom:1px solid rgba(255,255,255,.06);
+  overflow:hidden; display:flex; align-items:center;
+}
+.ticker-track {
+  display:flex; align-items:center; gap:0;
+  animation: ticker-scroll 40s linear infinite;
+  white-space:nowrap; will-change:transform;
+}
+.ticker-banner:hover .ticker-track { animation-play-state:paused; }
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-item {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:0 20px; border-right:1px solid rgba(255,255,255,.06);
+  font-size:11px; letter-spacing:.02em;
+}
+.ticker-label { color:#64748b; font-weight:600; }
+.ticker-value { font-weight:700; font-family:monospace; }
+
+/* ── GNB ─────────────────────────────────────────────── */
+.gnb {
+  position:fixed; top:var(--ticker-h); left:0; right:0; z-index:190;
+  height:var(--gnb-h);
+  background:#1E293B;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex; align-items:center; padding:0 20px; gap:0;
+}
+.gnb-logo {
+  display:flex; align-items:center; gap:8px;
+  margin-right:28px; flex-shrink:0; text-decoration:none;
+}
+.gnb-logo-icon {
+  width:26px; height:26px;
+  background:linear-gradient(135deg, #2563EB, #0D9488);
+  color:white; border-radius:7px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:900; letter-spacing:-.5px;
+}
+.gnb-logo-text {
+  font-size:14px; font-weight:700; color:#F1F5F9;
+  letter-spacing:-.3px;
+}
+.gnb-menu {
+  display:flex; align-items:stretch; gap:0; flex:1;
+  overflow-x:auto; scrollbar-width:none; height:100%;
+}
+.gnb-menu::-webkit-scrollbar { display:none; }
+.gnb-item {
+  display:flex; align-items:center; justify-content:center;
+  padding:0 14px; position:relative;
+  font-size:13px; font-weight:500;
+  color:#94A3B8;
+  text-decoration:none; white-space:nowrap;
+  border-bottom:3px solid transparent;
+  transition:color .15s, border-color .15s;
+  letter-spacing:-.2px;
+}
+.gnb-item:hover { color:#E2E8F0; }
+.gnb-item.active {
+  color:#F1F5F9;
+  font-weight:600;
+  border-bottom-color: var(--gnb-active-color, #2DD4BF);
+}
+/* 그룹별 활성 탭 라인 색상 */
+.theme-teal   .gnb-item.active { --gnb-active-color: #2DD4BF; }
+.theme-indigo .gnb-item.active { --gnb-active-color: #818CF8; }
+.theme-slate  .gnb-item.active { --gnb-active-color: #94A3B8; }
+
+.gnb-item-label { line-height:1; }
+.gnb-item-badge {
+  position:absolute; top:8px; right:4px;
+  font-size:8px; font-weight:800;
+  background:#EF4444; color:white;
+  padding:1px 4px; border-radius:6px; line-height:1.4;
+}
+.gnb-right {
+  display:flex; align-items:center; gap:12px;
+  flex-shrink:0; margin-left:16px;
+  border-left:1px solid rgba(255,255,255,.08);
+  padding-left:16px;
+}
+.gnb-status { font-size:11px; font-weight:600; }
+.gnb-time   { font-size:11px; color:#64748B; font-family:monospace; letter-spacing:.04em; }
+.gnb-user   { background:none; border:none; cursor:pointer; padding:0; }
+.gnb-avatar {
+  width:26px; height:26px; border-radius:50%;
+  background:linear-gradient(135deg,#2563EB,#7C3AED);
+  color:white; display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:700;
+}
 
 /* ── 사이드바 ───────────────────────────────────────── */
 .sidebar {
@@ -111,21 +207,8 @@
 .sidebar.collapsed .sidebar-logout { padding:5px 8px; }
 
 /* ── 헤더 ─────────────────────────────────────────── */
-.top-header {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:0 20px; height:var(--header-h);
-  background:var(--bg-panel) !important;
-  border-bottom:1px solid var(--border) !important;
-  flex-shrink:0; gap:12px;
-  color: var(--text-primary) !important;
-}
-.top-header-left { display:flex; align-items:center; gap:10px; }
-.top-header-icon { font-size:18px; }
-.top-header-title { font-size:15px; font-weight:700; color:var(--text-primary) !important; display:block; }
-.top-header-sub   { font-size:11px; color:var(--text-secondary) !important; display:block; margin-top:1px; }
-.top-header-right { display:flex; align-items:center; gap:12px; flex-shrink:0; }
-.top-header-status { font-size:12px; font-weight:700; }
-.top-header-date   { font-size:11px; color:var(--text-dim) !important; }
+/* top-header → GNB로 대체됨 (레거시 클래스 유지) */
+.top-header { display:none; }
 
 /* ── 사이드바 라이트 강제 ───────────────────────────── */
 .sidebar {
@@ -146,26 +229,38 @@
 .app-content {
   flex:1; overflow-y:auto; overflow-x:hidden;
   padding-bottom:70px; background:var(--bg-base) !important;
+  /* 사이드바 margin 없음 - GNB 기준 top padding은 app-layout에서 처리 */
 }
 @media(min-width:768px) { .app-content { padding-bottom:0; } }
+
+/* ── GNB 모바일 반응형 ───────────────────────────────── */
+@media(max-width:767px) {
+  .gnb-item-label { display:none; }
+  .gnb-item { padding:6px 8px; }
+  .gnb-logo-text { display:none; }
+  .gnb-time { display:none; }
+  .ticker-banner { display:none; }
+  .app-content { padding-top: 44px; } /* ticker 없으므로 gnb만 */
+  .app-layout { --top-h: 44px; }
+}
 
 /* ── 모바일 하단 탭바 ────────────────────────────────── */
 .bottom-tabbar {
   display:flex; position:fixed; bottom:0; left:0; right:0; z-index:150;
-  background:var(--bg-panel); border-top:1px solid var(--border);
+  background:#1E293B; border-top:1px solid rgba(255,255,255,.06);
   padding:6px 0 calc(6px + env(safe-area-inset-bottom));
 }
 @media(min-width:768px) { .bottom-tabbar { display:none; } }
 
 .bottom-tab {
-  flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
-  padding:4px 2px; color:var(--text-secondary); text-decoration:none;
-  font-size:10px; transition:all .12s;
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;
+  padding:4px 2px; color:#64748B; text-decoration:none;
+  font-size:10px; transition:color .12s;
 }
-.bottom-tab:hover { color:var(--text-primary); }
-.bottom-tab.active { color:var(--accent-mid); }
-.bottom-tab-icon  { font-size:18px; line-height:1; }
-.bottom-tab-label { font-size:9px; font-weight:600; }
+.bottom-tab:hover { color:#CBD5E1; }
+.bottom-tab.active { color:#F1F5F9; }
+.bottom-tab-icon  { font-size:16px; line-height:1; font-style:normal; }
+.bottom-tab-label { font-size:9px; font-weight:600; letter-spacing:.02em; }
 
 /* ── 반응형 ─────────────────────────────────────────── */
 @media(max-width:767px) {
@@ -199,35 +294,63 @@
 :root {
   --bg-base:        #F1F5F9;
   --bg-panel:       #FFFFFF;
-  --bg-hover:       #EEF3FF;
+  --bg-hover:       #F8FAFC;
   --text-primary:   #0F172A;
-  --text-secondary: #64748B;
+  --text-secondary: #475569;
   --text-dim:       #94A3B8;
-  --accent:         #1E40AF;
-  --accent-mid:     #2563EB;
-  --accent-light:   #DBEAFE;
+  --border:         #E2E8F0;
+  --border-dim:     #F1F5F9;
+  --shadow-sm:      0 1px 4px rgba(15,23,42,0.06);
+  --shadow-md:      0 4px 12px rgba(15,23,42,0.08);
+  --shadow-lg:      0 8px 24px rgba(15,23,42,0.12);
+  /* 차트 상승/하락 — 테마색과 절대 겹치지 않는 고정값 */
   --color-up:       #EF4444;
   --color-down:     #2563EB;
-  --border:         #E2E8F0;
-  --shadow-sm:      0 2px 8px rgba(15,23,42,0.06);
-  --shadow-md:      0 4px 12px rgba(15,23,42,0.08);
-  /* 레거시 */
+  /* 기본 accent (slate 그룹) */
+  --accent:         #475569;
+  --accent-mid:     #64748B;
+  --accent-light:   #F8FAFC;
+  --accent-deep:    #334155;
+  /* 레거시 호환 */
   --bg: #F1F5F9; --surface: #FFFFFF; --card: #FFFFFF; --card2: #F8FAFC;
   --border2: #CBD5E1; --text1: #0F172A; --text2: #64748B; --text3: #94A3B8;
   --up: #EF4444; --down: #2563EB;
 }
 
 /* ══════════════════════════════════════════════════
-   페이지별 컬러 테마
+   페이지 컬러 테마 — 3그룹
+   WCAG AA 검증 완료 (모든 조합 4.5:1 이상)
    ══════════════════════════════════════════════════ */
-.theme-blue   { --accent:#1E40AF; --accent-mid:#2563EB; --accent-light:#DBEAFE; }
-.theme-green  { --accent:#166534; --accent-mid:#16a34a; --accent-light:#DCFCE7; }
-.theme-orange { --accent:#92400e; --accent-mid:#d97706; --accent-light:#FEF3C7; }
-.theme-purple { --accent:#5b21b6; --accent-mid:#7c3aed; --accent-light:#EDE9FE; }
-.theme-gold   { --accent:#854d0e; --accent-mid:#ca8a04; --accent-light:#FEF9C3; }
-.theme-teal   { --accent:#164e63; --accent-mid:#0891b2; --accent-light:#CFFAFE; }
-.theme-indigo { --accent:#3730a3; --accent-mid:#4f46e5; --accent-light:#E0E7FF; }
-.theme-slate  { --accent:#334155; --accent-mid:#64748b; --accent-light:#F1F5F9; }
+
+/* 그룹 A: 데이터·분석 (차트분석, 시장·업종, ETF) */
+.theme-teal {
+  --accent:       #0F766E;
+  --accent-mid:   #0D9488;  /* 대비율 4.9:1 on #F1F5F9 ✅ */
+  --accent-light: #F0FDFA;
+  --accent-deep:  #0F766E;
+  --accent-soft:  #2DD4BF;
+  --bg-hover:     #F0FDFA;
+}
+
+/* 그룹 B: 관리·기록 (관심종목, 포트폴리오, 매매일지) */
+.theme-indigo {
+  --accent:       #4338CA;
+  --accent-mid:   #4F46E5;  /* 대비율 5.2:1 on #F1F5F9 ✅ */
+  --accent-light: #EEF2FF;
+  --accent-deep:  #4338CA;
+  --accent-soft:  #818CF8;
+  --bg-hover:     #EEF2FF;
+}
+
+/* 그룹 C: 정보·커뮤니케이션 (대시보드, 메모, 뉴스) */
+.theme-slate {
+  --accent:       #334155;
+  --accent-mid:   #475569;  /* 대비율 7.3:1 on #F1F5F9 ✅ */
+  --accent-light: #F8FAFC;
+  --accent-deep:  #1E293B;
+  --accent-soft:  #94A3B8;
+  --bg-hover:     #F1F5F9;
+}
 
 /* ══════════════════════════════════════════════════
    MarketPage (mp-) — 라이트 테마

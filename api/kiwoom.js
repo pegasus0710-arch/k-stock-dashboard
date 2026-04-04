@@ -134,6 +134,17 @@ export default async function handler(req, res) {
     return relay('/supply/market-flow', {}, res)
   }
 
+  // 장 운영 상태 — /api/kiwoom?type=market-status
+  if (q.type === 'market-status') {
+    try {
+      const r = await fetch(`${KIWOOM_SERVER}/market/status`, { signal: AbortSignal.timeout(5000) })
+      const data = await r.json()
+      return res.status(200).json(data)
+    } catch(err) {
+      return res.status(200).json({ session:'unknown', label:'', is_live:false })
+    }
+  }
+
   // 일별 기관 매매 종목 — /api/kiwoom?type=supply-institution&market=001&trde_tp=2
   // trde_tp: 1=순매도, 2=순매수
   if (q.type === 'supply-institution') {
@@ -162,37 +173,16 @@ export default async function handler(req, res) {
     return relay('/supply/strength', { stk_cd: q.code }, res)
   }
 
-  // 종목별 투자자기관별 수급차트 — /api/kiwoom?type=supply-invsr-chart&code=005930
-  // ka10060: 외국인/기관/개인 일별 순매수 차트
-  if (q.type === 'supply-invsr-chart') {
+  // 투자자별 수급 차트(누적) — /api/kiwoom?type=invsr-chart&code=005930
+  if (q.type === 'invsr-chart') {
     if (!q.code) return res.status(400).json({ error: 'code required' })
-    return relay('/supply/invsr-chart', {
-      stk_cd: q.code,
-      dt:     today(),
-    }, res)
+    return relay('/supply/invsr-chart', { stk_cd: q.code }, res)
   }
 
-  // 재무제표 (연간/분기) — /api/kiwoom?type=finance&code=005930&period=annual
-  // 네이버 모바일 API 서버사이드 호출
-  if (q.type === 'finance') {
-    const code   = q.code
-    const period = q.period || 'annual' // annual | quarter
-    if (!code) return res.status(400).json({ error: 'code required' })
-    try {
-      const url = `https://m.stock.naver.com/api/stock/${code}/finance/${period}`
-      const r = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
-          'Referer':    'https://m.stock.naver.com/',
-          'Accept':     'application/json',
-        }
-      })
-      if (!r.ok) throw new Error(`naver ${r.status}`)
-      const data = await r.json()
-      return res.status(200).json(data)
-    } catch (e) {
-      return res.status(500).json({ error: e.message })
-    }
+  // 기관 종목별 매매 — /api/kiwoom?type=supply-institution-stock&code=005930
+  if (q.type === 'supply-institution-stock') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/supply/institution', { stk_cd: q.code }, res)
   }
 
   // ══════════════════════════════════════════════════
@@ -325,12 +315,43 @@ export default async function handler(req, res) {
     }, res)
   }
 
+  // /api/kiwoom?type=account-trades&fr_dt=20260301&to_dt=20260403&tp=3
+  // tp: 3=전체매매, 4=매수, 5=매도
+  if (q.type === 'account-trades') {
+    return relay('/account/trades', {
+      fr_dt:  q.fr_dt  || '',
+      to_dt:  q.to_dt  || '',
+      tp:     q.tp     || '3',
+      stk_cd: q.stk_cd || '',
+    }, res)
+  }
+
+  // /api/kiwoom?type=account-cashflow&fr_dt=20260301&to_dt=20260403&tp=1
+  // tp: 1=입출금전체, 6=입금, 7=출금
+  if (q.type === 'account-cashflow') {
+    return relay('/account/cashflow', {
+      fr_dt: q.fr_dt || '',
+      to_dt: q.to_dt || '',
+      tp:    q.tp    || '1',
+    }, res)
+  }
+
+  // /api/kiwoom?type=account-realized&fr_dt=20260301&to_dt=20260403&stk_cd=
+  if (q.type === 'account-realized') {
+    return relay('/account/realized', {
+      fr_dt:  q.fr_dt  || '',
+      to_dt:  q.to_dt  || '',
+      stk_cd: q.stk_cd || '',
+    }, res)
+  }
+
   return res.status(400).json({
     error: 'Invalid type',
     valid: [
       'price', 'hoga', 'stock-chart', 'index-chart', 'index-price', 'index-52week',
       'supply-foreign', 'supply-investor', 'supply-institution',
-      'supply-short', 'supply-strength', 'market-flow',
+      'supply-short', 'supply-strength', 'supply-institution-stock',
+      'invsr-chart', 'market-flow',
       'sector-all', 'sector-stocks', 'sector-heatmap',
       'etf-info', 'etf-list', 'etf-profit', 'etf-holdings',
       'account-balance', 'account-holdings', 'account-orders', 'account-returns',

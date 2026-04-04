@@ -129,9 +129,7 @@ export default function DashboardPage() {
   const [weekData,  setWeekData]  = useState({})
   const [sparkData, setSparkData] = useState({})
   const handleWeekRange = useCallback((id, high, low) => {
-    // 키움 API는 100배 값 반환 → 자동 보정 (KOSPI/KOSDAQ 정상범위: 500~15000)
-    const fix = v => v > 50000 ? v / 100 : v
-    if(id) setWeekData(prev => ({...prev, [id]: {high52: fix(high), low52: fix(low)}}))
+    if(id) setWeekData(prev => ({...prev, [id]: {high52: high, low52: low}}))
   }, [])
   const handleSparkData = useCallback((id, closes) => {
     if(id && closes?.length) setSparkData(prev => ({...prev, [id]: closes}))
@@ -139,40 +137,35 @@ export default function DashboardPage() {
 
   // ── 국내지수 스파크라인 직접 로드 ────────────────────────────────────
   useEffect(() => {
-    const SPARK_MAP = [
-      { id:'KOSPI',  inds_cd:'001', yahoo:'KS11' },
-      { id:'KOSDAQ', inds_cd:'101', yahoo:'KQ11' },
-    ]
-
-    const applyData = (id, candles) => {
-      // 키움 index-chart는 100배 값 반환 → /100
-      const raw = candles
-        .map(c => ({ close:(c.close||0)/100, high:(c.high||0)/100, low:(c.low||0)/100 }))
-        .filter(c => c.close > 0)
-      if (!raw.length) return false
-      setSparkData(prev => ({ ...prev, [id]: raw.map(c => c.close) }))
-      const hs = raw.map(c => c.high || c.close)
-      const ls = raw.map(c => c.low  || c.close)
-      setWeekData(prev => ({
-        ...prev,
-        [id]: { high52: Math.max(...hs), low52: Math.min(...ls) }
-      }))
-      return true
-    }
-
-    SPARK_MAP.forEach(async ({ id, inds_cd }) => {
+    const loadSpark = async (id, inds_cd) => {
       try {
-        // day period 1년치 (week가 빈 배열 반환하는 문제 우회)
+        // index-chart 주봉 (메인차트와 동일 API — 정상 동작 확인됨)
         const j = await fetch(
-          `/api/kiwoom?type=index-chart&inds_cd=${inds_cd}&period=day`
+          `/api/kiwoom?type=index-chart&inds_cd=${inds_cd}&period=week`
         ).then(r => r.json())
-        const candles = (j.candles || []).slice(-250)  // 약 1년 일봉
-        if (applyData(id, candles)) return
-        console.warn(`[Dashboard] ${id} spark 빈 배열`)
+        const raw = (j.candles || [])
+          .map(c => ({
+            close: (c.close || 0) / 100,
+            high:  (c.high  || 0) / 100,
+            low:   (c.low   || 0) / 100,
+          }))
+          .filter(c => c.close > 0)
+          .slice(-52)
+        if (!raw.length) return
+        setSparkData(prev => ({ ...prev, [id]: raw.map(c => c.close) }))
+        const hs = raw.map(c => c.high || c.close)
+        const ls = raw.map(c => c.low  || c.close)
+        setWeekData(prev => ({
+          ...prev,
+          [id]: { high52: Math.max(...hs), low52: Math.min(...ls) }
+        }))
+        console.log(`[Dashboard] ${id} spark loaded: ${raw.length}봉, 최신=${raw[raw.length-1]?.close}`)
       } catch(e) {
         console.warn(`[Dashboard] ${id} spark 실패:`, e)
       }
-    })
+    }
+    loadSpark('KOSPI',  '001')
+    loadSpark('KOSDAQ', '101')
   }, [])
 
   const [selId,       setSelId]       = useState('KOSPI')
@@ -227,12 +220,12 @@ export default function DashboardPage() {
             <p className="dash-date">{getTodayStr()}{lastFetch&&<span style={{color:'var(--text-dim)'}}> · {lastFetch} 기준</span>}</p>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-            <button className="db-guide-btn" onClick={()=>setShowGuide(true)}>📖 지수 가이드</button>
-            <button className="db-briefing-btn" onClick={()=>setShowBriefing(true)}>🤖 AI 브리핑</button>
+            <button className="db-guide-btn" onClick={()=>setShowGuide(true)}>지수 가이드</button>
+            <button className="db-briefing-btn" onClick={()=>setShowBriefing(true)}>AI 브리핑</button>
             <div className="db-status-badge" style={{background:st.color+'15',color:st.color,borderColor:st.color+'30'}}>
               {st.dot&&<span className="db-status-dot" style={{background:st.color}}/>}{st.label}
             </div>
-            <button className="btn-outline db-refresh-btn" disabled={loading} onClick={refresh}>⟳</button>
+            <button className="btn-outline db-refresh-btn" disabled={loading} onClick={refresh}>↺</button>
           </div>
         </div>
       </div>
@@ -699,10 +692,7 @@ export default function DashboardPage() {
                             {/* 52주 고저 게이지 */}
                             {weekData?.[item.id] && (() => {
                               const w = weekData[item.id]
-                              // 100배 값 자동 보정 (KOSPI/KOSDAQ 정상범위: 500~15000)
-                              const fix = v => v > 50000 ? v / 100 : v
-                              const low  = fix(w.low52)
-                              const high = fix(w.high52)
+                              const low = w.low52, high = w.high52
                               if (!low||!high||high<=low) return null
                               const pct = Math.min(100, Math.max(0, (d.price-low)/(high-low)*100))
                               return (

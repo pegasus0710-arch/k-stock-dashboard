@@ -6,9 +6,21 @@
 //   둘 다 Yahoo Finance OHLC 응답
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { db } from '../firebase'
+import { collection, addDoc, Timestamp } from 'firebase/firestore'
+import { useAuth } from '../context/AuthContext'
 import { useUserSettings } from '../hooks/useUserSettings'
 import CandleSvg, { fmtNum, fmtDate, fmtDateLong } from './ui/CandleSvg'
 import './GlobalChartModal.css'
+
+// ── MA 기본 스타일 ──────────────────────────────────────
+const DEFAULT_MA_STYLE = {
+  5:   { color: '#f59e0b', width: 1.2 },
+  20:  { color: '#a78bfa', width: 2.0 },
+  60:  { color: '#22c55e', width: 1.5 },
+  120: { color: '#f43f5e', width: 1.2 },
+}
+const MA_WIDTH_OPTIONS = [1, 1.5, 2, 2.5, 3]
 
 // ── 기간 탭 정의 ─────────────────────────────────────
 const RANGES = [
@@ -24,6 +36,8 @@ const RANGES = [
 export default function GlobalChartModal({
   // 해외지수: type='global', symbol='SP500', name='S&P 500'
   // 환율:     type='forex',  symbol='KRW',   name='USD/KRW'
+  // 국내종목: type='stock',  symbol='005930', name='삼성전자'  ← NEW
+  // 국내지수: type='global', symbol='KS11'/'KQ11'  (기존 유지)
   type = 'global',
   symbol,
   name,
@@ -31,6 +45,7 @@ export default function GlobalChartModal({
   changeRate,
   onClose,
 }) {
+  const { user } = useAuth()
   const [range,         setRange]         = useState('6mo')
   const [candles,       setCandles]       = useState([])
   const [loading,       setLoading]       = useState(false)
@@ -49,23 +64,102 @@ export default function GlobalChartModal({
   const [drawPoint1,    setDrawPoint1]    = useState(null)
   const [mousePos,      setMousePos]      = useState(null)
   const [selectedColor, setSelectedColor] = useState('#f59e0b')
-  // MA 설정 — Firestore에서 로드 (기본값: 전체 ON)
+
+  // MA ON/OFF — 전체 기본 ON
   const [showMA, setShowMA] = useState(
-    () => getSetting('chart', 'gcm_ma_settings', { 5:true, 20:true, 60:true, 120:true })
+    () => getSetting('chart', 'gcm_ma_show', { 5:true, 20:true, 60:true, 120:true })
   )
+  // MA 스타일 (색상/두께) — Firestore 저장
+  const [maStyle, setMaStyle] = useState(
+    () => getSetting('chart', 'gcm_ma_style', DEFAULT_MA_STYLE)
+  )
+  // MA 스타일 팝오버 (어느 MA가 열려 있는지)
+  const [maPopover, setMaPopover] = useState(null) // 5 | 20 | 60 | 120 | null
+  // 툴팁 ON/OFF — Firestore 저장
+  const [showTooltip, setShowTooltip] = useState(
+    () => getSetting('chart', 'gcm_show_tooltip', true)
+  )
+  const onToggleTooltip = useCallback(() => {
+    setShowTooltip(prev => {
+      const next = !prev
+      setSetting('chart', 'gcm_show_tooltip', next)
+      return next
+    })
+  }, [setSetting])
+
+  // 메모 상태
+  const [memoText,   setMemoText]   = useState('')
+  const [memoSaving, setMemoSaving] = useState(false)
+  const [memoSaved,  setMemoSaved]  = useState(false)
+  const memoRef = useRef(null)
 
   // Firestore에서 드로잉 비동기 로드
   useEffect(() => {
     getDrawings(`gcm_draw_${symbol}`).then(d => { if (d?.length) setDrawings(d) })
   }, [symbol])
 
+  // Firestore 로드 완료 후 설정값 재동기화 (lazy initializer는 로드 전 실행될 수 있음)
+  useEffect(() => {
+    const savedStyle   = getSetting('chart', 'gcm_ma_style',     null)
+    const savedShow    = getSetting('chart', 'gcm_ma_show',      null)
+    const savedTooltip = getSetting('chart', 'gcm_show_tooltip', null)
+    if (savedStyle   != null) setMaStyle(savedStyle)
+    if (savedShow    != null) setShowMA(savedShow)
+    if (savedTooltip != null) setShowTooltip(savedTooltip)
+  }, [getSetting])
+
   const onToggleMA = useCallback((period) => {
     setShowMA(prev => {
       const next = { ...prev, [period]: !prev[period] }
-      setSetting('chart', 'gcm_ma_settings', next)
+      setSetting('chart', 'gcm_ma_show', next)
       return next
     })
   }, [setSetting])
+
+  // MA 스타일 변경 (색상 or 두께) — 즉시 Firestore 저장
+  const onMaStyleChange = useCallback((period, key, val) => {
+    setMaStyle(prev => {
+      const next = { ...prev, [period]: { ...prev[period], [key]: val } }
+      setSetting('chart', 'gcm_ma_style', next)
+      return next
+    })
+  }, [setSetting])
+
+  // MA 기본값 초기화
+  const onMaStyleReset = useCallback(() => {
+    setMaStyle(DEFAULT_MA_STYLE)
+    setSetting('chart', 'gcm_ma_style', DEFAULT_MA_STYLE)
+  }, [setSetting])
+
+  // 메모 저장 — MemoPage 동일 컬렉션 (users/{uid}/memos)
+  const saveMemo = useCallback(async () => {
+    const text = memoText.trim()
+    if (!text || !user) return
+    setMemoSaving(true)
+    try {
+      const now = Timestamp.fromDate(new Date())
+      await addDoc(collection(db, 'users', user.uid, 'memos'), {
+        title:      `[차트메모] ${name || symbol}`,
+        content:    text,
+        category:   '차트메모',
+        tags:       ['차트메모', symbol, name].filter(Boolean),
+        bgColor:    '#F0FDF4',
+        titleColor: '#14532D',
+        textColor:  '#1e293b',
+        fontSize:   13,
+        pinned:     false,
+        createdAt:  now,
+        updatedAt:  now,
+      })
+      setMemoText('')
+      setMemoSaved(true)
+      setTimeout(() => setMemoSaved(false), 2000)
+    } catch(e) {
+      console.error('[gcm] memo save error:', e)
+    } finally {
+      setMemoSaving(false)
+    }
+  }, [memoText, user, symbol, name])
 
   // ESC 키
   useEffect(() => {
@@ -92,22 +186,29 @@ export default function GlobalChartModal({
     setError('')
 
     // KOSPI(KS11)/KOSDAQ(KQ11) → 키움 index-chart API (실시간, 당일 반영)
+    // 국내종목(stock) → 키움 stock-chart API
     // 그 외 → Yahoo Finance (/api/kis)
     const isKiwoom = symbol === 'KS11' || symbol === 'KQ11'
+    const isStock  = type === 'stock'
     const inds_cd  = symbol === 'KS11' ? '001' : '101'
+
+    // 키움 기간 매핑 (지수/종목 공용)
+    const kiwoomPeriodMap = {
+      '1mo': { period:'day',  cnt:22  },
+      '3mo': { period:'day',  cnt:65  },
+      '6mo': { period:'day',  cnt:130 },
+      '1y':  { period:'week', cnt:52  },
+      '5y':  { period:'week', cnt:260 },
+    }
 
     let url, kiwoomBody = null
     if (isKiwoom) {
-      // range → 키움 period/봉수 매핑
-      const periodMap = {
-        '1mo': { period:'day',  cnt:22  },
-        '3mo': { period:'day',  cnt:65  },
-        '6mo': { period:'day',  cnt:130 },
-        '1y':  { period:'week', cnt:52  },
-        '5y':  { period:'week', cnt:260 },
-      }
-      const { period } = periodMap[range] || periodMap['6mo']
+      const { period } = kiwoomPeriodMap[range] || kiwoomPeriodMap['6mo']
       url = `/api/kiwoom?type=index-chart&inds_cd=${inds_cd}&period=${period}`
+    } else if (isStock) {
+      // 국내 개별종목 — stock-chart API
+      const { period } = kiwoomPeriodMap[range] || kiwoomPeriodMap['6mo']
+      url = `/api/kiwoom?type=stock-chart&code=${symbol}&period=${period}`
     } else if (type === 'forex') {
       url = `/api/kis?type=forex-chart&pair=${symbol}&range=${range}`
     } else {
@@ -119,21 +220,18 @@ export default function GlobalChartModal({
       .then(data => {
         if (data.error) throw new Error(data.error)
         let candles = data.candles || []
-        // 키움 응답: time 필드가 date 필드 역할 — CandleSvg 호환
-        if (isKiwoom) {
-          // 기간에 맞는 봉수 슬라이싱
-          const cntMap = { '1mo':22, '3mo':65, '6mo':130, '1y':52, '5y':260 }
-          const cnt = cntMap[range] || 130
-          candles = candles.slice(-cnt)
-          // time → date, ka20006/ka20007 값은 100배 → /100
-          candles = candles.map(c => ({
+        // 키움 응답(지수/종목) — time → date 정규화
+        if (isKiwoom || isStock) {
+          const { cnt } = kiwoomPeriodMap[range] || kiwoomPeriodMap['6mo']
+          candles = candles.slice(-cnt).map(c => ({
             ...c,
-            date:  c.time || c.date,
-            open:  (c.open  || 0) / 100,
-            high:  (c.high  || 0) / 100,
-            low:   (c.low   || 0) / 100,
-            close: (c.close || 0) / 100,
-          }))
+            date:  c.time || c.date || '',
+            open:  Number(c.open  || 0),
+            high:  Number(c.high  || 0),
+            low:   Number(c.low   || 0),
+            close: Number(c.close || 0),
+            volume: Number(c.volume || c.vol || 0),
+          })).filter(c => c.close > 0)
         }
         setCandles(candles)
       })
@@ -146,12 +244,17 @@ export default function GlobalChartModal({
     saveDrawings(`gcm_draw_${symbol}`, drawings)
   }, [symbol, drawings])
 
-  // 등락율 — prop 대신 로드된 캔들 마지막 2봉으로 계산
-  const computedRate = candles.length >= 2
-    ? (candles[candles.length-1].close - candles[candles.length-2].close)
-      / candles[candles.length-2].close * 100
+  // 등락율/등락금액 — 로드된 캔들 마지막 2봉으로 계산
+  const lastCandle  = candles.length >= 1 ? candles[candles.length-1] : null
+  const prevCandle  = candles.length >= 2 ? candles[candles.length-2] : null
+  const computedRate = lastCandle && prevCandle
+    ? (lastCandle.close - prevCandle.close) / prevCandle.close * 100
     : null
-  const rateColor = computedRate == null ? '#94a3b8' : computedRate > 0 ? '#DC2626' : computedRate < 0 ? '#1D4ED8' : '#94a3b8'
+  const changeAmt  = lastCandle && prevCandle
+    ? lastCandle.close - prevCandle.close
+    : null
+  const livePrice  = lastCandle ? lastCandle.close : currentPrice
+  const rateColor  = computedRate == null ? '#94a3b8' : computedRate > 0 ? '#DC2626' : computedRate < 0 ? '#1D4ED8' : '#94a3b8'
 
   // 드로잉 클릭 핸들러
   const handleChartClick = useCallback((coords) => {
@@ -206,9 +309,16 @@ export default function GlobalChartModal({
         <div className="gcm-header">
           <div className="gcm-title-row">
             <span className="gcm-name">{name}</span>
-            <span className="gcm-price">
-              {fmtNum(currentPrice, currentPrice > 100 ? 2 : 4)}
-            </span>
+            {livePrice > 0 && (
+              <span className="gcm-price" style={{ color: rateColor }}>
+                {fmtNum(livePrice, livePrice > 100 ? 0 : 4)}
+              </span>
+            )}
+            {changeAmt != null && (
+              <span className="gcm-change-amt" style={{ color: rateColor }}>
+                {changeAmt >= 0 ? '+' : ''}{fmtNum(changeAmt, livePrice > 100 ? 0 : 4)}
+              </span>
+            )}
             {computedRate != null && (
               <span className="gcm-rate" style={{ color: rateColor }}>
                 ({computedRate >= 0 ? '+' : ''}{fmtNum(computedRate, 2)}%)
@@ -228,6 +338,20 @@ export default function GlobalChartModal({
                   {r.label}
                 </button>
               ))}
+            </div>
+
+            {/* 메모 인풋 — 기간 탭 옆 */}
+            <div className="gcm-memo-bar">
+              <input
+                ref={memoRef}
+                className="gcm-memo-input"
+                placeholder="📝 차트 메모 입력 후 Enter..."
+                value={memoText}
+                onChange={e => setMemoText(e.target.value)}
+                onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); saveMemo() }}}
+                disabled={memoSaving}
+              />
+              {memoSaved && <span className="gcm-memo-ok">✓ 저장됨</span>}
             </div>
 
             <button className="gcm-close" onClick={onClose}>✕</button>
@@ -261,24 +385,56 @@ export default function GlobalChartModal({
             ))}
           </div>
           <div className="gcm-draw-actions">
-            {/* MA 이동평균선 토글 */}
-            <div className="gcm-ma-toggles">
+            {/* MA 이동평균선 토글 + 스타일 커스터마이징 */}
+            <div className="gcm-ma-toggles" style={{position:'relative'}}>
               {[
-                { p:5,   color:'#f59e0b', label:'MA5'   },
-                { p:20,  color:'#a78bfa', label:'MA20'  },
-                { p:60,  color:'#22c55e', label:'MA60'  },
-                { p:120, color:'#f43f5e', label:'MA120' },
-              ].map(({ p, color, label }) => (
-                <button
-                  key={p}
-                  className={`gcm-ma-toggle ${showMA[p] ? 'active' : ''}`}
-                  style={{ '--ma-color': color }}
-                  title={`${label} ${showMA[p] ? '숨기기' : '표시'}`}
-                  onClick={() => onToggleMA(p)}
-                >
-                  ● {label}
-                </button>
-              ))}
+                { p:5,   label:'MA5'   },
+                { p:20,  label:'MA20'  },
+                { p:60,  label:'MA60'  },
+                { p:120, label:'MA120' },
+              ].map(({ p, label }) => {
+                const style = maStyle[p] || DEFAULT_MA_STYLE[p]
+                return (
+                  <div key={p} style={{position:'relative'}}>
+                    <button
+                      className={`gcm-ma-toggle ${showMA[p] ? 'active' : ''}`}
+                      style={{ '--ma-color': style.color, borderWidth: showMA[p] ? style.width+'px' : '1.5px' }}
+                      title={`${label} 클릭=ON/OFF | 우클릭=스타일 설정`}
+                      onClick={() => onToggleMA(p)}
+                      onContextMenu={e => { e.preventDefault(); setMaPopover(maPopover===p?null:p) }}
+                    >
+                      ● {label}
+                    </button>
+                    {/* 스타일 팝오버 */}
+                    {maPopover === p && (
+                      <div className="gcm-ma-popover" onMouseLeave={() => setMaPopover(null)}>
+                        <div className="gcm-ma-pop-row">
+                          <span>색상</span>
+                          <input type="color" value={style.color}
+                            onChange={e => onMaStyleChange(p, 'color', e.target.value)}
+                            style={{width:32,height:22,border:'none',cursor:'pointer',borderRadius:4}}/>
+                        </div>
+                        <div className="gcm-ma-pop-row">
+                          <span>두께</span>
+                          <div style={{display:'flex',gap:3}}>
+                            {MA_WIDTH_OPTIONS.map(w => (
+                              <button key={w}
+                                className={`gcm-ma-pop-w ${style.width===w?'active':''}`}
+                                onClick={() => onMaStyleChange(p, 'width', w)}>
+                                {w}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              <button className="gcm-draw-act-btn" onClick={onMaStyleReset}
+                title="MA 색상/두께 초기화" style={{fontSize:10,padding:'3px 7px'}}>
+                초기화
+              </button>
             </div>
             <button className="gcm-draw-act-btn"
               disabled={drawings.length === 0}
@@ -295,6 +451,15 @@ export default function GlobalChartModal({
             {drawings.length > 0 && (
               <span className="gcm-draw-count">{drawings.length}개 저장됨</span>
             )}
+            {/* 툴팁 ON/OFF 버튼 */}
+            <button
+              className={`gcm-draw-act-btn ${showTooltip ? 'gcm-tt-on' : ''}`}
+              onClick={onToggleTooltip}
+              title={showTooltip ? '툴팁 끄기' : '툴팁 켜기'}
+              style={{ marginLeft: 8 }}
+            >
+              {showTooltip ? '💬 툴팁 ON' : '💬 툴팁 OFF'}
+            </button>
           </div>
         </div>
 
@@ -314,7 +479,9 @@ export default function GlobalChartModal({
               drawings={drawings} drawTool={drawTool}
               drawPhase={drawPhase} drawPoint1={drawPoint1}
               mousePos={mousePos} selectedColor={selectedColor}
+              showTooltip={showTooltip}
               showMA={showMA} onToggleMA={onToggleMA}
+              maStyle={maStyle}
               onChartClick={handleChartClick}
               onChartMouseMove={handleMouseMove}
               onChartMouseLeave={handleLeave}
@@ -322,10 +489,15 @@ export default function GlobalChartModal({
           )}
         </div>
 
-        {/* 데이터 출처 + 리사이즈 핸들 */}
         <div className="gcm-footer">
-          <span>데이터: {(symbol==='KS11'||symbol==='KQ11') ? '키움증권 REST API' : 'Yahoo Finance'} · {candles.length}개 봉 · 캔들 차트
-          {drawings.length > 0 && ` · ✏️ 드로잉 ${drawings.length}개 저장됨`}</span>
+          <span>
+            데이터: {
+              (symbol==='KS11'||symbol==='KQ11'||type==='stock')
+                ? '키움증권 REST API'
+                : 'Yahoo Finance'
+            } · {candles.length}개 봉 · 캔들 차트
+            {drawings.length > 0 && ` · ✏️ 드로잉 ${drawings.length}개 저장됨`}
+          </span>
           <span className="gcm-resize-handle" onMouseDown={onResizeMouseDown} title="드래그해서 크기 조절">⤡</span>
         </div>
       </div>
