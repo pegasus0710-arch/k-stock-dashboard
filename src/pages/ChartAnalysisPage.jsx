@@ -476,10 +476,15 @@ export default function ChartAnalysisPage() {
   const [showStoch, setShowStoch] = useState(_cfg.showStoch ?? false)
   const [showSup,   setShowSup]   = useState(false)
 
-  // 설정 변경 저장 헬퍼
+  // ── 서브차트 높이 (드래그 리사이즈) ──────────────
+  const [subHeights, setSubHeights] = useState({
+    rsi:   _cfg.subH_rsi   || 80,
+    macd:  _cfg.subH_macd  || 96,
+    stoch: _cfg.subH_stoch || 74,
+  })
+  const [volH, setVolH] = useState(_cfg.volH || 56)
+
   // ── 차트 설정 일괄 저장 (상태 변경 감지) ────────────
-  // 각 항목에 saveChartCfg 호출 대신, 상태 변경 시 useEffect로 한 번에 저장
-  // Strict Mode / 클로저 이슈 완전 우회
   useEffect(() => {
     const cfg = {
       period, scope, range,
@@ -493,14 +498,6 @@ export default function ChartAnalysisPage() {
     try { localStorage.setItem('cap_chart_config', JSON.stringify(cfg)) } catch {}
     setSetting('chart', 'cap_chart_config', cfg)
   }, [period, scope, range, showMA, enabledMA, showBB, showRSI, showMACD, showStoch, subHeights, volH])
-
-  // ── 서브차트 높이 (드래그 리사이즈) ──────────────
-  const [subHeights, setSubHeights] = useState({
-    rsi:   _cfg.subH_rsi   || 80,
-    macd:  _cfg.subH_macd  || 96,
-    stoch: _cfg.subH_stoch || 74,
-  })
-  const [volH, setVolH] = useState(_cfg.volH || 56)
   const updateSubH = (key, delta) => setSubHeights(prev => ({
     ...prev, [key]: Math.max(50, Math.min(200, prev[key] + delta))
   }))
