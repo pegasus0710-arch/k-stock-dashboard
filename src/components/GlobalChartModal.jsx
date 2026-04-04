@@ -121,8 +121,15 @@ export default function GlobalChartModal({
     const savedStyle   = getSetting('chart', 'gcm_ma_style',     null)
     const savedShow    = getSetting('chart', 'gcm_ma_show',      null)
     const savedTooltip = getSetting('chart', 'gcm_show_tooltip', null)
-    if (savedStyle   != null) setMaStyle(savedStyle)
-    if (savedShow    != null) setShowMA(savedShow)
+    // Firestore JSON 직렬화로 숫자 키→문자열 변환 → 숫자로 복원
+    if (savedStyle != null) {
+      const normalized = Object.fromEntries(Object.entries(savedStyle).map(([k,v])=>[Number(k),v]))
+      setMaStyle(normalized)
+    }
+    if (savedShow != null) {
+      const normalized = Object.fromEntries(Object.entries(savedShow).map(([k,v])=>[Number(k),v]))
+      setShowMA(normalized)
+    }
     if (savedTooltip != null) setShowTooltip(savedTooltip)
   }, [getSetting])
 
@@ -137,7 +144,9 @@ export default function GlobalChartModal({
   // MA 스타일 변경 (색상 or 두께) — 즉시 Firestore 저장
   const onMaStyleChange = useCallback((period, key, val) => {
     setMaStyle(prev => {
-      const next = { ...prev, [period]: { ...prev[period], [key]: val } }
+      // period를 숫자로 보장하여 키 타입 일관성 유지
+      const p = Number(period)
+      const next = { ...prev, [p]: { ...(prev[p]||{}), [key]: val } }
       setSetting('chart', 'gcm_ma_style', next)
       return next
     })

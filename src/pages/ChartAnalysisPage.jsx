@@ -379,9 +379,12 @@ export default function ChartAnalysisPage() {
     if (cfg.showStoch!=null) setShowStoch(cfg.showStoch)
     if (cfg.enabledMA)       setEnabledMA(new Set(cfg.enabledMA))
     if (cfg.volH)            setVolH(cfg.volH)
-    // MA 스타일 재동기화
+    // MA 스타일 재동기화 — Firestore JSON 직렬화로 숫자 키→문자열 변환 → 숫자로 복원
     const savedMaStyle = getSetting('chart', 'cap_ma_style', null)
-    if (savedMaStyle) setMaStyle(savedMaStyle)
+    if (savedMaStyle) {
+      const normalized = Object.fromEntries(Object.entries(savedMaStyle).map(([k,v])=>[Number(k),v]))
+      setMaStyle(normalized)
+    }
     if (cfg.subH_rsi || cfg.subH_macd || cfg.subH_stoch) {
       setSubHeights(prev => ({
         rsi:   cfg.subH_rsi   || prev.rsi,
@@ -433,7 +436,6 @@ export default function ChartAnalysisPage() {
     window.addEventListener('keydown', fn)
     return () => window.removeEventListener('keydown', fn)
   }, [showFull])
-  const [drawMenuOpen, setDrawMenuOpen] = useState(false)
   const [infoPopup, setInfoPopup] = useState(null) // 'disc'|'news'|'si'
   // 우측 정보 패널
   const [rightPanel, setRightPanel] = useState(false)  // 패널 열림 여부
@@ -478,7 +480,8 @@ export default function ChartAnalysisPage() {
   const [maPopover, setMaPopover] = useState(null) // 5|10|20|60|120|null
   const onMaStyleChange = (p, key, val) => {
     setMaStyle(prev => {
-      const next = { ...prev, [p]: { ...prev[p], [key]: val } }
+      const np = Number(p)
+      const next = { ...prev, [np]: { ...(prev[np]||{}), [key]: val } }
       setSetting('chart', 'cap_ma_style', next)
       return next
     })
@@ -1121,21 +1124,24 @@ export default function ChartAnalysisPage() {
                 <button className={`cap-ind-btn stoch ${showStoch?'on':''}`} onClick={()=>setShowStoch(v=>!v)}>Stoch</button>
               </div>
               <div className="cap-tb-sep"/>
-              {/* 드로잉 */}
-              <div className="cap-draw-wr">
-                <button className={`cap-draw-tog ${drawTool!=='none'?'on':''}`} onClick={()=>setDrawMenuOpen(v=>!v)}>
-                  ✏️ ▾
-                </button>
-                {drawMenuOpen&&(
-                  <div className="cap-draw-menu">
-                    {DRAW_TOOLS.map(t=>(
-                      <button key={t.id} className={`cap-draw-item ${drawTool===t.id?'on':''}`}
-                        onClick={()=>{setDrawTool(t.id);setDrawState(null);setDrawMenuOpen(false)}}>{t.label}</button>
-                    ))}
-                    {drawings.length>0&&<button className="cap-draw-item" onClick={()=>{saveDrawings(drawings.slice(0,-1));setDrawState(null)}}>↩ 실행취소</button>}
-                    {drawings.length>0&&<button className="cap-draw-item del" onClick={()=>{saveDrawings([]);setDrawState(null);setDrawMenuOpen(false)}}>🗑 초기화</button>}
-                  </div>
-                )}
+              {/* 드로잉 툴 — 펼쳐서 배치 */}
+              <div className="cap-draw-inline">
+                {DRAW_TOOLS.map(t=>(
+                  <button key={t.id}
+                    className={`cap-draw-flat ${drawTool===t.id?'on':''}`}
+                    onClick={()=>{setDrawTool(t.id);setDrawState(null)}}
+                    title={t.label}>{t.label}</button>
+                ))}
+                <div className="cap-tb-sep"/>
+                <button className="cap-draw-flat undo"
+                  disabled={drawings.length===0}
+                  title="마지막 드로잉 삭제"
+                  onClick={()=>{saveDrawings(drawings.slice(0,-1));setDrawState(null)}}>↩</button>
+                <button className="cap-draw-flat del"
+                  disabled={drawings.length===0}
+                  title="전체 삭제"
+                  onClick={()=>{saveDrawings([]);setDrawState(null)}}>🗑</button>
+                {drawings.length>0&&<span className="cap-draw-cnt">{drawings.length}개</span>}
               </div>
               {drawState&&<span className="cap-draw-hint" style={{fontSize:10,color:'var(--text-dim)'}}>{drawTool==='trend'?'2번째 점 클릭':'끝점 클릭'}</span>}
               <div className="cap-tb-sp"/>

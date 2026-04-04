@@ -483,3 +483,35 @@
 .gcm-memo-btn.edit:hover { background: var(--accent-light); }
 .gcm-memo-btn.cancel { color: #dc2626; border-color: rgba(220,38,38,.3); }
 .gcm-memo-btn.cancel:hover { background: rgba(220,38,38,.08); }
+
+/* ── 드로잉 툴 인라인 펼침 ──────────────────────── */
+.cap-draw-inline {
+  display: flex; align-items: center; gap: 2px; flex-wrap: nowrap;
+}
+.cap-draw-flat {
+  padding: 3px 8px; border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-base); color: var(--text-secondary);
+  font-size: 11px; cursor: pointer; white-space: nowrap;
+  transition: all .12s;
+}
+.cap-draw-flat:hover:not(:disabled) {
+  border-color: var(--accent-mid); color: var(--accent-mid);
+}
+.cap-draw-flat.on {
+  background: var(--accent-mid); color: white;
+  border-color: var(--accent-mid); font-weight: 700;
+}
+.cap-draw-flat.undo:hover:not(:disabled) {
+  border-color: #64748b; color: #64748b;
+}
+.cap-draw-flat.del:hover:not(:disabled) {
+  border-color: #dc2626; color: #dc2626;
+}
+.cap-draw-flat:disabled {
+  opacity: .35; cursor: not-allowed;
+}
+.cap-draw-cnt {
+  font-size: 10px; color: var(--accent-mid);
+  font-weight: 700; padding: 0 2px;
+}
