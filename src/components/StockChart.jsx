@@ -44,7 +44,6 @@ export const DRAW_TOOLS = [
   { id:'hline',  label:'━ 수평선'   },
   { id:'trend',  label:'↗ 추세선'   },
   { id:'fib',    label:'🔢 피보나치' },
-  { id:'text',   label:'📝 메모'    },
   { id:'split3', label:'⅓ 3분할'   },
   { id:'split4', label:'¼ 4분할'   },
 ]
@@ -393,14 +392,18 @@ export function DrawingToolbar({ drawTool, setDrawTool, drawings, saveDrawings, 
 // ── CandleSvg — 핵심 캔들 SVG 렌더러 ─────────────────────
 export function CandleSvg({
   data, width, height=400,
-  showMA=true, enabledMA=new Set([5,20,60,120]),
+  showMA=true, enabledMA=new Set([5,20,60,120]), maStyle=null,
   drawings=[], onSvgClick, drawTool='none',
-  selectedIdx, onSelectDrawing,
+  selectedIdx, onSelectDrawing, onEditPrice,
   showSupply=false, supplyData, supplyLoading,
   showVolume=true,
   showBollinger=false, week52=null,
   period='day',
-  volHeight=56,   // 거래량 영역 높이 (드래그 리사이즈)
+  volHeight=56,
+  // 드로잉 프리뷰용
+  mousePos=null, drawState=null,
+  lineColor='#f59e0b', lineWidth=1.5, lineDash='solid',
+  onChartMouseMove, onChartMouseLeave,
 }) {
   const svgRef = useRef(null)
   const [tooltip, setTooltip] = useState(null)
@@ -452,7 +455,8 @@ export function CandleSvg({
   const maLines = showMA ? MA_SETTINGS.filter(m=>enabledMA.has(m.p)).map(({p,color})=>{
     const vals=calcMA(data,p)
     const pts=vals.map((v,i)=>v?`${bx(i)},${toY(v)}`:null).filter(Boolean).join(' ')
-    return pts.length>1?{p,color,pts}:null
+    const s = maStyle?.[p]
+    return pts.length>1?{p, color: s?.color||color, width: s?.width||1.3, pts}:null
   }).filter(Boolean) : []
 
   // 볼린저밴드 계산 (20,2)
@@ -494,6 +498,7 @@ export function CandleSvg({
     const idx = Math.round((mx-PAD.left)/(chartW/n)-0.5)
     if (idx<0||idx>=n) { setTooltip(null); return }
     setTooltip({ idx, svgX:bx(idx), svgY:my })
+    if (onChartMouseMove) onChartMouseMove({ x:mx, y:my, price:fromY(my), idx })
   }
 
   function handleClick(e) {
@@ -510,7 +515,7 @@ export function CandleSvg({
   return (
     <svg ref={svgRef} width={W} height={totalH}
       style={{display:'block',background:'#F1F5F9',borderRadius:8,cursor:drawTool!=='none'?'crosshair':'default'}}
-      onMouseMove={handleMouseMove} onMouseLeave={()=>setTooltip(null)}
+      onMouseMove={handleMouseMove} onMouseLeave={()=>{setTooltip(null);if(onChartMouseLeave)onChartMouseLeave()}}
       onClick={handleClick}>
 
       <defs>
@@ -583,7 +588,7 @@ export function CandleSvg({
 
       {/* MA 라인 */}
       {maLines.map(ma=>(
-        <polyline key={ma.p} points={ma.pts} fill="none" stroke={ma.color} strokeWidth={1.3} opacity={0.85}/>
+        <polyline key={ma.p} points={ma.pts} fill="none" stroke={ma.color} strokeWidth={ma.width||1.3} opacity={0.85}/>
       ))}
 
       {/* 볼린저밴드 */}
@@ -761,19 +766,26 @@ export function CandleSvg({
       {/* 드로잉 */}
       {drawings.map((d, i) => {
         const isSelected = i === selectedIdx
-        const lineColor  = d.color || '#f59e0b'
+        const dc = d.color || '#f59e0b'
+        const dw = d.width || 1.5
+        const dd = d.dash==='dashed'?'6,3':d.dash==='dotted'?'2,3':undefined
         if (d.type==='hline') {
           const y=toY(d.price)
           if(y<PAD.top||y>PAD.top+PRICE_H) return null
           return (
             <g key={i} style={{cursor:'pointer'}} onClick={e=>{e.stopPropagation();onSelectDrawing?.(i)}}>
-              <line x1={PAD.left} x2={PAD.left+chartW} y1={y} y2={y} stroke={lineColor} strokeWidth={isSelected?2:1.5} strokeDasharray="6,3"/>
-              <rect x={PAD.left+chartW} y={y-9} width={64} height={18} fill={isSelected?'rgba(37,99,235,0.15)':'rgba(241,245,249,0.95)'} stroke={lineColor} rx={3}/>
-              <text x={PAD.left+chartW+4} y={y+4} fontSize={9} fill={lineColor}>{fmtN(Math.round(d.price))}</text>
+              <line x1={PAD.left} x2={PAD.left+chartW} y1={y} y2={y} stroke={dc} strokeWidth={isSelected?dw+0.8:dw} strokeDasharray={dd}/>
+              <rect x={PAD.left+chartW} y={y-9} width={64} height={18} fill={isSelected?'rgba(37,99,235,0.15)':'rgba(241,245,249,0.95)'} stroke={dc} rx={3}
+                onDoubleClick={e=>{e.stopPropagation();onEditPrice?.(i, d.price)}}
+                style={{cursor:'text'}}/>
+              <text x={PAD.left+chartW+4} y={y+4} fontSize={9} fill={dc}
+                onDoubleClick={e=>{e.stopPropagation();onEditPrice?.(i, d.price)}}
+                style={{cursor:'text', userSelect:'none'}}
+                title="더블클릭으로 가격 수정">{fmtN(Math.round(d.price))}</text>
             </g>
           )
         }
-        if (d.type==='trend'&&d.x1!=null) return <line key={i} x1={d.x1} y1={d.y1} x2={d.x2} y2={d.y2} stroke="#8b5cf6" strokeWidth={isSelected?2.5:1.5} style={{cursor:'pointer'}} onClick={e=>{e.stopPropagation();onSelectDrawing?.(i)}}/>
+        if (d.type==='trend'&&d.x1!=null) return <line key={i} x1={d.x1} y1={d.y1} x2={d.x2} y2={d.y2} stroke={dc} strokeWidth={isSelected?dw+0.8:dw} strokeDasharray={dd} style={{cursor:'pointer'}} onClick={e=>{e.stopPropagation();onSelectDrawing?.(i)}}/>
         if (d.type==='fib'&&d.x1!=null) {
           const levels=[0,0.236,0.382,0.5,0.618,0.786,1]
           const fibColors=['#ef4444','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ec4899','#64748b']
@@ -800,6 +812,22 @@ export function CandleSvg({
         }
         return null
       })}
+
+      {/* 드로잉 hover 프리뷰 */}
+      {mousePos && drawTool !== 'none' && drawTool !== 'text' && (() => {
+        const previewDash = lineDash==='dashed'?'6,3':lineDash==='dotted'?'2,3':undefined
+        if (drawTool==='hline') {
+          const y = mousePos.y
+          if (y<PAD.top||y>PAD.top+PRICE_H) return null
+          return <line x1={PAD.left} x2={PAD.left+chartW} y1={y} y2={y}
+            stroke={lineColor} strokeWidth={lineWidth} strokeDasharray={previewDash} opacity={0.5}/>
+        }
+        if ((drawTool==='trend'||drawTool==='fib') && drawState) {
+          return <line x1={drawState.x1} y1={drawState.y1} x2={mousePos.x} y2={mousePos.y}
+            stroke={lineColor} strokeWidth={lineWidth} strokeDasharray={previewDash} opacity={0.5}/>
+        }
+        return null
+      })()}
 
       {/* 크로스헤어 */}
       {td && tooltip.svgY>=PAD.top && tooltip.svgY<=PAD.top+PRICE_H && (<>
@@ -828,33 +856,34 @@ export function CandleSvg({
 }
 
 // ── 드로잉 핸들러 유틸 ────────────────────────────────────
-export function handleDrawClick({ drawTool, setDrawTool, drawState, setDrawState, drawings, saveDrawings, x, y, price, idx, data }) {
+export function handleDrawClick({ drawTool, setDrawTool, drawState, setDrawState, drawings, saveDrawings, x, y, price, idx, data, lineColor='#f59e0b', lineWidth=1.5, lineDash='solid' }) {
   if (drawTool==='none') return
+  const style = { color: lineColor, width: lineWidth, dash: lineDash }
   if (drawTool==='hline') {
-    saveDrawings([...drawings, { type:'hline', price }])
+    saveDrawings([...drawings, { type:'hline', price, ...style }])
   } else if (drawTool==='split3') {
     const prices=data.map(c=>c.close).filter(Boolean)
     if (!prices.length) return
     const lo=Math.min(...prices), hi=Math.max(...prices), r=hi-lo
     saveDrawings([...drawings,
-      { type:'hline', price:lo+r/3,   color:'#06b6d4' },
-      { type:'hline', price:lo+r*2/3, color:'#06b6d4' },
+      { type:'hline', price:lo+r/3,   color:lineColor, width:lineWidth, dash:lineDash },
+      { type:'hline', price:lo+r*2/3, color:lineColor, width:lineWidth, dash:lineDash },
     ]); setDrawTool('none')
   } else if (drawTool==='split4') {
     const prices=data.map(c=>c.close).filter(Boolean)
     if (!prices.length) return
     const lo=Math.min(...prices), hi=Math.max(...prices), r=hi-lo
     saveDrawings([...drawings,
-      { type:'hline', price:lo+r*0.25, color:'#f472b6' },
-      { type:'hline', price:lo+r*0.50, color:'#f472b6' },
-      { type:'hline', price:lo+r*0.75, color:'#f472b6' },
+      { type:'hline', price:lo+r*0.25, color:lineColor, width:lineWidth, dash:lineDash },
+      { type:'hline', price:lo+r*0.50, color:lineColor, width:lineWidth, dash:lineDash },
+      { type:'hline', price:lo+r*0.75, color:lineColor, width:lineWidth, dash:lineDash },
     ]); setDrawTool('none')
   } else if (drawTool==='trend'||drawTool==='fib') {
     if (!drawState) {
       setDrawState({ x1:x, y1:y, price1:price })
     } else {
-      if (drawTool==='trend') saveDrawings([...drawings, { type:'trend', x1:drawState.x1, y1:drawState.y1, x2:x, y2:y }])
-      else saveDrawings([...drawings, { type:'fib', x1:drawState.x1, y1:drawState.y1, x2:x, y2:y, price1:drawState.price1, price2:price }])
+      if (drawTool==='trend') saveDrawings([...drawings, { type:'trend', x1:drawState.x1, y1:drawState.y1, x2:x, y2:y, ...style }])
+      else saveDrawings([...drawings, { type:'fib', x1:drawState.x1, y1:drawState.y1, x2:x, y2:y, price1:drawState.price1, price2:price, ...style }])
       setDrawState(null)
     }
   } else if (drawTool==='text') {

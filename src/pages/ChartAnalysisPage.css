@@ -1,8 +1,5 @@
-/* ChartAnalysisPage.css — Full-page 재설계 (TradingView 스타일) */
 
-/* ══════════════════════════════════════════════════
-   1. 페이지 루트
-   ══════════════════════════════════════════════════ */
+
 .cap-page {
   display: flex;
   height: calc(100vh - 72px); /* ticker 28px + gnb 44px */
@@ -12,20 +9,17 @@
   position: relative;
 }
 
-/* ══════════════════════════════════════════════════
-   2. 좌측 사이드바
-   ══════════════════════════════════════════════════ */
 .cap-sidebar {
-  width: 220px; min-width: 220px;
+  width: 280px; min-width: 280px;
   background: var(--bg-panel); border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
   overflow: hidden; flex-shrink: 0; transition: width .2s, min-width .2s;
 }
 .cap-sidebar.collapsed { width: 0; min-width: 0; }
 
-/* 토글 버튼 */
+/* ?좉? 踰꾪듉 */
 .cap-sb-toggle {
-  position: absolute; left: 220px; top: 50%; transform: translateY(-50%);
+  position: absolute; top: 50%; transform: translateY(-50%);
   width: 16px; height: 44px; background: var(--bg-panel);
   border: 1px solid var(--border); border-left: none;
   border-radius: 0 6px 6px 0; cursor: pointer; z-index: 50;
@@ -36,7 +30,7 @@
 .cap-sb-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
 .cap-sb-toggle.collapsed { left: 0; }
 
-/* 검색 */
+/* 寃??*/
 .cap-sb-search { padding: 8px 8px 6px; border-bottom: 1px solid var(--border); flex-shrink: 0; position: relative; }
 .cap-sb-search-box {
   display: flex; align-items: center; gap: 6px;
@@ -54,7 +48,7 @@
 .cap-sb-clear { background: none; border: none; cursor: pointer; color: var(--text-dim); font-size: 11px; padding: 0 2px; }
 .cap-sb-clear:hover { color: #dc2626; }
 
-/* 드롭다운 */
+/* ?쒕∼?ㅼ슫 */
 .cap-sb-dropdown {
   position: absolute; top: 100%; left: 8px; right: 8px;
   background: var(--bg-panel); border: 1px solid var(--border);
@@ -83,7 +77,7 @@
 .cap-sb-dd-footer { padding: 4px 10px; font-size: 9px; color: var(--text-dim); background: var(--bg-base); border-top: 1px solid var(--border-dim); display: flex; gap: 8px; }
 .cap-sb-dd-empty { padding: 14px; text-align: center; color: var(--text-dim); font-size: 12px; }
 
-/* 최근 칩 */
+/* 理쒓렐 移?*/
 .cap-sb-recent { padding: 5px 8px 6px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .cap-sb-recent-label { font-size: 9px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 4px; }
 .cap-sb-chips { display: flex; flex-wrap: wrap; gap: 3px; }
@@ -94,7 +88,7 @@
 }
 .cap-sb-chip:hover { border-color: var(--accent-mid); color: var(--accent-mid); }
 
-/* 탭 */
+/* ??*/
 .cap-sb-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .cap-sb-tab {
   flex: 1; padding: 7px 0; font-size: 11px; font-weight: 600;
@@ -104,10 +98,9 @@
 }
 .cap-sb-tab.active { color: var(--accent-mid); border-bottom-color: var(--accent-mid); }
 
-/* 카테고리 셀렉트 */
+/* 移댄뀒怨좊━ ??됲듃 */
 .cap-sb-cat { width: 100%; padding: 5px 8px; font-size: 11px; background: var(--bg-base); border: none; border-bottom: 1px solid var(--border); color: var(--text-secondary); outline: none; cursor: pointer; font-family: var(--font-kr, sans-serif); flex-shrink: 0; }
 
-/* 종목 목록 */
 .cap-sb-list { flex: 1; overflow-y: auto; min-height: 0; }
 .cap-sb-stock {
   display: flex; align-items: center; justify-content: space-between;
@@ -123,14 +116,11 @@
 .cap-sb-srate  { font-size: 10px; font-weight: 600; display: block; text-align: right; }
 .cap-sb-empty  { padding: 20px 10px; text-align: center; color: var(--text-dim); font-size: 12px; }
 
-/* ══════════════════════════════════════════════════
-   3. 메인 영역
-   ══════════════════════════════════════════════════ */
 .cap-main {
   flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden;
 }
 
-/* 빈 상태 */
+/* 鍮??곹깭 */
 .cap-empty {
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 10px;
@@ -148,9 +138,6 @@
 }
 .cap-empty-chip:hover { border-color: var(--accent-mid); color: var(--accent-mid); background: var(--accent-light); }
 
-/* ══════════════════════════════════════════════════
-   4. 헤더 카드
-   ══════════════════════════════════════════════════ */
 .cap-hdr {
   background: var(--bg-panel); border-bottom: 1px solid var(--border);
   padding: 8px 14px 6px; flex-shrink: 0;
@@ -177,7 +164,7 @@
 .cap-hdr-btn.x      { border-color: rgba(220,38,38,.2); color: #dc2626; }
 .cap-hdr-btn.x:hover{ background: rgba(220,38,38,.06); }
 
-/* 메트릭 바 */
+/* 硫뷀듃由?諛?*/
 .cap-metrics { display: flex; overflow-x: auto; scrollbar-width: none; }
 .cap-metrics::-webkit-scrollbar { display: none; }
 .cap-metric {
@@ -193,9 +180,6 @@
 .cap-mv.h52 { color: #dc2626; }
 .cap-mv.l52 { color: #1d4ed8; }
 
-/* ══════════════════════════════════════════════════
-   5. 툴바
-   ══════════════════════════════════════════════════ */
 .cap-tb {
   background: var(--bg-panel); border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -208,7 +192,7 @@
 .cap-tb-sep { width: 1px; height: 16px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
 .cap-tb-sp  { flex: 1; }
 
-/* 탭 그룹 버튼 */
+/* ??洹몃９ 踰꾪듉 */
 .cap-tg { display: flex; gap: 1px; }
 .cap-tg-btn {
   padding: 4px 9px; border: 1px solid transparent; border-radius: 5px;
@@ -235,7 +219,7 @@
 .cap-ma-chip.on  { font-weight: 700; }
 .cap-ma-chip.off { opacity: .35; }
 
-/* 지표 토글 */
+/* 吏???좉? */
 .cap-ind { display: flex; gap: 2px; }
 .cap-ind-btn {
   padding: 4px 9px; border: 1px solid var(--border); border-radius: 5px;
@@ -249,7 +233,7 @@
 .cap-ind-btn.on.stoch  { background: rgba(245,158,11,.06); border-color: #f59e0b; color: #d97706; }
 .cap-ind-btn.on.supply { background: rgba(16,185,129,.06); border-color: #10b981; color: #059669; }
 
-/* 드로잉 */
+/* ?쒕줈??*/
 .cap-draw-wr { position: relative; }
 .cap-draw-tog {
   padding: 4px 9px; border: 1px solid var(--border); border-radius: 5px;
@@ -279,7 +263,7 @@
   padding: 3px 8px; border-radius: 5px; border: 1px solid rgba(217,119,6,.3);
 }
 
-/* 우측 툴 */
+/* ?곗륫 ??*/
 .cap-tb-right { display: flex; gap: 3px; align-items: center; }
 .cap-tb-btn {
   padding: 4px 9px; border: 1px solid var(--border); border-radius: 5px;
@@ -289,14 +273,11 @@
 .cap-tb-btn:hover  { border-color: var(--accent-mid); color: var(--accent-mid); }
 .cap-tb-btn.active { background: var(--accent-light); border-color: var(--accent-mid); color: var(--accent-mid); }
 
-/* 뷰 전환 탭 */
+/* 酉??꾪솚 ??*/
 .cap-view-tabs { display: flex; gap: 2px; background: var(--bg-base); padding: 2px; border-radius: 7px; border: 1px solid var(--border); }
 .cap-view-tab  { padding: 3px 10px; border: none; border-radius: 5px; font-size: 11px; font-weight: 500; color: var(--text-secondary); background: none; cursor: pointer; font-family: var(--font-kr, sans-serif); transition: all .1s; }
 .cap-view-tab.active { background: var(--accent-mid); color: white; font-weight: 700; }
 
-/* ══════════════════════════════════════════════════
-   6. 차트 캔버스
-   ══════════════════════════════════════════════════ */
 .cap-canvas {
   flex: 1; min-height: 0; display: flex; flex-direction: column;
   overflow-y: auto; overflow-x: hidden; background: #F8FAFF;
@@ -310,10 +291,10 @@
 .cap-spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent-mid); border-radius: 50%; animation: capspin .8s linear infinite; flex-shrink: 0; }
 @keyframes capspin { to { transform: rotate(360deg); } }
 
-/* 서브차트 */
+/* ?쒕툕李⑦듃 */
 .cap-sub { flex-shrink: 0; position: relative; }
 
-/* 드래그 리사이즈 핸들 */
+/* ?쒕옒洹?由ъ궗?댁쫰 ?몃뱾 */
 .cap-resize-handle {
   height: 5px;
   flex-shrink: 0;
@@ -337,15 +318,12 @@
 .cap-resize-handle.dragging { background: rgba(37,99,235,.08); }
 .cap-resize-handle.dragging::after { width: 100%; background: var(--accent-mid); opacity: .5; }
 
-/* 텍스트 메모 */
+/* ?띿뒪??硫붾え */
 .cap-text-bar { position: absolute; bottom: 0; left: 0; right: 0; display: flex; gap: 6px; align-items: center; padding: 7px 12px; background: var(--bg-panel); border-top: 1px solid var(--border); z-index: 20; }
 .cap-text-input { flex: 1; padding: 5px 10px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--text-primary); outline: none; font-family: var(--font-kr, sans-serif); }
 .cap-text-input:focus { border-color: var(--accent-mid); }
 .cap-text-cancel { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); cursor: pointer; padding: 5px 9px; font-size: 11px; }
 
-/* ══════════════════════════════════════════════════
-   7. AI 패널
-   ══════════════════════════════════════════════════ */
 .cap-ai { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; background: var(--bg-base); }
 .cap-ai-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
 .cap-ai-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
@@ -357,10 +335,7 @@
 .cap-ai-warn  { padding: 9px 12px; border-radius: 7px; font-size: 12px; margin-bottom: 8px; background: rgba(217,119,6,.07); border: 1px solid rgba(217,119,6,.2); color: #d97706; }
 .cap-ai-error { padding: 9px 12px; border-radius: 7px; font-size: 12px; margin-bottom: 8px; background: rgba(220,38,38,.05); border: 1px solid rgba(220,38,38,.15); color: #dc2626; }
 
-/* ══════════════════════════════════════════════════
-   8. 수급 패널
-   ══════════════════════════════════════════════════ */
-/* 수급 패널 — 인라인 (차트 하단에 붙음, 오버레이 없음) */
+/* ?섍툒 ?⑤꼸 ???몃씪??(李⑦듃 ?섎떒??遺숈쓬, ?ㅻ쾭?덉씠 ?놁쓬) */
 .cap-sup-inline {
   flex-shrink: 0;
   background: var(--bg-panel);
@@ -373,9 +348,6 @@
 .cap-sup-body { flex: 1; overflow-y: auto; min-height: 0; }
 .cap-sup-loading { padding: 16px; text-align: center; color: var(--text-secondary); font-size: 12px; }
 
-/* ══════════════════════════════════════════════════
-   9. 팝업 (공시/뉴스/종목정보)
-   ══════════════════════════════════════════════════ */
 .cap-pop-wr { position: relative; }
 .cap-popup {
   position: absolute; top: calc(100% + 4px); right: 0;
@@ -399,34 +371,6 @@
 .cap-si-key { color: var(--text-secondary); }
 .cap-si-val { font-weight: 600; color: var(--text-primary); font-family: monospace; }
 
-/* ══════════════════════════════════════════════════
-   10. 전체화면
-   ══════════════════════════════════════════════════ */
-.cap-fs { position: fixed; inset: 0; background: var(--bg-base); z-index: 9999; display: flex; flex-direction: column; overflow: hidden; }
-.cap-fs-tb { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 6px 12px; background: var(--bg-panel); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.cap-fs-title { font-size: 13px; font-weight: 800; color: var(--text-primary); margin-right: 6px; white-space: nowrap; }
-.cap-fs-code  { font-size: 10px; color: var(--text-secondary); font-family: monospace; }
-.cap-fs-btn { padding: 3px 8px; border: 1px solid var(--border); border-radius: 5px; background: transparent; font-size: 11px; font-weight: 500; color: var(--text-secondary); cursor: pointer; font-family: var(--font-kr, sans-serif); transition: all .1s; white-space: nowrap; }
-.cap-fs-btn:hover  { border-color: var(--accent-mid); color: var(--accent-mid); }
-.cap-fs-btn.active { background: var(--accent-mid); border-color: var(--accent-mid); color: white; }
-.cap-fs-sep  { width: 1px; height: 16px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
-.cap-fs-close { padding: 4px 12px; background: #dc2626; color: white; border: none; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font-kr, sans-serif); white-space: nowrap; }
-.cap-fs-close:hover { opacity: .85; }
-.cap-fs-info { display: flex; flex-wrap: wrap; padding: 3px 10px; background: var(--bg-base); border-bottom: 1px solid var(--border); flex-shrink: 0; overflow-x: auto; }
-.cap-fs-info-item { display: flex; flex-direction: column; align-items: center; padding: 3px 10px; border-right: 1px solid var(--border); min-width: 50px; flex-shrink: 0; }
-.cap-fs-info-label { font-size: 9px; color: var(--text-dim); text-transform: uppercase; }
-.cap-fs-info-val   { font-size: 11px; font-weight: 700; color: var(--text-primary); font-family: monospace; }
-.cap-fs-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
-.cap-fs-loading { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 13px; padding: 40px; }
-.cap-fs-hint { font-size: 10px; color: #d97706; background: rgba(217,119,6,.1); padding: 3px 8px; border-radius: 5px; border: 1px solid rgba(217,119,6,.3); }
-.cap-fs-del  { color: #dc2626; border-color: rgba(220,38,38,.3); }
-.cap-fs-del:hover { background: #dc2626; color: white; }
-.cap-fs-group { display: flex; gap: 2px; flex-wrap: wrap; }
-.cap-fs-ma { font-size: 10px; font-weight: 700; }
-
-/* ══════════════════════════════════════════════════
-   11. 마크다운
-   ══════════════════════════════════════════════════ */
 .sc-md { font-family: var(--font-kr, sans-serif); }
 .sc-md-h1 { font-size: 15px; font-weight: 800; color: var(--text-primary); margin: 12px 0 5px; border-bottom: 2px solid var(--border); padding-bottom: 4px; }
 .sc-md-h2 { font-size: 14px; font-weight: 700; color: var(--text-primary); margin: 10px 0 4px; padding-left: 8px; border-left: 3px solid var(--accent-mid); }
@@ -436,11 +380,8 @@
 .sc-md-br { height: 6px; }
 .sc-md strong { color: var(--text-primary); font-weight: 700; }
 
-/* ══════════════════════════════════════════════════
-   12. 반응형
-   ══════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .cap-page { height: calc(100vh - 72px - 56px); } /* ticker+gnb + 하단탭바 */
+  .cap-page { height: calc(100vh - 72px - 56px); } /* ticker+gnb + ?섎떒??컮 */
   .cap-sidebar { width: 0; min-width: 0; position: absolute; z-index: 80; top: 0; bottom: 0; left: 0; }
   .cap-sidebar.open { width: 240px; min-width: 240px; box-shadow: var(--shadow-lg); }
   .cap-sb-toggle { display: none; }
@@ -448,3 +389,283 @@
   .cap-hdr-price { font-size: 17px; }
   .cap-tb-row { padding: 4px 8px; }
 }
+
+/* ── 차트 전체화면 모드 ─────────────────────────── */
+.cap-canvas-full {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1100;
+  background: var(--bg-base);
+  flex-direction: column;
+  border-radius: 0 !important;
+  overflow: auto !important;
+}
+
+/* ── MA 스타일 팝오버 ────────────────────────────── */
+.cap-ma-popover {
+  position: absolute; top: calc(100% + 6px); left: 0;
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px;
+  box-shadow: var(--shadow-md); z-index: 200;
+  display: flex; flex-direction: column; gap: 8px;
+  min-width: 180px;
+}
+.cap-ma-pop-row {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 10px;
+  font-size: 11px; color: var(--text-secondary);
+}
+.cap-ma-pop-w {
+  padding: 2px 6px; border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-base); color: var(--text-secondary);
+  font-size: 10px; cursor: pointer; transition: all .1s;
+}
+.cap-ma-pop-w:hover  { border-color: var(--accent-mid); color: var(--accent-mid); }
+.cap-ma-pop-w.active { background: var(--accent-mid); color: white; border-color: var(--accent-mid); }
+.cap-ma-reset {
+  font-size: 11px; padding: 2px 6px; border-radius: 5px;
+  border: 1px solid var(--border); background: var(--bg-base);
+  color: var(--text-secondary); cursor: pointer; margin-left: 2px;
+  transition: all .1s;
+}
+.cap-ma-reset:hover { border-color: var(--accent-mid); color: var(--accent-mid); }
+
+/* ── 메모 인풋 바 ────────────────────────────────── */
+.cap-memo-bar {
+  display: flex; align-items: center; gap: 6px;
+  flex: 1; min-width: 0; max-width: 300px;
+}
+.cap-memo-input {
+  flex: 1; min-width: 100px;
+  padding: 4px 10px; border: 1px solid var(--border);
+  border-radius: 7px; font-size: 12px;
+  font-family: var(--font-kr, sans-serif);
+  color: var(--text-primary); background: var(--bg-base);
+  outline: none; transition: border-color .12s;
+}
+.cap-memo-input:focus { border-color: var(--accent-mid); }
+.cap-memo-input::placeholder { color: var(--text-dim); }
+.cap-memo-input:disabled { opacity: .6; }
+.cap-memo-ok {
+  font-size: 11px; font-weight: 700;
+  color: #16a34a; white-space: nowrap;
+}
+
+/* ── 헤더 메모 인풋 (종목명/등락율 옆) ──────────── */
+.cap-hdr-memo {
+  display: flex; align-items: center; gap: 6px;
+  flex: 1; min-width: 0; margin: 0 8px;
+}
+.cap-hdr-memo-input {
+  flex: 1; min-width: 180px;
+  padding: 5px 12px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 13px;
+  font-family: var(--font-kr, sans-serif);
+  color: var(--text-primary); background: var(--bg-base);
+  outline: none; transition: border-color .12s;
+}
+.cap-hdr-memo-input:focus { border-color: var(--accent-mid); }
+.cap-hdr-memo-input::placeholder { color: var(--text-dim); }
+.cap-hdr-memo-input:disabled { opacity: .6; }
+
+/* ── 헤더 메모 저장/수정/취소 버튼 (gcm-memo-btn 재사용) ── */
+.gcm-memo-btn {
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  background: var(--bg-base); white-space: nowrap;
+  transition: all .12s; flex-shrink: 0;
+}
+.gcm-memo-btn.save { background: var(--accent-mid); color: white; border-color: var(--accent-mid); }
+.gcm-memo-btn.save:hover:not(:disabled) { opacity: .85; }
+.gcm-memo-btn.save:disabled { opacity: .4; cursor: not-allowed; }
+.gcm-memo-btn.edit { color: var(--accent-mid); border-color: var(--accent-mid); }
+.gcm-memo-btn.edit:hover { background: var(--accent-light); }
+.gcm-memo-btn.cancel { color: #dc2626; border-color: rgba(220,38,38,.3); }
+.gcm-memo-btn.cancel:hover { background: rgba(220,38,38,.08); }
+
+/* ── 드로잉 툴 인라인 펼침 ──────────────────────── */
+.cap-draw-inline {
+  display: flex; align-items: center; gap: 2px; flex-wrap: nowrap;
+}
+.cap-draw-flat {
+  padding: 3px 8px; border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-base); color: var(--text-secondary);
+  font-size: 11px; cursor: pointer; white-space: nowrap;
+  transition: all .12s;
+}
+.cap-draw-flat:hover:not(:disabled) {
+  border-color: var(--accent-mid); color: var(--accent-mid);
+}
+.cap-draw-flat.on {
+  background: var(--accent-mid); color: white;
+  border-color: var(--accent-mid); font-weight: 700;
+}
+.cap-draw-flat.undo:hover:not(:disabled) {
+  border-color: #64748b; color: #64748b;
+}
+.cap-draw-flat.del:hover:not(:disabled) {
+  border-color: #dc2626; color: #dc2626;
+}
+.cap-draw-flat:disabled {
+  opacity: .35; cursor: not-allowed;
+}
+.cap-draw-cnt {
+  font-size: 10px; color: var(--accent-mid);
+  font-weight: 700; padding: 0 2px;
+}
+
+/* ── 툴바+차트 전체화면 래퍼 ──────────────────────── */
+.cap-chart-area {
+  display: flex; flex-direction: column; flex: 1; overflow: hidden; min-height: 0;
+}
+.cap-chart-area.cap-canvas-full {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1100;
+  background: var(--bg-base);
+  overflow: auto !important;
+}
+
+/* ── 드로잉 select ────────────────────────────────── */
+.cap-draw-select {
+  padding: 2px 4px; border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-base); color: var(--text-secondary);
+  font-size: 11px; cursor: pointer;
+  outline: none;
+}
+.cap-draw-select:hover { border-color: var(--accent-mid); }
+
+/* ── 사이드바 리사이즈 핸들 ─────────────────────── */
+.cap-sb-resize-handle {
+  position: absolute;
+  top: 0; bottom: 0;
+  /* left는 JS sidebarW 기준 — 사이드바 우측에 붙음 */
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 50;
+  transition: background .15s;
+}
+.cap-sb-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px; height: 40px;
+  background: var(--border);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.cap-sb-resize-handle:hover { background: rgba(37,99,235,.06); }
+.cap-sb-resize-handle:hover::after { opacity: 1; }
+
+/* ── 관심종목 카테고리 관리 UI ──────────────────── */
+.cap-sb-cat-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px 4px; flex-shrink: 0;
+}
+.cap-sb-cat-add {
+  font-size: 11px; font-weight: 600; color: var(--accent-mid);
+  background: none; border: 1px solid var(--accent-mid);
+  border-radius: 5px; padding: 2px 7px; cursor: pointer;
+  transition: all .12s;
+}
+.cap-sb-cat-add:hover { background: var(--accent-light); }
+
+.cap-sb-cat-list {
+  padding: 0 6px 4px; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.cap-sb-cat-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px; border-radius: 7px; cursor: pointer;
+  border: 1px solid transparent;
+  transition: all .12s; position: relative;
+  border-left: 3px solid transparent;
+}
+.cap-sb-cat-item:hover { background: var(--bg-hover); border-left-color: var(--border); }
+.cap-sb-cat-item.active {
+  background: var(--accent-light);
+  border-color: var(--accent-mid);
+  border-left-color: var(--accent-mid);
+}
+.cap-sb-cat-name {
+  font-size: 12px; font-weight: 700; color: var(--text-primary);
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cap-sb-cat-cnt {
+  font-size: 10px; color: var(--accent-mid); font-weight: 700;
+  background: var(--accent-light); border: 1px solid var(--accent-mid);
+  border-radius: 10px; padding: 1px 7px; flex-shrink: 0;
+}
+.cap-sb-cat-actions {
+  display: none; gap: 2px; flex-shrink: 0;
+}
+.cap-sb-cat-item:hover .cap-sb-cat-actions { display: flex; }
+.cap-sb-cat-actions button {
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; padding: 1px 3px; border-radius: 4px;
+  opacity: 0.6; transition: opacity .1s;
+}
+.cap-sb-cat-actions button:hover { opacity: 1; background: var(--bg-hover); }
+
+/* ── 관심종목 종목행 줄무늬 배경 ────────────────── */
+.cap-sb-list .cap-sb-stock:nth-child(even) {
+  background: rgba(15,23,42,0.02);
+}
+.cap-sb-list .cap-sb-stock:nth-child(even):hover { background: var(--bg-hover); }
+
+/* ── 보유종목 전용 레이아웃 ─────────────────────── */
+.cap-sb-hold {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 1px 6px;
+  padding: 7px 10px;
+  width: 100%; text-align: left; background: none;
+  border: none; border-bottom: 1px solid var(--border-dim);
+  cursor: pointer; transition: background .08s;
+  font-family: var(--font-kr, sans-serif);
+}
+.cap-sb-hold:hover  { background: var(--bg-hover); }
+.cap-sb-hold.active { background: var(--accent-light); }
+
+/* 1행 좌: 종목명 */
+.cap-sb-hold-name {
+  font-size: 12px; font-weight: 700; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  grid-column: 1; grid-row: 1;
+}
+/* 1행 우: 수익률% */
+.cap-sb-hold-rate {
+  font-size: 11px; font-weight: 700;
+  grid-column: 2; grid-row: 1;
+  text-align: right; align-self: center;
+}
+/* 2행 좌: 수량 */
+.cap-sb-hold-qty {
+  font-size: 10px; color: var(--text-dim);
+  grid-column: 1; grid-row: 2;
+}
+/* 2행 우: 현재가 */
+.cap-sb-hold-price {
+  font-size: 11px; font-weight: 700;
+  grid-column: 2; grid-row: 2;
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+/* 3행: 평가손익 (full width) */
+.cap-sb-hold-pnl {
+  font-size: 10px; font-weight: 600;
+  grid-column: 1 / -1; grid-row: 3;
+  text-align: right; margin-top: 1px;
+}
+
+/* 줄무늬 */
+.cap-sb-list .cap-sb-hold:nth-child(even) {
+  background: rgba(15,23,42,0.02);
+}
+.cap-sb-list .cap-sb-hold:nth-child(even):hover { background: var(--bg-hover); }

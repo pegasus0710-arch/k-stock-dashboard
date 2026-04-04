@@ -43,6 +43,7 @@ export default function CandleSvg({
   onChartClick,
   onChartMouseMove,
   onChartMouseLeave,
+  onEditPrice,
   // 색상 accent (선형 차트용)
   accent = '#2563eb',
   // 크기 설정
@@ -164,11 +165,17 @@ export default function CandleSvg({
         <g key={key} opacity={op}>
           <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
             stroke={color} strokeWidth={sw} strokeDasharray={dash}/>
-          {!preview && (
-            <text x={W - PAD.right + 4} y={y + 4} fontSize="9" fill={color}>
+          {!preview && (<>
+            <rect x={W - PAD.right} y={y - 9} width={PAD.right - 2} height={18} fill="transparent"
+              style={{cursor:'text'}}
+              onDoubleClick={e=>{e.stopPropagation(); onEditPrice?.(key, d.price)}}/>
+            <text x={W - PAD.right + 4} y={y + 4} fontSize="9" fill={color}
+              style={{cursor:'text', userSelect:'none'}}
+              onDoubleClick={e=>{e.stopPropagation(); onEditPrice?.(key, d.price)}}
+              title="더블클릭으로 가격 수정">
               {fmtNum(d.price, d.price > 100 ? 0 : 2)}
             </text>
-          )}
+          </>)}
         </g>
       )
     }

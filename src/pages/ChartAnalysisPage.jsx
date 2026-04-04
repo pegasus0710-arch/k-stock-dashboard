@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { db } from '../firebase'
-import { collection, addDoc, Timestamp } from 'firebase/firestore'
+import { collection, doc, getDoc, setDoc, Timestamp } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import {
   CandleSvg, DrawingToolbar, SupplySubChart, EtfHoldingsPopup, MarkdownView,
@@ -328,116 +328,6 @@ function ResizeDivider({ onDrag, label }) {
   )
 }
 
-// ── FullscreenChart ───────────────────────────────────
-function FullscreenChart({ stock, initPeriod, initRange, initMA, initEMA, onClose }) {
-  const [period,    setPeriod]  = useState(initPeriod||'day')
-  const [scope,     setScope]   = useState('5')
-  const [range,     setRange]   = useState(initRange||3)
-  const [minDays,   setMinDays] = useState(1)
-  const [showMA,    setShowMA]  = useState(initMA??true)
-  const [enabledMA, setEnabledMA] = useState(initEMA||new Set([5,10,20,60,120]))
-  const [drawTool, setDrawTool] = useState('none')
-  const [drawState, setDrawState] = useState(null)
-  const [drawings, setDrawings] = useState(()=>lsGet(`${LS_DRAWINGS}_${stock.code}`,[]))
-  const [selIdx, setSelIdx] = useState(null)
-  const [textOverlay, setTextOverlay] = useState(null)
-  const [wrapEl, setWrapEl] = useState(null)
-  const [width, setWidth] = useState(1200)
-  const [fsShowSupply, setFsShowSupply] = useState(false)
-  const [fsSupplyData, setFsSupplyData] = useState(null)
-  const [fsSupplyLoad, setFsSupplyLoad] = useState(false)
-  const [fsBasicInfo, setFsBasicInfo]   = useState(null)
-  const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
-  const candles = useMemo(()=>{
-    if(period!=='min') return filterByRange(allData,range)
-    // 분봉: dayKey 기준으로 최근 minDays 영업일만 필터
-    const days=[...new Set(allData.map(c=>c.dayKey).filter(Boolean))].sort()
-    if(!days.length) return allData
-    const cutDay=days.at(-minDays)||days[0]
-    return allData.filter(c=>!c.dayKey||(c.dayKey>=cutDay))
-  },[allData,range,period,minDays])
-
-  useEffect(()=>{ if(!wrapEl) return; const ro=new ResizeObserver(([e])=>setWidth(e.contentRect.width)); ro.observe(wrapEl); setWidth(wrapEl.clientWidth); return()=>ro.disconnect() },[wrapEl])
-  useEffect(()=>{ const fn=e=>e.key==='Escape'&&onClose(); window.addEventListener('keydown',fn); return()=>window.removeEventListener('keydown',fn) },[onClose])
-  useEffect(()=>{
-    fetch(`/api/kiwoom?type=stockbasic&code=${stock.code}`).then(r=>r.json()).then(d=>{ if(!d.error) setFsBasicInfo(d) }).catch(()=>{})
-  },[stock.code])
-
-  const saveD = next => { setDrawings(next); lsSet(`${LS_DRAWINGS}_${stock.code}`, next) }
-  function handleSvgClick(args) {
-    const r=handleDrawClick({ drawTool,setDrawTool,drawState,setDrawState,drawings,saveDrawings:saveD,...args,data:candles })
-    if(r?.textOverlay) setTextOverlay(r.textOverlay)
-  }
-
-  return (
-    <div className="cap-fs">
-      <div className="cap-fs-tb">
-        <span className="cap-fs-title">{stock.name}</span>
-        <span className="cap-fs-code">{stock.code}</span>
-        <div className="cap-fs-sep"/>
-        <div className="cap-fs-group">{PERIODS.map(p=><button key={p.key} className={`cap-fs-btn ${period===p.key?'active':''}`} onClick={()=>setPeriod(p.key)}>{p.label}</button>)}</div>
-        {period==='min'&&(<>
-          <div className="cap-fs-sep"/>
-          <div className="cap-fs-group">{MIN_SCOPES.map(s=><button key={s} className={`cap-fs-btn ${scope===s?'active':''}`} onClick={()=>setScope(s)}>{s}분</button>)}</div>
-          <div className="cap-fs-sep"/>
-          <div className="cap-fs-group">
-            {[{label:'당일',days:1},{label:'3일',days:3},{label:'5일',days:5},{label:'10일',days:10},{label:'20일',days:20},{label:'30일',days:30}]
-              .map(r=><button key={r.days} className={`cap-fs-btn ${minDays===r.days?'active':''}`} onClick={()=>setMinDays(r.days)}>{r.label}</button>)}
-          </div>
-        </>)}
-        {period!=='min'&&<><div className="cap-fs-sep"/><div className="cap-fs-group">{RANGES.map(r=><button key={r.label} className={`cap-fs-btn ${range===r.months?'active':''}`} onClick={()=>{setRange(r.months)}}>{r.label}</button>)}</div></>}
-        <div className="cap-fs-sep"/>
-        <div className="cap-fs-group">
-          <button className={`cap-fs-btn ${showMA?'active':''}`} onClick={()=>setShowMA(v=>!v)}>MA</button>
-          {showMA&&MA_SETTINGS.map(m=><button key={m.p} className={`cap-fs-btn cap-fs-ma ${enabledMA.has(m.p)?'active':''}`} style={enabledMA.has(m.p)?{color:m.color,borderColor:m.color}:{}} onClick={()=>toggleMA(m.p)}>{m.label}</button>)}
-        </div>
-        <div className="cap-fs-sep"/>
-        <div className="cap-fs-group">
-          {DRAW_TOOLS.map(t=><button key={t.id} className={`cap-fs-btn ${drawTool===t.id?'active':''}`} onClick={()=>{setDrawTool(t.id);setDrawState(null)}}>{t.label}</button>)}
-          {drawings.length>0&&<button className="cap-fs-btn cap-fs-del" onClick={()=>{saveD([]);setDrawState(null)}}>🗑 초기화</button>}
-        </div>
-        <div style={{marginLeft:'auto',display:'flex',gap:5,alignItems:'center'}}>
-          {drawState&&<div className="cap-fs-hint">{drawTool==='trend'?'2번째 점 클릭':'끝점 클릭'}</div>}
-          {fsSupplyLoad&&<span style={{fontSize:11,color:'var(--text-secondary)'}}>⟳</span>}
-          <button className={`cap-fs-btn ${fsShowSupply?'active':''}`} onClick={()=>setFsShowSupply(v=>!v)}>📊 수급</button>
-          <button className="cap-fs-close" onClick={onClose}>✕ 닫기</button>
-        </div>
-      </div>
-      {fsBasicInfo&&Object.keys(fsBasicInfo).length>0&&(
-        <div className="cap-fs-info">
-          {[
-            fsBasicInfo.mac?['시가총액',(Number(String(fsBasicInfo.mac).replace(/,/g,''))/100000000).toFixed(0)+'억']:null,
-            fsBasicInfo.per&&fsBasicInfo.per!=='0'?['PER',Number(fsBasicInfo.per).toFixed(1)+'배']:null,
-            fsBasicInfo.pbr&&fsBasicInfo.pbr!=='0'?['PBR',Number(fsBasicInfo.pbr).toFixed(2)+'배']:null,
-            fsBasicInfo.eps&&fsBasicInfo.eps!=='0'?['EPS',Number(fsBasicInfo.eps).toLocaleString('ko-KR')+'원']:null,
-            fsBasicInfo.roe&&fsBasicInfo.roe!=='0'?['ROE',Number(fsBasicInfo.roe).toFixed(1)+'%']:null,
-            fsBasicInfo.for_exh_rt?['외국인',fsBasicInfo.for_exh_rt+'%']:null,
-          ].filter(Boolean).map(([l,v])=>(
-            <div key={l} className="cap-fs-info-item"><span className="cap-fs-info-label">{l}</span><span className="cap-fs-info-val">{v}</span></div>
-          ))}
-        </div>
-      )}
-      <div className="cap-fs-body" ref={setWrapEl}>
-        {loading&&<div className="cap-fs-loading"><div className="cap-spinner"/>불러오는 중...</div>}
-        {!loading&&candles.length>0&&<CandleSvg data={candles} width={width} height={chartH} showMA={showMA} enabledMA={enabledMA} drawings={drawings} onSvgClick={handleSvgClick} drawTool={drawTool} selectedIdx={selIdx} onSelectDrawing={setSelIdx} period={period}/>}
-        {!loading&&!candles.length&&<div style={{padding:80,textAlign:'center',color:'var(--text-secondary)'}}>데이터가 없습니다</div>}
-        {fsShowSupply&&fsSupplyData&&<SupplySubChart supplyData={fsSupplyData} candles={candles}/>}
-        {fsShowSupply&&fsSupplyLoad&&<div style={{padding:12,textAlign:'center',background:'var(--bg-base)',color:'var(--text-secondary)',fontSize:12}}><div className="cap-spinner" style={{display:'inline-block',marginRight:6}}/>수급 로딩 중...</div>}
-      </div>
-      {textOverlay&&(
-        <div className="cap-text-popup-fs" style={{display:'flex',gap:6,alignItems:'center',padding:'8px 14px',background:'var(--bg-panel)',borderTop:'1px solid var(--border)',flexShrink:0}}>
-          <input autoFocus style={{flex:1,padding:'6px 10px',background:'var(--bg-base)',border:'1px solid var(--border)',borderRadius:6,fontSize:12,color:'var(--text-primary)',outline:'none',fontFamily:'inherit'}} placeholder="메모 입력 후 Enter"
-            onKeyDown={e=>{
-              if(e.key==='Enter'&&e.target.value.trim()){saveD([...drawings,{type:'text',price:textOverlay.price,bxVal:textOverlay.x,text:e.target.value.trim()}]);setTextOverlay(null);setDrawTool('none')}
-              if(e.key==='Escape') setTextOverlay(null)
-            }}/>
-          <button style={{background:'none',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-secondary)',cursor:'pointer',padding:'5px 9px',fontSize:11}} onClick={()=>setTextOverlay(null)}>✕</button>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ══════════════════════════════════════════════════════
 // 메인 ChartAnalysisPage
 // ══════════════════════════════════════════════════════
@@ -489,6 +379,12 @@ export default function ChartAnalysisPage() {
     if (cfg.showStoch!=null) setShowStoch(cfg.showStoch)
     if (cfg.enabledMA)       setEnabledMA(new Set(cfg.enabledMA))
     if (cfg.volH)            setVolH(cfg.volH)
+    // MA 스타일 재동기화 — Firestore JSON 직렬화로 숫자 키→문자열 변환 → 숫자로 복원
+    const savedMaStyle = getSetting('chart', 'cap_ma_style', null)
+    if (savedMaStyle) {
+      const normalized = Object.fromEntries(Object.entries(savedMaStyle).map(([k,v])=>[Number(k),v]))
+      setMaStyle(normalized)
+    }
     if (cfg.subH_rsi || cfg.subH_macd || cfg.subH_stoch) {
       setSubHeights(prev => ({
         rsi:   cfg.subH_rsi   || prev.rsi,
@@ -529,12 +425,37 @@ export default function ChartAnalysisPage() {
 
   // ── UI 상태 ───────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  // 사이드바 너비 — localStorage 저장
+  const [sidebarW, setSidebarW] = useState(() => {
+    try { return Number(localStorage.getItem('cap_sidebar_w')) || 280 } catch { return 280 }
+  })
+  const onSidebarResize = useCallback((e) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = sidebarW
+    const onMove = (ev) => {
+      const next = Math.max(180, Math.min(480, startW + ev.clientX - startX))
+      setSidebarW(next)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setSidebarW(prev => { try { localStorage.setItem('cap_sidebar_w', prev) } catch {} return prev })
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [sidebarW])
   const [wlTab, setWlTab] = useState('watch')
   const [wlCats, setWlCats] = useState(()=>getWlCats([]))
   const [selCatId, setSelCatId] = useState('')
   const [activeView, setActiveView] = useState('chart') // 'chart'|'ai'
   const [showFull, setShowFull] = useState(false)
-  const [drawMenuOpen, setDrawMenuOpen] = useState(false)
+  // 전체화면 ESC 닫기
+  useEffect(() => {
+    const fn = e => { if (e.key === 'Escape' && showFull) setShowFull(false) }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [showFull])
   const [infoPopup, setInfoPopup] = useState(null) // 'disc'|'news'|'si'
   // 우측 정보 패널
   const [rightPanel, setRightPanel] = useState(false)  // 패널 열림 여부
@@ -564,9 +485,42 @@ export default function ChartAnalysisPage() {
   const [minDays,   setMinDays]   = useState(1)
   const [showMA,    setShowMA]    = useState(_cfg.showMA  ?? true)
   const [enabledMA, setEnabledMA] = useState(new Set(_cfg.enabledMA || [5,10,20,60,120]))
+
+  // MA 색상/두께 커스터마이징 — GlobalChartModal과 동일 키 체계
+  const DEFAULT_CAP_MA_STYLE = {
+    5:   { color: '#f59e0b', width: 1.2 },
+    10:  { color: '#94a3b8', width: 1.0 },
+    20:  { color: '#a78bfa', width: 2.0 },
+    60:  { color: '#22c55e', width: 1.5 },
+    120: { color: '#f43f5e', width: 1.2 },
+  }
+  const [maStyle, setMaStyle] = useState(
+    () => getSetting('chart', 'cap_ma_style', DEFAULT_CAP_MA_STYLE) || DEFAULT_CAP_MA_STYLE
+  )
+  const [maPopover, setMaPopover] = useState(null) // 5|10|20|60|120|null
+  const onMaStyleChange = (p, key, val) => {
+    setMaStyle(prev => {
+      const np = Number(p)
+      const next = { ...prev, [np]: { ...(prev[np]||{}), [key]: val } }
+      setSetting('chart', 'cap_ma_style', next)
+      return next
+    })
+  }
+  const onMaStyleReset = () => {
+    setMaStyle(DEFAULT_CAP_MA_STYLE)
+    setSetting('chart', 'cap_ma_style', DEFAULT_CAP_MA_STYLE)
+  }
   const [drawTool,  setDrawTool]  = useState('none')
   const [drawState, setDrawState] = useState(null)
   const [drawings,  setDrawings]  = useState([])
+  const [mousePos,  setMousePos]  = useState(null)  // 드로잉 호버 프리뷰용
+  // 수평선 가격 직접 편집
+  const [editPriceIdx,  setEditPriceIdx]  = useState(null)
+  const [editPriceVal,  setEditPriceVal]  = useState('')
+  // 선 스타일 설정
+  const [lineColor, setLineColor] = useState('#f59e0b')
+  const [lineWidth, setLineWidth] = useState(1.5)
+  const [lineDash,  setLineDash]  = useState('solid') // 'solid'|'dashed'|'dotted'
   const [selIdx,    setSelIdx]    = useState(null)
   const [textInput, setTextInput] = useState(null)
   const [chartWrap, setChartWrap] = useState(null)
@@ -574,16 +528,21 @@ export default function ChartAnalysisPage() {
   const [chartH,    setChartH]    = useState(500)
 
   // ── 지표 토글 (Firestore 설정 저장) ─────────────────
-  const [showBB,    setShowBB]    = useState(_cfg.showBB    ?? true)
-  const [showRSI,   setShowRSI]   = useState(_cfg.showRSI   ?? true)
+  const [showBB,    setShowBB]    = useState(_cfg.showBB    ?? false)
+  const [showRSI,   setShowRSI]   = useState(_cfg.showRSI   ?? false)
   const [showMACD,  setShowMACD]  = useState(_cfg.showMACD  ?? false)
   const [showStoch, setShowStoch] = useState(_cfg.showStoch ?? false)
   const [showSup,   setShowSup]   = useState(false)
 
-  // 설정 변경 저장 헬퍼
+  // ── 서브차트 높이 (드래그 리사이즈) ──────────────
+  const [subHeights, setSubHeights] = useState({
+    rsi:   _cfg.subH_rsi   || 80,
+    macd:  _cfg.subH_macd  || 96,
+    stoch: _cfg.subH_stoch || 74,
+  })
+  const [volH, setVolH] = useState(_cfg.volH || 56)
+
   // ── 차트 설정 일괄 저장 (상태 변경 감지) ────────────
-  // 각 항목에 saveChartCfg 호출 대신, 상태 변경 시 useEffect로 한 번에 저장
-  // Strict Mode / 클로저 이슈 완전 우회
   useEffect(() => {
     const cfg = {
       period, scope, range,
@@ -597,14 +556,6 @@ export default function ChartAnalysisPage() {
     try { localStorage.setItem('cap_chart_config', JSON.stringify(cfg)) } catch {}
     setSetting('chart', 'cap_chart_config', cfg)
   }, [period, scope, range, showMA, enabledMA, showBB, showRSI, showMACD, showStoch, subHeights, volH])
-
-  // ── 서브차트 높이 (드래그 리사이즈) ──────────────
-  const [subHeights, setSubHeights] = useState({
-    rsi:   _cfg.subH_rsi   || 80,
-    macd:  _cfg.subH_macd  || 96,
-    stoch: _cfg.subH_stoch || 74,
-  })
-  const [volH, setVolH] = useState(_cfg.volH || 56)
   const updateSubH = (key, delta) => setSubHeights(prev => ({
     ...prev, [key]: Math.max(50, Math.min(200, prev[key] + delta))
   }))
@@ -719,12 +670,97 @@ export default function ChartAnalysisPage() {
     fetch(`/api/kiwoom?type=stockbasic&code=${stock.code}`).then(r=>r.json()).then(d=>{if(!d.error)setBasicInfo(d)}).catch(()=>{})
   }
 
+  // ── 메모 (GlobalChartModal과 동일 컬렉션·문서 공유) ──────
+  const [memoText,   setMemoText]   = useState('')
+  const [memoSaving, setMemoSaving] = useState(false)
+  const [memoSaved,  setMemoSaved]  = useState(false)
+  const [memoEditing,setMemoEditing]= useState(false)
+  const [memoLoaded, setMemoLoaded] = useState(false)
+
+  // 종목 변경 시 기존 메모 로드
+  useEffect(() => {
+    if (!user || !selected) { setMemoText(''); setMemoLoaded(false); return }
+    const docId = `chart_${selected.code}`
+    getDoc(doc(db, 'users', user.uid, 'memos', docId)).then(snap => {
+      if (snap.exists()) {
+        setMemoText(snap.data().content || '')
+        setMemoLoaded(true)
+      } else {
+        setMemoText('')
+        setMemoLoaded(false)
+      }
+      setMemoEditing(false)
+    }).catch(() => {})
+  }, [user, selected?.code])
+
+  const saveMemo = useCallback(async () => {
+    const text = memoText.trim()
+    if (!user || !selected) return
+    setMemoSaving(true)
+    try {
+      const now = Timestamp.fromDate(new Date())
+      const docId = `chart_${selected.code}`
+      const docRef = doc(db, 'users', user.uid, 'memos', docId)
+      const snap = await getDoc(docRef)
+      await setDoc(docRef, {
+        title:      `[차트메모] ${selected.name || selected.code}`,
+        content:    text,
+        category:   '차트메모',
+        tags:       ['차트메모', selected.code, selected.name].filter(Boolean),
+        bgColor:    '#F0FDF4',
+        titleColor: '#14532D',
+        textColor:  '#1e293b',
+        fontSize:   13,
+        pinned:     false,
+        createdAt:  snap.exists() ? snap.data().createdAt : now,
+        updatedAt:  now,
+      })
+      setMemoLoaded(true)
+      setMemoEditing(false)
+      setMemoSaved(true)
+      setTimeout(() => setMemoSaved(false), 2000)
+    } catch(e) { console.error('[cap] memo save error:', e) }
+    finally { setMemoSaving(false) }
+  }, [memoText, user, selected])
+
+  // ── 관심종목 카테고리 추가/삭제 ──────────────────
+  const addWlCat = () => {
+    const name = prompt('새 카테고리 이름을 입력하세요')?.trim()
+    if (!name) return
+    const next = [...wlCats, { id: Date.now().toString(), name, stocks: [] }]
+    setWlCats(next); saveWlCats(next)
+  }
+  const delWlCat = (catId) => {
+    if (!window.confirm('카테고리를 삭제하시겠습니까?')) return
+    const next = wlCats.filter(c => c.id !== catId)
+    setWlCats(next); saveWlCats(next)
+    if (selCatId === catId) setSelCatId('')
+  }
+  const renameWlCat = (catId) => {
+    const cat = wlCats.find(c => c.id === catId)
+    if (!cat) return
+    const name = prompt('새 이름을 입력하세요', cat.name)?.trim()
+    if (!name) return
+    const next = wlCats.map(c => c.id === catId ? { ...c, name } : c)
+    setWlCats(next); saveWlCats(next)
+  }
+
+  // 수평선 가격 편집 확정
+  const confirmEditPrice = () => {
+    const num = Number(String(editPriceVal).replace(/,/g,''))
+    if (!isNaN(num) && num > 0 && editPriceIdx !== null) {
+      const next = drawings.map((d,i) => i===editPriceIdx ? {...d, price:num} : d)
+      saveDrawings(next)
+    }
+    setEditPriceIdx(null); setEditPriceVal('')
+  }
+
   const saveDrawings = next => {
     setDrawings(next)
     if(selected) fbSaveDrawings(`${LS_DRAWINGS}_${selected.code}`, next)
   }
   const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
-  const handleInlineClick = args => { const r=handleDrawClick({drawTool,setDrawTool,drawState,setDrawState,drawings,saveDrawings,...args,data:candles}); if(r?.textOverlay) setTextInput(r.textOverlay) }
+  const handleInlineClick = args => { const r=handleDrawClick({drawTool,setDrawTool,drawState,setDrawState,drawings,saveDrawings,...args,data:candles,lineColor,lineWidth,lineDash}); if(r?.textOverlay) setTextInput(r.textOverlay) }
 
   const toggleWatch = () => {
     if(!selected) return
@@ -812,7 +848,7 @@ export default function ChartAnalysisPage() {
     <div className="cap-page">
 
       {/* ── 사이드바 ── */}
-      <div className={`cap-sidebar ${sidebarOpen?'':'collapsed'}`}>
+      <div className={`cap-sidebar ${sidebarOpen?'':'collapsed'}`} style={sidebarOpen?{width:sidebarW,minWidth:sidebarW}:{}}>
         {/* 검색 */}
         <div className="cap-sb-search">
           <div className="cap-sb-search-box">
@@ -820,13 +856,34 @@ export default function ChartAnalysisPage() {
             <input ref={searchRef} className="cap-sb-search-input"
               placeholder={slLoading?'로딩 중...':'종목명·코드 검색'}
               value={query} onChange={e=>search(e.target.value)}
-              onFocus={()=>query&&setShowDrop(true)}
+              onFocus={()=>{ if(query) setShowDrop(true); else if(recent.length) setShowDrop(true) }}
               onKeyDown={handleKey}
               onBlur={()=>setTimeout(()=>setShowDrop(false),150)}/>
             {query&&<button className="cap-sb-clear" onClick={()=>{setQuery('');setResults([]);setShowDrop(false);searchRef.current?.focus()}}>✕</button>}
           </div>
 
           {/* 드롭다운 */}
+          {showDrop&&!query&&recent.length>0&&(
+            <div className="cap-sb-dropdown">
+              <div className="cap-sb-dd-glabel" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span>최근 검색</span>
+                <button style={{fontSize:10,color:'var(--text-dim)',background:'none',border:'none',cursor:'pointer'}}
+                  onClick={e=>{e.stopPropagation();setRecent([]);setShowDrop(false)}}>지우기</button>
+              </div>
+              {recent.slice(0,8).map(r=>{
+                const p=prices[r.code]
+                const rc=p?rateColor(p.changeRate):'var(--text-secondary)'
+                const rs=(p?.changeRate??0)>0?'+':''
+                return (
+                  <button key={r.code} className="cap-sb-dd-item" onClick={()=>select(r)}>
+                    <span className="cap-sb-dd-name">{r.name}</span>
+                    <span className="cap-sb-dd-code">{r.code}</span>
+                    {p?.price>0&&<span style={{fontSize:11,color:rc,fontWeight:700,marginLeft:'auto'}}>{rs}{p.changeRate?.toFixed(1)}%</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
           {showDrop&&results.length>0&&(
             <div className="cap-sb-dropdown">
               {/* 테마 그룹 */}
@@ -867,86 +924,68 @@ export default function ChartAnalysisPage() {
           )}
         </div>
 
-        {/* 최근 검색 — 현재가 + 등락률 표시 */}
-        {recent.length>0&&(
-          <div className="cap-sb-recent">
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-              <span className="cap-sb-recent-label">최근 검색</span>
-              <button style={{fontSize:10,color:'var(--text-dim)',background:'none',border:'none',cursor:'pointer',padding:'0 2px'}}
-                onClick={()=>setRecent([])}>지우기</button>
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:3}}>
-              {recent.slice(0,6).map(r=>{
-                const p=prices[r.code]
-                const rc=p?rateColor(p.changeRate):'var(--text-secondary)'
-                const rs=(p?.changeRate??0)>0?'+':''
-                return (
-                  <button key={r.code} className="cap-sb-chip"
-                    style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 8px',borderRadius:6,background:'var(--bg-base)',border:'1px solid var(--border)',cursor:'pointer',width:'100%',textAlign:'left'}}
-                    onClick={()=>select(r)}>
-                    <span style={{fontSize:12,fontWeight:600,color:'var(--text-primary)'}}>{r.name}</span>
-                    {p?.price>0&&(
-                      <span style={{fontSize:11,color:rc,fontWeight:700}}>
-                        {p.price.toLocaleString()}
-                        <span style={{fontSize:10,marginLeft:3}}>{rs}{p.changeRate?.toFixed(1)}%</span>
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* 관심종목 탭 */}
+        {/* 관심/보유 탭 */}
         <div className="cap-sb-tabs">
           <button className={`cap-sb-tab ${wlTab==='watch'?'active':''}`} onClick={()=>setWlTab('watch')}>⭐ 관심</button>
           <button className={`cap-sb-tab ${wlTab==='hold'?'active':''}`}  onClick={()=>setWlTab('hold')}>💼 보유</button>
         </div>
 
+        {/* 관심종목 — 카테고리 관리 */}
         {wlTab==='watch'&&(
-          <select className="cap-sb-cat" value={selCatId} onChange={e=>setSelCatId(e.target.value)}>
-            <option value="">— 카테고리 선택 —</option>
-            {wlCats.map(cat=><option key={cat.id} value={cat.id}>{cat.name} ({cat.stocks.length})</option>)}
-          </select>
-        )}
+        <div className="cap-sb-cat-header">
+          <span className="cap-sb-recent-label" style={{fontSize:11}}>카테고리</span>
+          <button className="cap-sb-cat-add" onClick={addWlCat} title="카테고리 추가">+ 추가</button>
+        </div>)}
+        {/* 카테고리 목록 */}
+        {wlTab==='watch'&&(
+        <div className="cap-sb-cat-list">
+          {wlCats.map(cat=>(
+            <div key={cat.id}
+              className={`cap-sb-cat-item ${selCatId===cat.id?'active':''}`}
+              onClick={()=>setSelCatId(selCatId===cat.id?'':cat.id)}>
+              <span className="cap-sb-cat-name">{cat.name}</span>
+              <span className="cap-sb-cat-cnt">{cat.stocks.length}</span>
+              <div className="cap-sb-cat-actions" onClick={e=>e.stopPropagation()}>
+                <button title="이름 변경" onClick={()=>renameWlCat(cat.id)}>✏️</button>
+                <button title="삭제" onClick={()=>delWlCat(cat.id)}>🗑</button>
+              </div>
+            </div>
+          ))}
+          {wlCats.length===0&&<div className="cap-sb-empty" style={{fontSize:11}}>카테고리를 추가해주세요</div>}
+        </div>)}
 
+        {/* 종목 리스트 */}
         <div className="cap-sb-list">
+          {/* 보유종목 */}
           {wlTab==='hold'&&(
             Object.keys(holdings).length===0
             ? <div className="cap-sb-empty">보유종목 없음<br/><span style={{fontSize:10,color:'var(--text-dim)'}}>계좌 연동 필요</span></div>
             : Object.entries(holdings).map(([code,h])=>{
-                const p=prices[code]
                 const sname=h.name||stockList.find(s=>s.code===code)?.name||code
                 const rate=h.rate
                 const rc=rate>0?'#ef4444':rate<0?'#2563eb':'var(--text-dim)'
-                const curPrc=p?.price||h.curPrc
-                const pc2=p?rateColor(p.changeRate):'var(--text-secondary)'
                 return (
-                  <button key={code} className={`cap-sb-stock ${selected?.code===code?'active':''}`}
+                  <button key={code} className={`cap-sb-hold ${selected?.code===code?'active':''}`}
                     onClick={()=>select({code,name:sname,theme:'보유종목'})}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                      <span className="cap-sb-sname">{sname}</span>
-                      <span style={{fontSize:10,fontWeight:700,color:rc}}>{rate>=0?'+':''}{rate?.toFixed(1)}%</span>
-                    </div>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:2}}>
-                      <span style={{fontSize:10,color:'var(--text-dim)'}}>{h.qty}주</span>
-                      {curPrc>0
-                        ? <span style={{fontSize:11,fontWeight:700,color:pc2}}>{curPrc.toLocaleString()}</span>
-                        : <span style={{fontSize:10,color:'var(--text-dim)'}}>—</span>
-                      }
-                    </div>
+                    <span className="cap-sb-hold-name">{sname}</span>
+                    <span className="cap-sb-hold-rate" style={{color:rc}}>{rate>=0?'+':''}{rate?.toFixed(1)}%</span>
+                    <span className="cap-sb-hold-qty">{h.qty}주 · {code}</span>
+                    <span className="cap-sb-hold-price" style={{color:'var(--text-secondary)'}}>
+                      평균 {h.avg>0?h.avg.toLocaleString():'—'}원
+                    </span>
                     {h.evltPrft!==0&&(
-                      <div style={{fontSize:10,color:h.evltPrft>0?'#ef4444':'#2563eb',textAlign:'right',marginTop:1}}>
+                      <span className="cap-sb-hold-pnl" style={{color:h.evltPrft>0?'#ef4444':'#2563eb'}}>
                         {h.evltPrft>0?'+':''}{Math.round(h.evltPrft).toLocaleString()}원
-                      </div>
+                      </span>
                     )}
                   </button>
                 )
               })
           )}
-          {wlTab==='watch'&&selCatStocks.length===0&&<div className="cap-sb-empty">{selCatId?'종목 없음':'카테고리 선택'}</div>}
-          {wlTab==='watch'&&selCatStocks.map(s=>{
+          {/* 관심종목 */}
+          {wlTab==='watch'&&!selCatId&&<div className="cap-sb-empty" style={{fontSize:11}}>카테고리를 선택하세요</div>}
+          {wlTab==='watch'&&selCatId&&selCatStocks.length===0&&<div className="cap-sb-empty" style={{fontSize:11}}>종목 없음</div>}
+          {wlTab==='watch'&&selCatId&&selCatStocks.map(s=>{
             const p=prices[s.code], pc2=p?rateColor(p.changeRate):'var(--text-secondary)', s2=(p?.changeRate??0)>0?'+':''
             return (
               <button key={s.code} className={`cap-sb-stock ${selected?.code===s.code?'active':''}`} onClick={()=>select(s)}>
@@ -959,9 +998,15 @@ export default function ChartAnalysisPage() {
       </div>
 
       {/* 사이드바 토글 */}
-      <button className={`cap-sb-toggle ${sidebarOpen?'':'collapsed'}`} onClick={()=>setSidebarOpen(v=>!v)}>
+      <button className={`cap-sb-toggle ${sidebarOpen?'':'collapsed'}`}
+        style={{ left: sidebarOpen ? sidebarW - 12 : 0 }}
+        onClick={()=>setSidebarOpen(v=>!v)}>
         {sidebarOpen?'◀':'▶'}
       </button>
+      {/* 사이드바 리사이즈 핸들 */}
+      {sidebarOpen && (
+        <div className="cap-sb-resize-handle" onMouseDown={onSidebarResize} title="드래그하여 너비 조절" style={{left: sidebarW - 3}}/>
+      )}
 
       {/* ── 메인 ── */}
       <div className="cap-main">
@@ -997,10 +1042,36 @@ export default function ChartAnalysisPage() {
                 <span className="cap-hdr-price" style={{color:pc,fontSize:20,fontWeight:800,marginLeft:4}}>{price.price.toLocaleString()}원</span>
                 <span className="cap-hdr-change" style={{color:pc,fontSize:13,fontWeight:600}}>{sign}{price.change?.toLocaleString()}원 ({sign}{price.changeRate?.toFixed(2)}%)</span>
               </>)}
-              <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
+              {/* 메모 — 저장/수정 버튼 포함 */}
+              <div className="cap-hdr-memo">
+                <input
+                  className="cap-hdr-memo-input"
+                  placeholder={memoLoaded ? '저장된 메모' : '📝 차트 메모 입력...'}
+                  value={memoText}
+                  onChange={e=>setMemoText(e.target.value)}
+                  onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveMemo()}}}
+                  disabled={memoSaving || (memoLoaded && !memoEditing)}
+                  style={{ opacity: (memoLoaded && !memoEditing) ? 0.75 : 1 }}
+                />
+                {memoSaved && <span className="cap-memo-ok">✓ 저장됨</span>}
+                {!memoSaved && (memoLoaded && !memoEditing) && (
+                  <button className="gcm-memo-btn edit"
+                    onClick={()=>setMemoEditing(true)} title="메모 수정">✏️</button>
+                )}
+                {!memoSaved && (!memoLoaded || memoEditing) && (
+                  <button className="gcm-memo-btn save"
+                    onClick={saveMemo} disabled={memoSaving || !memoText.trim()}
+                    title="메모 저장">저장</button>
+                )}
+                {memoEditing && (
+                  <button className="gcm-memo-btn cancel"
+                    onClick={()=>setMemoEditing(false)} title="취소">✕</button>
+                )}
+              </div>
+              <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
                 <button className={`cap-hdr-btn ${isWatched?'starred':'star'}`} onClick={toggleWatch}>{isWatched?'⭐':'☆'}</button>
                 {etfMode&&<button className="cap-hdr-btn" onClick={()=>setShowEtf(true)}>🧩</button>}
-                <button className="cap-hdr-btn" onClick={()=>setShowFull(true)}>⛶</button>
+                <button className="cap-hdr-btn" onClick={()=>setShowFull(v=>!v)} title={showFull?'전체화면 닫기':'전체화면'}>⛶</button>
                 <button className="cap-hdr-btn x" onClick={()=>{setSelected(null);setQuery('')}}>✕</button>
               </div>
             </div>
@@ -1038,6 +1109,8 @@ export default function ChartAnalysisPage() {
             </div>
           </div>
 
+          {/* ══ 툴바 + 차트 전체화면 래퍼 ══ */}
+          <div className={`cap-chart-area${showFull?' cap-canvas-full':''}`}>
           {/* ══ 툴바 통합 (1줄) ══ */}
           <div className="cap-tb" style={{borderBottom:'1px solid var(--border)',background:'var(--bg-panel)'}}>
             <div className="cap-tb-row" style={{display:'flex',alignItems:'center',gap:4,padding:'5px 10px',flexWrap:'wrap'}}>
@@ -1075,12 +1148,42 @@ export default function ChartAnalysisPage() {
               <div className="cap-tb-sep"/>
               {/* MA */}
               <button className={`cap-ma-tog ${showMA?'on':''}`} onClick={()=>setShowMA(v=>!v)}>MA</button>
-              {showMA&&<div className="cap-ma-chips">
-                {MA_SETTINGS.map(({p,color,label})=>(
-                  <button key={p} className={`cap-ma-chip ${enabledMA.has(p)?'on':'off'}`}
-                    style={enabledMA.has(p)?{color,borderColor:color,background:color+'18'}:{}}
-                    onClick={()=>toggleMA(p)}>{label}</button>
-                ))}
+              {showMA&&<div className="cap-ma-chips" style={{position:'relative'}}>
+                {MA_SETTINGS.map(({p,label})=>{
+                  const s = maStyle?.[p] || { color:'#94a3b8', width:1 }
+                  return (
+                    <div key={p} style={{position:'relative'}}>
+                      <button
+                        className={`cap-ma-chip ${enabledMA.has(p)?'on':'off'}`}
+                        style={enabledMA.has(p)?{color:s.color,borderColor:s.color,background:s.color+'18'}:{}}
+                        title={`${label} 클릭=ON/OFF | 우클릭=스타일 설정`}
+                        onClick={()=>toggleMA(p)}
+                        onContextMenu={e=>{e.preventDefault();setMaPopover(maPopover===p?null:p)}}
+                      >{label}</button>
+                      {maPopover===p&&(
+                        <div className="cap-ma-popover" onMouseLeave={()=>setMaPopover(null)}>
+                          <div className="cap-ma-pop-row">
+                            <span>색상</span>
+                            <input type="color" value={s.color}
+                              onChange={e=>onMaStyleChange(p,'color',e.target.value)}
+                              style={{width:32,height:22,border:'none',cursor:'pointer',borderRadius:4}}/>
+                          </div>
+                          <div className="cap-ma-pop-row">
+                            <span>두께</span>
+                            <div style={{display:'flex',gap:3}}>
+                              {[1,1.5,2,2.5,3].map(w=>(
+                                <button key={w}
+                                  className={`cap-ma-pop-w ${s.width===w?'active':''}`}
+                                  onClick={()=>onMaStyleChange(p,'width',w)}>{w}</button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                <button className="cap-ma-reset" onClick={onMaStyleReset} title="MA 초기화">↺</button>
               </div>}
               <div className="cap-tb-sep"/>
               {/* 지표 */}
@@ -1091,20 +1194,40 @@ export default function ChartAnalysisPage() {
                 <button className={`cap-ind-btn stoch ${showStoch?'on':''}`} onClick={()=>setShowStoch(v=>!v)}>Stoch</button>
               </div>
               <div className="cap-tb-sep"/>
-              {/* 드로잉 */}
-              <div className="cap-draw-wr">
-                <button className={`cap-draw-tog ${drawTool!=='none'?'on':''}`} onClick={()=>setDrawMenuOpen(v=>!v)}>
-                  ✏️ ▾
-                </button>
-                {drawMenuOpen&&(
-                  <div className="cap-draw-menu">
-                    {DRAW_TOOLS.map(t=>(
-                      <button key={t.id} className={`cap-draw-item ${drawTool===t.id?'on':''}`}
-                        onClick={()=>{setDrawTool(t.id);setDrawState(null);setDrawMenuOpen(false)}}>{t.label}</button>
-                    ))}
-                    {drawings.length>0&&<button className="cap-draw-item del" onClick={()=>{saveDrawings([]);setDrawState(null);setDrawMenuOpen(false)}}>🗑 초기화</button>}
-                  </div>
-                )}
+              {/* 드로잉 툴 — 펼쳐서 배치 */}
+              <div className="cap-draw-inline">
+                {DRAW_TOOLS.map(t=>(
+                  <button key={t.id}
+                    className={`cap-draw-flat ${drawTool===t.id?'on':''}`}
+                    onClick={()=>{setDrawTool(t.id);setDrawState(null)}}
+                    title={t.label}>{t.label}</button>
+                ))}
+                <div className="cap-tb-sep"/>
+                {/* 선 스타일 설정 */}
+                <input type="color" value={lineColor}
+                  onChange={e=>setLineColor(e.target.value)}
+                  title="선 색상"
+                  style={{width:22,height:22,border:'1px solid var(--border)',borderRadius:4,cursor:'pointer',padding:1}}/>
+                <select value={lineWidth} onChange={e=>setLineWidth(Number(e.target.value))}
+                  className="cap-draw-select" title="선 굵기">
+                  {[0.8,1,1.5,2,2.5,3].map(w=><option key={w} value={w}>{w}px</option>)}
+                </select>
+                <select value={lineDash} onChange={e=>setLineDash(e.target.value)}
+                  className="cap-draw-select" title="선 종류">
+                  <option value="solid">실선</option>
+                  <option value="dashed">점선</option>
+                  <option value="dotted">짧은점선</option>
+                </select>
+                <div className="cap-tb-sep"/>
+                <button className="cap-draw-flat undo"
+                  disabled={drawings.length===0}
+                  title="마지막 드로잉 삭제"
+                  onClick={()=>{saveDrawings(drawings.slice(0,-1));setDrawState(null)}}>↩</button>
+                <button className="cap-draw-flat del"
+                  disabled={drawings.length===0}
+                  title="전체 삭제"
+                  onClick={()=>{saveDrawings([]);setDrawState(null)}}>🗑</button>
+                {drawings.length>0&&<span className="cap-draw-cnt">{drawings.length}개</span>}
               </div>
               {drawState&&<span className="cap-draw-hint" style={{fontSize:10,color:'var(--text-dim)'}}>{drawTool==='trend'?'2번째 점 클릭':'끝점 클릭'}</span>}
               <div className="cap-tb-sp"/>
@@ -1125,7 +1248,9 @@ export default function ChartAnalysisPage() {
                   {t.label}
                 </button>
               ))}
-              <button className="cap-tb-btn" onClick={()=>setShowFull(true)}>⛶</button>
+              <button className="cap-tb-btn" onClick={()=>setShowFull(v=>!v)} title={showFull?'전체화면 닫기':'전체화면'}>
+                {showFull ? '✕ 닫기' : '⛶'}
+              </button>
             </div>
           </div>
 
@@ -1138,13 +1263,52 @@ export default function ChartAnalysisPage() {
                 ? <div className="cap-chart-loading"><div className="cap-spinner"/>차트 불러오는 중...</div>
                 : (<>
                     <div className="cap-chart-wrap" ref={setChartWrap} style={{position:'relative'}}>
+                      {/* 수평선 가격 편집 플로팅 UI */}
+                      {editPriceIdx !== null && (
+                        <div style={{
+                          position:'absolute', top:8, right:80, zIndex:50,
+                          background:'var(--bg-panel)', border:'1px solid var(--accent-mid)',
+                          borderRadius:8, padding:'8px 12px', boxShadow:'var(--shadow-md)',
+                          display:'flex', alignItems:'center', gap:8,
+                        }}>
+                          <span style={{fontSize:11,color:'var(--text-secondary)'}}>가격 수정</span>
+                          <input
+                            autoFocus
+                            style={{
+                              width:110, padding:'4px 8px', border:'1px solid var(--border)',
+                              borderRadius:6, fontSize:12, fontVariantNumeric:'tabular-nums',
+                              color:'var(--text-primary)', background:'var(--bg-base)', outline:'none',
+                            }}
+                            value={editPriceVal}
+                            onChange={e=>setEditPriceVal(e.target.value.replace(/[^0-9,]/g,''))}
+                            onKeyDown={e=>{
+                              if(e.key==='Enter'){e.preventDefault();confirmEditPrice()}
+                              if(e.key==='Escape'){setEditPriceIdx(null);setEditPriceVal('')}
+                            }}
+                            placeholder="가격 입력"
+                          />
+                          <button onClick={confirmEditPrice}
+                            style={{padding:'4px 10px',borderRadius:6,background:'var(--accent-mid)',color:'white',border:'none',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                            확인
+                          </button>
+                          <button onClick={()=>{setEditPriceIdx(null);setEditPriceVal('')}}
+                            style={{padding:'4px 8px',borderRadius:6,background:'var(--bg-base)',border:'1px solid var(--border)',fontSize:11,cursor:'pointer',color:'var(--text-secondary)'}}>
+                            취소
+                          </button>
+                        </div>
+                      )}
                       <CandleSvg
                         data={candles} width={chartW} height={chartH}
-                        showMA={showMA} enabledMA={enabledMA}
+                        showMA={showMA} enabledMA={enabledMA} maStyle={maStyle}
                         drawings={drawings} onSvgClick={handleInlineClick}
                         drawTool={drawTool} selectedIdx={selIdx} onSelectDrawing={setSelIdx}
                         showBollinger={showBB} week52={chartHighLow} period={period}
                         volHeight={volH}
+                        mousePos={mousePos} drawState={drawState}
+                        lineColor={lineColor} lineWidth={lineWidth} lineDash={lineDash}
+                        onChartMouseMove={c => setMousePos(c)}
+                        onChartMouseLeave={() => setMousePos(null)}
+                        onEditPrice={(idx, price) => { setEditPriceIdx(idx); setEditPriceVal(String(Math.round(price))) }}
                       />
                       <div
                         style={{position:'absolute',left:72,right:72,bottom:32+volH-3,height:6,cursor:'row-resize',zIndex:20,display:'flex',alignItems:'center',justifyContent:'center'}}
@@ -1406,13 +1570,13 @@ export default function ChartAnalysisPage() {
               </div>
             )}
           </div>
+          </div>{/* cap-chart-area 래퍼 닫기 */}
 
         </>)}
       </div>
     </div>
 
     {/* 전체화면 */}
-    {showFull&&selected&&<FullscreenChart stock={selected} initPeriod={period} initRange={range} initMA={showMA} initEMA={enabledMA} onClose={()=>setShowFull(false)}/>}
     {/* ETF 구성종목 */}
     {showEtf&&selected&&<EtfHoldingsPopup code={selected.code} name={selected.name} onClose={()=>setShowEtf(false)}/>}
     {/* 재무제표 */}

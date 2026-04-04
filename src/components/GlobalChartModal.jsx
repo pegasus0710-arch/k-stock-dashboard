@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { db } from '../firebase'
-import { collection, addDoc, Timestamp } from 'firebase/firestore'
+import { collection, doc, getDoc, setDoc, Timestamp } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import { useUserSettings } from '../hooks/useUserSettings'
 import CandleSvg, { fmtNum, fmtDate, fmtDateLong } from './ui/CandleSvg'
@@ -58,7 +58,7 @@ export default function GlobalChartModal({
   const { getSetting, setSetting, getDrawings, saveDrawings } = useUserSettings()
 
   // 드로잉 상태 — Firestore 로드 (비동기, 초기값은 localStorage 폴백)
-  const [drawings,      setDrawings]      = useState(() => { try { return JSON.parse(localStorage.getItem(`gcm_draw_${symbol}`)) || [] } catch { return [] } })
+  const [drawings,      setDrawings]      = useState(() => { try { return JSON.parse(localStorage.getItem(`cap_drawings_v2_${symbol}`)) || [] } catch { return [] } })
   const [drawTool,      setDrawTool]      = useState('none')
   const [drawPhase,     setDrawPhase]     = useState(0)
   const [drawPoint1,    setDrawPoint1]    = useState(null)
@@ -91,11 +91,32 @@ export default function GlobalChartModal({
   const [memoText,   setMemoText]   = useState('')
   const [memoSaving, setMemoSaving] = useState(false)
   const [memoSaved,  setMemoSaved]  = useState(false)
+  const [memoEditing,setMemoEditing]= useState(false) // 수정 모드
+  // 수평선 가격 직접 편집
+  const [editPriceKey, setEditPriceKey] = useState(null) // drawing index 또는 'preview'
+  const [editPriceVal, setEditPriceVal] = useState('')
+  const [memoLoaded, setMemoLoaded] = useState(false) // 기존 메모 로드 여부
   const memoRef = useRef(null)
+
+  // 종목 변경 시 기존 메모 로드
+  useEffect(() => {
+    if (!user || !symbol) return
+    const docId = `chart_${symbol}`
+    getDoc(doc(db, 'users', user.uid, 'memos', docId)).then(snap => {
+      if (snap.exists()) {
+        setMemoText(snap.data().content || '')
+        setMemoLoaded(true)
+      } else {
+        setMemoText('')
+        setMemoLoaded(false)
+      }
+      setMemoEditing(false)
+    }).catch(() => {})
+  }, [user, symbol])
 
   // Firestore에서 드로잉 비동기 로드
   useEffect(() => {
-    getDrawings(`gcm_draw_${symbol}`).then(d => { if (d?.length) setDrawings(d) })
+    getDrawings(`cap_drawings_v2_${symbol}`).then(d => { if (d?.length) setDrawings(d) })
   }, [symbol])
 
   // Firestore 로드 완료 후 설정값 재동기화 (lazy initializer는 로드 전 실행될 수 있음)
@@ -103,8 +124,15 @@ export default function GlobalChartModal({
     const savedStyle   = getSetting('chart', 'gcm_ma_style',     null)
     const savedShow    = getSetting('chart', 'gcm_ma_show',      null)
     const savedTooltip = getSetting('chart', 'gcm_show_tooltip', null)
-    if (savedStyle   != null) setMaStyle(savedStyle)
-    if (savedShow    != null) setShowMA(savedShow)
+    // Firestore JSON 직렬화로 숫자 키→문자열 변환 → 숫자로 복원
+    if (savedStyle != null) {
+      const normalized = Object.fromEntries(Object.entries(savedStyle).map(([k,v])=>[Number(k),v]))
+      setMaStyle(normalized)
+    }
+    if (savedShow != null) {
+      const normalized = Object.fromEntries(Object.entries(savedShow).map(([k,v])=>[Number(k),v]))
+      setShowMA(normalized)
+    }
     if (savedTooltip != null) setShowTooltip(savedTooltip)
   }, [getSetting])
 
@@ -119,7 +147,9 @@ export default function GlobalChartModal({
   // MA 스타일 변경 (색상 or 두께) — 즉시 Firestore 저장
   const onMaStyleChange = useCallback((period, key, val) => {
     setMaStyle(prev => {
-      const next = { ...prev, [period]: { ...prev[period], [key]: val } }
+      // period를 숫자로 보장하여 키 타입 일관성 유지
+      const p = Number(period)
+      const next = { ...prev, [p]: { ...(prev[p]||{}), [key]: val } }
       setSetting('chart', 'gcm_ma_style', next)
       return next
     })
@@ -131,14 +161,17 @@ export default function GlobalChartModal({
     setSetting('chart', 'gcm_ma_style', DEFAULT_MA_STYLE)
   }, [setSetting])
 
-  // 메모 저장 — MemoPage 동일 컬렉션 (users/{uid}/memos)
+  // 메모 저장 — 종목별 고정 문서 ID (chart_${symbol}), MemoPage와 공유
   const saveMemo = useCallback(async () => {
     const text = memoText.trim()
-    if (!text || !user) return
+    if (!user || !symbol) return
     setMemoSaving(true)
     try {
       const now = Timestamp.fromDate(new Date())
-      await addDoc(collection(db, 'users', user.uid, 'memos'), {
+      const docId = `chart_${symbol}`
+      const docRef = doc(db, 'users', user.uid, 'memos', docId)
+      const snap = await getDoc(docRef)
+      await setDoc(docRef, {
         title:      `[차트메모] ${name || symbol}`,
         content:    text,
         category:   '차트메모',
@@ -148,10 +181,11 @@ export default function GlobalChartModal({
         textColor:  '#1e293b',
         fontSize:   13,
         pinned:     false,
-        createdAt:  now,
+        createdAt:  snap.exists() ? snap.data().createdAt : now,
         updatedAt:  now,
       })
-      setMemoText('')
+      setMemoLoaded(true)
+      setMemoEditing(false)
       setMemoSaved(true)
       setTimeout(() => setMemoSaved(false), 2000)
     } catch(e) {
@@ -241,7 +275,7 @@ export default function GlobalChartModal({
 
   // 드로잉 저장 — Firestore + localStorage 동기화
   useEffect(() => {
-    saveDrawings(`gcm_draw_${symbol}`, drawings)
+    saveDrawings(`cap_drawings_v2_${symbol}`, drawings)
   }, [symbol, drawings])
 
   // 등락율/등락금액 — 로드된 캔들 마지막 2봉으로 계산
@@ -281,6 +315,17 @@ export default function GlobalChartModal({
 
   const handleMouseMove = useCallback((c) => setMousePos(c), [])
   const handleLeave     = useCallback(() => setMousePos(null), [])
+
+  // 수평선 가격 편집 확정
+  const confirmEditPrice = () => {
+    const num = Number(String(editPriceVal).replace(/,/g,''))
+    if (!isNaN(num) && num > 0 && editPriceKey !== null) {
+      setDrawings(prev => prev.map((d, i) =>
+        i === editPriceKey ? { ...d, price: num } : d
+      ))
+    }
+    setEditPriceKey(null); setEditPriceVal('')
+  }
 
   // 리사이즈 핸들러 (우하단 모서리 드래그)
   const onResizeMouseDown = useCallback((e) => {
@@ -340,18 +385,34 @@ export default function GlobalChartModal({
               ))}
             </div>
 
-            {/* 메모 인풋 — 기간 탭 옆 */}
+            {/* 메모 — 저장/수정 버튼 포함 */}
             <div className="gcm-memo-bar">
               <input
                 ref={memoRef}
                 className="gcm-memo-input"
-                placeholder="📝 차트 메모 입력 후 Enter..."
+                placeholder={memoLoaded ? '저장된 메모' : '📝 차트 메모 입력...'}
                 value={memoText}
                 onChange={e => setMemoText(e.target.value)}
                 onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); saveMemo() }}}
-                disabled={memoSaving}
+                disabled={memoSaving || (memoLoaded && !memoEditing)}
+                style={{ opacity: (memoLoaded && !memoEditing) ? 0.75 : 1 }}
               />
               {memoSaved && <span className="gcm-memo-ok">✓ 저장됨</span>}
+              {!memoSaved && (memoLoaded && !memoEditing) && (
+                <button className="gcm-memo-btn edit"
+                  onClick={() => { setMemoEditing(true); setTimeout(()=>memoRef.current?.focus(),50) }}
+                  title="메모 수정">✏️</button>
+              )}
+              {!memoSaved && (!memoLoaded || memoEditing) && (
+                <button className="gcm-memo-btn save"
+                  onClick={saveMemo} disabled={memoSaving || !memoText.trim()}
+                  title="메모 저장">저장</button>
+              )}
+              {memoEditing && (
+                <button className="gcm-memo-btn cancel"
+                  onClick={() => { setMemoEditing(false) }}
+                  title="취소">✕</button>
+              )}
             </div>
 
             <button className="gcm-close" onClick={onClose}>✕</button>
@@ -464,7 +525,41 @@ export default function GlobalChartModal({
         </div>
 
         {/* 차트 영역 */}
-        <div className="gcm-body">
+        <div className="gcm-body" style={{position:'relative'}}>
+          {/* 수평선 가격 편집 플로팅 UI */}
+          {editPriceKey !== null && (
+            <div style={{
+              position:'absolute', top:8, right:12, zIndex:50,
+              background:'var(--bg-panel)', border:'1px solid var(--accent-mid)',
+              borderRadius:8, padding:'8px 12px', boxShadow:'var(--shadow-md)',
+              display:'flex', alignItems:'center', gap:8,
+            }}>
+              <span style={{fontSize:11,color:'var(--text-secondary)'}}>가격 수정</span>
+              <input
+                autoFocus
+                style={{
+                  width:110, padding:'4px 8px', border:'1px solid var(--border)',
+                  borderRadius:6, fontSize:12, fontVariantNumeric:'tabular-nums',
+                  color:'var(--text-primary)', background:'var(--bg-base)', outline:'none',
+                }}
+                value={editPriceVal}
+                onChange={e=>setEditPriceVal(e.target.value.replace(/[^0-9.,]/g,''))}
+                onKeyDown={e=>{
+                  if(e.key==='Enter'){e.preventDefault();confirmEditPrice()}
+                  if(e.key==='Escape'){setEditPriceKey(null);setEditPriceVal('')}
+                }}
+                placeholder="가격 입력"
+              />
+              <button onClick={confirmEditPrice}
+                style={{padding:'4px 10px',borderRadius:6,background:'var(--accent-mid)',color:'white',border:'none',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                확인
+              </button>
+              <button onClick={()=>{setEditPriceKey(null);setEditPriceVal('')}}
+                style={{padding:'4px 8px',borderRadius:6,background:'var(--bg-base)',border:'1px solid var(--border)',fontSize:11,cursor:'pointer',color:'var(--text-secondary)'}}>
+                취소
+              </button>
+            </div>
+          )}
           {loading && (
             <div className="gcm-loading">
               <div className="gcm-spinner"/>
@@ -485,6 +580,7 @@ export default function GlobalChartModal({
               onChartClick={handleChartClick}
               onChartMouseMove={handleMouseMove}
               onChartMouseLeave={handleLeave}
+              onEditPrice={(key, price) => { setEditPriceKey(key); setEditPriceVal(String(Math.round(price))) }}
             />
           )}
         </div>
