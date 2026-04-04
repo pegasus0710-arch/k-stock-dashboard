@@ -810,7 +810,9 @@ function AnalysisView({ allTrades, allCashflow }) {
   const byCodeArr=Object.values(byCode).filter(s=>s.hasProfit).sort((a,b)=>b.profit-a.profit)
 
   const hasProfitData=sellsWithProfit.length>0
-  const nc = v=>v>=0?'#B91C1C':'#1D4ED8'  // 양수=빨강 / 음수=파랑
+  const nc = v=>v>=0?'#B91C1C':'#1D4ED8'
+  const gc = v=>v>=0?'#085041':'#791F1F'   // 초록/빨강 (성과용)
+  const totalBuyAmt = buys.reduce((s,x)=>s+Math.abs(Number(x.amount||0)),0)
 
   return (
     <div>
@@ -843,151 +845,171 @@ function AnalysisView({ allTrades, allCashflow }) {
         </div>
       ) : (<>
 
-        {/* ── KPI 카드 ── */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))',gap:8,marginBottom:12}}>
-          {[
-            { label:'매도', val:`${sells.length}건`, sub:`매수 ${buys.length}건`, color:'#185FA5', bc:'#B5D4F4' },
-            { label:'승률',
-              val: winRate!=null ? winRate.toFixed(1)+'%' : '-',
-              sub: sellsWithProfit.length>0 ? `${winners.length}승 ${losers.length}패` : '데이터 없음',
-              color: winRate>=50?'#085041':'#791F1F', bc: winRate>=50?'#9FE1CB':'#F7C1C1' },
-            { label:'매매수익(세후)',
-              val: hasProfitData ? (netPL>=0?'+':'')+netPL.toLocaleString() : '-',
-              sub: plRt!=null ? `${plRt>=0?'+':''}${plRt.toFixed(2)}%` : '',
-              color: nc(netPL), bc: netPL>=0?'#9FE1CB':'#F7C1C1' },
-            { label:'배당(세후)',
-              val: totalDiv>0 ? '+'+Math.round(totalDiv).toLocaleString() : '-',
-              sub: divRt!=null ? `+${divRt.toFixed(2)}%` : `${divItems.length}건`,
-              color:'#085041', bc:'#9FE1CB' },
-            { label:'총수익(매매+배당)',
-              val: hasProfitData||totalDiv>0 ? (totalProfit>=0?'+':'')+Math.round(totalProfit).toLocaleString() : '-',
-              sub: totalRt!=null ? (totalRt>=0?'+':'')+totalRt.toFixed(2)+'%' : '',
-              color: nc(totalProfit), bc: totalProfit>=0?'#9FE1CB':'#F7C1C1' },
-            { label:'MDD',
-              val: mdd>0 ? '-'+mdd.toLocaleString() : '0',
-              sub:'최대 낙폭', color: mdd>0?'#791F1F':'#085041', bc: mdd>0?'#F7C1C1':'#D3D1C7' },
-          ].map(c=>(
-            <div key={c.label} style={{background:'var(--bg-panel)',borderRadius:8,
-              border:`.5px solid ${c.bc}`,padding:'10px 12px'}}>
-              <div style={{fontSize:10,color:'var(--text-dim)',marginBottom:5,fontWeight:600}}>{c.label}</div>
-              <div style={{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',color:c.color,marginBottom:3}}>
-                {c.val}
-              </div>
-              <div style={{fontSize:10,color:'var(--text-dim)',fontVariantNumeric:'tabular-nums'}}>{c.sub}</div>
+        {/* ── KPI 1행 — 핵심 6카드 ── */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:10,marginBottom:10}}>
+
+          {/* 매도건수 + 승률 바 */}
+          <div style={{background:'var(--bg-panel)',border:'.5px solid var(--border)',borderRadius:10,padding:'13px 15px'}}>
+            <div style={{fontSize:10,color:'var(--text-dim)',fontWeight:600,marginBottom:6}}>매도 · 승률</div>
+            <div style={{fontSize:20,fontWeight:700,color:'var(--text-primary)',marginBottom:2}}>{sells.length}건</div>
+            <div style={{fontSize:10,color:'var(--text-dim)',marginBottom:8}}>
+              수익 {winners.length}건 · 손실 {losers.length}건
             </div>
-          ))}
+            {sellsWithProfit.length>0&&(<>
+              <div style={{display:'flex',height:4,borderRadius:3,overflow:'hidden',gap:1}}>
+                <div style={{flex:winners.length,background:'#1D9E75',borderRadius:'3px 0 0 3px'}}/>
+                <div style={{flex:losers.length,background:'#E24B4A',borderRadius:'0 3px 3px 0'}}/>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',marginTop:4}}>
+                <span style={{fontSize:11,fontWeight:700,color:'#085041'}}>{winRate?.toFixed(1)}%</span>
+                <span style={{fontSize:10,color:'var(--text-dim)'}}>승률</span>
+              </div>
+            </>)}
+          </div>
+
+          {/* 매매 실현손익 */}
+          <div style={{background:'var(--bg-panel)',border:`.5px solid ${hasProfitData&&netPL>=0?'#9FE1CB':'var(--border)'}`,borderRadius:10,padding:'13px 15px'}}>
+            <div style={{fontSize:10,color:'var(--text-dim)',fontWeight:600,marginBottom:6}}>매매 실현손익</div>
+            <div style={{fontSize:18,fontWeight:700,fontVariantNumeric:'tabular-nums',color:hasProfitData?gc(netPL):'var(--text-dim)',marginBottom:2}}>
+              {hasProfitData?(netPL>=0?'+':'')+netPL.toLocaleString():'-'}
+            </div>
+            <div style={{fontSize:10,color:hasProfitData?gc(netPL):'var(--text-dim)'}}>
+              {plRt!=null?(plRt>=0?'+':'')+plRt.toFixed(2)+'%':''} {sellsWithProfit.length>0?`· 확정 ${sellsWithProfit.length}건`:''}
+            </div>
+          </div>
+
+          {/* 배당 */}
+          <div style={{background:'var(--bg-panel)',border:'.5px solid var(--border)',borderRadius:10,padding:'13px 15px'}}>
+            <div style={{fontSize:10,color:'var(--text-dim)',fontWeight:600,marginBottom:6}}>배당 (세후)</div>
+            <div style={{fontSize:18,fontWeight:700,fontVariantNumeric:'tabular-nums',color:totalDiv>0?'#085041':'var(--text-dim)',marginBottom:2}}>
+              {totalDiv>0?'+'+Math.round(totalDiv).toLocaleString():'-'}
+            </div>
+            <div style={{fontSize:10,color:totalDiv>0?'#1D9E75':'var(--text-dim)'}}>
+              {divRt!=null?'+'+divRt.toFixed(2)+'%':''}  {divItems.length>0?`· ${divItems.length}건`:'데이터 없음'}
+            </div>
+          </div>
+
+          {/* 총수익 */}
+          <div style={{background:'var(--bg-panel)',border:`.5px solid ${totalProfit>=0?'#9FE1CB':'#F7C1C1'}`,borderRadius:10,padding:'13px 15px'}}>
+            <div style={{fontSize:10,color:'var(--text-dim)',fontWeight:600,marginBottom:6}}>총수익 (매매+배당)</div>
+            <div style={{fontSize:18,fontWeight:700,fontVariantNumeric:'tabular-nums',color:gc(totalProfit),marginBottom:2}}>
+              {hasProfitData||totalDiv>0?(totalProfit>=0?'+':'')+Math.round(totalProfit).toLocaleString():'-'}
+            </div>
+            <div style={{fontSize:10,color:gc(totalProfit)}}>
+              {totalRt!=null?(totalRt>=0?'+':'')+totalRt.toFixed(2)+'%':''}
+            </div>
+          </div>
+
+          {/* MDD */}
+          <div style={{background:'var(--bg-panel)',border:`.5px solid ${mdd>0?'#F7C1C1':'var(--border)'}`,borderRadius:10,padding:'13px 15px'}}>
+            <div style={{fontSize:10,color:'var(--text-dim)',fontWeight:600,marginBottom:6}}>MDD</div>
+            <div style={{fontSize:18,fontWeight:700,fontVariantNumeric:'tabular-nums',color:mdd>0?'#791F1F':'var(--text-dim)',marginBottom:2}}>
+              {mdd>0?'-'+mdd.toLocaleString():'0'}
+            </div>
+            <div style={{fontSize:10,color:'var(--text-dim)'}}>최대 낙폭</div>
+          </div>
+
+          {/* 손익비 */}
+          <div style={{background:'var(--bg-panel)',border:`.5px solid ${rrRatio>=1?'#B5D4F4':'var(--border)'}`,borderRadius:10,padding:'13px 15px'}}>
+            <div style={{fontSize:10,color:'var(--text-dim)',fontWeight:600,marginBottom:6}}>손익비 · 기대값</div>
+            <div style={{fontSize:18,fontWeight:700,color:rrRatio!=null?(rrRatio>=1?'#0C447C':'#791F1F'):'var(--text-dim)',marginBottom:2}}>
+              {rrRatio!=null?rrRatio.toFixed(2):'-'}
+            </div>
+            <div style={{fontSize:10,color:'#378ADD'}}>
+              {ev!=null?`기대값 ${ev>=0?'+':''}${Math.round(ev).toLocaleString()}원/건`:''}
+            </div>
+          </div>
         </div>
 
-        {/* 보조 지표 카드 */}
+        {/* ── KPI 2행 — 보조 6카드 ── */}
         {hasProfitData && (
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(100px,1fr))',gap:6,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))',gap:8,marginBottom:14}}>
             {[
-              { label:'손익비(R:R)', val: rrRatio!=null?rrRatio.toFixed(2):'-', sub:'평균이익/평균손실', color:rrRatio>=1?'#085041':'#791F1F' },
-              { label:'기대값',      val: ev!=null?(ev>=0?'+':'')+Math.round(ev).toLocaleString():'-', sub:'건당 기대 수익', color:ev>=0?'#085041':'#791F1F' },
-              { label:'평균 수익',   val: '+'+Math.round(avgWin).toLocaleString(), sub:`${winners.length}건 평균`, color:'#085041' },
-              { label:'평균 손실',   val: '-'+Math.round(avgLoss).toLocaleString(), sub:`${losers.length}건 평균`, color:'#791F1F' },
-              { label:'최대 수익',   val: best3[0]  ? '+'+calcNet(best3[0]).toLocaleString() : '-', sub: best3[0]?.name||'',  color:'#085041' },
-              { label:'최대 손실',   val: worst3[0] ? calcNet(worst3[0]).toLocaleString()    : '-', sub: worst3[0]?.name||'', color:'#791F1F' },
+              {l:'손익비(R:R)',  v:rrRatio!=null?rrRatio.toFixed(2):'-',        c:rrRatio>=1?'#085041':'#791F1F'},
+              {l:'기대값',      v:ev!=null?(ev>=0?'+':'')+Math.round(ev).toLocaleString():'-', c:ev>=0?'#085041':'#791F1F'},
+              {l:'평균 수익',   v:'+'+Math.round(avgWin).toLocaleString(),       c:'#085041'},
+              {l:'평균 손실',   v:'-'+Math.round(avgLoss).toLocaleString(),      c:'#791F1F'},
+              {l:'최대 수익',   v:best3[0]?'+'+calcNet(best3[0]).toLocaleString():'-', c:'#085041'},
+              {l:'최대 손실',   v:worst3[0]?calcNet(worst3[0]).toLocaleString():'-',   c:'#791F1F'},
             ].map(c=>(
-              <div key={c.label} style={{background:'var(--bg-base)',borderRadius:7,
-                border:'.5px solid var(--border)',padding:'8px 10px'}}>
-                <div style={{fontSize:9,color:'var(--text-dim)',marginBottom:3,fontWeight:600,textTransform:'uppercase',letterSpacing:'.04em'}}>{c.label}</div>
-                <div style={{fontSize:13,fontWeight:700,fontVariantNumeric:'tabular-nums',color:c.color}}>{c.val}</div>
-                <div style={{fontSize:9,color:'var(--text-dim)',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.sub}</div>
+              <div key={c.l} style={{background:'var(--bg-base)',border:'.5px solid var(--border)',borderRadius:8,padding:'9px 11px'}}>
+                <div style={{fontSize:9,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4}}>{c.l}</div>
+                <div style={{fontSize:13,fontWeight:700,fontVariantNumeric:'tabular-nums',color:c.c}}>{c.v}</div>
               </div>
             ))}
           </div>
         )}
 
         {!hasProfitData && (
-          <div style={{padding:'8px 12px',background:'#FFFBEB',border:'1px solid #FCD34D',
-            borderRadius:7,fontSize:11,color:'#92400E',marginBottom:14}}>
+          <div style={{padding:'8px 12px',background:'#FFFBEB',border:'1px solid #FCD34D',borderRadius:7,fontSize:11,color:'#92400E',marginBottom:14}}>
             ℹ️ 실현손익 데이터는 매매내역 탭 → 📥 API 동기화 또는 ✏ 수동입력 후 표시됩니다.
           </div>
         )}
 
-        {/* 누적 수익 라인차트 */}
+        {/* ── 누적 라인차트 ── */}
         {cumulSeries.length>1 && (
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:8}}>
-              누적 실현손익 추이
-            </div>
+          <div style={{background:'var(--bg-panel)',border:'.5px solid var(--border)',borderRadius:10,padding:'14px 16px',marginBottom:12}}>
+            <div style={{fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:10}}>누적 실현손익 추이</div>
             <LineChart series={cumulSeries}/>
           </div>
         )}
 
-        {/* 베스트 / 워스트 */}
+        {/* ── 베스트 / 워스트 ── */}
         {hasProfitData && (
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
-            {/* 베스트 */}
-            <div style={{background:'var(--bg-panel)',borderRadius:9,border:'.5px solid #9FE1CB',padding:'12px'}}>
-              <div style={{fontSize:12,fontWeight:700,color:'#0F6E56',marginBottom:10}}>🏆 베스트 매매 TOP 3</div>
-              {best3.map((s,i)=>(
-                <div key={i} style={{display:'flex',alignItems:'center',gap:8,
-                  padding:'7px 0',borderBottom:i<2?'.5px solid var(--border-dim)':'none'}}>
-                  <div style={{width:18,height:18,borderRadius:'50%',background:'#1D9E75',
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:10,color:'white',fontWeight:700,flexShrink:0}}>{i+1}</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:12,fontWeight:600,color:'var(--text-primary)',
-                      overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.name}</div>
-                    <div style={{fontSize:10,color:'var(--text-dim)'}}>{fmtDate(s.date)} · {Math.abs(Number(s.amount||0)).toLocaleString()}원 매도</div>
-                  </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <div style={{fontSize:13,fontWeight:700,color:'#085041',fontVariantNumeric:'tabular-nums'}}>
-                      +{calcNet(s).toLocaleString()}
-                    </div>
-                    {s.profit_rt!=null&&<div style={{fontSize:10,color:'#1D9E75'}}>
-                      +{Number(s.profit_rt).toFixed(2)}%
-                    </div>}
-                  </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+            {[
+              {title:'베스트 TOP 3',items:best3,isWin:true},
+              {title:'워스트 TOP 3',items:worst3,isWin:false},
+            ].map(({title,items,isWin})=>(
+              <div key={title} style={{background:'var(--bg-panel)',
+                border:`.5px solid ${isWin?'#9FE1CB':'#F7C1C1'}`,borderRadius:10,padding:'13px 15px'}}>
+                <div style={{fontSize:11,fontWeight:700,color:isWin?'#0F6E56':'#A32D2D',
+                  display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+                  <div style={{width:8,height:8,borderRadius:'50%',background:isWin?'#1D9E75':'#E24B4A'}}/>
+                  {title}
                 </div>
-              ))}
-            </div>
-            {/* 워스트 */}
-            <div style={{background:'var(--bg-panel)',borderRadius:9,border:'.5px solid #F7C1C1',padding:'12px'}}>
-              <div style={{fontSize:12,fontWeight:700,color:'#A32D2D',marginBottom:10}}>💸 워스트 매매 TOP 3</div>
-              {worst3.map((s,i)=>(
-                <div key={i} style={{display:'flex',alignItems:'center',gap:8,
-                  padding:'7px 0',borderBottom:i<2?'.5px solid var(--border-dim)':'none'}}>
-                  <div style={{width:18,height:18,borderRadius:'50%',background:'#E24B4A',
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:10,color:'white',fontWeight:700,flexShrink:0}}>{i+1}</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:12,fontWeight:600,color:'var(--text-primary)',
-                      overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.name}</div>
-                    <div style={{fontSize:10,color:'var(--text-dim)'}}>{fmtDate(s.date)} · {Math.abs(Number(s.amount||0)).toLocaleString()}원 매도</div>
-                  </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <div style={{fontSize:13,fontWeight:700,color:'#791F1F',fontVariantNumeric:'tabular-nums'}}>
-                      {calcNet(s).toLocaleString()}
+                {items.map((s,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:8,
+                    padding:'7px 0',borderBottom:i<2?'.5px solid var(--border-dim)':'none'}}>
+                    <div style={{width:18,height:18,borderRadius:'50%',flexShrink:0,
+                      background:isWin?'#E1F5EE':'#FCEBEB',
+                      display:'flex',alignItems:'center',justifyContent:'center',
+                      fontSize:10,fontWeight:700,color:isWin?'#085041':'#791F1F'}}>{i+1}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:11,fontWeight:600,color:'var(--text-primary)',
+                        overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.name}</div>
+                      <div style={{fontSize:10,color:'var(--text-dim)'}}>{fmtDate(s.date)}</div>
                     </div>
-                    {s.profit_rt!=null&&<div style={{fontSize:10,color:'#E24B4A'}}>
-                      {Number(s.profit_rt).toFixed(2)}%
-                    </div>}
+                    <div style={{textAlign:'right',flexShrink:0}}>
+                      <div style={{fontSize:12,fontWeight:700,fontVariantNumeric:'tabular-nums',
+                        color:isWin?'#085041':'#791F1F'}}>
+                        {isWin?'+':''}{calcNet(s).toLocaleString()}
+                      </div>
+                      {s.profit_rt!=null&&(
+                        <div style={{fontSize:10,color:isWin?'#1D9E75':'#E24B4A'}}>
+                          {isWin?'+':''}{Number(s.profit_rt).toFixed(2)}%
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ))}
           </div>
         )}
 
-        {/* 월별 성과 테이블 */}
+        {/* ── 월별 성과 ── */}
         {monthArr.length>0 && (
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:8}}>월별 성과</div>
+          <div style={{background:'var(--bg-panel)',border:'.5px solid var(--border)',borderRadius:10,overflow:'hidden',marginBottom:12}}>
+            <div style={{padding:'11px 15px',borderBottom:'.5px solid var(--border)'}}>
+              <span style={{fontSize:12,fontWeight:600,color:'var(--text-secondary)'}}>월별 성과</span>
+            </div>
             <div className="pp-table-wrap">
               <table className="pp-table">
                 <thead><tr>
                   <th style={{textAlign:'left'}}>월</th>
-                  <th>매도</th>
-                  <th>수익</th>
-                  <th>손실</th>
-                  <th>승률</th>
-                  <th>매매손익</th>
-                  <th>배당</th>
-                  <th>월합계</th>
-                  <th>누적</th>
+                  <th>매도</th><th>수익</th><th>손실</th><th>승률</th>
+                  <th>매매손익</th><th>배당</th><th>월합계</th><th>누적</th>
                 </tr></thead>
                 <tbody>
                   {monthArr.map(m=>{
@@ -995,23 +1017,23 @@ function AnalysisView({ allTrades, allCashflow }) {
                     const total=m.profit+m.div
                     return (
                       <tr key={m.ym}>
-                        <td style={{textAlign:'left',fontVariantNumeric:'tabular-nums'}}>
+                        <td style={{textAlign:'left',fontVariantNumeric:'tabular-nums',color:'var(--text-secondary)'}}>
                           {m.ym.slice(0,4)}.{m.ym.slice(4,6)}
                         </td>
                         <td>{m.sells}건</td>
                         <td style={{color:'#085041'}}>{m.wins}건</td>
                         <td style={{color:'#791F1F'}}>{m.losses}건</td>
                         <td style={{color:wr>=50?'#085041':'#791F1F'}}>{wr!=null?wr.toFixed(0)+'%':'-'}</td>
-                        <td style={{fontVariantNumeric:'tabular-nums',fontWeight:600,color:nc(m.profit)}}>
+                        <td style={{fontVariantNumeric:'tabular-nums',fontWeight:600,color:gc(m.profit)}}>
                           {m.profit>=0?'+':''}{m.profit.toLocaleString()}
                         </td>
                         <td style={{fontVariantNumeric:'tabular-nums',color:'#085041'}}>
                           {m.div>0?'+'+Math.round(m.div).toLocaleString():'-'}
                         </td>
-                        <td style={{fontVariantNumeric:'tabular-nums',fontWeight:600,color:nc(total)}}>
+                        <td style={{fontVariantNumeric:'tabular-nums',fontWeight:600,color:gc(total)}}>
                           {total>=0?'+':''}{Math.round(total).toLocaleString()}
                         </td>
-                        <td style={{fontVariantNumeric:'tabular-nums',fontWeight:700,color:nc(m.cumul)}}>
+                        <td style={{fontVariantNumeric:'tabular-nums',fontWeight:700,color:gc(m.cumul)}}>
                           {m.cumul>=0?'+':''}{Math.round(m.cumul).toLocaleString()}
                         </td>
                       </tr>
@@ -1023,49 +1045,59 @@ function AnalysisView({ allTrades, allCashflow }) {
           </div>
         )}
 
-        {/* 종목별 성과 테이블 */}
+        {/* ── 종목별 성과 ── */}
         {byCodeArr.length>0 && (
-          <div style={{marginBottom:8}}>
-            <div style={{fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:8}}>종목별 성과</div>
-            <div className="pp-table-wrap">
-              <table className="pp-table">
-                <thead><tr>
-                  <th style={{textAlign:'left'}}>종목</th>
-                  <th>매수</th>
-                  <th>매도</th>
-                  <th>실현손익</th>
-                  <th>수익률</th>
-                  <th>승률</th>
-                  <th>부대비용</th>
-                </tr></thead>
-                <tbody>
-                  {byCodeArr.map(s=>{
-                    const rt=s.sellAmt>0?(s.profit/s.sellAmt*100):null
-                    const wr=s.sellCnt>0?(s.wins/s.sellCnt*100):null
-                    return (
-                      <tr key={s.code}>
-                        <td style={{textAlign:'left'}}>
-                          <div style={{fontSize:12,fontWeight:600,color:'var(--text-primary)'}}>{s.name}</div>
-                          <div style={{fontSize:10,color:'var(--text-dim)',fontFamily:"'SFMono-Regular',monospace"}}>{s.code}</div>
-                        </td>
-                        <td>{s.buyCnt}회</td>
-                        <td>{s.sellCnt}회</td>
-                        <td style={{fontWeight:700,fontVariantNumeric:'tabular-nums',color:nc(s.profit)}}>
-                          {s.profit>=0?'+':''}{s.profit.toLocaleString()}
-                        </td>
-                        <td style={{color:rt>=0?'#085041':'#791F1F',fontVariantNumeric:'tabular-nums'}}>
-                          {rt!=null?(rt>=0?'+':'')+rt.toFixed(2)+'%':'-'}
-                        </td>
-                        <td style={{color:wr>=50?'#085041':'#791F1F'}}>
-                          {wr!=null?wr.toFixed(0)+'%':'-'}
-                        </td>
-                        <td style={{color:'var(--text-dim)',fontVariantNumeric:'tabular-nums'}}>{s.fee.toLocaleString()}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+          <div style={{background:'var(--bg-panel)',border:'.5px solid var(--border)',borderRadius:10,overflow:'hidden'}}>
+            <div style={{padding:'11px 15px',borderBottom:'.5px solid var(--border)'}}>
+              <span style={{fontSize:12,fontWeight:600,color:'var(--text-secondary)'}}>종목별 성과</span>
             </div>
+            {/* 헤더 */}
+            <div style={{display:'flex',alignItems:'center',padding:'7px 15px',
+              background:'var(--bg-base)',borderBottom:'.5px solid var(--border)',gap:8}}>
+              <div style={{flex:3,fontSize:9,color:'var(--text-dim)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.04em'}}>종목</div>
+              <div style={{flex:1,textAlign:'center',fontSize:9,color:'var(--text-dim)',fontWeight:600}}>매수/매도</div>
+              <div style={{flex:1.4,textAlign:'right',fontSize:9,color:'var(--text-dim)',fontWeight:600}}>실현손익</div>
+              <div style={{flex:.9,textAlign:'right',fontSize:9,color:'var(--text-dim)',fontWeight:600}}>수익률</div>
+              <div style={{flex:.7,textAlign:'right',fontSize:9,color:'var(--text-dim)',fontWeight:600}}>승률</div>
+              <div style={{flex:1.2,fontSize:9,color:'var(--text-dim)',fontWeight:600}}>손익바</div>
+            </div>
+            {byCodeArr.map((s,i)=>{
+              const rt = s.sellAmt>0?(s.profit/s.sellAmt*100):null
+              const wr = s.sellCnt>0?(s.wins/s.sellCnt*100):null
+              const maxAbs = Math.max(...byCodeArr.map(x=>Math.abs(x.profit)),1)
+              const barW = Math.abs(s.profit)/maxAbs*100
+              return (
+                <div key={s.code} style={{display:'flex',alignItems:'center',padding:'9px 15px',
+                  gap:8,borderBottom:i<byCodeArr.length-1?'.5px solid var(--border-dim)':'none',
+                  background:i%2===0?'transparent':'var(--bg-base)'}}>
+                  <div style={{flex:3,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:600,color:'var(--text-primary)',
+                      overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.name}</div>
+                    <div style={{fontSize:9,color:'var(--text-dim)',fontFamily:"'SFMono-Regular',monospace"}}>{s.code}</div>
+                  </div>
+                  <div style={{flex:1,textAlign:'center',fontSize:11,color:'var(--text-dim)'}}>
+                    {s.buyCnt}매/{s.sellCnt}매
+                  </div>
+                  <div style={{flex:1.4,textAlign:'right',fontVariantNumeric:'tabular-nums',
+                    fontWeight:700,fontSize:12,color:gc(s.profit)}}>
+                    {s.profit>=0?'+':''}{s.profit.toLocaleString()}
+                  </div>
+                  <div style={{flex:.9,textAlign:'right',fontSize:11,fontVariantNumeric:'tabular-nums',
+                    color:rt>=0?'#1D9E75':'#E24B4A'}}>
+                    {rt!=null?(rt>=0?'+':'')+rt.toFixed(2)+'%':'-'}
+                  </div>
+                  <div style={{flex:.7,textAlign:'right',fontSize:11,
+                    color:wr>=50?'#085041':'#791F1F'}}>
+                    {wr!=null?wr.toFixed(0)+'%':'-'}
+                  </div>
+                  <div style={{flex:1.2,height:4,background:'var(--bg-base)',borderRadius:2,overflow:'hidden',
+                    border:'.5px solid var(--border-dim)'}}>
+                    <div style={{width:`${barW}%`,height:'100%',borderRadius:2,
+                      background:s.profit>=0?'#1D9E75':'#E24B4A'}}/>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
 
