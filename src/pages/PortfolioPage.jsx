@@ -165,8 +165,9 @@ function KpiBar({ data }) {
 // ── 보유현황 패널 ─────────────────────────────────────
 function HoldingsPanel({ data, loading, onRefresh, user }) {
   const [firstBuyMap, setFirstBuyMap] = useState({})
-  const [market,      setMarket]      = useState(null)  // 장 상태
-  const [refreshTick, setRefreshTick] = useState(0)     // 라이브 자동갱신 트리거
+  const [market,      setMarket]      = useState(null)
+  const [refreshTick, setRefreshTick] = useState(0)
+  const [chartItem,   setChartItem]   = useState(null)  // 차트 팝업
 
   // 장 상태 조회
   useEffect(() => {
@@ -247,6 +248,10 @@ function HoldingsPanel({ data, loading, onRefresh, user }) {
 
   return (
     <div className="pp-panel">
+      {chartItem && (
+        <StockChartPopup code={chartItem.code} name={chartItem.name}
+          onClose={()=>setChartItem(null)}/>
+      )}
       <div className="pp-panel-hdr">
         <div>
           <div className="pp-panel-title" style={{display:'flex',alignItems:'center',gap:8}}>
@@ -306,7 +311,14 @@ function HoldingsPanel({ data, loading, onRefresh, user }) {
               return (
                 <tr key={h.stk_cd}>
                   <td>
-                    <div className="pp-stock-name">{h.stk_nm}</div>
+                    <div className="pp-stock-name"
+                      onClick={()=>setChartItem({code:h.stk_cd.replace(/^A/,''),name:h.stk_nm})}
+                      style={{cursor:'pointer',color:'var(--accent-mid)'}}
+                      onMouseEnter={e=>e.currentTarget.style.textDecoration='underline'}
+                      onMouseLeave={e=>e.currentTarget.style.textDecoration='none'}
+                      title={`${h.stk_nm} 차트 보기`}>
+                      {h.stk_nm}
+                    </div>
                     <div className="pp-stock-code">{h.stk_cd}</div>
                   </td>
                   <td style={{fontVariantNumeric:'tabular-nums'}}>{fmt(h.cur_prc)}</td>
@@ -1062,6 +1074,187 @@ function AnalysisView({ allTrades, allCashflow }) {
   )
 }
 
+// ── 종목 차트 팝업 ────────────────────────────────────
+function StockChartPopup({ code, name, onClose }) {
+  const [range,   setRange]   = useState('3mo')
+  const [candles, setCandles] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
+
+  const RANGES = [
+    { label:'1개월', val:'1mo',  period:'day',  cnt:22  },
+    { label:'3개월', val:'3mo',  period:'day',  cnt:65  },
+    { label:'6개월', val:'6mo',  period:'day',  cnt:130 },
+    { label:'1년',   val:'1y',   period:'week', cnt:52  },
+  ]
+
+  useEffect(() => {
+    if (!code) return
+    setLoading(true); setError(''); setCandles([])
+    const r = RANGES.find(r=>r.val===range) || RANGES[1]
+    fetch(`/api/kiwoom?type=stock-chart&code=${code}&period=${r.period}`)
+      .then(res=>res.json())
+      .then(data => {
+        if (data.error) throw new Error(data.error)
+        const raw = (data.candles||[]).slice(-r.cnt).map(c=>({
+          date:  c.time||c.date||'',
+          open:  Number(c.open||0),
+          high:  Number(c.high||0),
+          low:   Number(c.low||0),
+          close: Number(c.close||0),
+          vol:   Number(c.volume||c.vol||0),
+        })).filter(c=>c.close>0)
+        setCandles(raw)
+      })
+      .catch(e=>setError(e.message))
+      .finally(()=>setLoading(false))
+  }, [code, range])
+
+  // SVG 캔들차트 간단 렌더
+  const renderChart = () => {
+    if (!candles.length) return null
+    const VW=700, VH=280, PL=8, PR=8, PT=20, PB=40
+    const iW=VW-PL-PR, iH=VH-PT-PB
+    const n = candles.length
+    const barW = Math.max(2, Math.floor(iW/n*0.65))
+    const colW = iW/n
+    const prices = candles.flatMap(c=>[c.high,c.low]).filter(v=>v>0)
+    const minP = Math.min(...prices), maxP = Math.max(...prices)
+    const rng = maxP - minP || 1
+    const py = v => PT + iH - ((v-minP)/rng*iH)
+    const px = i => PL + (i+0.5)*colW
+    const last = candles[n-1]
+    const prev = candles[n-2]
+    const change = prev ? ((last.close-prev.close)/prev.close*100) : 0
+
+    // X축 날짜 — 최대 6개
+    const step = Math.max(1, Math.ceil(n/6))
+    const xTicks = candles.filter((_,i)=>i%step===0||i===n-1)
+
+    return (
+      <svg viewBox={`0 0 ${VW} ${VH}`} style={{width:'100%',display:'block'}}>
+        {/* 그리드 3줄 */}
+        {[0.25,0.5,0.75].map((t,i)=>{
+          const y=PT+iH*t
+          const v=maxP-(rng*t)
+          return (
+            <g key={i}>
+              <line x1={PL} y1={y} x2={VW-PR} y2={y} stroke="#E2E8F0" strokeWidth=".5" strokeDasharray="3,3"/>
+              <text x={VW-PR+2} y={y+3} fontSize="9" fill="#94A3B8" textAnchor="start">
+                {v>=10000?`${Math.round(v/1000)}k`:Math.round(v)}
+              </text>
+            </g>
+          )
+        })}
+        {/* 캔들 */}
+        {candles.map((c,i)=>{
+          const x=px(i), isUp=c.close>=c.open
+          const col=isUp?'#E24B4A':'#1D4ED8'
+          const top=py(Math.max(c.open,c.close))
+          const bot=py(Math.min(c.open,c.close))
+          const bh=Math.max(1,bot-top)
+          return (
+            <g key={i}>
+              <line x1={x} y1={py(c.high)} x2={x} y2={py(c.low)} stroke={col} strokeWidth="1"/>
+              <rect x={x-barW/2} y={top} width={barW} height={bh} fill={col} opacity=".9"/>
+            </g>
+          )
+        })}
+        {/* X축 */}
+        {xTicks.map((c,i)=>(
+          <text key={i} x={px(candles.indexOf(c))} y={VH-6}
+            textAnchor="middle" fontSize="9" fill="#94A3B8">
+            {c.date?.slice(4,6)}/{c.date?.slice(6,8)}
+          </text>
+        ))}
+        {/* 현재가 라인 */}
+        <line x1={PL} y1={py(last.close)} x2={VW-PR} y2={py(last.close)}
+          stroke={change>=0?'#E24B4A':'#1D4ED8'} strokeWidth="1" strokeDasharray="4,2" opacity=".6"/>
+      </svg>
+    )
+  }
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:1200,
+      display:'flex',alignItems:'center',justifyContent:'center',padding:16}}
+      onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:'var(--bg-panel)',border:'1px solid var(--border)',
+        borderRadius:14,width:'min(780px,95vw)',maxHeight:'85vh',
+        display:'flex',flexDirection:'column',boxShadow:'0 24px 64px rgba(0,0,0,.22)',overflow:'hidden'}}>
+
+        {/* 헤더 */}
+        <div style={{padding:'14px 18px',borderBottom:'1px solid var(--border)',
+          display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+          <div>
+            <span style={{fontSize:15,fontWeight:700,color:'var(--text-primary)'}}>{name}</span>
+            <span style={{fontSize:12,color:'var(--text-dim)',marginLeft:8,
+              fontFamily:"'SFMono-Regular',monospace"}}>{code}</span>
+          </div>
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            {RANGES.map(r=>(
+              <button key={r.val}
+                style={{padding:'4px 10px',borderRadius:6,fontSize:11,fontWeight:600,
+                  border:'1px solid',cursor:'pointer',
+                  borderColor:range===r.val?'var(--accent-mid)':'var(--border)',
+                  background:range===r.val?'var(--accent-light)':'transparent',
+                  color:range===r.val?'var(--accent-mid)':'var(--text-secondary)'}}
+                onClick={()=>setRange(r.val)}>{r.label}</button>
+            ))}
+            <button onClick={onClose}
+              style={{border:'none',background:'none',fontSize:18,cursor:'pointer',
+                color:'var(--text-dim)',marginLeft:4,padding:'2px 6px'}}>✕</button>
+          </div>
+        </div>
+
+        {/* 차트 */}
+        <div style={{flex:1,padding:'16px 18px',overflow:'hidden'}}>
+          {loading && (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:200,
+              gap:8,color:'var(--text-dim)',fontSize:12}}>
+              <div className="pp-spinner"/> 차트 불러오는 중...
+            </div>
+          )}
+          {error && (
+            <div style={{color:'#E24B4A',fontSize:12,textAlign:'center',padding:40}}>
+              ⚠ {error}
+            </div>
+          )}
+          {!loading && !error && (
+            <>
+              {candles.length>0 && (() => {
+                const last=candles[candles.length-1]
+                const prev=candles[candles.length-2]
+                const chg=prev?((last.close-prev.close)/prev.close*100):0
+                return (
+                  <div style={{display:'flex',alignItems:'baseline',gap:10,marginBottom:12}}>
+                    <span style={{fontSize:20,fontWeight:700,fontVariantNumeric:'tabular-nums',
+                      color:chg>=0?'#B91C1C':'#1D4ED8'}}>
+                      {last.close.toLocaleString()}
+                    </span>
+                    <span style={{fontSize:13,fontWeight:600,
+                      color:chg>=0?'#B91C1C':'#1D4ED8'}}>
+                      {chg>=0?'+':''}{chg.toFixed(2)}%
+                    </span>
+                    <span style={{fontSize:11,color:'var(--text-dim)',marginLeft:4}}>
+                      {range} · {candles.length}봉
+                    </span>
+                  </div>
+                )
+              })()}
+              {renderChart()}
+              {candles.length===0 && (
+                <div style={{textAlign:'center',color:'var(--text-dim)',fontSize:12,padding:60}}>
+                  차트 데이터 없음
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── 기존 내역 수정 모달 ───────────────────────────────
 function EditEntryModal({ user, item, onClose, onSaved }) {
   const isTrade = item._col === 'trades'
@@ -1467,7 +1660,8 @@ function JournalPanel({ user }) {
   const [costVal,    setCostVal]    = useState('')
   const [dateEdit,   setDateEdit]   = useState(null)
   const [dateVal,    setDateVal]    = useState('')
-  const [editItem,   setEditItem]   = useState(null)  // 전체 수정 모달 대상
+  const [editItem,   setEditItem]   = useState(null)
+  const [chartItem,  setChartItem]  = useState(null)  // 차트 팝업 대상 {code, name}
 
   const TRADE_TABS = [
     { id:'all',  label:'전체' },
@@ -1745,6 +1939,10 @@ function JournalPanel({ user }) {
         <EditEntryModal user={user} item={editItem}
           onClose={()=>setEditItem(null)}
           onSaved={()=>{ load(); setEditItem(null) }}/>
+      )}
+      {chartItem && (
+        <StockChartPopup code={chartItem.code} name={chartItem.name}
+          onClose={()=>setChartItem(null)}/>
       )}
       {syncModal && (
         <ImportSyncModal type={syncModal} user={user}
@@ -2087,7 +2285,15 @@ function JournalPanel({ user }) {
                           </td>
                           {/* 종목 */}
                           <td style={{textAlign:'left'}}>
-                            <div style={{fontWeight:600,fontSize:12,color:'var(--text-primary)'}}>
+                            <div
+                              onClick={()=>it.code&&setChartItem({code:it.code,name:it.name||it.stk_nm||it.code})}
+                              style={{fontWeight:600,fontSize:12,
+                                color:it.code?'var(--accent-mid)':'var(--text-primary)',
+                                cursor:it.code?'pointer':'default',
+                                textDecoration:it.code?'none':'none'}}
+                              onMouseEnter={e=>{if(it.code)e.currentTarget.style.textDecoration='underline'}}
+                              onMouseLeave={e=>e.currentTarget.style.textDecoration='none'}
+                              title={it.code?`${it.name} 차트 보기`:''}>
                               {it.name||it.stk_nm||'-'}
                             </div>
                             {it.code && (
@@ -2237,7 +2443,7 @@ function JournalPanel({ user }) {
                             )}
                           </td>
                           {/* 메모 */}
-                          <td style={{textAlign:'left'}}>
+                          <td style={{textAlign:'left',maxWidth:160}}>
                             {editId===it._id ? (
                               <div style={{display:'flex',gap:4,alignItems:'center'}}>
                                 <input autoFocus value={editText} onChange={e=>setEditText(e.target.value)}
@@ -2252,9 +2458,12 @@ function JournalPanel({ user }) {
                               </div>
                             ) : (
                               <div onClick={()=>{setEditId(it._id);setEditText(it.memo||'')}}
+                                title={it.memo||''}
                                 style={{cursor:'pointer',minHeight:20,fontSize:11,
                                   color:it.memo?'var(--text-primary)':'var(--text-dim)',
-                                  fontStyle:it.memo?'normal':'italic'}}>
+                                  fontStyle:it.memo?'normal':'italic',
+                                  overflow:'hidden',textOverflow:'ellipsis',
+                                  whiteSpace:'nowrap',maxWidth:155}}>
                                 {it.memo||'+ 메모'}
                               </div>
                             )}
@@ -2566,7 +2775,11 @@ function JournalPanel({ user }) {
                             )}
                           </td>
                           <td style={{textAlign:'left'}}>
-                            <div style={{fontSize:12,color:'var(--text-secondary)'}}>
+                            <div
+                              onClick={()=>it.code&&setChartItem({code:it.code,name:it.name||it.code})}
+                              style={{fontSize:12,color:it.code?'var(--accent-mid)':'var(--text-secondary)',
+                                cursor:it.code?'pointer':'default'}}
+                              title={it.code?`${it.name} 차트 보기`:''}>
                               {it.name||it.rmrk_nm||it.io_tp_nm||'-'}
                             </div>
                             {isDup && <div style={{fontSize:10,color:'#EF4444',fontWeight:700}}>⚠ 중복</div>}
@@ -2593,7 +2806,7 @@ function JournalPanel({ user }) {
                             </div>
                           </td>
                           {/* 메모 */}
-                          <td style={{textAlign:'left'}}>
+                          <td style={{textAlign:'left',maxWidth:160}}>
                             {editId===it._id ? (
                               <div style={{display:'flex',gap:4,alignItems:'center'}}>
                                 <input autoFocus value={editText} onChange={e=>setEditText(e.target.value)}
@@ -2608,9 +2821,12 @@ function JournalPanel({ user }) {
                               </div>
                             ) : (
                               <div onClick={()=>{setEditId(it._id);setEditText(it.memo||'')}}
+                                title={it.memo||''}
                                 style={{cursor:'pointer',minHeight:20,fontSize:11,
                                   color:it.memo?'var(--text-primary)':'var(--text-dim)',
-                                  fontStyle:it.memo?'normal':'italic'}}>
+                                  fontStyle:it.memo?'normal':'italic',
+                                  overflow:'hidden',textOverflow:'ellipsis',
+                                  whiteSpace:'nowrap',maxWidth:155}}>
                                 {it.memo||'+ 메모'}
                               </div>
                             )}
