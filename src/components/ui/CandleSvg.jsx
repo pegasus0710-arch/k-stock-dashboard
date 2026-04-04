@@ -135,18 +135,20 @@ export default function CandleSvg({
   }
 
   const handleMouseMove = (e) => {
-    if (!showTooltip) { if (onChartMouseMove) { /* 드로잉용 좌표만 전달 */ } return }
     const c = getSvgCoords(e)
     if (!c) return
+    // 드로잉 좌표는 showTooltip 여부와 무관하게 항상 전달
+    if (onChartMouseMove) onChartMouseMove(c)
+    // 툴팁은 showTooltip ON일 때만 표시
+    if (!showTooltip) return
     if (c.idx >= 0 && c.idx < data.length) {
       setTooltip({
         c:     data[c.idx],
         x:     toX(c.idx),
-        svgY:  c.svgY,           // 마우스 Y (크로스헤어 가로선용)
-        price: c.price,           // 마우스 위치 가격 (Y축 버블용)
+        svgY:  c.svgY,
+        price: c.price,
       })
     }
-    if (onChartMouseMove) onChartMouseMove(c)
   }
   const handleClick = (e) => { const c = getSvgCoords(e); if (c && onChartClick) onChartClick(c) }
   const handleLeave = () => { setTooltip(null); if (onChartMouseLeave) onChartMouseLeave() }
