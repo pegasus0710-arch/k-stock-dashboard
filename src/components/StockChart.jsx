@@ -393,7 +393,7 @@ export function DrawingToolbar({ drawTool, setDrawTool, drawings, saveDrawings, 
 // ── CandleSvg — 핵심 캔들 SVG 렌더러 ─────────────────────
 export function CandleSvg({
   data, width, height=400,
-  showMA=true, enabledMA=new Set([5,20,60,120]),
+  showMA=true, enabledMA=new Set([5,20,60,120]), maStyle=null,
   drawings=[], onSvgClick, drawTool='none',
   selectedIdx, onSelectDrawing,
   showSupply=false, supplyData, supplyLoading,
@@ -452,7 +452,8 @@ export function CandleSvg({
   const maLines = showMA ? MA_SETTINGS.filter(m=>enabledMA.has(m.p)).map(({p,color})=>{
     const vals=calcMA(data,p)
     const pts=vals.map((v,i)=>v?`${bx(i)},${toY(v)}`:null).filter(Boolean).join(' ')
-    return pts.length>1?{p,color,pts}:null
+    const s = maStyle?.[p]
+    return pts.length>1?{p, color: s?.color||color, width: s?.width||1.3, pts}:null
   }).filter(Boolean) : []
 
   // 볼린저밴드 계산 (20,2)
@@ -583,7 +584,7 @@ export function CandleSvg({
 
       {/* MA 라인 */}
       {maLines.map(ma=>(
-        <polyline key={ma.p} points={ma.pts} fill="none" stroke={ma.color} strokeWidth={1.3} opacity={0.85}/>
+        <polyline key={ma.p} points={ma.pts} fill="none" stroke={ma.color} strokeWidth={ma.width||1.3} opacity={0.85}/>
       ))}
 
       {/* 볼린저밴드 */}
