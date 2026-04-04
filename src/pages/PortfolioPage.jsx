@@ -2004,12 +2004,16 @@ function JournalPanel({ user }) {
                       // profit 있으면 세후 계산 + 반올림 (소수점 제거)
                       const netProfit = (isSell && rawProfit != null) ? Math.round(rawProfit - totalCost) : null
                       const amount    = Number(it.amount||0)
-                      // 수익률: netProfit 기반 우선, 없으면 저장된 profit_rt fallback
-                      const netRt = netProfit != null && amount > 0
-                        ? (netProfit/amount*100).toFixed(2)
-                        : (isSell && it.profit_rt != null)
-                          ? Number(it.profit_rt).toFixed(2)
-                          : null
+                      // 수익률: API의 profit_rt(매입가 기준) 우선 사용
+                      // profit_rt 없으면 buy_price×qty로 매입금액 계산 후 사용
+                      const buyAmt    = it.buy_price && it.qty ? Number(it.buy_price) * Number(it.qty) : 0
+                      const netRt = isSell && it.profit_rt != null
+                        ? Number(it.profit_rt).toFixed(2)           // API 값 그대로 (HTS와 동일)
+                        : netProfit != null && buyAmt > 0
+                          ? (netProfit/buyAmt*100).toFixed(2)       // 매입금액 기준 계산
+                          : netProfit != null && amount > 0
+                            ? (netProfit/amount*100).toFixed(2)     // 폴백: 매도금액 기준
+                            : null
                       const needsSync = isSell && rawProfit == null
                       const barColor  = isManual?'#F59E0B':isBuy?'#EF4444':'#3B82F6'
                       return (
@@ -2288,10 +2292,16 @@ function JournalPanel({ user }) {
                   const fee       = Number(it.fee||0)
                   const tax       = Number(it.tax||0)
                   const totalCost = fee + tax
-                  const rawProfit = Number(it.profit||0)
-                  const netProfit = (isSell&&it.profit!=null) ? rawProfit-totalCost : null
+                  const rawProfit = it.profit!=null ? Number(it.profit) : null
+                  const netProfit = (isSell&&rawProfit!=null) ? Math.round(rawProfit-totalCost) : null
                   const amount    = Number(it.amount||0)
-                  const netRt     = (netProfit!=null&&amount>0) ? (netProfit/amount*100).toFixed(2) : null
+                  const buyAmt    = it.buy_price && it.qty ? Number(it.buy_price)*Number(it.qty) : 0
+                  const netRt = isSell && it.profit_rt != null
+                    ? Number(it.profit_rt).toFixed(2)
+                    : netProfit!=null && buyAmt>0
+                      ? (netProfit/buyAmt*100).toFixed(2)
+                      : netProfit!=null && amount>0
+                        ? (netProfit/amount*100).toFixed(2) : null
                   const barColor  = isManual?'#F59E0B':isBuy?'#EF4444':'#3B82F6'
                   return (
                     <div key={`m-${it._id}_${i}`} className="pp-jrn-card"
