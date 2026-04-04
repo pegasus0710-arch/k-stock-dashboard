@@ -1,5 +1,5 @@
 // K-Stock Dashboard Service Worker
-const CACHE_NAME = 'kstock-v1'
+const CACHE_NAME = 'kstock-v2'
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -23,7 +23,7 @@ self.addEventListener('activate', (e) => {
   self.clients.claim()
 })
 
-// fetch 전략: Network First (API), Cache First (정적)
+// fetch 전략: HTML=Network First, assets=Cache First, API=No Cache
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url)
 
@@ -33,19 +33,44 @@ self.addEventListener('fetch', (e) => {
     return
   }
 
-  // 정적 자원: Cache First
+  // HTML(SPA 라우트) — Network First: 항상 서버에서 최신 index.html 가져옴
+  const isHtml = e.request.headers.get('accept')?.includes('text/html')
+  if (isHtml || url.pathname === '/' || url.pathname === '/index.html') {
+    e.respondWith(
+      fetch(e.request, { cache: 'no-store' })
+        .then(res => res)
+        .catch(() => caches.match('/index.html'))
+    )
+    return
+  }
+
+  // assets/(hash 포함) — Cache First (불변 파일)
+  if (url.pathname.startsWith('/assets/')) {
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        if (cached) return cached
+        return fetch(e.request).then(res => {
+          if (res.ok) {
+            const clone = res.clone()
+            caches.open(CACHE_NAME).then(c => c.put(e.request, clone))
+          }
+          return res
+        })
+      })
+    )
+    return
+  }
+
+  // 나머지 정적 자원 — Network First
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached
-      return fetch(e.request).then(res => {
-        if (res.ok && e.request.method === 'GET') {
-          const clone = res.clone()
-          caches.open(CACHE_NAME).then(c => c.put(e.request, clone))
-        }
-        return res
-      }).catch(() => caches.match('/index.html'))
-    })
+    fetch(e.request, { cache: 'no-store' })
+      .catch(() => caches.match(e.request))
   )
+})
+
+// main.jsx에서 SKIP_WAITING 메시지 수신
+self.addEventListener('message', (e) => {
+  if (e.data?.type === 'SKIP_WAITING') self.skipWaiting()
 })
 
 // 푸시 알림
