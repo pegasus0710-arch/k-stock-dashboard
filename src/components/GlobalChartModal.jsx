@@ -300,7 +300,7 @@ export default function GlobalChartModal({
           <div className="gcm-title-row">
             <span className="gcm-name">{name}</span>
             {livePrice > 0 && (
-              <span className="gcm-price">
+              <span className="gcm-price" style={{ color: rateColor }}>
                 {fmtNum(livePrice, livePrice > 100 ? 0 : 4)}
               </span>
             )}
@@ -468,7 +468,8 @@ export default function GlobalChartModal({
             <CandleSvg candles={candles} chartType="candle" range={range}
               drawings={drawings} drawTool={drawTool}
               drawPhase={drawPhase} drawPoint1={drawPoint1}
-              mousePos={showTooltip ? mousePos : null} selectedColor={selectedColor}
+              mousePos={mousePos} selectedColor={selectedColor}
+              showTooltip={showTooltip}
               showMA={showMA} onToggleMA={onToggleMA}
               maStyle={maStyle}
               onChartClick={handleChartClick}

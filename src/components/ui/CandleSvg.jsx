@@ -39,7 +39,7 @@ export default function CandleSvg({
   mousePos = null,
   selectedColor = '#f59e0b',
   showMA = { 5:true, 20:true, 60:true, 120:true },
-  maStyle = { 5:{color:'#f59e0b',width:1.2}, 20:{color:'#a78bfa',width:2.0}, 60:{color:'#22c55e',width:1.5}, 120:{color:'#f43f5e',width:1.2} },
+  showTooltip = true,
   onChartClick,
   onChartMouseMove,
   onChartMouseLeave,
@@ -135,6 +135,7 @@ export default function CandleSvg({
   }
 
   const handleMouseMove = (e) => {
+    if (!showTooltip) { if (onChartMouseMove) { /* 드로잉용 좌표만 전달 */ } return }
     const c = getSvgCoords(e)
     if (!c) return
     if (c.idx >= 0 && c.idx < data.length) {
@@ -314,18 +315,17 @@ export default function CandleSvg({
 
         {/* MA 이동평균선 */}
         {[
-          { arr: ma5,   on: showMA[5],   period: 5   },
-          { arr: ma20,  on: showMA[20],  period: 20  },
-          { arr: ma60,  on: showMA[60],  period: 60  },
-          { arr: ma120, on: showMA[120], period: 120 },
-        ].map(({ arr, on, period }, mi) => {
+          { arr: ma5,   on: showMA[5],   color: '#f59e0b' },
+          { arr: ma20,  on: showMA[20],  color: '#a78bfa' },
+          { arr: ma60,  on: showMA[60],  color: '#22c55e' },
+          { arr: ma120, on: showMA[120], color: '#f43f5e' },
+        ].map(({ arr, on, color }, mi) => {
           if (!on) return null
-          const s = (maStyle && maStyle[period]) || { color:'#94a3b8', width:1 }
           const pts = arr.map((v, i) => v !== null
             ? `${toX(i).toFixed(1)},${toY(v).toFixed(1)}` : null
           ).filter(Boolean).join(' ')
           return pts ? <polyline key={mi} points={pts} fill="none"
-            stroke={s.color} strokeWidth={s.width} opacity="0.85"/> : null
+            stroke={color} strokeWidth="0.9" opacity="0.8"/> : null
         })}
 
         {/* 저장된 드로잉 */}
