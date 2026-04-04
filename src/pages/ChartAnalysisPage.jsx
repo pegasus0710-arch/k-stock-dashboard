@@ -911,12 +911,20 @@ export default function ChartAnalysisPage() {
           )}
         </div>
 
-        {/* 관심종목 — 카테고리 관리 */}
-        <div className="cap-sb-cat-header">
-          <span className="cap-sb-recent-label">⭐ 관심종목</span>
-          <button className="cap-sb-cat-add" onClick={addWlCat} title="카테고리 추가">+ 카테고리</button>
+        {/* 관심/보유 탭 */}
+        <div className="cap-sb-tabs">
+          <button className={`cap-sb-tab ${wlTab==='watch'?'active':''}`} onClick={()=>setWlTab('watch')}>⭐ 관심</button>
+          <button className={`cap-sb-tab ${wlTab==='hold'?'active':''}`}  onClick={()=>setWlTab('hold')}>💼 보유</button>
         </div>
+
+        {/* 관심종목 — 카테고리 관리 */}
+        {wlTab==='watch'&&(
+        <div className="cap-sb-cat-header">
+          <span className="cap-sb-recent-label" style={{fontSize:11}}>카테고리</span>
+          <button className="cap-sb-cat-add" onClick={addWlCat} title="카테고리 추가">+ 추가</button>
+        </div>)}
         {/* 카테고리 목록 */}
+        {wlTab==='watch'&&(
         <div className="cap-sb-cat-list">
           {wlCats.map(cat=>(
             <div key={cat.id}
@@ -931,13 +939,48 @@ export default function ChartAnalysisPage() {
             </div>
           ))}
           {wlCats.length===0&&<div className="cap-sb-empty" style={{fontSize:11}}>카테고리를 추가해주세요</div>}
-        </div>
+        </div>)}
 
-        {/* 선택된 카테고리 종목 리스트 */}
+        {/* 종목 리스트 */}
         <div className="cap-sb-list">
-          {!selCatId&&<div className="cap-sb-empty" style={{fontSize:11}}>카테고리를 선택하세요</div>}
-          {selCatId&&selCatStocks.length===0&&<div className="cap-sb-empty" style={{fontSize:11}}>종목 없음<br/><span style={{fontSize:10,color:'var(--text-dim)'}}>관심종목 페이지에서 추가</span></div>}
-          {selCatId&&selCatStocks.map(s=>{
+          {/* 보유종목 */}
+          {wlTab==='hold'&&(
+            Object.keys(holdings).length===0
+            ? <div className="cap-sb-empty">보유종목 없음<br/><span style={{fontSize:10,color:'var(--text-dim)'}}>계좌 연동 필요</span></div>
+            : Object.entries(holdings).map(([code,h])=>{
+                const p=prices[code]
+                const sname=h.name||stockList.find(s=>s.code===code)?.name||code
+                const rate=h.rate
+                const rc=rate>0?'#ef4444':rate<0?'#2563eb':'var(--text-dim)'
+                const curPrc=p?.price||h.curPrc
+                const pc2=p?rateColor(p.changeRate):'var(--text-secondary)'
+                return (
+                  <button key={code} className={`cap-sb-stock ${selected?.code===code?'active':''}`}
+                    onClick={()=>select({code,name:sname,theme:'보유종목'})}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span className="cap-sb-sname">{sname}</span>
+                      <span style={{fontSize:10,fontWeight:700,color:rc}}>{rate>=0?'+':''}{rate?.toFixed(1)}%</span>
+                    </div>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:2}}>
+                      <span style={{fontSize:10,color:'var(--text-dim)'}}>{h.qty}주</span>
+                      {curPrc>0
+                        ? <span style={{fontSize:11,fontWeight:700,color:pc2}}>{curPrc.toLocaleString()}</span>
+                        : <span style={{fontSize:10,color:'var(--text-dim)'}}>—</span>
+                      }
+                    </div>
+                    {h.evltPrft!==0&&(
+                      <div style={{fontSize:10,color:h.evltPrft>0?'#ef4444':'#2563eb',textAlign:'right',marginTop:1}}>
+                        {h.evltPrft>0?'+':''}{Math.round(h.evltPrft).toLocaleString()}원
+                      </div>
+                    )}
+                  </button>
+                )
+              })
+          )}
+          {/* 관심종목 */}
+          {wlTab==='watch'&&!selCatId&&<div className="cap-sb-empty" style={{fontSize:11}}>카테고리를 선택하세요</div>}
+          {wlTab==='watch'&&selCatId&&selCatStocks.length===0&&<div className="cap-sb-empty" style={{fontSize:11}}>종목 없음</div>}
+          {wlTab==='watch'&&selCatId&&selCatStocks.map(s=>{
             const p=prices[s.code], pc2=p?rateColor(p.changeRate):'var(--text-secondary)', s2=(p?.changeRate??0)>0?'+':''
             return (
               <button key={s.code} className={`cap-sb-stock ${selected?.code===s.code?'active':''}`} onClick={()=>select(s)}>
