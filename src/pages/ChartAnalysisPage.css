@@ -515,3 +515,25 @@
   font-size: 10px; color: var(--accent-mid);
   font-weight: 700; padding: 0 2px;
 }
+
+/* ── 툴바+차트 전체화면 래퍼 ──────────────────────── */
+.cap-chart-area {
+  display: flex; flex-direction: column; flex: 1; overflow: hidden; min-height: 0;
+}
+.cap-chart-area.cap-canvas-full {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1100;
+  background: var(--bg-base);
+  overflow: auto !important;
+}
+
+/* ── 드로잉 select ────────────────────────────────── */
+.cap-draw-select {
+  padding: 2px 4px; border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-base); color: var(--text-secondary);
+  font-size: 11px; cursor: pointer;
+  outline: none;
+}
+.cap-draw-select:hover { border-color: var(--accent-mid); }

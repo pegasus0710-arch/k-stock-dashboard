@@ -494,6 +494,10 @@ export default function ChartAnalysisPage() {
   const [drawState, setDrawState] = useState(null)
   const [drawings,  setDrawings]  = useState([])
   const [mousePos,  setMousePos]  = useState(null)  // 드로잉 호버 프리뷰용
+  // 선 스타일 설정
+  const [lineColor, setLineColor] = useState('#f59e0b')
+  const [lineWidth, setLineWidth] = useState(1.5)
+  const [lineDash,  setLineDash]  = useState('solid') // 'solid'|'dashed'|'dotted'
   const [selIdx,    setSelIdx]    = useState(null)
   const [textInput, setTextInput] = useState(null)
   const [chartWrap, setChartWrap] = useState(null)
@@ -701,7 +705,7 @@ export default function ChartAnalysisPage() {
     if(selected) fbSaveDrawings(`${LS_DRAWINGS}_${selected.code}`, next)
   }
   const toggleMA = p => setEnabledMA(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n })
-  const handleInlineClick = args => { const r=handleDrawClick({drawTool,setDrawTool,drawState,setDrawState,drawings,saveDrawings,...args,data:candles}); if(r?.textOverlay) setTextInput(r.textOverlay) }
+  const handleInlineClick = args => { const r=handleDrawClick({drawTool,setDrawTool,drawState,setDrawState,drawings,saveDrawings,...args,data:candles,lineColor,lineWidth,lineDash}); if(r?.textOverlay) setTextInput(r.textOverlay) }
 
   const toggleWatch = () => {
     if(!selected) return
@@ -1041,6 +1045,8 @@ export default function ChartAnalysisPage() {
             </div>
           </div>
 
+          {/* ══ 툴바 + 차트 전체화면 래퍼 ══ */}
+          <div className={`cap-chart-area${showFull?' cap-canvas-full':''}`}>
           {/* ══ 툴바 통합 (1줄) ══ */}
           <div className="cap-tb" style={{borderBottom:'1px solid var(--border)',background:'var(--bg-panel)'}}>
             <div className="cap-tb-row" style={{display:'flex',alignItems:'center',gap:4,padding:'5px 10px',flexWrap:'wrap'}}>
@@ -1133,6 +1139,22 @@ export default function ChartAnalysisPage() {
                     title={t.label}>{t.label}</button>
                 ))}
                 <div className="cap-tb-sep"/>
+                {/* 선 스타일 설정 */}
+                <input type="color" value={lineColor}
+                  onChange={e=>setLineColor(e.target.value)}
+                  title="선 색상"
+                  style={{width:22,height:22,border:'1px solid var(--border)',borderRadius:4,cursor:'pointer',padding:1}}/>
+                <select value={lineWidth} onChange={e=>setLineWidth(Number(e.target.value))}
+                  className="cap-draw-select" title="선 굵기">
+                  {[0.8,1,1.5,2,2.5,3].map(w=><option key={w} value={w}>{w}px</option>)}
+                </select>
+                <select value={lineDash} onChange={e=>setLineDash(e.target.value)}
+                  className="cap-draw-select" title="선 종류">
+                  <option value="solid">실선</option>
+                  <option value="dashed">점선</option>
+                  <option value="dotted">짧은점선</option>
+                </select>
+                <div className="cap-tb-sep"/>
                 <button className="cap-draw-flat undo"
                   disabled={drawings.length===0}
                   title="마지막 드로잉 삭제"
@@ -1172,7 +1194,7 @@ export default function ChartAnalysisPage() {
           <div style={{display:'flex',flex:1,overflow:'hidden',minHeight:0}}>
 
             {/* 차트 영역 */}
-            <div className={`cap-canvas${showFull ? ' cap-canvas-full' : ''}`} style={{flex:1,overflow:'hidden',minWidth:0,display:'flex',flexDirection:'column'}}>
+            <div className="cap-canvas" style={{flex:1,overflow:'hidden',minWidth:0,display:'flex',flexDirection:'column'}}>
               {chartLoading
                 ? <div className="cap-chart-loading"><div className="cap-spinner"/>차트 불러오는 중...</div>
                 : (<>
@@ -1184,7 +1206,8 @@ export default function ChartAnalysisPage() {
                         drawTool={drawTool} selectedIdx={selIdx} onSelectDrawing={setSelIdx}
                         showBollinger={showBB} week52={chartHighLow} period={period}
                         volHeight={volH}
-                        mousePos={mousePos}
+                        mousePos={mousePos} drawState={drawState}
+                        lineColor={lineColor} lineWidth={lineWidth} lineDash={lineDash}
                         onChartMouseMove={c => setMousePos(c)}
                         onChartMouseLeave={() => setMousePos(null)}
                       />
@@ -1448,6 +1471,7 @@ export default function ChartAnalysisPage() {
               </div>
             )}
           </div>
+          </div>{/* cap-chart-area 래퍼 닫기 */}
 
         </>)}
       </div>
