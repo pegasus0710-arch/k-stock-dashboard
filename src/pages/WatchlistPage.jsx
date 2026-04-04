@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../context/AuthContext'
-import ChartModal from '../components/ChartModal'
+import GlobalChartModal from '../components/GlobalChartModal'
 import { ALL_THEMES } from '../constants/themes'
 import { fmt, fmtRate, rateColor, getKstStatus } from '../utils/format'
 import './WatchlistPage.css'
@@ -619,7 +619,12 @@ export default function WatchlistPage() {
 
       {/* ── 차트 팝업 ── */}
       {chartStock && (
-        <ChartModal code={chartStock.code} name={chartStock.name} onClose={() => setChartStock(null)}/>
+        <GlobalChartModal
+          type="stock"
+          symbol={chartStock.code}
+          name={chartStock.name}
+          onClose={() => setChartStock(null)}
+        />
       )}
 
       {/* ── 메모 팝업 ── */}
