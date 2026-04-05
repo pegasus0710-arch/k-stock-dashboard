@@ -412,6 +412,68 @@ export default function DashboardPage() {
         .filter(r => r.sector)
     : []
 
+  // ── 이벤트 일정 — Firestore + AI 자동 갱신 ────────────
+  const DEFAULT_EVENTS = [
+    { label:'한국 GDP', date:'2026-04-24', icon:'🇰🇷' },
+    { label:'삼성전자 실적', date:'2026-04-30', icon:'💹' },
+    { label:'미국 고용지표', date:'2026-05-02', icon:'📊' },
+    { label:'FOMC 금리 결정', date:'2026-05-07', icon:'🏦' },
+    { label:'미국 CPI', date:'2026-05-13', icon:'📈' },
+    { label:'SK하이닉스 실적', date:'2026-04-24', icon:'💹' },
+  ]
+  const [scheduleEvents, setScheduleEvents] = useState(DEFAULT_EVENTS)
+  const [scheduleLoading, setScheduleLoading] = useState(false)
+
+  // Firestore에서 일정 로드
+  useEffect(() => {
+    if (!user) return
+    getDoc(doc(db, 'users', user.uid, 'ai_dashboard', 'schedule'))
+      .then(snap => {
+        if (snap.exists() && snap.data().events?.length) {
+          setScheduleEvents(snap.data().events)
+        }
+      }).catch(() => {})
+  }, [user])
+
+  const refreshSchedule = async () => {
+    if (!user || scheduleLoading) return
+    setScheduleLoading(true)
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 800,
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+          system: [
+            '한국 주식 투자자에게 중요한 향후 30일 이내 경제 일정을 웹 검색으로 찾아주세요.',
+            '반드시 JSON 배열만 반환. 다른 텍스트 절대 금지.',
+            '[{"label":"이벤트명","date":"YYYY-MM-DD","icon":"이모지"}]',
+            '최대 8개, 날짜 오름차순 정렬'
+          ].join("\n"),
+          messages: [{ role: 'user', content: `오늘(${new Date().toISOString().slice(0,10)}) 기준 향후 30일 주요 경제/실적 일정` }]
+        })
+      })
+      const data = await res.json()
+      const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
+      const match = text.match(/\[[\s\S]*?\]/)
+      if (match) {
+        const events = JSON.parse(match[0])
+        setScheduleEvents(events)
+        await setDoc(doc(db, 'users', user.uid, 'ai_dashboard', 'schedule'), {
+          events, updatedAt: new Date().toISOString()
+        })
+      }
+    } catch(e) { console.error('schedule refresh error', e) }
+    finally { setScheduleLoading(false) }
+  }
+
   const moodColor = { bullish:'#16a34a', cautious:'#d97706', bearish:'#dc2626', neutral:'#64748b' }
   const moodLabel = { bullish:'강세 🟢', cautious:'주의 🟡', bearish:'약세 🔴', neutral:'중립 ⚪' }
 
@@ -511,24 +573,35 @@ export default function DashboardPage() {
         {/* 좌측 패널 */}
         <aside className="db-left">
 
-          {/* 시장 체온계 — 항상 표시 (직전 장 기준) */}
+          {/* 시장 체온계 — 5단계 배지 + 바 */}
           {(dashData?.KOSPI?.rising || dashData?.KOSPI?.fall) && (() => {
             const rising = Number(dashData.KOSPI.rising || 0) + Number(dashData.KOSDAQ?.rising || 0)
             const fall   = Number(dashData.KOSPI.fall   || 0) + Number(dashData.KOSDAQ?.fall   || 0)
             const total  = rising + fall || 1
             const upPct  = Math.round(rising / total * 100)
+            // 5단계 배지
+            const badge = upPct >= 70 ? { label:'강세 🔥', color:'#dc2626', bg:'rgba(220,38,38,.1)' }
+                        : upPct >= 55 ? { label:'상승 🟢', color:'#16a34a', bg:'rgba(22,163,74,.1)' }
+                        : upPct >= 45 ? { label:'중립 ⚪', color:'#64748b', bg:'rgba(100,116,139,.1)' }
+                        : upPct >= 30 ? { label:'하락 🔵', color:'#2563eb', bg:'rgba(37,99,235,.1)' }
+                        :               { label:'약세 ❄️', color:'#1d4ed8', bg:'rgba(29,78,216,.15)' }
             return (
               <div className="db-left-section">
                 <div className="db-left-title">🌡️ 시장 체온계
                   <span className="db-left-badge">{isOpen?'장중':isAfter?'시간외':'직전장'}</span>
                 </div>
-                <div className="db-breadth-bar">
+                {/* 5단계 배지 */}
+                <div className="db-temp-badge" style={{background: badge.bg, color: badge.color, borderColor: badge.color+'40'}}>
+                  {badge.label} <span style={{fontSize:11, fontWeight:400}}>상승 {upPct}%</span>
+                </div>
+                {/* 바 */}
+                <div className="db-breadth-bar" style={{marginTop:6}}>
                   <div className="db-breadth-up"   style={{width:`${upPct}%`}}/>
                   <div className="db-breadth-down" style={{width:`${100-upPct}%`}}/>
                 </div>
                 <div className="db-breadth-labels">
                   <span style={{color:'var(--color-up)'}}>↑ {rising.toLocaleString()}</span>
-                  <span style={{color:'var(--text-dim)',fontSize:10}}>{upPct}% 상승</span>
+                  <span style={{color:'var(--text-dim)',fontSize:10}}>종목 {total.toLocaleString()}개</span>
                   <span style={{color:'var(--color-down)'}}>↓ {fall.toLocaleString()}</span>
                 </div>
               </div>
@@ -584,41 +657,40 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* 이벤트 카운트다운 */}
+          {/* 이벤트 카운트다운 — AI 자동 갱신 */}
           {(() => {
-            const now = new Date()
-            const kst = new Date(now.getTime() + 9 * 3600000)
-            const EVENTS = [
-              { label:'미국 고용지표', date:'2026-05-01', icon:'📊' },
-              { label:'FOMC 금리 결정', date:'2026-05-07', icon:'🏦' },
-              { label:'미국 CPI', date:'2026-05-13', icon:'📈' },
-              { label:'삼성전자 실적', date:'2026-04-30', icon:'💹' },
-              { label:'한국 GDP', date:'2026-04-24', icon:'🇰🇷' },
-            ]
-            const upcoming = EVENTS
+            const kst = new Date(Date.now() + 9 * 3600000)
+            const upcoming = scheduleEvents
               .map(e => {
                 const target = new Date(e.date + 'T09:00:00+09:00')
                 const diff = Math.ceil((target - kst) / 86400000)
                 return { ...e, diff }
               })
-              .filter(e => e.diff >= 0)
+              .filter(e => e.diff >= 0 && e.diff <= 30)
               .sort((a,b) => a.diff - b.diff)
-              .slice(0, 4)
-            if (!upcoming.length) return null
+              .slice(0, 5)
             return (
               <div className="db-left-section">
-                <div className="db-left-title">📅 주요 일정</div>
-                {upcoming.map((e, i) => (
-                  <div key={i} className="db-event-row">
-                    <span className="db-event-icon">{e.icon}</span>
-                    <span className="db-event-label">{e.label}</span>
-                    <span className="db-event-dday" style={{
-                      color: e.diff === 0 ? '#dc2626' : e.diff <= 3 ? '#d97706' : 'var(--text-dim)'
-                    }}>
-                      {e.diff === 0 ? '오늘' : `D-${e.diff}`}
-                    </span>
-                  </div>
-                ))}
+                <div className="db-left-title">📅 주요 일정
+                  <button className="db-sch-refresh" onClick={refreshSchedule}
+                    disabled={scheduleLoading} title="AI로 일정 갱신">
+                    {scheduleLoading ? '⏳' : '🔄'}
+                  </button>
+                </div>
+                {upcoming.length === 0
+                  ? <div style={{fontSize:11,color:'var(--text-dim)'}}>30일 내 일정 없음</div>
+                  : upcoming.map((e, i) => (
+                    <div key={i} className="db-event-row">
+                      <span className="db-event-icon">{e.icon}</span>
+                      <span className="db-event-label">{e.label}</span>
+                      <span className="db-event-dday" style={{
+                        color: e.diff === 0 ? '#dc2626' : e.diff <= 3 ? '#d97706' : 'var(--text-dim)'
+                      }}>
+                        {e.diff === 0 ? '오늘' : `D-${e.diff}`}
+                      </span>
+                    </div>
+                  ))
+                }
               </div>
             )
           })()}
@@ -1390,6 +1462,42 @@ export default function DashboardPage() {
         })}
       </div>
         )}
+      </div>
+
+      {/* ── 2026 핫 테마 섹션 ── */}
+      <div className="db-theme-section">
+        <div className="db-theme-header">
+          <span className="db-theme-title">🔥 2026 핫 테마</span>
+          <span className="db-theme-sub">AI 에이전트 시대 · 분기별 AI 큐레이션</span>
+        </div>
+        <div className="db-theme-grid">
+          {[
+            { id:'ai-agent',  label:'AI 에이전트',   icon:'🤖', desc:'자율 AI 소프트웨어 에이전트 확산', tags:['NAVER','카카오','크래프톤'], color:'#7c3aed' },
+            { id:'robotics',  label:'로보틱스',      icon:'🦾', desc:'산업용 협동로봇·물류 자동화 가속', tags:['현대차','LS산전','레인보우로보틱스'], color:'#2563eb' },
+            { id:'smr',       label:'SMR 원전',      icon:'⚛️', desc:'소형모듈원전 수주·개발 본격화',    tags:['두산에너빌','한전','비에이치아이'], color:'#16a34a' },
+            { id:'defense',   label:'K-방산 수출',   icon:'🛡️', desc:'유럽·중동 방산 수출 확대',         tags:['한화에어로','LIG넥스원','현대로템'], color:'#dc2626' },
+            { id:'powergrid', label:'전력망 인프라', icon:'⚡', desc:'AI 데이터센터 전력 수요 급증',     tags:['LS ELECTRIC','현대일렉트릭','일진전기'], color:'#d97706' },
+            { id:'adc',       label:'바이오 ADC',    icon:'💉', desc:'항체약물접합체 글로벌 임상 활발',  tags:['레고켐바이오','알테오젠','한미약품'], color:'#ec4899' },
+            { id:'lng',       label:'LNG 조선',      icon:'🚢', desc:'LNG 운반선 수주 호황',             tags:['HD한국조선','삼성중공업','한화오션'], color:'#0891b2' },
+            { id:'supply',    label:'공급망 재편',   icon:'🌏', desc:'미중 디커플링·국내 제조 리쇼어링', tags:['삼성전자','SK하이닉스','포스코'], color:'#64748b' },
+          ].map(theme => (
+            <div key={theme.id} className="db-theme-card" style={{'--theme-color': theme.color}}>
+              <div className="db-theme-card-top">
+                <span className="db-theme-icon">{theme.icon}</span>
+                <span className="db-theme-name">{theme.label}</span>
+              </div>
+              <div className="db-theme-desc">{theme.desc}</div>
+              <div className="db-theme-tags">
+                {theme.tags.map(t => (
+                  <span key={t} className="db-theme-tag">{t}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="db-theme-footer">
+          📌 2026년 주요 투자 테마 · AI 분기별 업데이트 예정
+        </div>
       </div>
 
       {/* 히트맵 섹션 */}
