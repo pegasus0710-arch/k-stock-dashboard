@@ -1822,3 +1822,35 @@
 }
 .db-offline-row:last-child { border-bottom: none; }
 .db-offline-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── 포트폴리오 미니바 ───────────────────────────── */
+.db-portbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 16px; background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; min-height: 34px;
+}
+.db-portbar-toggle {
+  font-size: 11px; font-weight: 600; color: var(--text-secondary);
+  background: none; border: 1px solid var(--border);
+  border-radius: 6px; padding: 3px 10px; cursor: pointer;
+  transition: all .12s; white-space: nowrap; flex-shrink: 0;
+}
+.db-portbar-toggle:hover { border-color: var(--accent-mid); color: var(--accent-mid); }
+.db-portbar-content { display: flex; align-items: center; gap: 8px; }
+.db-portbar-count  { font-size: 11px; color: var(--text-dim); }
+.db-portbar-sep    { font-size: 11px; color: var(--border); }
+.db-portbar-rate   { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.db-portbar-pnl    { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.db-portbar-empty  { font-size: 11px; color: var(--text-dim); }
+
+/* ── 이벤트 카운트다운 ──────────────────────────── */
+.db-event-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 0; border-bottom: 1px solid var(--border-dim);
+  font-size: 11px;
+}
+.db-event-row:last-child { border-bottom: none; }
+.db-event-icon  { font-size: 13px; flex-shrink: 0; }
+.db-event-label { flex: 1; color: var(--text-primary); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-event-dday  { font-size: 11px; font-weight: 800; flex-shrink: 0; font-variant-numeric: tabular-nums; }

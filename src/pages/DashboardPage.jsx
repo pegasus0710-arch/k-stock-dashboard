@@ -239,6 +239,44 @@ export default function DashboardPage() {
 
   const { user } = useAuth()
 
+  // ── 포트폴리오 미니바 ─────────────────────────────
+  const [showPortBar, setShowPortBar] = useState(() => {
+    try { return localStorage.getItem('db_portbar') === 'true' } catch { return false }
+  })
+  const [holdings, setHoldings] = useState({})
+
+  useEffect(() => {
+    fetch('/api/kiwoom?type=account-holdings')
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) return
+        const map = {}
+        ;(data.holdings || []).forEach(h => {
+          const code = h.stk_cd || h.code
+          if (!code) return
+          map[code] = {
+            name:     h.stk_nm   || '',
+            rate:     Number(h.prft_rt    || 0),
+            evltPrft: Number(h.evltv_prft || 0),
+            purAmt:   Number(h.pur_amt    || 0),
+            evltAmt:  Number(h.evlt_amt   || 0),
+          }
+        })
+        setHoldings(map)
+      }).catch(() => {})
+  }, [])
+
+  // 전체 수익률 계산
+  const portSummary = (() => {
+    const list = Object.values(holdings)
+    if (!list.length) return null
+    const totalPur  = list.reduce((s, h) => s + (h.purAmt  || 0), 0)
+    const totalEvlt = list.reduce((s, h) => s + (h.evltAmt || 0), 0)
+    const totalPnl  = list.reduce((s, h) => s + (h.evltPrft|| 0), 0)
+    const totalRate = totalPur > 0 ? (totalPnl / totalPur) * 100 : 0
+    return { totalRate, totalPnl, count: list.length }
+  })()
+
   // ── AI 분석 센터 state ──────────────────────────────
   const [aiTab,      setAiTab]      = useState('brief') // brief|sector|risk|strategy
   const [aiContent,  setAiContent]  = useState(null)   // { brief, sector, risk, strategy, generatedAt, mode }
@@ -247,6 +285,13 @@ export default function DashboardPage() {
   const [expandCard, setExpandCard] = useState(null)   // 확장된 지수 카드 ID
   const [showDataPanel, setShowDataPanel] = useState(false)  // 상세 데이터 패널 접이식
   const timeCtx = getTimeContext()
+
+  const togglePortBar = () => {
+    setShowPortBar(prev => {
+      try { localStorage.setItem('db_portbar', String(!prev)) } catch {}
+      return !prev
+    })
+  }
 
   // Firestore 캐시 로드 (6시간 이내)
   useEffect(() => {
@@ -377,6 +422,30 @@ export default function DashboardPage() {
             style={{marginLeft:12,fontSize:11,color:'var(--accent-mid)',background:'none',border:'none',cursor:'pointer'}}>↺ 재시도</button>
         </div>
       )}
+
+      {/* ── 포트폴리오 미니바 ── */}
+      <div className="db-portbar">
+        <button className="db-portbar-toggle" onClick={togglePortBar} title={showPortBar?'수익률 숨기기':'수익률 보기'}>
+          💼 {showPortBar ? '숨기기' : '내 수익률'}
+        </button>
+        {showPortBar && portSummary && (
+          <div className="db-portbar-content">
+            <span className="db-portbar-count">{portSummary.count}종목</span>
+            <span className="db-portbar-sep">|</span>
+            <span className="db-portbar-rate"
+              style={{color: portSummary.totalRate >= 0 ? 'var(--color-up)' : 'var(--color-down)'}}>
+              {portSummary.totalRate >= 0 ? '+' : ''}{portSummary.totalRate.toFixed(2)}%
+            </span>
+            <span className="db-portbar-pnl"
+              style={{color: portSummary.totalPnl >= 0 ? 'var(--color-up)' : 'var(--color-down)'}}>
+              ({portSummary.totalPnl >= 0 ? '+' : ''}{Math.round(portSummary.totalPnl).toLocaleString()}원)
+            </span>
+          </div>
+        )}
+        {showPortBar && !portSummary && (
+          <span className="db-portbar-empty">보유종목 없음 또는 로딩 중</span>
+        )}
+      </div>
 
       {/* ── 지수 스트립 ── */}
       <div className="db-strip">
@@ -512,6 +581,45 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
+
+          {/* 이벤트 카운트다운 */}
+          {(() => {
+            const now = new Date()
+            const kst = new Date(now.getTime() + 9 * 3600000)
+            const EVENTS = [
+              { label:'미국 고용지표', date:'2026-05-01', icon:'📊' },
+              { label:'FOMC 금리 결정', date:'2026-05-07', icon:'🏦' },
+              { label:'미국 CPI', date:'2026-05-13', icon:'📈' },
+              { label:'삼성전자 실적', date:'2026-04-30', icon:'💹' },
+              { label:'한국 GDP', date:'2026-04-24', icon:'🇰🇷' },
+            ]
+            const upcoming = EVENTS
+              .map(e => {
+                const target = new Date(e.date + 'T09:00:00+09:00')
+                const diff = Math.ceil((target - kst) / 86400000)
+                return { ...e, diff }
+              })
+              .filter(e => e.diff >= 0)
+              .sort((a,b) => a.diff - b.diff)
+              .slice(0, 4)
+            if (!upcoming.length) return null
+            return (
+              <div className="db-left-section">
+                <div className="db-left-title">📅 주요 일정</div>
+                {upcoming.map((e, i) => (
+                  <div key={i} className="db-event-row">
+                    <span className="db-event-icon">{e.icon}</span>
+                    <span className="db-event-label">{e.label}</span>
+                    <span className="db-event-dday" style={{
+                      color: e.diff === 0 ? '#dc2626' : e.diff <= 3 ? '#d97706' : 'var(--text-dim)'
+                    }}>
+                      {e.diff === 0 ? '오늘' : `D-${e.diff}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
 
           {/* 히어로 차트 (접이식) */}
           <div className="db-left-section db-left-hero">
