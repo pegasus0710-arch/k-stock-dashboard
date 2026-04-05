@@ -417,7 +417,7 @@ export default function DashboardPage() {
 
   return (
     <div className="db-v2">
-      {/* ── 에러 배너 ── */}
+      {/* 에러 배너 */}
       {fetchError && (
         <div className="db-error-banner">⚠️ 데이터 로드 실패
           <button onClick={()=>{setFetchError(false);fetchDashboard(true)}}
@@ -425,7 +425,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── 포트폴리오 미니바 ── */}
+      {/* 포트폴리오 미니바 */}
       <div className="db-portbar">
         <button className="db-portbar-toggle" onClick={togglePortBar} title={showPortBar?'수익률 숨기기':'수익률 보기'}>
           💼 {showPortBar ? '숨기기' : '내 수익률'}
@@ -449,7 +449,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* ── 지수 스트립 ── */}
+      {/* 지수 스트립 */}
       <div className="db-strip">
         {STRIP_ITEMS.map(item => {
           const d = getStripData(item)
@@ -505,7 +505,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── 바디: 좌측 패널 + 메인 ── */}
+      {/* 바디: 좌측 패널 + 메인 */}
       <div className="db-body">
 
         {/* 좌측 패널 */}
@@ -702,7 +702,7 @@ export default function DashboardPage() {
             {aiContent && !aiLoading && (
               <div className="db-ai-tab-content">
 
-                {/* ── 브리핑 탭 ── */}
+                {/* 브리핑 탭 */}
                 {aiTab === 'brief' && (<>
                   <div className="db-ai-headline-row">
                     <div className="db-ai-headline">"{aiContent.headline}"</div>
@@ -740,7 +740,7 @@ export default function DashboardPage() {
                   )}
                 </>)}
 
-                {/* ── 시나리오 탭 ── */}
+                {/* 시나리오 탭 */}
                 {aiTab === 'scenario' && (<>
                   <div className="db-ai-scenarios" style={{padding:'16px 20px 0'}}>
                     {aiContent.bullScenario && (
@@ -772,7 +772,7 @@ export default function DashboardPage() {
                   )}
                 </>)}
 
-                {/* ── 섹터 탭 ── */}
+                {/* 섹터 탭 */}
                 {aiTab === 'sector' && (
                   <div className="db-ai-section">
                     <div className="db-ai-section-title">🏭 섹터 시그널</div>
@@ -795,7 +795,7 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* ── 전략 탭 ── */}
+                {/* 전략 탭 */}
                 {aiTab === 'strategy' && (<>
                   {aiContent.strategy && (
                     <div className="db-ai-section">
@@ -843,7 +843,7 @@ export default function DashboardPage() {
       </div>
 
 
-      {/* ── 데이터 패널 (접이식) ── */}
+      {/* 데이터 패널 (접이식) */}
       <div className="db-data-wrap">
         <button className="db-data-toggle" onClick={()=>setShowDataPanel(v=>!v)}>
           <span>📋 상세 지수 데이터 <span style={{fontSize:10,color:'var(--text-dim)',fontWeight:400}}>· {dataLabel}</span></span>
@@ -1389,11 +1389,10 @@ export default function DashboardPage() {
           )
         })}
       </div>
-          </div>
         )}
       </div>
 
-      {/* ── 히트맵 섹션 (기존 유지) ── */
+      {/* 히트맵 섹션 */}
       <div className="db-heatmap-section">
         <div className="db-heatmap-header">
           <span className="db-heatmap-title">📊 업종별 등락 히트맵</span>
