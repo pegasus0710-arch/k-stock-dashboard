@@ -224,29 +224,42 @@ export default function DashboardPage() {
   const openSectorPopup = useCallback(async (sector) => {
     setSectorPopup({ sector, stocks: [], loading: true })
     try {
+      // 1순위: repCodes (dashboardData에 정의된 종목)
       const codes = sector.repCodes || []
-      if (!codes.length) {
-        setSectorPopup({ sector, stocks: [], loading: false, error: true })
-        return
+
+      let stocks = []
+
+      if (codes.length > 0) {
+        const results = await Promise.allSettled(
+          codes.map(code =>
+            fetch(`/api/kiwoom?type=price&code=${code}`).then(r => r.json())
+          )
+        )
+        stocks = results
+          .filter(r => r.status === 'fulfilled' && r.value?.stk_nm && !r.value?.error)
+          .map(r => ({
+            stk_cd:  r.value.stk_cd  || '',
+            stk_nm:  r.value.stk_nm  || '',
+            cur_prc: Math.abs(r.value.cur_prc || 0),
+            flu_rt:  r.value.flu_rt  || 0,
+          }))
       }
 
-      // repCodes 순서대로 현재가 병렬 조회 (ka10001 개별 호출)
-      const results = await Promise.allSettled(
-        codes.map(code =>
-          fetch(`/api/kiwoom?type=price&code=${code}`).then(r => r.json())
-        )
-      )
+      // 2순위: repCodes 없거나 조회 실패 시 → investor 상위 종목으로 대체
+      if (stocks.length === 0 && sector.inds_cd) {
+        // ka10063 장중투자자별매매 - 외국인 순매수 상위로 해당 업종 종목 추정
+        const res = await fetch(`/api/kiwoom?type=investor&mrkt=001&invsr=6`)
+          .then(r => r.json()).catch(() => ({}))
+        const rows = (res.data || []).slice(0, 6)
+        stocks = rows.map(r => ({
+          stk_cd:  r.stk_cd || '',
+          stk_nm:  r.stk_nm || '',
+          cur_prc: Math.abs(r.cur_prc || 0),
+          flu_rt:  parseFloat(r.flu_rt || 0),
+        })).filter(s => s.stk_nm)
+      }
 
-      const stocks = results
-        .filter(r => r.status === 'fulfilled' && r.value?.stk_nm && !r.value?.error)
-        .map(r => ({
-          stk_cd:  r.value.stk_cd  || '',
-          stk_nm:  r.value.stk_nm  || '',
-          cur_prc: Math.abs(r.value.cur_prc || 0),
-          flu_rt:  r.value.flu_rt  || 0,
-        }))
-
-      setSectorPopup({ sector, stocks, loading: false })
+      setSectorPopup({ sector, stocks, loading: false, error: stocks.length === 0 })
     } catch {
       setSectorPopup({ sector, stocks: [], loading: false, error: true })
     }
@@ -309,7 +322,7 @@ export default function DashboardPage() {
     const kosdaq = getIdxData('KOSDAQ', 'KQ11')
     const sp500  = globalData?.['SP500']
     const vix    = globalData?.['VIX']
-    const usd    = forexData?.['USD/KRW']
+    const usd    = forexData?.['USD']
     const marketSummary = [
       kospi  && `KOSPI ${kospi.price?.toLocaleString()} (${kospi.changeRate >= 0 ? '+' : ''}${kospi.changeRate?.toFixed(2)}%)`,
       kosdaq && `KOSDAQ ${kosdaq.price?.toLocaleString()} (${kosdaq.changeRate >= 0 ? '+' : ''}${kosdaq.changeRate?.toFixed(2)}%)`,
@@ -402,10 +415,10 @@ export default function DashboardPage() {
   // forexData 유효값 캐시 저장
   useEffect(() => {
     if (!forexData) return
-    const usd = forexData['USD/KRW']
+    const usd = forexData['USD']
     if (usd?.price > 0) {
       const prev = loadCache()
-      saveCache({ ...prev, forex: { ...(prev.forex||{}), 'USD/KRW': { price: usd.price, changeRate: usd.changeRate } } })
+      saveCache({ ...prev, forex: { ...(prev.forex||{}), 'USD': { price: usd.price, changeRate: usd.changeRate } } })
     }
   }, [forexData])
 
@@ -440,7 +453,7 @@ export default function DashboardPage() {
     { id:'NASDAQ', label:'나스닥',  sym:'NASDAQ', type:'global' },
     { id:'N225',   label:'니케이',  sym:'N225',   type:'global' },
     { id:'VIX',    label:'VIX',    sym:'VIX',    type:'global' },
-    { id:'FX_USD', label:'USD/KRW', pair:'USD/KRW', type:'forex' },
+    { id:'FX_USD', label:'USD/KRW', pair:'USD', type:'forex' },
   ]
 
   const getStripData = (item) => {
@@ -448,11 +461,8 @@ export default function DashboardPage() {
     if (item.type === 'forex') {
       // 1순위: forexData (KIS API 실시간)
       if (forexData?.[item.pair]?.price > 0) return { price: forexData[item.pair].price, changeRate: forexData[item.pair].changeRate }
-      // 2순위: forexCache (직접 호출)
+      // 2순위: forexCache (localStorage 이전 유효값)
       if (forexCache?.price > 0) return forexCache
-      // 3순위: localStorage 캐시
-      const cached = loadCache()
-      if (cached?.forex?.[item.pair]?.price > 0) return cached.forex[item.pair]
       return null
     }
     // 국내 지수: dashData 우선, 없으면 domesticIdx(직접 로드) fallback
@@ -475,19 +485,13 @@ export default function DashboardPage() {
   }
 
   // 섹터 상위 5 + 하위 2 (좌측 패널 — 히트맵과 역할 분리)
+  // 전체 업종 등락률순 정렬
   const hotSectorList = effectiveHeatmap
-    ? (() => {
-        const all = Object.entries(effectiveHeatmap)
-          .filter(([,v]) => v != null)
-          .sort(([,a],[,b]) => b - a)
-          .map(([k,v]) => ({ sector: HEATMAP_SECTORS.find(h => h.inds_cd === k), rate: v }))
-          .filter(r => r.sector)
-        const top = all.slice(0, 5)
-        const bot = all.slice(-2)
-        // 중복 제거 후 합치기
-        const botUniq = bot.filter(b => !top.find(t => t.sector.inds_cd === b.sector.inds_cd))
-        return [...top, ...botUniq]
-      })()
+    ? Object.entries(effectiveHeatmap)
+        .filter(([,v]) => v != null)
+        .sort(([,a],[,b]) => b - a)
+        .map(([k,v]) => ({ sector: HEATMAP_SECTORS.find(h => h.inds_cd === k), rate: v }))
+        .filter(r => r.sector)
     : []
 
   // ── localStorage 캐시 유틸 ──────────────────────────
@@ -501,7 +505,7 @@ export default function DashboardPage() {
   })
 
   useEffect(() => {
-    const usd = forexData?.['USD/KRW']
+    const usd = forexData?.['USD']
     if (usd?.price > 0) {
       const val = { price: usd.price, changeRate: usd.changeRate }
       setForexCache(val)
@@ -830,7 +834,7 @@ export default function DashboardPage() {
           {/* 섹터 동향 — 전체 업종 표시 */}
           <div className="db-left-section db-left-sector-full">
             <div className="db-left-title">🏭 업종 동향
-              <span className="db-left-badge">↑5 ↓2</span>
+              <span className="db-left-badge">{hotSectorList.length > 0 ? `${hotSectorList.length}개` : ''}</span>
             </div>
             {hotSectorList.length === 0
               ? <div className="db-sector-empty">직전장 데이터 로딩 중...</div>
@@ -839,25 +843,19 @@ export default function DashboardPage() {
                   const bg = rate > 0
                     ? `rgba(220,38,38,${(intensity * 0.003).toFixed(2)})`
                     : `rgba(37,99,235,${(intensity * 0.003).toFixed(2)})`
-                  const isBot = hotSectorList.indexOf(hotSectorList.find(x=>x.sector.inds_cd===sector.inds_cd)) >= 5
                   return (
-                    <div key={sector.inds_cd}>
-                      {isBot && <div style={{borderTop:'1px dashed var(--border)',margin:'3px 0'}}/>}
-                      <div className="db-sector-row"
-                        style={{background: bg}}
-                        onClick={()=>openSectorPopup(sector)}>
-                        <span className="db-sector-name">{sector.name}</span>
-                        <span className="db-sector-rate" style={{color: rate>=0?'var(--color-up)':'var(--color-down)'}}>
-                          {rate>=0?'+':''}{rate.toFixed(2)}%
-                        </span>
-                      </div>
+                    <div key={sector.inds_cd} className="db-sector-row"
+                      style={{background: bg}}
+                      onClick={()=>openSectorPopup(sector)}>
+                      <span className="db-sector-name">{sector.name}</span>
+                      <span className="db-sector-rate" style={{color: rate>=0?'var(--color-up)':'var(--color-down)'}}>
+                        {rate>=0?'+':''}{rate.toFixed(2)}%
+                      </span>
                     </div>
                   )
                 })
             }
-            <div style={{fontSize:9,color:'var(--text-dim)',textAlign:'right',marginTop:4}}>
-              전체 업종 ↓ 히트맵 참고
-            </div>
+
           </div>
 
           {/* 이벤트 카운트다운 — AI 자동 갱신 */}
@@ -1207,75 +1205,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 히트맵 섹션 */}
-      <div className="db-heatmap-section">
-        <div className="db-heatmap-header">
-          <span className="db-heatmap-title">📊 업종별 등락 히트맵</span>
-          <TooltipIcon id="HEATMAP" tipPosition="right"/>
-          <span style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:6}}>
-            {isOpen && <span className="db-heatmap-live-dot"/>}
-            <span className="db-date-badge" style={{
-              background: isOpen ? 'rgba(34,197,94,.1)' : isAfter ? 'rgba(124,58,237,.1)' : 'var(--bg-base)',
-              borderColor: isOpen ? 'rgba(34,197,94,.4)' : isAfter ? 'rgba(124,58,237,.3)' : 'var(--border)',
-              color: isOpen ? '#15803d' : isAfter ? '#6d28d9' : 'var(--text-dim)',
-            }}>
-              {isOpen ? '실시간' : isAfter ? '시간외' : '직전 종가'} · {getPrevTradingDay()}
-            </span>
-          </span>
-        </div>
-        <div className="db-heatmap-grid">
-          {HEATMAP_SECTORS.map(sector=>{
-            const rate = effectiveHeatmap?.[sector.inds_cd] ?? null
-            const effectiveRate = rate  // 장외에도 직전장 데이터 그대로 표시
-            const { bg, neutral } = getHeatmapColor(effectiveRate)
-            return (
-              <div key={sector.id}
-                className={`db-heatmap-cell${neutral?' neutral':''}`}
-                style={{background: bg}}
-                onClick={()=>openSectorPopup(sector)}>
-                <span className="db-heatmap-cell-name">{sector.name}</span>
-                <span className="db-heatmap-cell-rate">
-                  {effectiveRate!=null ? `${effectiveRate>=0?'+':''}${effectiveRate.toFixed(2)}%` : '—'}
-                </span>
-                <span className="db-heatmap-cell-stocks">{sector.stocks}</span>
-              </div>
-            )
-          })}
-        </div>
-        <div className="db-heatmap-legend">
-          <span>약세</span>
-          <div className="db-heatmap-legend-bar"/>
-          <span>강세</span>
-        </div>
-
-      </div>
-
-      <div className="dash-footer-note">
-        ✅ KIS API · {isOpen?'장중 30초':isAfter?'시간외 2분':'장외 5분'} 자동 갱신 · {dataLabel}
-        · 해외지수 {isUSMarketOpen()?'미장 운영중 60초':'5분'} 갱신 · 기준금리 6시간 캐시
-      </div>
-
-      {showGuide && <GuideModal onClose={()=>setShowGuide(false)}/>}
-
-      {/* AI 브리핑 드로어 */}
-      <AiBriefing
-        open={showBriefing}
-        onClose={()=>setShowBriefing(false)}
-        marketData={{
-          kospi:  globalData?.['KS11'],
-          kosdaq: globalData?.['KQ11'],
-          sp500:  globalData?.['SP500'],
-          nasdaq: globalData?.['NASDAQ'],
-          vix:    globalData?.['VIX'],
-          wti:    globalData?.['WTI'],
-          gold:   globalData?.['GOLD'],
-          us10y:  globalData?.['US10Y'],
-          usdkrw: forexData?.['USD'],
-          spread: globalData?.['US10Y']?.price != null && globalData?.['US2Y']?.price != null
-            ? Math.round((globalData['US10Y'].price - globalData['US2Y'].price) * 100) / 100
-            : null,
-        }}
-      />
 
       {/* 핫테마 AI 상세 팝업 */}
       {themePopup && (
