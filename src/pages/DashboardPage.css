@@ -2053,7 +2053,14 @@
 .db-event-info { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .db-event-label  { font-size: 11px; font-weight: 600; color: var(--text-primary); }
 .db-event-desc   { font-size: 10px; color: var(--text-secondary); }
-.db-event-effect { font-size: 10px; color: #d97706; }
+.db-event-effect {
+  font-size: 10px; color: #b45309;
+  background: rgba(180,83,9,.06);
+  border-left: 2px solid #d97706;
+  padding: 1px 4px; margin-top: 2px;
+  border-radius: 0 3px 3px 0;
+  display: block;
+}
 
 /* ═══════════════════════════════════════════════
    작업7 — 모바일 레이아웃

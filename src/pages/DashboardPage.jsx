@@ -333,7 +333,7 @@ export default function DashboardPage() {
       vix    && `VIX ${vix.price?.toFixed(2)}`,
       usd    && `USD/KRW ${usd.price?.toLocaleString()}`,
     ].filter(Boolean).join(', ')
-    const hotSectors = heatmapData ? Object.entries(heatmapData)
+    const hotSectors = effectiveHeatmap ? Object.entries(effectiveHeatmap)
       .filter(([,v]) => v != null).sort(([,a],[,b]) => b - a).slice(0,3)
       .map(([k,v]) => { const s = HEATMAP_SECTORS.find(h => h.inds_cd === k); return s ? `${s.name}(${v >= 0 ? '+' : ''}${v?.toFixed(1)}%)` : null })
       .filter(Boolean).join(', ') : '데이터 로딩 중'
@@ -389,10 +389,18 @@ export default function DashboardPage() {
             '  "portImpact": "보유종목에 오늘 영향을 줄 구체적 이슈 (보유종목 없으면 관망 추천 종목 1개)",',
             '  "bullScenario": "강세 전환 조건 — 무엇이 바뀌어야 하는가 (구체적 수치나 이벤트)",',
             '  "bearScenario": "추가 하락 조건 — 무엇이 깨지면 위험한가 (구체적 지지선)",',
-            '  "sectorWatch": [{"name":"섹터명","signal":"매수관심 또는 중립 또는 주의","reason":"구체적 이유와 대표종목 언급"}],',
-            '  "riskFactors": ["지금 당장 주시해야 할 리스크 (추상적 표현 금지)", "두번째 리스크"],',            '  "schedule": [{"time":"HH:MM","event":"오늘 발표 예정 지표명","impact":"high 또는 medium","effect":"이 지표가 어떻게 나오면 어떻게 될지"}],',
+            '  "sectorWatch": [',
+            '    {"name":"반도체","signal":"매수관심 또는 중립 또는 주의","reason":"구체적 뉴스 이유 + 대표종목"},',
+            '    {"name":"자동차","signal":"...","reason":"..."},',
+            '    {"name":"조선","signal":"...","reason":"..."},',
+            '    {"name":"바이오","signal":"...","reason":"..."},',
+            '    {"name":"금융","signal":"...","reason":"..."}',
+            '  ],',
+            '  "riskFactors": ["지금 당장 주시해야 할 리스크 구체적으로", "두번째 리스크"],',
+            '  "strategy": "오늘 투자자가 실제로 취할 수 있는 구체적 액션 (매수/매도/관망 + 이유 + 레벨)",',
+            '  "schedule": [{"time":"HH:MM","event":"오늘 발표 예정 지표명","impact":"high 또는 medium","effect":"이 지표가 어떻게 나오면 어떻게 될지"}],',
             '  "mood": "bullish 또는 cautious 또는 bearish 또는 neutral",',
-            '  "midTermView": "1~3개월 관점에서 지금 이 하락이 기회인지 위기인지 구체적 판단"',
+            '  "midTermView": "1~3개월 관점에서 지금이 기회인지 위기인지 구체적 판단"',
             '}',
           ].join('\n'),
           messages: [{ role:'user', content:`${ctx.focus} 관점에서 웹 검색 후 위 사용자의 포트폴리오와 시장 상황을 종합 분석해주세요.` }]
@@ -423,6 +431,23 @@ export default function DashboardPage() {
       saveCache({ ...prev, forex: { ...(prev.forex||{}), 'USD/KRW': { price: usd.price, changeRate: usd.changeRate } } })
     }
   }, [forexData])
+
+  // heatmapData Firestore 캐시 — 직전장 데이터 보존
+  const LS_HEAT_KEY = 'ks_heatmap_cache'
+  const [cachedHeatmap, setCachedHeatmap] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ks_heatmap_cache') || 'null') } catch { return null }
+  })
+  useEffect(() => {
+    if (!heatmapData) return
+    const hasData = Object.values(heatmapData).some(v => v != null && v !== 0)
+    if (hasData) {
+      localStorage.setItem('ks_heatmap_cache', JSON.stringify(heatmapData))
+      setCachedHeatmap(heatmapData)
+    }
+  }, [heatmapData])
+  // 유효한 히트맵 데이터 (실시간 우선, 없으면 캐시)
+  const effectiveHeatmap = (heatmapData && Object.values(heatmapData).some(v => v != null && v !== 0))
+    ? heatmapData : (cachedHeatmap || heatmapData)
 
   const kstStatus = getKstStatus()
   const isOpen    = kstStatus === 'open'
@@ -470,9 +495,9 @@ export default function DashboardPage() {
   }
 
   // 섹터 상위 5 + 하위 2 (좌측 패널 — 히트맵과 역할 분리)
-  const hotSectorList = heatmapData
+  const hotSectorList = effectiveHeatmap
     ? (() => {
-        const all = Object.entries(heatmapData)
+        const all = Object.entries(effectiveHeatmap)
           .filter(([,v]) => v != null)
           .sort(([,a],[,b]) => b - a)
           .map(([k,v]) => ({ sector: HEATMAP_SECTORS.find(h => h.inds_cd === k), rate: v }))
@@ -572,9 +597,36 @@ export default function DashboardPage() {
     finally { setScheduleLoading(false) }
   }
 
-  // 핫테마 AI 상세 분석 — Firestore 24시간 캐시
+  // 핫테마 AI 상세 분석 — Firestore 24시간 캐시 (로그인 시) / 직접 호출 (비로그인)
   const openThemePopup = async (theme) => {
-    if (!user) return
+    // 로그인 없어도 팝업 열기 (캐시만 불가)
+    if (!user) {
+      setThemePopup({ theme, aiText: null, loading: true })
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', 'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514', max_tokens: 1000,
+            tools: [{ type:'web_search_20250305', name:'web_search' }],
+            system: '한국 주식시장 전문가. 웹 검색으로 최신 정보 확인 후 JSON만 반환. 다른 텍스트 금지.',
+            messages: [{ role:'user', content: [
+              `2026년 "${theme.label}" 투자 테마 분석. 대표종목: ${theme.tags.join(', ')}`,
+              '{"summary":"배경(150자)","catalyst":"촉매 2~3가지","stocks":[{"name":"종목","reason":"30자"}],"risk":"리스크(80자)","timing":"진입 타이밍 판단"}'
+            ].join("\n") }]
+          })
+        })
+        const data = await res.json()
+        const rawT = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')
+        const cleanT = rawT.replace(/<cite[^>]*>|<\/cite>/g, '').replace(/\s+/g, ' ')
+        const match = cleanT.match(/\{[\s\S]*\}/)
+        const parsed = match ? JSON.parse(match[0]) : null
+        setThemePopup(prev => ({ ...prev, aiText: parsed, loading: false }))
+      } catch {
+        setThemePopup(prev => ({ ...prev, aiText: { summary: '분석 오류. 다시 시도해주세요.' }, loading: false }))
+      }
+      return
+    }
     // Firestore 캐시 확인
     const cacheRef = doc(db, 'users', user.uid, 'theme_cache', theme.id)
     try {
@@ -1060,12 +1112,36 @@ export default function DashboardPage() {
 
                 {/* 전략 탭 */}
                 {aiTab === 'strategy' && (<>
-                  {aiContent.strategy && (
+                  {/* 오늘의 액션 (actions 필드) */}
+                  {aiContent.actions?.length > 0 && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">✅ 오늘의 액션</div>
+                      {aiContent.actions.map((a,i) => (
+                        <div key={i} className={`db-ai-action-item ${i===aiContent.actions.length-1?'warn':''}`}>
+                          <span className="db-ai-action-icon">{i===aiContent.actions.length-1?'🚫':'▶'}</span>
+                          <span>{a}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* 오늘의 투자 전략 */}
+                  {(aiContent.strategy || aiContent.midTermView) && (
                     <div className="db-ai-section">
                       <div className="db-ai-section-title">💡 오늘의 투자 전략</div>
-                      <div className="db-ai-strategy-body" style={{fontSize:14,lineHeight:1.8}}>
-                        {aiContent.strategy}
-                      </div>
+                      {aiContent.strategy
+                        ? <div className="db-ai-strategy-body" style={{fontSize:14,lineHeight:1.8}}>{aiContent.strategy}</div>
+                        : <div className="db-ai-strategy-body" style={{fontSize:13,color:'var(--text-secondary)'}}>
+                            전략 데이터 없음 — 아래 중기 관점 참고
+                          </div>
+                      }
+                    </div>
+                  )}
+                  {/* 핵심 레벨 */}
+                  {aiContent.keyLevel && (
+                    <div className="db-ai-keylevel">
+                      <div className="db-ai-keylevel-title">🎯 핵심 레벨</div>
+                      <div className="db-ai-keylevel-val">{aiContent.keyLevel.kospi}</div>
+                      <div className="db-ai-keylevel-action">→ {aiContent.keyLevel.action}</div>
                     </div>
                   )}
                   {aiContent.midTermView && (
@@ -1163,7 +1239,7 @@ export default function DashboardPage() {
         </div>
         <div className="db-heatmap-grid">
           {HEATMAP_SECTORS.map(sector=>{
-            const rate = heatmapData?.[sector.inds_cd] ?? null
+            const rate = effectiveHeatmap?.[sector.inds_cd] ?? null
             const effectiveRate = rate  // 장외에도 직전장 데이터 그대로 표시
             const { bg, neutral } = getHeatmapColor(effectiveRate)
             return (
@@ -1237,7 +1313,15 @@ export default function DashboardPage() {
             </div>
             {themePopup.loading && (
               <div className="db-theme-popup-loading">
-                <span className="db-spinner-sm"/>  AI가 최신 정보를 검색 중입니다...
+                <div style={{textAlign:'center', padding:'32px 20px'}}>
+                  <div style={{fontSize:32, marginBottom:12}}>🔍</div>
+                  <div style={{fontSize:14, fontWeight:600, color:'var(--text-primary)', marginBottom:6}}>
+                    AI 분석 중...
+                  </div>
+                  <div style={{fontSize:12, color:'var(--text-dim)'}}>
+                    웹 검색으로 최신 정보를 수집하고 있습니다
+                  </div>
+                </div>
               </div>
             )}
             {themePopup.aiText && !themePopup.loading && (
@@ -1298,8 +1382,8 @@ export default function DashboardPage() {
             <div className="db-sector-popup-header">
               <div className="db-sector-popup-title-row">
                 <span className="db-sector-popup-title">{sectorPopup.sector.name}</span>
-                {heatmapData?.[sectorPopup.sector.inds_cd] != null && (() => {
-                  const r = heatmapData[sectorPopup.sector.inds_cd]
+                {effectiveHeatmap?.[sectorPopup.sector.inds_cd] != null && (() => {
+                  const r = effectiveHeatmap?.[sectorPopup.sector.inds_cd]
                   const up = r >= 0
                   return (
                     <span className={`db-sector-popup-rate ${up?'up':'down'}`}>
