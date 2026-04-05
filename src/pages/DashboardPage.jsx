@@ -676,9 +676,13 @@ export default function DashboardPage() {
 
   // AI 재분석 트리거
   const generateThemeAi = async (theme) => {
+    // P1: theme.id 방어
+    if (!theme?.id) {
+      setThemeBigPopup(prev => prev ? { ...prev, aiError: '테마 ID 없음. 페이지를 새로고침해주세요.' } : null)
+      return
+    }
     setThemeBigPopup(prev => prev ? { ...prev, aiLoading: true, aiError: null } : null)
     try {
-      const schema = '{"bullCase":"string","bearCase":"string","strategy":"string","keyStocks":[{"name":"string","point":"string","risk":"string"}],"catalysts":["string"],"nextCatalyst":"string"}'
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -689,18 +693,13 @@ export default function DashboardPage() {
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 1500,
-          system: 'You are a Korean stock market expert. Respond ONLY with a valid JSON object. No markdown, no explanation, no code blocks. Start directly with { and end with }.',
-          messages: [
-            {
-              role: 'user',
-              content: `Analyze the 2026 Korean stock investment theme: "${theme.label}". Representative stocks: ${(theme.tags || []).join(', ')}. Return this exact JSON schema filled with Korean content: ${schema}`
-            },
-            {
-              role: 'assistant',
-              content: '{'
-            }
-          ]
+          max_tokens: 1000,
+          // P0-1: 영어 시스템 + 한국어 플레이스홀더 완전 제거
+          system: 'You are a Korean stock market expert. Output ONLY a raw JSON object. No explanation, no markdown, no code blocks. All values must be written in Korean and must be your actual analysis, not placeholder text.',
+          messages: [{
+            role: 'user',
+            content: `Investment theme: "${theme.label}" (2026 Korea market)\nRepresentative stocks: ${(theme.tags || []).join(', ')}\n\nAnalyze this theme and return a JSON object with these exact keys:\n- bullCase: specific bullish scenario with expected return range\n- bearCase: specific bearish scenario with warning signals\n- strategy: concrete investor action (buy/hold/watch + reason + level)\n- keyStocks: array of objects with name/point/risk for top 3 stocks\n- catalysts: array of 3 specific upcoming catalysts\n- nextCatalyst: single most important upcoming event to monitor\n\nAll values must be substantive Korean analysis, NOT generic placeholder text.`
+          }]
         })
       })
 
@@ -712,59 +711,59 @@ export default function DashboardPage() {
       const data = await res.json()
       if (data.error) throw new Error(data.error.message || 'API 에러')
 
-      const rawT = (data.content || [])
-        .filter(b => b.type === 'text')
-        .map(b => b.text)
-        .join('')
+      const rawT = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
       if (!rawT) throw new Error('빈 응답')
-
-      // assistant prefill '{' + 응답을 합쳐서 완전한 JSON 생성
-      const combined = '{' + rawT
-
-      // 마크다운 코드블록 제거
-      const withoutMd = combined
-        .replace(/```json\s*/gi, '')
-        .replace(/```\s*/g, '')
-        .trim()
-
-      // HTML 태그 제거
-      const cleanT = withoutMd.replace(/<[^>]+>/g, '').trim()
 
       let parsed = null
 
       // 방법 1: 직접 파싱
-      try { parsed = JSON.parse(cleanT) } catch {}
+      try { parsed = JSON.parse(rawT.trim()) } catch {}
 
-      // 방법 2: { ... } 추출 후 파싱
+      // 방법 2: 마크다운 코드블록 제거
       if (!parsed) {
-        const m = cleanT.match(/\{[\s\S]*\}/)
-        if (m) { try { parsed = JSON.parse(m[0]) } catch {} }
+        try {
+          const clean = rawT.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+          parsed = JSON.parse(clean)
+        } catch {}
       }
 
-      // 방법 3: combined 원본 그대로 시도
+      // 방법 3: 첫 { 마지막 } 추출
       if (!parsed) {
-        try { parsed = JSON.parse(rawT.startsWith('{') ? rawT : '{' + rawT) } catch {}
+        try {
+          const s = rawT.indexOf('{'), e = rawT.lastIndexOf('}')
+          if (s !== -1 && e > s) parsed = JSON.parse(rawT.slice(s, e + 1))
+        } catch {}
       }
 
       if (!parsed) {
         console.error('[ThemeAI] 파싱 실패. raw:', rawT.slice(0, 400))
-        setThemeBigPopup(prev => prev ? { ...prev, aiLoading: false, aiError: 'AI 응답 파싱 오류. 재분석을 눌러주세요.' } : null)
-        return
+        throw new Error('AI 응답 형식 오류 — 재분석을 눌러주세요')
+      }
+
+      // P0-2: 파싱 성공해도 핵심 필드 없으면 유효하지 않은 응답
+      if (!parsed.bullCase || !parsed.strategy || String(parsed.bullCase).length < 10) {
+        console.error('[ThemeAI] 유효하지 않은 응답. parsed:', JSON.stringify(parsed).slice(0, 200))
+        throw new Error('AI 분석 내용이 불충분합니다. 재분석을 눌러주세요')
       }
 
       const now = new Date().toISOString()
       const aiText = { ...parsed, cachedAt: now }
-      if (user) {
+
+      // Firestore 캐시 저장 — 실패 시 경고만 (API 결과는 표시)
+      if (user && theme.id) {
         const cacheRef = doc(db, 'users', user.uid, 'theme_cache', theme.id)
-        await setDoc(cacheRef, { data: parsed, cachedAt: now }).catch(() => {})
+        setDoc(cacheRef, { data: parsed, cachedAt: now })
+          .catch(err => console.warn('[ThemeAI] 캐시 저장 실패 (표시는 정상):', err))
       }
+
       setThemeBigPopup(prev => prev ? { ...prev, aiText, aiLoading: false, aiError: null } : null)
 
     } catch(e) {
       console.error('[ThemeAI] 오류:', e)
-      setThemeBigPopup(prev => prev ? { ...prev, aiLoading: false, aiError: `오류: ${e.message}` } : null)
+      setThemeBigPopup(prev => prev ? { ...prev, aiLoading: false, aiError: e.message || '분석 오류. 재분석을 눌러주세요.' } : null)
     }
   }
+
   const moodColor = { bullish:'#16a34a', cautious:'#d97706', bearish:'#dc2626', neutral:'#64748b' }
   const moodLabel = { bullish:'강세 🟢', cautious:'주의 🟡', bearish:'약세 🔴', neutral:'중립 ⚪' }
 
@@ -1395,7 +1394,8 @@ export default function DashboardPage() {
                   <div className="db-tbp-ai-error">
                     <div>⚠️ {themeBigPopup.aiError}</div>
                     <button className="db-tbp-refresh-btn" style={{marginTop:8}}
-                      onClick={() => generateThemeAi(themeBigPopup.theme)}>
+                      onClick={() => generateThemeAi(themeBigPopup.theme)}
+                      disabled={themeBigPopup.aiLoading}>
                       🔄 다시 시도
                     </button>
                   </div>
@@ -1472,7 +1472,8 @@ export default function DashboardPage() {
                       재분석 버튼을 눌러 분석을 시작하세요
                     </div>
                     <button className="db-tbp-refresh-btn"
-                      onClick={() => generateThemeAi(themeBigPopup.theme)}>
+                      onClick={() => generateThemeAi(themeBigPopup.theme)}
+                      disabled={themeBigPopup.aiLoading}>
                       ✨ 분석 시작
                     </button>
                   </div>
