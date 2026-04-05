@@ -689,32 +689,54 @@ export default function DashboardPage() {
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 1200,
-          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-          system: '한국 주식시장 20년 경력 전문가. 웹 검색으로 최신 정보 확인 후 반드시 JSON만 반환. 다른 텍스트 절대 금지.',
-          messages: [{ role: 'user', content: [
-            `2026년 "${theme.label}" 투자 테마를 전문가 시각으로 분석해주세요.`,
-            `대표 종목: ${(theme.tags || []).join(', ')}`,
-            '반드시 아래 JSON만 반환 (다른 텍스트 절대 없이):',
-            '{"bullCase":"강세 시나리오 — 이 테마가 상승할 구체적 조건과 목표 수익률 (100자)","bearCase":"약세 시나리오 — 꺾이는 조건과 주의 신호 (100자)","strategy":"지금 이 테마에 진입하거나 관망해야 하는 구체적 이유와 접근 전략 (120자)","keyStocks":[{"name":"종목명","point":"핵심 투자 포인트 30자","risk":"종목별 리스크 20자"}],"catalysts":["가장 강력한 촉매제 1","촉매제 2","촉매제 3"],"nextCatalyst":"앞으로 가장 먼저 확인해야 할 이벤트나 지표"}',
-          ].join('\n') }]
+          max_tokens: 1500,
+          system: '당신은 한국 주식시장 전문가입니다. 요청한 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트는 절대 출력하지 마세요.',
+          messages: [{
+            role: 'user',
+            content: `2026년 "${theme.label}" 투자 테마를 분석하여 아래 JSON으로만 응답하세요.\n대표 종목: ${(theme.tags || []).join(', ')}\n\n{"bullCase":"강세 조건과 기대 수익률","bearCase":"약세 조건과 리스크 신호","strategy":"지금 투자자가 취할 구체적 행동","keyStocks":[{"name":"종목명","point":"투자 포인트","risk":"리스크"}],"catalysts":["촉매1","촉매2","촉매3"],"nextCatalyst":"다음 확인 이벤트"}`
+          }]
         })
       })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(`API ${res.status}: ${errData?.error?.message || '요청 오류'}`)
+      }
+
       const data = await res.json()
-      const rawT = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
-      const cleanT = rawT.replace(/<cite[^>]*>|<\/cite>/g, '').replace(/\s+/g, ' ')
-      const match = cleanT.match(/\{[\s\S]*\}/)
-      const parsed = match ? JSON.parse(match[0]) : null
+      if (data.error) throw new Error(data.error.message || 'API 에러')
+
+      const rawT = (data.content || [])
+        .filter(b => b.type === 'text')
+        .map(b => b.text)
+        .join('')
+      if (!rawT) throw new Error('빈 응답')
+
+      const cleanT = rawT.replace(/<[^>]+>/g, '').trim()
+
+      let parsed = null
+      try { parsed = JSON.parse(cleanT) } catch {
+        const m = cleanT.match(/\{[\s\S]*\}/)
+        if (m) { try { parsed = JSON.parse(m[0]) } catch {} }
+      }
+
+      if (!parsed) {
+        console.error('[ThemeAI] 파싱 실패. raw:', rawT.slice(0, 300))
+        setThemeBigPopup(prev => prev ? { ...prev, aiLoading: false, aiError: 'AI 응답 파싱 오류. 재분석을 눌러주세요.' } : null)
+        return
+      }
+
       const now = new Date().toISOString()
-      const aiText = parsed ? { ...parsed, cachedAt: now } : null
-      // Firestore 저장 (로그인 시) — 만료 없이 영구 보존
-      if (user && aiText) {
+      const aiText = { ...parsed, cachedAt: now }
+      if (user) {
         const cacheRef = doc(db, 'users', user.uid, 'theme_cache', theme.id)
         await setDoc(cacheRef, { data: parsed, cachedAt: now }).catch(() => {})
       }
-      setThemeBigPopup(prev => prev ? { ...prev, aiText, aiLoading: false } : null)
-    } catch {
-      setThemeBigPopup(prev => prev ? { ...prev, aiLoading: false, aiError: '분석 오류. 재분석 버튼을 눌러주세요.' } : null)
+      setThemeBigPopup(prev => prev ? { ...prev, aiText, aiLoading: false, aiError: null } : null)
+
+    } catch(e) {
+      console.error('[ThemeAI] 오류:', e)
+      setThemeBigPopup(prev => prev ? { ...prev, aiLoading: false, aiError: `오류: ${e.message}` } : null)
     }
   }
   const moodColor = { bullish:'#16a34a', cautious:'#d97706', bearish:'#dc2626', neutral:'#64748b' }
