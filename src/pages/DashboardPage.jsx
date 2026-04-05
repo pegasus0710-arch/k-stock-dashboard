@@ -399,8 +399,10 @@ export default function DashboardPage() {
         })
       })
       const data = await res.json()
-      const textBlocks = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
-      const jsonMatch = textBlocks.match(/\{[\s\S]*\}/)
+      const rawText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
+      // cite 태그 제거 (웹 검색 인용 태그)
+      const cleanText = rawText.replace(/<cite[^>]*>|<\/cite>/g, '').replace(/\s+/g, ' ')
+      const jsonMatch = cleanText.match(/\{[\s\S]*\}/)
       if (!jsonMatch) throw new Error('JSON 파싱 실패')
       const parsed = JSON.parse(jsonMatch[0])
       const now = Timestamp.fromDate(new Date())
@@ -411,6 +413,16 @@ export default function DashboardPage() {
       setAiError('분석 생성 중 오류가 발생했습니다. 다시 시도해주세요.')
     } finally { setAiLoading(false) }
   }
+
+  // forexData 유효값 캐시 저장
+  useEffect(() => {
+    if (!forexData) return
+    const usd = forexData['USD/KRW']
+    if (usd?.price > 0) {
+      const prev = loadCache()
+      saveCache({ ...prev, forex: { ...(prev.forex||{}), 'USD/KRW': { price: usd.price, changeRate: usd.changeRate } } })
+    }
+  }, [forexData])
 
   const kstStatus = getKstStatus()
   const isOpen    = kstStatus === 'open'
@@ -431,7 +443,13 @@ export default function DashboardPage() {
 
   const getStripData = (item) => {
     if (item.type === 'global')  return globalData?.[item.sym] || null
-    if (item.type === 'forex')   return forexData?.[item.pair] ? { price: forexData[item.pair].price, changeRate: forexData[item.pair].changeRate } : null
+    if (item.type === 'forex') {
+      if (forexData?.[item.pair]?.price > 0) return { price: forexData[item.pair].price, changeRate: forexData[item.pair].changeRate }
+      // localStorage fallback
+      const cached = loadCache()
+      if (cached?.forex?.[item.pair]?.price > 0) return cached.forex[item.pair]
+      return null
+    }
     // 국내 지수: dashData 우선, 없으면 domesticIdx(직접 로드) fallback
     if (item.id === 'KOSPI' || item.id === 'KOSDAQ') {
       const key = item.id
@@ -451,27 +469,43 @@ export default function DashboardPage() {
     return null
   }
 
-  // 섹터 전체 리스트 (등락률 순 정렬)
+  // 섹터 상위 5 + 하위 2 (좌측 패널 — 히트맵과 역할 분리)
   const hotSectorList = heatmapData
-    ? Object.entries(heatmapData)
-        .filter(([,v]) => v != null)
-        .sort(([,a],[,b]) => b - a)
-        .map(([k,v]) => ({ sector: HEATMAP_SECTORS.find(h => h.inds_cd === k), rate: v }))
-        .filter(r => r.sector)
+    ? (() => {
+        const all = Object.entries(heatmapData)
+          .filter(([,v]) => v != null)
+          .sort(([,a],[,b]) => b - a)
+          .map(([k,v]) => ({ sector: HEATMAP_SECTORS.find(h => h.inds_cd === k), rate: v }))
+          .filter(r => r.sector)
+        const top = all.slice(0, 5)
+        const bot = all.slice(-2)
+        // 중복 제거 후 합치기
+        const botUniq = bot.filter(b => !top.find(t => t.sector.inds_cd === b.sector.inds_cd))
+        return [...top, ...botUniq]
+      })()
     : []
 
+  // ── localStorage 캐시 유틸 ──────────────────────────
+  const LS_KEY = 'ks_strip_cache'
+  const loadCache = () => { try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}') } catch { return {} } }
+  const saveCache = (data) => { try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {} }
+
   // ── 국내 지수 직접 로드 (장외에도 직전장 데이터 표시) ───
-  const [domesticIdx, setDomesticIdx] = useState({})
+  const [domesticIdx, setDomesticIdx] = useState(() => loadCache())
 
   useEffect(() => {
     const load = () => {
       fetch('/api/kiwoom?type=index-domestic')
         .then(r => r.json())
-        .then(d => { if (d.KOSPI || d.KOSDAQ) setDomesticIdx(d) })
+        .then(d => {
+          if (d.KOSPI?.price > 0 || d.KOSDAQ?.price > 0) {
+            setDomesticIdx(d)
+            saveCache(d)  // 유효값이면 캐시 저장
+          }
+        })
         .catch(() => {})
     }
     load()
-    // 5분마다 갱신
     const timer = setInterval(load, 5 * 60 * 1000)
     return () => clearInterval(timer)
   }, [])
@@ -538,8 +572,25 @@ export default function DashboardPage() {
     finally { setScheduleLoading(false) }
   }
 
-  // 핫테마 AI 상세 분석
+  // 핫테마 AI 상세 분석 — Firestore 24시간 캐시
   const openThemePopup = async (theme) => {
+    if (!user) return
+    // Firestore 캐시 확인
+    const cacheRef = doc(db, 'users', user.uid, 'theme_cache', theme.id)
+    try {
+      const snap = await getDoc(cacheRef)
+      if (snap.exists()) {
+        const { data: cached, cachedAt } = snap.data()
+        const ageHrs = (Date.now() - new Date(cachedAt).getTime()) / 3600000
+        if (ageHrs < 24 && cached) {
+          // 24시간 이내 캐시 → 즉시 표시
+          setThemePopup({ theme, aiText: cached, loading: false })
+          return
+        }
+      }
+    } catch {}
+
+    // 캐시 없거나 만료 → AI 호출
     setThemePopup({ theme, aiText: null, loading: true })
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -554,14 +605,19 @@ export default function DashboardPage() {
             `2026년 "${theme.label}" 투자 테마를 분석해주세요.`,
             `대표 종목: ${theme.tags.join(', ')}`,
             '반드시 아래 JSON만 반환:',
-            '{"summary":"테마 배경과 2026년 왜 주목받는지 (150자)","catalyst":"핵심 촉매제 2~3가지","stocks":[{"name":"종목명","reason":"투자 포인트 30자"}],"risk":"이 테마의 핵심 리스크 (80자)","timing":"지금 진입 적절한지 타이밍 판단"}'
+            '{"summary":"테마 배경과 2026년 왜 주목받는지 (150자)","catalyst":"핵심 촉매제 2~3가지","stocks":[{"name":"종목명","reason":"투자 포인트 30자"}],"risk":"이 테마의 핵심 리스크 (80자)","timing":"지금 진입 적절한지 타이밍 판단","cachedAt":"' + new Date().toISOString() + '"}'
           ].join("\n") }]
         })
       })
       const data = await res.json()
-      const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')
-      const match = text.match(/\{[\s\S]*\}/)
+      const rawT = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')
+      const cleanT = rawT.replace(/<cite[^>]*>|<\/cite>/g, '').replace(/\s+/g, ' ')
+      const match = cleanT.match(/\{[\s\S]*\}/)
       const parsed = match ? JSON.parse(match[0]) : null
+      if (parsed) {
+        // Firestore에 캐시 저장
+        await setDoc(cacheRef, { data: parsed, cachedAt: new Date().toISOString() })
+      }
       setThemePopup(prev => ({ ...prev, aiText: parsed, loading: false }))
     } catch(e) {
       setThemePopup(prev => ({ ...prev, aiText: { summary: '분석 오류. 다시 시도해주세요.' }, loading: false }))
@@ -736,7 +792,7 @@ export default function DashboardPage() {
           {/* 섹터 동향 — 전체 업종 표시 */}
           <div className="db-left-section db-left-sector-full">
             <div className="db-left-title">🏭 업종 동향
-              <span className="db-left-badge">{hotSectorList.length > 0 ? `${hotSectorList.length}개` : '로딩중'}</span>
+              <span className="db-left-badge">↑5 ↓2</span>
             </div>
             {hotSectorList.length === 0
               ? <div className="db-sector-empty">직전장 데이터 로딩 중...</div>
@@ -745,18 +801,25 @@ export default function DashboardPage() {
                   const bg = rate > 0
                     ? `rgba(220,38,38,${(intensity * 0.003).toFixed(2)})`
                     : `rgba(37,99,235,${(intensity * 0.003).toFixed(2)})`
+                  const isBot = hotSectorList.indexOf(hotSectorList.find(x=>x.sector.inds_cd===sector.inds_cd)) >= 5
                   return (
-                    <div key={sector.inds_cd} className="db-sector-row"
-                      style={{background: bg}}
-                      onClick={()=>openSectorPopup(sector)}>
-                      <span className="db-sector-name">{sector.name}</span>
-                      <span className="db-sector-rate" style={{color: rate>=0?'var(--color-up)':'var(--color-down)'}}>
-                        {rate>=0?'+':''}{rate.toFixed(2)}%
-                      </span>
+                    <div key={sector.inds_cd}>
+                      {isBot && <div style={{borderTop:'1px dashed var(--border)',margin:'3px 0'}}/>}
+                      <div className="db-sector-row"
+                        style={{background: bg}}
+                        onClick={()=>openSectorPopup(sector)}>
+                        <span className="db-sector-name">{sector.name}</span>
+                        <span className="db-sector-rate" style={{color: rate>=0?'var(--color-up)':'var(--color-down)'}}>
+                          {rate>=0?'+':''}{rate.toFixed(2)}%
+                        </span>
+                      </div>
                     </div>
                   )
                 })
             }
+            <div style={{fontSize:9,color:'var(--text-dim)',textAlign:'right',marginTop:4}}>
+              전체 업종 ↓ 히트맵 참고
+            </div>
           </div>
 
           {/* 이벤트 카운트다운 — AI 자동 갱신 */}
@@ -1161,7 +1224,14 @@ export default function DashboardPage() {
               <span className="db-theme-popup-icon">{themePopup.theme.icon}</span>
               <div>
                 <div className="db-theme-popup-title">{themePopup.theme.label}</div>
-                <div className="db-theme-popup-sub">2026 핫 테마 AI 분석</div>
+                <div className="db-theme-popup-sub">
+                  2026 핫 테마 AI 분석
+                  {themePopup.aiText?.cachedAt && (
+                    <span style={{marginLeft:6,fontSize:9,color:'var(--text-dim)'}}>
+                      캐시 {new Date(themePopup.aiText.cachedAt).toLocaleDateString('ko-KR')}
+                    </span>
+                  )}
+                </div>
               </div>
               <button className="db-theme-popup-close" onClick={()=>setThemePopup(null)}>✕</button>
             </div>
