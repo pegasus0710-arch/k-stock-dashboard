@@ -310,8 +310,18 @@ export default function DashboardPage() {
     setAiLoading(true); setAiError(null)
     const ctx = getTimeContext()
     // 현재 지표 요약
-    const kospi  = (dashData?.KOSPI?.price > 0 ? dashData?.KOSPI : null) || domesticIdx?.KOSPI || globalData?.['KS11']
-    const kosdaq = (dashData?.KOSDAQ?.price > 0 ? dashData?.KOSDAQ : null) || domesticIdx?.KOSDAQ || globalData?.['KQ11']
+    const getIdxData = (key, sym) => {
+      const spark = sparkData?.[key]
+      const fromSpark = spark?.length >= 2 ? {
+        price: spark[spark.length-1],
+        changeRate: (spark[spark.length-1]-spark[spark.length-2])/spark[spark.length-2]*100
+      } : null
+      return (dashData?.[key]?.price > 0 ? dashData[key] : null)
+          || (domesticIdx?.[key]?.price > 0 ? domesticIdx[key] : null)
+          || fromSpark || globalData?.[sym] || null
+    }
+    const kospi  = getIdxData('KOSPI',  'KS11')
+    const kosdaq = getIdxData('KOSDAQ', 'KQ11')
     const sp500  = globalData?.['SP500']
     const vix    = globalData?.['VIX']
     const usd    = forexData?.['USD/KRW']
@@ -398,13 +408,20 @@ export default function DashboardPage() {
     if (item.type === 'global')  return globalData?.[item.sym] || null
     if (item.type === 'forex')   return forexData?.[item.pair] ? { price: forexData[item.pair].price, changeRate: forexData[item.pair].changeRate } : null
     // 국내 지수: dashData 우선, 없으면 domesticIdx(직접 로드) fallback
-    if (item.id === 'KOSPI') {
-      const src = (dashData?.KOSPI?.price > 0 ? dashData.KOSPI : null) || domesticIdx?.KOSPI || null
-      return src ? { price: src.price, changeRate: src.changeRate } : null
-    }
-    if (item.id === 'KOSDAQ') {
-      const src = (dashData?.KOSDAQ?.price > 0 ? dashData.KOSDAQ : null) || domesticIdx?.KOSDAQ || null
-      return src ? { price: src.price, changeRate: src.changeRate } : null
+    if (item.id === 'KOSPI' || item.id === 'KOSDAQ') {
+      const key = item.id
+      // 1순위: dashData (장중 실시간)
+      const fromDash = dashData?.[key]?.price > 0 ? dashData[key] : null
+      // 2순위: domesticIdx (직접 호출)
+      const fromIdx  = domesticIdx?.[key]?.price > 0 ? domesticIdx[key] : null
+      // 3순위: sparkData 마지막 봉 (직전 종가 — 항상 존재)
+      const spark = sparkData?.[key]
+      const fromSpark = spark?.length >= 2 ? {
+        price:      spark[spark.length - 1],
+        changeRate: ((spark[spark.length-1] - spark[spark.length-2]) / spark[spark.length-2] * 100),
+      } : null
+      const src = fromDash || fromIdx || fromSpark
+      return src?.price > 0 ? { price: src.price, changeRate: src.changeRate } : null
     }
     return null
   }
@@ -548,14 +565,14 @@ export default function DashboardPage() {
               onClick={()=>setExpandCard(isExpanded ? null : item.id)}>
               <div className="db-strip-top">
                 <span className="db-strip-name">{item.label}</span>
-                {d?.changeRate != null && (
+                {d?.price > 0 && d?.changeRate != null && (
                   <span className="db-strip-badge" style={{background: up?'rgba(220,38,38,.1)':'rgba(29,78,216,.1)', color: rc}}>
                     {up?'▲':'▼'}{Math.abs(d.changeRate).toFixed(2)}%
                   </span>
                 )}
               </div>
               <div className="db-strip-price" style={{color: rc}}>
-                {d?.price != null ? (item.id==='VIX' ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()) : '—'}
+                {d?.price > 0 ? (item.id==='VIX' ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()) : '—'}
               </div>
               {isExpanded && spark && (
                 <div className="db-strip-expand">
@@ -597,8 +614,8 @@ export default function DashboardPage() {
         <aside className="db-left">
 
           {/* 시장 체온계 — 5단계 배지 + 바 */}
-          {((dashData?.KOSPI?.rising || dashData?.KOSPI?.fall) || (domesticIdx?.KOSPI?.rising || domesticIdx?.KOSPI?.fall)) && (() => {
-            const src = (dashData?.KOSPI?.rising > 0 ? dashData : null) || domesticIdx || {}
+          {((dashData?.KOSPI?.rising || dashData?.KOSPI?.fall || domesticIdx?.KOSPI?.rising || domesticIdx?.KOSPI?.fall)) && (() => {
+            const src = dashData?.KOSPI?.rising > 0 ? dashData : domesticIdx
             const rising = Number(src?.KOSPI?.rising || 0) + Number(src?.KOSDAQ?.rising || 0)
             const fall   = Number(src?.KOSPI?.fall   || 0) + Number(src?.KOSDAQ?.fall   || 0)
             const total  = rising + fall || 1
