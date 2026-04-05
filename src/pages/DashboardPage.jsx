@@ -259,39 +259,8 @@ export default function DashboardPage() {
   const [showPortBar, setShowPortBar] = useState(() => {
     try { return localStorage.getItem('db_portbar') === 'true' } catch { return false }
   })
-  const [holdings, setHoldings] = useState({})
-
-  useEffect(() => {
-    fetch('/api/kiwoom?type=account-holdings')
-      .then(r => r.json())
-      .then(data => {
-        if (data.error) return
-        const map = {}
-        ;(data.holdings || []).forEach(h => {
-          const code = h.stk_cd || h.code
-          if (!code) return
-          map[code] = {
-            name:     h.stk_nm   || '',
-            rate:     Number(h.prft_rt    || 0),
-            evltPrft: Number(h.evltv_prft || 0),
-            purAmt:   Number(h.pur_amt    || 0),
-            evltAmt:  Number(h.evlt_amt   || 0),
-          }
-        })
-        setHoldings(map)
-      }).catch(() => {})
-  }, [])
-
-  // 전체 수익률 계산
-  const portSummary = (() => {
-    const list = Object.values(holdings)
-    if (!list.length) return null
-    const totalPur  = list.reduce((s, h) => s + (h.purAmt  || 0), 0)
-    const totalEvlt = list.reduce((s, h) => s + (h.evltAmt || 0), 0)
-    const totalPnl  = list.reduce((s, h) => s + (h.evltPrft|| 0), 0)
-    const totalRate = totalPur > 0 ? (totalPnl / totalPur) * 100 : 0
-    return { totalRate, totalPnl, count: list.length }
-  })()
+  // 포트폴리오 미니바 — 포트폴리오 페이지 이동 유도만 (API 직접 호출 제거)
+  const portSummary = null  // 포트폴리오 페이지에서 확인
 
   // ── AI 분석 센터 state ──────────────────────────────
   const [aiTab,      setAiTab]      = useState('brief') // brief|sector|risk|strategy
@@ -353,14 +322,7 @@ export default function DashboardPage() {
       .map(([k,v]) => { const s = HEATMAP_SECTORS.find(h => h.inds_cd === k); return s ? `${s.name}(${v >= 0 ? '+' : ''}${v?.toFixed(1)}%)` : null })
       .filter(Boolean).join(', ') : '데이터 로딩 중'
     // 포트폴리오 컨텍스트
-    const portContext = (() => {
-      const list = Object.entries(holdings)
-      if (!list.length) return '보유종목 없음'
-      return list.map(([code, h]) => {
-        const p = dashData?.[code] || null
-        return `${h.name}(${code}) 평균${h.avg?.toLocaleString()}원 ${h.rate >= 0 ? '+' : ''}${h.rate?.toFixed(1)}% 평가손익${Math.round(h.evltPrft || 0).toLocaleString()}원`
-      }).join(' | ')
-    })()
+    const portContext = '보유종목 데이터 없음 (포트폴리오 페이지 참고)'
 
     // 수급 컨텍스트
     const flowContext = flowData?.total ? (() => {
@@ -726,22 +688,14 @@ export default function DashboardPage() {
         <button className="db-portbar-toggle" onClick={togglePortBar} title={showPortBar?'수익률 숨기기':'수익률 보기'}>
           💼 {showPortBar ? '숨기기' : '내 수익률'}
         </button>
-        {showPortBar && portSummary && (
-          <div className="db-portbar-content">
-            <span className="db-portbar-count">{portSummary.count}종목</span>
-            <span className="db-portbar-sep">|</span>
-            <span className="db-portbar-rate"
-              style={{color: portSummary.totalRate >= 0 ? 'var(--color-up)' : 'var(--color-down)'}}>
-              {portSummary.totalRate >= 0 ? '+' : ''}{portSummary.totalRate.toFixed(2)}%
-            </span>
-            <span className="db-portbar-pnl"
-              style={{color: portSummary.totalPnl >= 0 ? 'var(--color-up)' : 'var(--color-down)'}}>
-              ({portSummary.totalPnl >= 0 ? '+' : ''}{Math.round(portSummary.totalPnl).toLocaleString()}원)
-            </span>
-          </div>
-        )}
-        {showPortBar && !portSummary && (
-          <span className="db-portbar-empty">보유종목 없음 또는 로딩 중</span>
+        {showPortBar && (
+          <a href="/portfolio" style={{
+            display:'flex', alignItems:'center', gap:8,
+            fontSize:12, color:'var(--text-secondary)', textDecoration:'none'
+          }}>
+            <span>💼 포트폴리오 페이지에서 확인</span>
+            <span style={{fontSize:10, color:'var(--accent-mid)'}}>→</span>
+          </a>
         )}
       </div>
 
