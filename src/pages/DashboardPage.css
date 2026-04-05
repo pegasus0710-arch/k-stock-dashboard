@@ -1794,3 +1794,31 @@
 .db-data-toggle:hover { background: var(--bg-hover); }
 .db-data-toggle-arr { font-size: 11px; color: var(--text-dim); }
 .db-data-panel { padding: 0 16px 16px; }
+
+/* ── AI 탭 ──────────────────────────────────────── */
+.db-ai-tabs {
+  display: flex; gap: 4px; margin: 8px 0 6px;
+  background: var(--bg-base); border-radius: 8px; padding: 3px;
+  border: 1px solid var(--border);
+}
+.db-ai-tab {
+  flex: 1; padding: 6px 8px; border-radius: 6px; border: none;
+  background: transparent; color: var(--text-secondary);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: all .12s; white-space: nowrap;
+}
+.db-ai-tab:hover  { background: var(--bg-hover); color: var(--text-primary); }
+.db-ai-tab.active { background: var(--accent-mid); color: white; font-weight: 700; }
+
+.db-ai-tab-content { padding-bottom: 16px; }
+.db-ai-empty-small { padding: 20px; text-align: center; color: var(--text-dim); font-size: 12px; }
+
+/* ── 장외 안내 ───────────────────────────────────── */
+.db-offline-info { display: flex; flex-direction: column; gap: 6px; }
+.db-offline-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; color: var(--text-secondary); padding: 3px 0;
+  border-bottom: 1px solid var(--border-dim);
+}
+.db-offline-row:last-child { border-bottom: none; }
+.db-offline-val { font-weight: 700; font-variant-numeric: tabular-nums; }

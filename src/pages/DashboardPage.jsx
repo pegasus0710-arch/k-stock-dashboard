@@ -438,6 +438,31 @@ export default function DashboardPage() {
         {/* 좌측 패널 */}
         <aside className="db-left">
 
+          {/* 장외 시간 안내 (체온계/수급 데이터 없을 때) */}
+          {!isOpen && !isAfter && !dashData?.KOSPI?.rising && (
+            <div className="db-left-section">
+              <div className="db-left-title">🕐 장외 시간</div>
+              <div className="db-offline-info">
+                <div className="db-offline-row">
+                  <span>다음 개장</span>
+                  <span className="db-offline-val">월~금 09:00</span>
+                </div>
+                <div className="db-offline-row">
+                  <span>전일 KOSPI</span>
+                  <span className="db-offline-val" style={{color:'var(--color-up)'}}>
+                    {dashData?.KOSPI?.price ? `${dashData.KOSPI.price.toLocaleString()} (${dashData.KOSPI.changeRate >= 0 ? '+' : ''}${dashData.KOSPI.changeRate?.toFixed(2)}%)` : '—'}
+                  </span>
+                </div>
+                <div className="db-offline-row">
+                  <span>전일 KOSDAQ</span>
+                  <span className="db-offline-val" style={{color:'var(--color-up)'}}>
+                    {dashData?.KOSDAQ?.price ? `${dashData.KOSDAQ.price.toLocaleString()} (${dashData.KOSDAQ.changeRate >= 0 ? '+' : ''}${dashData.KOSDAQ.changeRate?.toFixed(2)}%)` : '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 시장 체온계 */}
           {(dashData?.KOSPI?.rising || dashData?.KOSPI?.fall) && (() => {
             const rising = Number(dashData.KOSPI.rising || 0) + Number(dashData.KOSDAQ?.rising || 0)
@@ -548,6 +573,23 @@ export default function DashboardPage() {
               <div className="db-ai-focus-label">
                 집중 분석: <strong>{timeCtx.focus}</strong>
               </div>
+
+              {/* 탭 — 콘텐츠 있을 때만 표시 */}
+              {aiContent && (
+                <div className="db-ai-tabs">
+                  {[
+                    {id:'brief',    label:'📋 브리핑'},
+                    {id:'scenario', label:'📊 시나리오'},
+                    {id:'sector',   label:'🏭 섹터'},
+                    {id:'strategy', label:'💡 전략'},
+                  ].map(t => (
+                    <button key={t.id}
+                      className={`db-ai-tab ${aiTab===t.id?'active':''}`}
+                      onClick={()=>setAiTab(t.id)}>{t.label}</button>
+                  ))}
+                </div>
+              )}
+
               <div className="db-ai-disclaimer">
                 ⚠️ AI 생성 참고용 · 웹 검색 기반 · 투자 결정의 책임은 본인에게 있습니다
               </div>
@@ -568,112 +610,130 @@ export default function DashboardPage() {
               <div className="db-ai-error">⚠️ {aiError}</div>
             )}
 
-            {aiContent && !aiLoading && (<>
-              {/* 헤드라인 + 무드 */}
-              <div className="db-ai-headline-row">
-                <div className="db-ai-headline">"{aiContent.headline}"</div>
-                {aiContent.mood && (
-                  <span className="db-ai-mood" style={{color: moodColor[aiContent.mood] || '#64748b'}}>
-                    {moodLabel[aiContent.mood] || aiContent.mood}
-                  </span>
-                )}
-              </div>
+            {aiContent && !aiLoading && (
+              <div className="db-ai-tab-content">
 
-              {/* 요약 */}
-              <div className="db-ai-brief">{aiContent.brief}</div>
-
-              {/* 핵심 포인트 */}
-              {aiContent.points?.length > 0 && (
-                <div className="db-ai-section">
-                  <div className="db-ai-section-title">📌 핵심 포인트</div>
-                  {aiContent.points.map((p,i) => (
-                    <div key={i} className="db-ai-point">
-                      <span className="db-ai-point-num">{i+1}</span>
-                      <span>{p}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* 시나리오 */}
-              <div className="db-ai-scenarios">
-                {aiContent.bullScenario && (
-                  <div className="db-ai-scenario bull">
-                    <div className="db-ai-scenario-title">🟢 강세 시나리오</div>
-                    <div className="db-ai-scenario-body">{aiContent.bullScenario}</div>
+                {/* ── 브리핑 탭 ── */}
+                {aiTab === 'brief' && (<>
+                  <div className="db-ai-headline-row">
+                    <div className="db-ai-headline">"{aiContent.headline}"</div>
+                    {aiContent.mood && (
+                      <span className="db-ai-mood" style={{color: moodColor[aiContent.mood] || '#64748b'}}>
+                        {moodLabel[aiContent.mood] || aiContent.mood}
+                      </span>
+                    )}
                   </div>
-                )}
-                {aiContent.bearScenario && (
-                  <div className="db-ai-scenario bear">
-                    <div className="db-ai-scenario-title">🔴 약세 시나리오</div>
-                    <div className="db-ai-scenario-body">{aiContent.bearScenario}</div>
-                  </div>
-                )}
-              </div>
-
-              {/* 중기 전망 */}
-              {aiContent.midTermView && (
-                <div className="db-ai-section">
-                  <div className="db-ai-section-title">🔭 중기 전망 (1~3개월)</div>
-                  <div className="db-ai-midterm">{aiContent.midTermView}</div>
-                </div>
-              )}
-
-              {/* 섹터 워치 */}
-              {aiContent.sectorWatch?.length > 0 && (
-                <div className="db-ai-section">
-                  <div className="db-ai-section-title">🏭 섹터 시그널</div>
-                  <div className="db-ai-sector-watch">
-                    {aiContent.sectorWatch.map((s,i) => {
-                      const sigColor = s.signal==='매수관심'?'#16a34a':s.signal==='주의'?'#dc2626':'#64748b'
-                      return (
-                        <div key={i} className="db-ai-sector-row">
-                          <span className="db-ai-sector-name">{s.name}</span>
-                          <span className="db-ai-sector-sig" style={{color:sigColor,borderColor:sigColor+'40'}}>
-                            {s.signal}
-                          </span>
-                          <span className="db-ai-sector-reason">{s.reason}</span>
+                  <div className="db-ai-brief">{aiContent.brief}</div>
+                  {aiContent.points?.length > 0 && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">📌 핵심 포인트</div>
+                      {aiContent.points.map((p,i) => (
+                        <div key={i} className="db-ai-point">
+                          <span className="db-ai-point-num">{i+1}</span>
+                          <span>{p}</span>
                         </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* 리스크 + 전략 */}
-              <div className="db-ai-bottom-row">
-                {aiContent.riskFactors?.length > 0 && (
-                  <div className="db-ai-risks">
-                    <div className="db-ai-section-title">⚠️ 주요 리스크</div>
-                    {aiContent.riskFactors.map((r,i) => (
-                      <div key={i} className="db-ai-risk-item">• {r}</div>
-                    ))}
-                  </div>
-                )}
-                {aiContent.strategy && (
-                  <div className="db-ai-strategy">
-                    <div className="db-ai-section-title">💡 오늘의 전략</div>
-                    <div className="db-ai-strategy-body">{aiContent.strategy}</div>
-                  </div>
-                )}
-              </div>
-
-              {/* 오늘 일정 */}
-              {aiContent.schedule?.length > 0 && (
-                <div className="db-ai-section">
-                  <div className="db-ai-section-title">📅 오늘의 주요 일정</div>
-                  <div className="db-ai-schedule">
-                    {aiContent.schedule.map((s,i) => (
-                      <div key={i} className="db-ai-schedule-row">
-                        <span className="db-ai-sch-time">{s.time}</span>
-                        <span className="db-ai-sch-event">{s.event}</span>
-                        <span className={`db-ai-sch-impact impact-${s.impact}`}>{s.impact}</span>
+                      ))}
+                    </div>
+                  )}
+                  {aiContent.schedule?.length > 0 && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">📅 오늘의 주요 일정</div>
+                      <div className="db-ai-schedule">
+                        {aiContent.schedule.map((s,i) => (
+                          <div key={i} className="db-ai-schedule-row">
+                            <span className="db-ai-sch-time">{s.time}</span>
+                            <span className="db-ai-sch-event">{s.event}</span>
+                            <span className={`db-ai-sch-impact impact-${s.impact}`}>{s.impact}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+                  )}
+                </>)}
+
+                {/* ── 시나리오 탭 ── */}
+                {aiTab === 'scenario' && (<>
+                  <div className="db-ai-scenarios" style={{padding:'16px 20px 0'}}>
+                    {aiContent.bullScenario && (
+                      <div className="db-ai-scenario bull">
+                        <div className="db-ai-scenario-title">🟢 강세 시나리오 (단기 1~5일)</div>
+                        <div className="db-ai-scenario-body">{aiContent.bullScenario}</div>
+                      </div>
+                    )}
+                    {aiContent.bearScenario && (
+                      <div className="db-ai-scenario bear">
+                        <div className="db-ai-scenario-title">🔴 약세 시나리오 (단기 1~5일)</div>
+                        <div className="db-ai-scenario-body">{aiContent.bearScenario}</div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
-            </>)}
+                  {aiContent.midTermView && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">🔭 중기 전망 (1~3개월)</div>
+                      <div className="db-ai-midterm">{aiContent.midTermView}</div>
+                    </div>
+                  )}
+                  {aiContent.riskFactors?.length > 0 && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">⚠️ 주요 리스크</div>
+                      {aiContent.riskFactors.map((r,i) => (
+                        <div key={i} className="db-ai-risk-item">• {r}</div>
+                      ))}
+                    </div>
+                  )}
+                </>)}
+
+                {/* ── 섹터 탭 ── */}
+                {aiTab === 'sector' && (
+                  <div className="db-ai-section">
+                    <div className="db-ai-section-title">🏭 섹터 시그널</div>
+                    {aiContent.sectorWatch?.length > 0 ? (
+                      <div className="db-ai-sector-watch">
+                        {aiContent.sectorWatch.map((s,i) => {
+                          const sigColor = s.signal==='매수관심'?'#16a34a':s.signal==='주의'?'#dc2626':'#64748b'
+                          return (
+                            <div key={i} className="db-ai-sector-row">
+                              <span className="db-ai-sector-name">{s.name}</span>
+                              <span className="db-ai-sector-sig" style={{color:sigColor,borderColor:sigColor+'40'}}>
+                                {s.signal}
+                              </span>
+                              <span className="db-ai-sector-reason">{s.reason}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : <div className="db-ai-empty-small">섹터 데이터 없음</div>}
+                  </div>
+                )}
+
+                {/* ── 전략 탭 ── */}
+                {aiTab === 'strategy' && (<>
+                  {aiContent.strategy && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">💡 오늘의 투자 전략</div>
+                      <div className="db-ai-strategy-body" style={{fontSize:14,lineHeight:1.8}}>
+                        {aiContent.strategy}
+                      </div>
+                    </div>
+                  )}
+                  {aiContent.midTermView && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">🔭 중기 관점</div>
+                      <div className="db-ai-midterm">{aiContent.midTermView}</div>
+                    </div>
+                  )}
+                  {aiContent.riskFactors?.length > 0 && (
+                    <div className="db-ai-section" style={{paddingBottom:16}}>
+                      <div className="db-ai-section-title">⚠️ 유의 리스크</div>
+                      {aiContent.riskFactors.map((r,i) => (
+                        <div key={i} className="db-ai-risk-item">• {r}</div>
+                      ))}
+                    </div>
+                  )}
+                </>)}
+
+              </div>
+            )}
 
             {/* 초기 안내 */}
             {!aiContent && !aiLoading && !aiError && (
