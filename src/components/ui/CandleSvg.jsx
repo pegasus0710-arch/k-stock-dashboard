@@ -38,8 +38,9 @@ export default function CandleSvg({
   drawPoint1 = null,
   mousePos = null,
   selectedColor = '#f59e0b',
-  showMA = { 5:true, 20:true, 60:true, 120:true },
+  showMA = { 5:true, 10:true, 20:true, 60:true, 120:true },
   showTooltip = true,
+  maStyle = null,
   onChartClick,
   onChartMouseMove,
   onChartMouseLeave,
@@ -118,6 +119,7 @@ export default function CandleSvg({
     })
   }
   const ma5   = calcMA(closes, 5)
+  const ma10  = calcMA(closes, 10)
   const ma20  = calcMA(closes, 20)
   const ma60  = calcMA(closes, 60)
   const ma120 = calcMA(closes, 120)
@@ -320,19 +322,23 @@ export default function CandleSvg({
           )
         })}
 
-        {/* MA 이동평균선 */}
+        {/* MA 이동평균선 — maStyle prop 우선 적용 */}
         {[
-          { arr: ma5,   on: showMA[5],   color: '#f59e0b' },
-          { arr: ma20,  on: showMA[20],  color: '#a78bfa' },
-          { arr: ma60,  on: showMA[60],  color: '#22c55e' },
-          { arr: ma120, on: showMA[120], color: '#f43f5e' },
-        ].map(({ arr, on, color }, mi) => {
-          if (!on) return null
+          { arr: ma5,   period: 5,   defColor: '#f59e0b', defWidth: 0.9 },
+          { arr: ma10,  period: 10,  defColor: '#38bdf8', defWidth: 0.9 },
+          { arr: ma20,  period: 20,  defColor: '#a78bfa', defWidth: 1.2 },
+          { arr: ma60,  period: 60,  defColor: '#22c55e', defWidth: 0.9 },
+          { arr: ma120, period: 120, defColor: '#f43f5e', defWidth: 0.9 },
+        ].map(({ arr, period, defColor, defWidth }) => {
+          if (!showMA[period]) return null
+          const s = maStyle?.[period]
+          const color = s?.color || defColor
+          const width = s?.width || defWidth
           const pts = arr.map((v, i) => v !== null
             ? `${toX(i).toFixed(1)},${toY(v).toFixed(1)}` : null
           ).filter(Boolean).join(' ')
-          return pts ? <polyline key={mi} points={pts} fill="none"
-            stroke={color} strokeWidth="0.9" opacity="0.8"/> : null
+          return pts ? <polyline key={period} points={pts} fill="none"
+            stroke={color} strokeWidth={width} opacity="0.85"/> : null
         })}
 
         {/* 저장된 드로잉 */}

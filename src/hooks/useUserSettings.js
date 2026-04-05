@@ -146,7 +146,8 @@ export function useUserSettings() {
 
   // ── 관심종목 저장 ─────────────────────────────────
   const saveWatchlist = useCallback((data) => {
-    setCache(prev => ({ ...prev, watchlist: data }))
+    // Firestore 저장 구조 { data: [...] } 와 동일하게 캐시 저장
+    setCache(prev => ({ ...prev, watchlist: { data, updatedAt: Date.now() } }))
     try { localStorage.setItem('cap_watch_v2', JSON.stringify(data)) } catch {}
     if (!uid) return
     clearTimeout(debounceRef.current['watchlist'])

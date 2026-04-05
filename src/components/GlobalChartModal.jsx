@@ -16,6 +16,7 @@ import './GlobalChartModal.css'
 // ── MA 기본 스타일 ──────────────────────────────────────
 const DEFAULT_MA_STYLE = {
   5:   { color: '#f59e0b', width: 1.2 },
+  10:  { color: '#38bdf8', width: 1.2 },
   20:  { color: '#a78bfa', width: 2.0 },
   60:  { color: '#22c55e', width: 1.5 },
   120: { color: '#f43f5e', width: 1.2 },
@@ -55,7 +56,7 @@ export default function GlobalChartModal({
   const resizeRef       = useRef(null)
   const startRef        = useRef(null)
   // Firestore 설정 훅
-  const { getSetting, setSetting, getDrawings, saveDrawings } = useUserSettings()
+  const { getSetting, setSetting, getDrawings, saveDrawings, ready } = useUserSettings()
 
   // 드로잉 상태 — Firestore 로드 (비동기, 초기값은 localStorage 폴백)
   const [drawings,      setDrawings]      = useState(() => { try { return JSON.parse(localStorage.getItem(`cap_drawings_v2_${symbol}`)) || [] } catch { return [] } })
@@ -66,19 +67,13 @@ export default function GlobalChartModal({
   const [selectedColor, setSelectedColor] = useState('#f59e0b')
 
   // MA ON/OFF — 전체 기본 ON
-  const [showMA, setShowMA] = useState(
-    () => getSetting('chart', 'gcm_ma_show', { 5:true, 20:true, 60:true, 120:true })
-  )
+  const [showMA, setShowMA] = useState({ 5:true, 10:true, 20:true, 60:true, 120:true })
   // MA 스타일 (색상/두께) — Firestore 저장
-  const [maStyle, setMaStyle] = useState(
-    () => getSetting('chart', 'gcm_ma_style', DEFAULT_MA_STYLE)
-  )
+  const [maStyle, setMaStyle] = useState(DEFAULT_MA_STYLE)
   // MA 스타일 팝오버 (어느 MA가 열려 있는지)
   const [maPopover, setMaPopover] = useState(null) // 5 | 20 | 60 | 120 | null
   // 툴팁 ON/OFF — Firestore 저장
-  const [showTooltip, setShowTooltip] = useState(
-    () => getSetting('chart', 'gcm_show_tooltip', true)
-  )
+  const [showTooltip, setShowTooltip] = useState(true)
   const onToggleTooltip = useCallback(() => {
     setShowTooltip(prev => {
       const next = !prev
@@ -119,22 +114,28 @@ export default function GlobalChartModal({
     getDrawings(`cap_drawings_v2_${symbol}`).then(d => { if (d?.length) setDrawings(d) })
   }, [symbol])
 
-  // Firestore 로드 완료 후 설정값 재동기화 (lazy initializer는 로드 전 실행될 수 있음)
+  // Firestore 로드 완료(ready) 후 설정값 동기화
+  // ready가 true가 될 때 한 번 실행 → 저장된 설정 복원
   useEffect(() => {
+    if (!ready) return
     const savedStyle   = getSetting('chart', 'gcm_ma_style',     null)
     const savedShow    = getSetting('chart', 'gcm_ma_show',      null)
     const savedTooltip = getSetting('chart', 'gcm_show_tooltip', null)
     // Firestore JSON 직렬화로 숫자 키→문자열 변환 → 숫자로 복원
     if (savedStyle != null) {
-      const normalized = Object.fromEntries(Object.entries(savedStyle).map(([k,v])=>[Number(k),v]))
+      const normalized = Object.fromEntries(
+        Object.entries(savedStyle).map(([k, v]) => [Number(k), v])
+      )
       setMaStyle(normalized)
     }
     if (savedShow != null) {
-      const normalized = Object.fromEntries(Object.entries(savedShow).map(([k,v])=>[Number(k),v]))
+      const normalized = Object.fromEntries(
+        Object.entries(savedShow).map(([k, v]) => [Number(k), v])
+      )
       setShowMA(normalized)
     }
     if (savedTooltip != null) setShowTooltip(savedTooltip)
-  }, [getSetting])
+  }, [ready, getSetting])
 
   const onToggleMA = useCallback((period) => {
     setShowMA(prev => {
@@ -450,6 +451,7 @@ export default function GlobalChartModal({
             <div className="gcm-ma-toggles" style={{position:'relative'}}>
               {[
                 { p:5,   label:'MA5'   },
+                { p:10,  label:'MA10'  },
                 { p:20,  label:'MA20'  },
                 { p:60,  label:'MA60'  },
                 { p:120, label:'MA120' },

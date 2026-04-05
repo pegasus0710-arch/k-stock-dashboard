@@ -392,6 +392,12 @@ export default function ChartAnalysisPage() {
         stoch: cfg.subH_stoch || prev.stoch,
       }))
     }
+    // 관심종목 + 카테고리 — Firestore 로드 완료 후 재동기화
+    // localStorage 캐시를 지워도 Firestore에서 자동 복원
+    const fbWatch = getWatchlist([])
+    if (fbWatch?.length) setWatchlist(fbWatch)
+    const fbCats = getWlCats([])
+    if (fbCats?.length) setWlCats(fbCats)
   }, [ready]) // ready true 되는 시점 1회
 
   // 보유종목 로드 (계좌 API)

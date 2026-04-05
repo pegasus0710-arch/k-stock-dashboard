@@ -1,7 +1,10 @@
 // src/pages/DashboardPage.jsx — v5 (컴포넌트 분리 후 경량화)
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { db } from '../firebase'
+import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore'
+import { useAuth } from '../context/AuthContext'
 import { rateColor, getTodayStr, getKstStatus, isMarketOpen, isUSMarketOpen, getSymbolMarketStatus } from '../utils/format'
-import { SECTOR_GROUPS, ALL_ITEMS, GAUGE_CONFIG, HEATMAP_SECTORS, getHeatmapColor } from '../constants/dashboardData'
+import { SECTOR_GROUPS, ALL_ITEMS, GAUGE_CONFIG, HEATMAP_SECTORS, getHeatmapColor, HOT_THEMES } from '../constants/dashboardData'
 import { GaugeBar, TooltipIcon } from '../components/ui/GaugeBar'
 import GuideModal        from '../components/dashboard/GuideModal'
 import GlobalChartModal  from '../components/GlobalChartModal'
@@ -121,13 +124,48 @@ const ST_MAP = {
   closed:    {label:'장 마감',      color:'#64748b', dot:false},
 }
 
+// ── 시간대별 AI 컨텍스트 ────────────────────────────────
+function getTimeContext() {
+  const h = new Date().getHours()
+  if (h >= 0  && h < 7)  return { mode:'dawn',     label:'새벽 · 미국장 실시간',  emoji:'🌙', focus:'미국 장 실시간 흐름과 오버나이트 이슈, 국내 장 영향 예상' }
+  if (h >= 7  && h < 9)  return { mode:'preopen',  label:'개장 전 브리핑',         emoji:'🌅', focus:'전일 미국 장 마감 요약, 오늘 국내 개장 전망, 주요 이벤트 예고' }
+  if (h >= 9  && h < 16) return { mode:'intraday',  label:'장중 분석',              emoji:'📊', focus:'현재 코스피/코스닥 흐름, 강약 섹터, 외국인·기관 수급' }
+  if (h >= 16 && h < 18) return { mode:'close',    label:'마감 결산',              emoji:'🔔', focus:'오늘 장 결산, 특이 종목/섹터, 시간외 동향, 미국 선물 방향' }
+  return                         { mode:'evening',  label:'저녁 종합 리포트',       emoji:'🌆', focus:'국내외 주요 이슈 총정리, 미국 선물 방향, 내일 주목할 이벤트' }
+}
+
+// ── 스파크라인 SVG 헬퍼 ──────────────────────────────────
+function MiniSparkline({ closes, color, w=80, h=22 }) {
+  if (!closes || closes.length < 2) return null
+  const vals = closes.filter(v => isFinite(v))
+  if (vals.length < 2) return null
+  const pad = 2
+  const mn = Math.min(...vals), mx = Math.max(...vals), rng = mx - mn || 1
+  const px = i => pad + (i / (vals.length - 1)) * (w - pad * 2)
+  const py = v => h - pad - ((v - mn) / rng) * (h - pad * 2)
+  const pts = vals.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ')
+  const lx = px(vals.length - 1), ly = py(vals[vals.length - 1])
+  return (
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{display:'block'}}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.4" strokeLinejoin="round"/>
+      <circle cx={lx.toFixed(1)} cy={ly.toFixed(1)} r="2" fill={color} stroke="white" strokeWidth="1"/>
+    </svg>
+  )
+}
+
 export default function DashboardPage() {
   const { dashData, globalData, forexData, flowData, weekData: apiWeekData, heatmapData, loading, globalLoading,
           fetchError, setFetchError, lastFetch, refresh, fetchDashboard } = useDashboard()
 
   // 52주 고저 — HeroChart candles에서 계산 (별도 API 불필요)
   const [weekData,  setWeekData]  = useState({})
-  const [sparkData, setSparkData] = useState({})
+  const LS_SPARK_KEY = 'ks_spark_cache'
+  const [sparkData, setSparkData] = useState(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem('ks_spark_cache') || '{}')
+      return cached  // { KOSPI: [prices...], KOSDAQ: [prices...] }
+    } catch { return {} }
+  })
   const handleWeekRange = useCallback((id, high, low) => {
     if(id) setWeekData(prev => ({...prev, [id]: {high52: high, low52: low}}))
   }, [])
@@ -152,7 +190,16 @@ export default function DashboardPage() {
           .filter(c => c.close > 0)
           .slice(-52)
         if (!raw.length) return
-        setSparkData(prev => ({ ...prev, [id]: raw.map(c => c.close) }))
+        const closes = raw.map(c => c.close)
+        setSparkData(prev => {
+          const next = { ...prev, [id]: closes }
+          // localStorage에 캐시 저장 (직전 종가 보존)
+          try {
+            const existing = JSON.parse(localStorage.getItem('ks_spark_cache') || '{}')
+            localStorage.setItem('ks_spark_cache', JSON.stringify({ ...existing, [id]: closes }))
+          } catch {}
+          return next
+        })
         const hs = raw.map(c => c.high || c.close)
         const ls = raw.map(c => c.low  || c.close)
         setWeekData(prev => ({
@@ -177,59 +224,556 @@ export default function DashboardPage() {
   const openSectorPopup = useCallback(async (sector) => {
     setSectorPopup({ sector, stocks: [], loading: true })
     try {
+      // 1순위: repCodes (dashboardData에 정의된 종목)
       const codes = sector.repCodes || []
-      if (!codes.length) {
-        setSectorPopup({ sector, stocks: [], loading: false, error: true })
-        return
+
+      let stocks = []
+
+      // 종목코드 → 종목명 fallback (API 미응답 시)
+      const KNOWN_NAMES = {
+        '005930':'삼성전자','000660':'SK하이닉스','042700':'한미반도체','009150':'삼성전기','066970':'L&F',
+        '373220':'LG에너지솔루션','006400':'삼성SDI','003670':'포스코퓨처엠','247540':'에코프로비엠','086520':'에코프로',
+        '005380':'현대차','000270':'기아','012330':'현대모비스','011210':'현대위아','064350':'현대로템',
+        '207940':'삼성바이오로직스','068270':'셀트리온','000100':'유한양행','128940':'한미약품','326030':'SK바이오팜',
+        '259960':'크래프톤','036570':'엔씨소프트','251270':'넷마블','352820':'하이브','035420':'NAVER',
+        '105560':'KB금융','055550':'신한지주','086790':'하나금융지주','316140':'우리금융지주','138040':'메리츠금융지주',
+        '015760':'한국전력','036460':'한국가스공사','034020':'두산에너빌리티','117000':'루트로닉','267260':'현대일렉트릭',
+        '051910':'LG화학','011170':'롯데케미칼','009830':'한화솔루션','010950':'S-Oil','285130':'SK케미칼',
+        '017670':'SK텔레콤','030200':'KT','032640':'LG유플러스','035720':'카카오',
+        '139480':'이마트','023530':'롯데쇼핑','004170':'신세계','069960':'현대백화점','005440':'현대글로비스',
+        '000720':'현대건설','006360':'GS건설','047040':'대우건설','375500':'DL이앤씨','028260':'삼성물산',
+        '009540':'HD한국조선해양','010140':'삼성중공업','042660':'한화오션','329180':'HD현대중공업',
       }
 
-      // repCodes 순서대로 현재가 병렬 조회 (ka10001 개별 호출)
-      const results = await Promise.allSettled(
-        codes.map(code =>
-          fetch(`/api/kiwoom?type=price&code=${code}`).then(r => r.json())
+      if (codes.length > 0) {
+        const results = await Promise.allSettled(
+          codes.map(code =>
+            fetch(`/api/kiwoom?type=price&code=${code}`).then(r => r.json())
+          )
         )
-      )
+        stocks = results
+          .map((r, i) => {
+            const code = codes[i]
+            if (r.status !== 'fulfilled') return { stk_cd: code, stk_nm: KNOWN_NAMES[code] || code, cur_prc: 0, flu_rt: 0 }
+            const v = r.value
+            if (v?.error) return { stk_cd: code, stk_nm: KNOWN_NAMES[code] || code, cur_prc: 0, flu_rt: 0 }
+            return {
+              stk_cd:  v.stk_cd  || code,
+              stk_nm:  v.stk_nm  || KNOWN_NAMES[code] || code,
+              cur_prc: Math.abs(v.cur_prc || 0),
+              flu_rt:  v.flu_rt  || 0,
+            }
+          })
+          .filter(s => s.stk_nm)  // 이름 있는 것만
+      }
 
-      const stocks = results
-        .filter(r => r.status === 'fulfilled' && r.value?.stk_nm && !r.value?.error)
-        .map(r => ({
-          stk_cd:  r.value.stk_cd  || '',
-          stk_nm:  r.value.stk_nm  || '',
-          cur_prc: Math.abs(r.value.cur_prc || 0),
-          flu_rt:  r.value.flu_rt  || 0,
-        }))
+      // 2순위: repCodes 없거나 조회 실패 시 → investor 상위 종목으로 대체
+      if (stocks.length === 0 && sector.inds_cd) {
+        // ka10063 장중투자자별매매 - 외국인 순매수 상위로 해당 업종 종목 추정
+        const res = await fetch(`/api/kiwoom?type=investor&mrkt=001&invsr=6`)
+          .then(r => r.json()).catch(() => ({}))
+        const rows = (res.data || []).slice(0, 6)
+        stocks = rows.map(r => ({
+          stk_cd:  r.stk_cd || '',
+          stk_nm:  r.stk_nm || '',
+          cur_prc: Math.abs(r.cur_prc || 0),
+          flu_rt:  parseFloat(r.flu_rt || 0),
+        })).filter(s => s.stk_nm)
+      }
 
-      setSectorPopup({ sector, stocks, loading: false })
+      setSectorPopup({ sector, stocks, loading: false, error: stocks.length === 0 })
     } catch {
       setSectorPopup({ sector, stocks: [], loading: false, error: true })
     }
   }, [])
 
+  const { user } = useAuth()
+
+  // ── 포트폴리오 미니바 ─────────────────────────────
+  // 테마 통합 팝업 {theme, stocks, stocksLoading, aiText, aiLoading, aiError}
+  const [themeBigPopup, setThemeBigPopup] = useState(null)
+  const [showPortBar, setShowPortBar] = useState(() => {
+    try { return localStorage.getItem('db_portbar') === 'true' } catch { return false }
+  })
+  // 포트폴리오 미니바 — 포트폴리오 페이지 이동 유도만 (API 직접 호출 제거)
+  const portSummary = null  // 포트폴리오 페이지에서 확인
+
+  // ── AI 분석 센터 state ──────────────────────────────
+  const [aiTab,      setAiTab]      = useState('brief') // brief|sector|risk|strategy
+  const [aiContent,  setAiContent]  = useState(null)   // { brief, sector, risk, strategy, generatedAt, mode }
+  const [aiLoading,  setAiLoading]  = useState(false)
+  const [aiError,    setAiError]    = useState(null)
+  const [expandCard, setExpandCard] = useState(null)   // 확장된 지수 카드 ID
+  const [showDataPanel, setShowDataPanel] = useState(false)  // 상세 데이터 패널 접이식
+  const timeCtx = getTimeContext()
+
+  const togglePortBar = () => {
+    setShowPortBar(prev => {
+      try { localStorage.setItem('db_portbar', String(!prev)) } catch {}
+      return !prev
+    })
+  }
+
+  // Firestore 캐시 로드 (6시간 이내)
+  useEffect(() => {
+    if (!user) return
+    const docRef = doc(db, 'users', user.uid, 'ai_dashboard', 'analysis')
+    getDoc(docRef).then(snap => {
+      if (!snap.exists()) return
+      const d = snap.data()
+      const age = Date.now() - (d.generatedAt?.toMillis?.() || 0)
+      if (age < 6 * 3600000) setAiContent(d)
+    }).catch(() => {})
+  }, [user])
+
+  const generateAi = async () => {
+    if (aiLoading || !user) return
+    setAiLoading(true); setAiError(null)
+    const ctx = getTimeContext()
+    // 현재 지표 요약
+    const getIdxData = (key, sym) => {
+      const spark = sparkData?.[key]
+      const fromSpark = spark?.length >= 2 ? {
+        price: spark[spark.length-1],
+        changeRate: (spark[spark.length-1]-spark[spark.length-2])/spark[spark.length-2]*100
+      } : null
+      return (dashData?.[key]?.price > 0 ? dashData[key] : null)
+          || (domesticIdx?.[key]?.price > 0 ? domesticIdx[key] : null)
+          || fromSpark || globalData?.[sym] || null
+    }
+    const kospi  = getIdxData('KOSPI',  'KS11')
+    const kosdaq = getIdxData('KOSDAQ', 'KQ11')
+    const sp500  = globalData?.['SP500']
+    const vix    = globalData?.['VIX']
+    const usd    = forexData?.['USD']
+    const marketSummary = [
+      kospi  && `KOSPI ${kospi.price?.toLocaleString()} (${kospi.changeRate >= 0 ? '+' : ''}${kospi.changeRate?.toFixed(2)}%)`,
+      kosdaq && `KOSDAQ ${kosdaq.price?.toLocaleString()} (${kosdaq.changeRate >= 0 ? '+' : ''}${kosdaq.changeRate?.toFixed(2)}%)`,
+      sp500  && `S&P500 ${sp500.price?.toLocaleString()} (${sp500.changeRate >= 0 ? '+' : ''}${sp500.changeRate?.toFixed(2)}%)`,
+      vix    && `VIX ${vix.price?.toFixed(2)}`,
+      usd    && `USD/KRW ${usd.price?.toLocaleString()}`,
+    ].filter(Boolean).join(', ')
+    const hotSectors = effectiveHeatmap ? Object.entries(effectiveHeatmap)
+      .filter(([,v]) => v != null).sort(([,a],[,b]) => b - a).slice(0,3)
+      .map(([k,v]) => { const s = HEATMAP_SECTORS.find(h => h.inds_cd === k); return s ? `${s.name}(${v >= 0 ? '+' : ''}${v?.toFixed(1)}%)` : null })
+      .filter(Boolean).join(', ') : '데이터 로딩 중'
+    // 포트폴리오 컨텍스트
+    const portContext = '보유종목 데이터 없음 (포트폴리오 페이지 참고)'
+
+    // 수급 컨텍스트
+    const flowContext = flowData?.total ? (() => {
+      const f = flowData.total
+      const fmt = v => Math.abs(v) >= 10000 ? `${(v/10000).toFixed(1)}조` : `${Math.round(v/1000)}천억`
+      return `외국인${fmt(f.foreign)} 기관${fmt(f.institution)} 개인${fmt(f.individual)}`
+    })() : '수급 데이터 없음'
+
+    // 주요 일정 컨텍스트
+    const schedCtx = scheduleEvents.slice(0,3).map(e => {
+      const diff = Math.ceil((new Date(e.date+'T09:00:00+09:00') - new Date()) / 86400000)
+      return `${e.label}(D-${diff})`
+    }).join(', ')
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 2000,
+          tools: [{ type:'web_search_20250305', name:'web_search' }],
+          system: [
+            '당신은 20년 경력 한국 주식시장 전문가입니다. 실전 트레이더 관점에서 구체적이고 실용적인 인사이트를 제공합니다.',
+            '뻔한 말은 절대 하지 마세요. "조심하세요", "관망하세요" 같은 무의미한 조언은 금지입니다.',
+            '투자자가 오늘 실제로 취할 수 있는 구체적 액션을 중심으로 분석하세요.',
+            '',
+            `분석 시각: ${new Date().toLocaleString('ko-KR')} / 모드: ${ctx.label}`,
+            `시장 데이터: ${marketSummary}`,
+            `수급: ${flowContext}`,
+            `강약 섹터: ${hotSectors}`,
+            `사용자 보유종목: ${portContext}`,
+            `주요 일정: ${schedCtx}`,
+            '',
+            '웹 검색으로 오늘 실제 뉴스를 확인 후 반드시 아래 JSON만 반환하세요.',
+            '{',
+            '  "headline": "핵심 한 줄 (30자 이내, 구체적 수치 포함)",',
+            '  "brief": "지금 시장의 실제 상황 요약 — 왜 이렇게 됐는지 원인 중심 (150자)",',
+            '  "keyLevel": {"kospi": "주목해야 할 KOSPI 레벨과 이유", "action": "이 레벨에서 할 것"},',
+            '  "actions": ["오늘 반드시 할 것 1", "오늘 반드시 할 것 2", "오늘 하지 말아야 할 것"],',
+            '  "portImpact": "보유종목에 오늘 영향을 줄 구체적 이슈 (보유종목 없으면 관망 추천 종목 1개)",',
+            '  "bullScenario": "강세 전환 조건 — 무엇이 바뀌어야 하는가 (구체적 수치나 이벤트)",',
+            '  "bearScenario": "추가 하락 조건 — 무엇이 깨지면 위험한가 (구체적 지지선)",',
+            '  "sectorWatch": [',
+            '    {"name":"반도체","signal":"매수관심 또는 중립 또는 주의","reason":"구체적 뉴스 이유 + 대표종목"},',
+            '    {"name":"자동차","signal":"...","reason":"..."},',
+            '    {"name":"조선","signal":"...","reason":"..."},',
+            '    {"name":"바이오","signal":"...","reason":"..."},',
+            '    {"name":"금융","signal":"...","reason":"..."}',
+            '  ],',
+            '  "riskFactors": ["지금 당장 주시해야 할 리스크 구체적으로", "두번째 리스크"],',
+            '  "strategy": "오늘 투자자가 실제로 취할 수 있는 구체적 액션 (매수/매도/관망 + 이유 + 레벨)",',
+            '  "schedule": [{"time":"HH:MM","event":"오늘 발표 예정 지표명","impact":"high 또는 medium","effect":"이 지표가 어떻게 나오면 어떻게 될지"}],',
+            '  "mood": "bullish 또는 cautious 또는 bearish 또는 neutral",',
+            '  "midTermView": "1~3개월 관점에서 지금이 기회인지 위기인지 구체적 판단"',
+            '}',
+          ].join('\n'),
+          messages: [{ role:'user', content:`${ctx.focus} 관점에서 웹 검색 후 위 사용자의 포트폴리오와 시장 상황을 종합 분석해주세요.` }]
+        })
+      })
+      const data = await res.json()
+      const rawText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
+      // cite 태그 제거 (웹 검색 인용 태그)
+      const cleanText = rawText.replace(/<cite[^>]*>|<\/cite>/g, '').replace(/\s+/g, ' ')
+      const jsonMatch = cleanText.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) throw new Error('JSON 파싱 실패')
+      const parsed = JSON.parse(jsonMatch[0])
+      const now = Timestamp.fromDate(new Date())
+      const toSave = { ...parsed, generatedAt: now, mode: ctx.mode, modeLabel: ctx.label }
+      await setDoc(doc(db, 'users', user.uid, 'ai_dashboard', 'analysis'), toSave)
+      setAiContent(toSave)
+    } catch(e) {
+      setAiError('분석 생성 중 오류가 발생했습니다. 다시 시도해주세요.')
+    } finally { setAiLoading(false) }
+  }
+
+  // forexData 유효값 캐시 저장
+  useEffect(() => {
+    if (!forexData) return
+    const usd = forexData['USD']
+    if (usd?.price > 0) {
+      const prev = loadCache()
+      saveCache({ ...prev, forex: { ...(prev.forex||{}), 'USD': { price: usd.price, changeRate: usd.changeRate } } })
+    }
+  }, [forexData])
+
+  // heatmapData Firestore 캐시 — 직전장 데이터 보존
+  const LS_HEAT_KEY = 'ks_heatmap_cache'
+  const [cachedHeatmap, setCachedHeatmap] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ks_heatmap_cache') || 'null') } catch { return null }
+  })
+  useEffect(() => {
+    if (!heatmapData) return
+    const hasData = Object.values(heatmapData).some(v => v != null && v !== 0)
+    if (hasData) {
+      localStorage.setItem('ks_heatmap_cache', JSON.stringify(heatmapData))
+      setCachedHeatmap(heatmapData)
+    }
+  }, [heatmapData])
+  // 유효한 히트맵 데이터 (실시간 우선, 없으면 캐시)
+  const effectiveHeatmap = (heatmapData && Object.values(heatmapData).some(v => v != null && v !== 0))
+    ? heatmapData : (cachedHeatmap || heatmapData)
+
   const kstStatus = getKstStatus()
   const isOpen    = kstStatus === 'open'
   const isAfter   = kstStatus === 'after'
   const st        = ST_MAP[kstStatus] || ST_MAP.closed
+  const dataLabel = isOpen ? '장중 실시간' : isAfter ? '시간외' : '직전장 기준'
+
+  // 지수 스트립용 아이템 추출
+  const STRIP_ITEMS = [
+    { id:'KOSPI',  label:'KOSPI',  type:'domestic' },
+    { id:'KOSDAQ', label:'KOSDAQ', type:'domestic' },
+    { id:'SP500',  label:'S&P500', sym:'SP500',  type:'global' },
+    { id:'NASDAQ', label:'나스닥',  sym:'NASDAQ', type:'global' },
+    { id:'N225',   label:'니케이',  sym:'N225',   type:'global' },
+    { id:'VIX',    label:'VIX',    sym:'VIX',    type:'global' },
+    { id:'FX_USD', label:'USD/KRW', pair:'USD', type:'forex' },
+  ]
+
+  const getStripData = (item) => {
+    if (item.type === 'global')  return globalData?.[item.sym] || null
+    if (item.type === 'forex') {
+      // 1순위: forexData (KIS API 실시간)
+      if (forexData?.[item.pair]?.price > 0) return { price: forexData[item.pair].price, changeRate: forexData[item.pair].changeRate }
+      // 2순위: forexCache (localStorage 이전 유효값)
+      if (forexCache?.price > 0) return forexCache
+      return null
+    }
+    // 국내 지수: dashData 우선, 없으면 domesticIdx(직접 로드) fallback
+    if (item.id === 'KOSPI' || item.id === 'KOSDAQ') {
+      const key = item.id
+      // 1순위: dashData (장중 실시간)
+      const fromDash = dashData?.[key]?.price > 0 ? dashData[key] : null
+      // 2순위: domesticIdx (직접 호출)
+      const fromIdx  = domesticIdx?.[key]?.price > 0 ? domesticIdx[key] : null
+      // 3순위: sparkData 마지막 봉 (직전 종가 — 항상 존재)
+      const spark = sparkData?.[key]
+      const fromSpark = spark?.length >= 2 ? {
+        price:      spark[spark.length - 1],
+        changeRate: ((spark[spark.length-1] - spark[spark.length-2]) / spark[spark.length-2] * 100),
+      } : null
+      const src = fromDash || fromIdx || fromSpark
+      return src?.price > 0 ? { price: src.price, changeRate: src.changeRate } : null
+    }
+    return null
+  }
+
+  // 섹터 상위 5 + 하위 2 (좌측 패널 — 히트맵과 역할 분리)
+  // 전체 업종 등락률순 정렬
+  const hotSectorList = effectiveHeatmap
+    ? Object.entries(effectiveHeatmap)
+        .filter(([,v]) => v != null)
+        .sort(([,a],[,b]) => b - a)
+        .map(([k,v]) => ({ sector: HEATMAP_SECTORS.find(h => h.inds_cd === k), rate: v }))
+        .filter(r => r.sector)
+    : []
+
+  // ── localStorage 캐시 유틸 ──────────────────────────
+  const LS_KEY = 'ks_strip_cache'
+  const loadCache = () => { try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}') } catch { return {} } }
+  const saveCache = (data) => { try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {} }
+
+  // ── 환율 캐시 (forexData 유효값 감지 시 저장) ────
+  const [forexCache, setForexCache] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ks_forex_cache') || 'null') } catch { return null }
+  })
+
+  useEffect(() => {
+    const usd = forexData?.['USD']
+    if (usd?.price > 0) {
+      const val = { price: usd.price, changeRate: usd.changeRate }
+      setForexCache(val)
+      try { localStorage.setItem('ks_forex_cache', JSON.stringify(val)) } catch {}
+    }
+  }, [forexData])
+
+  // ── 국내 지수 직접 로드 (장외에도 직전장 데이터 표시) ───
+  const [domesticIdx, setDomesticIdx] = useState(() => loadCache())
+
+  useEffect(() => {
+    const load = () => {
+      fetch('/api/kiwoom?type=index-domestic')
+        .then(r => r.json())
+        .then(d => {
+          if (d.KOSPI?.price > 0 || d.KOSDAQ?.price > 0) {
+            setDomesticIdx(d)
+            saveCache(d)  // 유효값이면 캐시 저장
+          }
+        })
+        .catch(() => {})
+    }
+    load()
+    const timer = setInterval(load, 5 * 60 * 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  // ── 이벤트 일정 — Firestore + AI 자동 갱신 ────────────
+  const DEFAULT_EVENTS = [
+    { label:'SK하이닉스 실적', date:'2026-04-24', icon:'💹', desc:'HBM 수요 가이던스 주목', effect:'어닝서프라이즈 시 반도체 섹터 강세' },
+    { label:'한국 GDP (1분기)', date:'2026-04-24', icon:'🇰🇷', desc:'수출 둔화 반영 여부', effect:'예상 하회 시 원화 약세 우려' },
+    { label:'삼성전자 실적', date:'2026-04-30', icon:'💹', desc:'반도체·스마트폰 실적 동시 발표', effect:'DS부문 흑자 전환 여부가 핵심' },
+    { label:'미국 고용지표', date:'2026-05-02', icon:'📊', desc:'비농업 고용 예상 18만명', effect:'호조 시 금리 인하 기대 후퇴' },
+    { label:'FOMC 금리 결정', date:'2026-05-07', icon:'🏦', desc:'동결 유력, 점도표 변화 주목', effect:'비둘기파 신호 시 코스피 긍정' },
+    { label:'미국 CPI', date:'2026-05-13', icon:'📈', desc:'근원 CPI 둔화 여부', effect:'3% 하회 시 금리 인하 기대 강화' },
+  ]
+  const [scheduleEvents, setScheduleEvents] = useState(DEFAULT_EVENTS)
+  const [scheduleLoading, setScheduleLoading] = useState(false)
+
+  // Firestore에서 일정 로드
+  useEffect(() => {
+    if (!user) return
+    getDoc(doc(db, 'users', user.uid, 'ai_dashboard', 'schedule'))
+      .then(snap => {
+        if (snap.exists() && snap.data().events?.length) {
+          setScheduleEvents(snap.data().events)
+        }
+      }).catch(() => {})
+  }, [user])
+
+  const refreshSchedule = async () => {
+    if (!user || scheduleLoading) return
+    setScheduleLoading(true)
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 800,
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+          system: [
+            '한국 주식 투자자에게 중요한 향후 30일 이내 경제 일정을 웹 검색으로 찾아주세요.',
+            '반드시 JSON 배열만 반환. 다른 텍스트 절대 금지.',
+            '[{"label":"이벤트명","date":"YYYY-MM-DD","icon":"이모지"}]',
+            '최대 8개, 날짜 오름차순 정렬'
+          ].join("\n"),
+          messages: [{ role: 'user', content: `오늘(${new Date().toISOString().slice(0,10)}) 기준 향후 30일 주요 경제/실적 일정` }]
+        })
+      })
+      const data = await res.json()
+      const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
+      const match = text.match(/\[[\s\S]*?\]/)
+      if (match) {
+        const events = JSON.parse(match[0])
+        setScheduleEvents(events)
+        await setDoc(doc(db, 'users', user.uid, 'ai_dashboard', 'schedule'), {
+          events, updatedAt: new Date().toISOString()
+        })
+      }
+    } catch(e) { console.error('schedule refresh error', e) }
+    finally { setScheduleLoading(false) }
+  }
+
+  // ── 테마 통합 팝업 열기 (좌: 정적 정보+종목 / 우: AI 분석) ──
+  const openThemeBigPopup = async (theme) => {
+    // 팝업 즉시 열기 (로딩 상태)
+    setThemeBigPopup({ theme, stocks: [], stocksLoading: true, aiText: null, aiLoading: false, aiError: null })
+
+    // 병렬: 종목 가격 로드
+    const KNOWN_NAMES = {
+      '035420':'NAVER','035720':'카카오','259960':'크래프톤','042700':'한미반도체','251270':'넷마블',
+      '005380':'현대차','010120':'LS','277810':'레인보우로보틱스','336570':'솔트웨어','214150':'클래시스',
+      '034020':'두산에너빌리티','015760':'한국전력','083650':'비에이치아이','298040':'효성중공업','071970':'STX에너지솔루션',
+      '012450':'한화에어로스페이스','079550':'LIG넥스원','064350':'현대로템','047810':'한국항공우주','272210':'한화시스템',
+      '267260':'현대일렉트릭','103590':'일진전기','090355':'노루홀딩스',
+      '141080':'레고켐바이오','196170':'알테오젠','128940':'한미약품','326030':'SK바이오팜','068270':'셀트리온',
+      '009540':'HD한국조선해양','010140':'삼성중공업','042660':'한화오션','329180':'HD현대중공업','000720':'현대건설',
+      '005930':'삼성전자','000660':'SK하이닉스','005490':'포스코홀딩스','003670':'포스코퓨처엠','051910':'LG화학',
+    }
+    const codes = theme.repCodes || []
+    Promise.allSettled(
+      codes.slice(0, 5).map(code =>
+        fetch(`/api/kiwoom?type=price&code=${code}`).then(r => r.json())
+      )
+    ).then(results => {
+      const stocks = results.map((r, i) => {
+        const code = codes[i]
+        if (r.status !== 'fulfilled' || r.value?.error)
+          return { stk_cd: code, stk_nm: KNOWN_NAMES[code] || code, cur_prc: 0, flu_rt: 0 }
+        const v = r.value
+        return {
+          stk_cd:  v.stk_cd  || code,
+          stk_nm:  v.stk_nm  || KNOWN_NAMES[code] || code,
+          cur_prc: Math.abs(v.cur_prc || 0),
+          flu_rt:  parseFloat(v.flu_rt || 0),
+        }
+      }).filter(s => s.stk_nm)
+      setThemeBigPopup(prev => prev ? { ...prev, stocks, stocksLoading: false } : null)
+    }).catch(() => {
+      setThemeBigPopup(prev => prev ? { ...prev, stocksLoading: false } : null)
+    })
+
+    // AI 캐시 로드 (로그인 시) — 만료 없음, 캐시 있으면 즉시 표시
+    if (user) {
+      const cacheRef = doc(db, 'users', user.uid, 'theme_cache', theme.id)
+      try {
+        const snap = await getDoc(cacheRef)
+        if (snap.exists()) {
+          const { data: cached, cachedAt } = snap.data()
+          if (cached) {
+            setThemeBigPopup(prev => prev ? { ...prev, aiText: { ...cached, cachedAt }, aiLoading: false } : null)
+            return
+          }
+        }
+      } catch {}
+    }
+    // 캐시 없으면 → 버튼 대기 (수동으로만 분석 시작)
+  }
+
+  // AI 재분석 트리거
+  const generateThemeAi = async (theme) => {
+    // P1: theme.id 방어
+    if (!theme?.id) {
+      setThemeBigPopup(prev => prev ? { ...prev, aiError: '테마 ID 없음. 페이지를 새로고침해주세요.' } : null)
+      return
+    }
+    setThemeBigPopup(prev => prev ? { ...prev, aiLoading: true, aiError: null } : null)
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 2000,
+          system: 'You are a Korean stock market expert. Output ONLY a valid JSON object. No markdown, no explanation, no code blocks. Write all values in Korean.',
+          messages: [{
+            role: 'user',
+            content: `2026년 한국 주식 투자 테마 "${theme.label}"을 분석하세요. 대표종목: ${(theme.tags || []).join(', ')}\n\n아래 JSON 형식으로만 응답하세요:\n{"bullCase":"강세 시나리오 (구체적 조건과 기대수익률, 100자 이내)","bearCase":"약세 시나리오 (경고 신호, 100자 이내)","strategy":"투자 전략 (매수/관망/주의 + 구체적 이유, 100자 이내)","catalysts":["촉매1","촉매2","촉매3"],"nextCatalyst":"가장 중요한 다음 확인 이벤트"}`
+          }]
+        })
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(`API ${res.status}: ${errData?.error?.message || '요청 오류'}`)
+      }
+
+      const data = await res.json()
+      if (data.error) throw new Error(data.error.message || 'API 에러')
+
+      // 토큰 한도 초과로 잘린 경우 조기 감지
+      if (data.stop_reason === 'max_tokens') {
+        throw new Error('응답이 너무 길어 잘렸습니다. 재분석을 눌러주세요.')
+      }
+
+      const rawT = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
+      if (!rawT) throw new Error('빈 응답')
+
+      let parsed = null
+
+      // 방법 1: 직접 파싱
+      try { parsed = JSON.parse(rawT.trim()) } catch {}
+
+      // 방법 2: 마크다운 코드블록 제거
+      if (!parsed) {
+        try {
+          const clean = rawT.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+          parsed = JSON.parse(clean)
+        } catch {}
+      }
+
+      // 방법 3: 첫 { 마지막 } 추출
+      if (!parsed) {
+        try {
+          const s = rawT.indexOf('{'), e = rawT.lastIndexOf('}')
+          if (s !== -1 && e > s) parsed = JSON.parse(rawT.slice(s, e + 1))
+        } catch {}
+      }
+
+      if (!parsed) {
+        console.error('[ThemeAI] 파싱 실패. raw:', rawT.slice(0, 400))
+        throw new Error('AI 응답 형식 오류 — 재분석을 눌러주세요')
+      }
+
+      // P0-2: 파싱 성공해도 핵심 필드 없으면 유효하지 않은 응답
+      if (!parsed.bullCase || !parsed.strategy || String(parsed.bullCase).length < 10) {
+        console.error('[ThemeAI] 유효하지 않은 응답. parsed:', JSON.stringify(parsed).slice(0, 200))
+        throw new Error('AI 분석 내용이 불충분합니다. 재분석을 눌러주세요')
+      }
+
+      const now = new Date().toISOString()
+      const aiText = { ...parsed, cachedAt: now }
+
+      // Firestore 캐시 저장 — 실패 시 경고만 (API 결과는 표시)
+      if (user && theme.id) {
+        const cacheRef = doc(db, 'users', user.uid, 'theme_cache', theme.id)
+        setDoc(cacheRef, { data: parsed, cachedAt: now })
+          .catch(err => console.warn('[ThemeAI] 캐시 저장 실패 (표시는 정상):', err))
+      }
+
+      setThemeBigPopup(prev => prev ? { ...prev, aiText, aiLoading: false, aiError: null } : null)
+
+    } catch(e) {
+      console.error('[ThemeAI] 오류:', e)
+      setThemeBigPopup(prev => prev ? { ...prev, aiLoading: false, aiError: e.message || '분석 오류. 재분석을 눌러주세요.' } : null)
+    }
+  }
+
+  const moodColor = { bullish:'#16a34a', cautious:'#d97706', bearish:'#dc2626', neutral:'#64748b' }
+  const moodLabel = { bullish:'강세 🟢', cautious:'주의 🟡', bearish:'약세 🔴', neutral:'중립 ⚪' }
 
   return (
-    <div className="dashboard">
-      {/* 헤더 */}
-      <div className="dash-header">
-        <div className="dash-header-row">
-          <div>
-            <h1 className="dash-title">시장 대시보드</h1>
-            <p className="dash-date">{getTodayStr()}{lastFetch&&<span style={{color:'var(--text-dim)'}}> · {lastFetch} 기준</span>}</p>
-          </div>
-          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-            <button className="db-guide-btn" onClick={()=>setShowGuide(true)}>지수 가이드</button>
-            <button className="db-briefing-btn" onClick={()=>setShowBriefing(true)}>AI 브리핑</button>
-            <div className="db-status-badge" style={{background:st.color+'15',color:st.color,borderColor:st.color+'30'}}>
-              {st.dot&&<span className="db-status-dot" style={{background:st.color}}/>}{st.label}
-            </div>
-            <button className="btn-outline db-refresh-btn" disabled={loading} onClick={refresh}>↺</button>
-          </div>
-        </div>
-      </div>
-
+    <div className="db-v2">
+      {/* 에러 배너 */}
       {fetchError && (
         <div className="db-error-banner">⚠️ 데이터 로드 실패
           <button onClick={()=>{setFetchError(false);fetchDashboard(true)}}
@@ -237,643 +781,712 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 영역 1: 상단 인터랙티브 차트 */}
-      <div className="db-chart-section">
-        <div className="db-selector-row">
-          {SECTOR_GROUPS.map((group,gi)=>(
-            <div key={group.id} style={{display:'flex',alignItems:'center',gap:4}}>
-              {gi>0 && <div className="db-sel-divider"/>}
-              <div className="db-sel-group">
-                {group.items.filter(it=>it.type==='global'||it.type==='forex').map(it=>(
-                  <button key={it.id}
-                    className={`db-sel-btn ${selId===it.id?'active':''}`}
-                    onClick={()=>setSelId(it.id)}>{it.label}</button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <HeroChart selId={selId} onSelChange={setSelId}
-          dashData={dashData} globalData={globalData} forexData={forexData}
-          onWeekRange={handleWeekRange} onSparkData={handleSparkData}/>
-      </div>
-
-      {/* 영역 2: 중단 지수 카드 그리드 */}
-      <div className="db-cards-section">
-        {SECTOR_GROUPS.map((group, gi)=>{
-          const tipPos = gi % 3 === 0 ? 'right' : 'left'
-
-          // ── 해외지수 그룹: 2×2 메인 카드(52주 게이지) + 미니 아이콘 행 ──
-          if (group.id === 'global') {
-            const makeSparkSvg = (id, color) => {
-              const raw = sparkData?.[id]
-              if (!raw || raw.length < 2) return null
-              const closes = raw.filter(v => typeof v === 'number' && isFinite(v))
-              if (closes.length < 2) return null
-              const W=120, H=28, pad=2
-              const mn=Math.min(...closes), mx=Math.max(...closes), rng=mx-mn||1
-              const px=i => pad + (i/(closes.length-1))*(W-pad*2)
-              const py=v  => H-pad-(v-mn)/rng*(H-pad*2)
-              const validPts = closes
-                .map((v,i) => { const x=px(i), y=py(v); return isFinite(x)&&isFinite(y)?`${x.toFixed(1)},${y.toFixed(1)}`:null })
-                .filter(Boolean)
-              if (validPts.length < 2) return null
-              const pts  = validPts.join(' ')
-              const apts = `${pad},${H-pad} ${pts} ${W-pad},${H-pad}`
-              const lastX = px(closes.length-1), lastY = py(closes[closes.length-1])
-              if (!isFinite(lastX) || !isFinite(lastY)) return null
-              return (
-                <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',margin:'4px 0 2px'}}>
-                  <defs>
-                    <linearGradient id={`gsg-${id}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={color} stopOpacity="0.15"/>
-                      <stop offset="100%" stopColor={color} stopOpacity="0"/>
-                    </linearGradient>
-                  </defs>
-                  <polygon points={apts} fill={`url(#gsg-${id})`}/>
-                  <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
-                  <circle cx={lastX.toFixed(1)} cy={lastY.toFixed(1)} r="2.5" fill={color} stroke="white" strokeWidth="1.5"/>
-                </svg>
-              )
-            }
-            return (
-              <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
-                <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-                {/* 메인 2×2 카드 */}
-                <div className="db-global-grid">
-                  {group.items.map(item=>{
-                    const d         = getItemData(item, dashData, globalData, forexData)
-                    const rate      = d?.changeRate
-                    const up        = (rate??0) > 0
-                    const badge     = getMarketBadge(item, d)
-                    const isClosed  = badge?.cls === 'closed'
-                    const dateLabel = getItemDateLabel(item, d)
-                    const active    = selId === item.id
-                    const spark     = makeSparkSvg(item.id, up ? '#DC2626' : '#1D4ED8')
-                    // 52주 고저 게이지
-                    const wk = weekData?.[item.id]
-                    const week52 = wk && d?.price && wk.high52 > wk.low52 ? (() => {
-                      const pct = Math.min(100, Math.max(0, (d.price - wk.low52) / (wk.high52 - wk.low52) * 100))
-                      return (
-                        <div className="db-52w-wrap">
-                          <div className="db-52w-track">
-                            <div className="db-52w-fill" style={{width:`${pct}%`}}/>
-                            <div className="db-52w-thumb" style={{left:`${pct}%`}}/>
-                          </div>
-                          <div className="db-52w-labels">
-                            <span>저 {Math.round(wk.low52).toLocaleString()}</span>
-                            <span style={{color:'var(--accent-mid)'}}>▲ 52주 {Math.round(pct)}%</span>
-                            <span>고 {Math.round(wk.high52).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      )
-                    })() : null
-                    return (
-                      <button key={item.id}
-                        className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''}`}
-                        onClick={()=>setSelId(item.id)}>
-                        <div className="db-idx-top-row">
-                          <span className="db-idx-name">{item.label}</span>
-                          <span style={{display:'flex',alignItems:'center',gap:3}}>
-                            <TooltipIcon id={item.id} tipPosition="left"/>
-                            {badge&&<span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
-                              {badge.cls==='live'&&<span className="db-idx-live-dot"/>}{badge.label}
-                            </span>}
-                          </span>
-                        </div>
-                        {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
-                         d?.price!=null ? (
-                          <>
-                            <div className="db-idx-price">{Math.round(d.price).toLocaleString()}</div>
-                            {rate!=null&&<div className={`db-idx-rate-badge ${up?'up':'down'}`}>
-                              {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
-                            </div>}
-                            {spark}
-                            {week52}
-                            {dateLabel&&<div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
-                          </>
-                        ) : <div className="db-idx-na">—</div>}
-                      </button>
-                    )
-                  })}
-                </div>
-                {/* 미니 아이콘 행 — 상해/대만/DAX */}
-                {group.miniItems && (
-                  <div className="db-global-mini-row">
-                    {group.miniItems.map(mini=>{
-                      const d    = globalData?.[mini.sym]
-                      const rate = d?.changeRate
-                      const up   = (rate??0) > 0
-                      return (
-                        <div key={mini.id} className="db-global-mini-item">
-                          <span className="db-global-mini-label" style={{color: mini.color}}>{mini.label}</span>
-                          {d?.price!=null ? (
-                            <>
-                              <span className="db-global-mini-price">{Math.round(d.price).toLocaleString()}</span>
-                              {rate!=null&&<span className="db-global-mini-rate" style={{color: up?'var(--color-up)':'var(--color-down)'}}>
-                                {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
-                              </span>}
-                            </>
-                          ) : <span className="db-global-mini-na">—</span>}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          }
-          // ── 환율 그룹: USD 와이드 + 나머지 3개 소형 ──
-          if (group.id === 'forex') {
-            const usdItem = group.items.find(it=>it.id==='FX_USD')
-            const otherItems = group.items.filter(it=>it.id!=='FX_USD')
-            const usdData = usdItem ? getItemData(usdItem, dashData, globalData, forexData) : null
-            return (
-              <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
-                <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-                {/* USD/KRW — 와이드 카드 */}
-                {usdItem && (
-                  <button
-                    className={`db-idx-card db-forex-wide ${selId===usdItem.id?'active':''} ${usdData?.price>=1500?'db-idx-card--warn-orange':''}`}
-                    onClick={()=>setSelId(usdItem.id)}>
-                    <div className="db-idx-top-row">
-                      <span className="db-idx-name">{usdItem.label}</span>
-                      <span style={{display:'flex',alignItems:'center',gap:3}}>
-                        <TooltipIcon id={usdItem.id} tipPosition="left"/>
-                      </span>
-                    </div>
-                    {usdData?.price!=null ? (
-                      <>
-                        <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:2}}>
-                          <div className="db-idx-price">{Math.round(usdData.price).toLocaleString()}</div>
-                          {usdData.changeRate!=null && (
-                            <div className={`db-idx-rate-badge ${usdData.changeRate>=0?'up':'down'}`}>
-                              {usdData.changeRate>=0?'▲':'▼'} {Math.abs(usdData.changeRate).toFixed(2)}%
-                            </div>
-                          )}
-                        </div>
-                        <GaugeBar id={usdItem.id} price={usdData.price}/>
-                        {getItemDateLabel(usdItem, usdData) && (
-                          <div style={{textAlign:'right',marginTop:4}}>
-                            <span className="db-date-badge">{getItemDateLabel(usdItem, usdData)}</span>
-                          </div>
-                        )}
-                      </>
-                    ) : <div className="db-idx-na">—</div>}
-                  </button>
-                )}
-                {/* JPY/CNY/EUR — 소형 카드 3개 */}
-                <div className="db-forex-small-grid">
-                  {otherItems.map(item=>{
-                    const d    = getItemData(item, dashData, globalData, forexData)
-                    const rate = d?.changeRate
-                    const up   = (rate ?? 0) > 0
-                    const dateLabel = getItemDateLabel(item, d)
-                    return (
-                      <button key={item.id}
-                        className={`db-idx-card db-forex-small ${selId===item.id?'active':''}`}
-                        style={{display:'flex',flexDirection:'column',alignItems:'center'}}
-                        onClick={()=>setSelId(item.id)}>
-                        <div className="db-idx-top-row">
-                          <span className="db-idx-name" style={{fontSize:10}}>{item.label}</span>
-                          <TooltipIcon id={item.id} tipPosition="left"/>
-                        </div>
-                        {d?.price!=null ? (
-                          <>
-                            <div className="db-idx-price" style={{fontSize:14}}>
-                              {Math.round(d.price).toLocaleString()}
-                            </div>
-                            {rate!=null && (
-                              <div className={`db-idx-rate-badge ${up?'up':'down'}`}>
-                                {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
-                              </div>
-                            )}
-                            {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
-                          </>
-                        ) : <div className="db-idx-na">—</div>}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          }
-
-          // ── 원자재 그룹: 도트 히트맵 렌더링 ──
-          if (group.id === 'commodity') return (
-            <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
-              <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-              <div className="db-commodity-grid">
-                {group.items.map(item=>{
-                  const d    = getItemData(item, dashData, globalData, forexData)
-                  const rate = d?.changeRate
-                  const up   = (rate ?? 0) > 0
-                  const dotColor = getCommodityDotColor(rate)
-                  const dateLabel = getItemDateLabel(item, d)
-                  // 스파크라인
-                  const makeCommoditySpark = () => {
-                    const raw = sparkData?.[item.id]
-                    if (!raw || raw.length < 2) return null
-                    const closes = raw.filter(v => typeof v === 'number' && isFinite(v))
-                    if (closes.length < 2) return null
-                    const W=80, H=20, pad=1
-                    const mn=Math.min(...closes), mx=Math.max(...closes), rng=mx-mn||1
-                    const px=i => pad+(i/(closes.length-1))*(W-pad*2)
-                    const py=v  => H-pad-(v-mn)/rng*(H-pad*2)
-                    const validPts = closes.map((v,i)=>{const x=px(i),y=py(v);return isFinite(x)&&isFinite(y)?`${x.toFixed(1)},${y.toFixed(1)}`:null}).filter(Boolean)
-                    if (validPts.length < 2) return null
-                    const color = up ? '#DC2626' : '#1D4ED8'
-                    return (
-                      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',marginTop:4}}>
-                        <polyline points={validPts.join(' ')} fill="none" stroke={color} strokeWidth="1.2" strokeLinejoin="round" opacity="0.8"/>
-                      </svg>
-                    )
-                  }
-                  return (
-                    <div key={item.id} className="db-commodity-dot-card"
-                      onClick={()=>setSelId(item.id)} style={{cursor:'pointer'}}>
-                      <div className="db-commodity-tip">
-                        <TooltipIcon id={item.id} tipPosition="right"/>
-                      </div>
-                      <div className="db-commodity-circle" style={{background: dotColor}}>
-                        {item.label.slice(0,3).toUpperCase()}
-                      </div>
-                      <span className="db-commodity-name">{item.label}</span>
-                      {globalLoading&&!d
-                        ? <Skeleton w="50%" h={11}/>
-                        : d?.price!=null
-                          ? <>
-                              <span className="db-commodity-price">
-                                {['WTI','BRENT','GOLD','SILVER','COPPER'].includes(item.id)
-                                  ? `$${Math.round(d.price).toLocaleString()}`
-                                  : `${Math.round(d.price).toLocaleString()}${item.unit||''}`
-                                }
-                              </span>
-                              {rate!=null && (
-                                <span className="db-commodity-rate" style={{color: up?'var(--color-up)':'var(--color-down)'}}>
-                                  {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
-                                </span>
-                              )}
-                              {makeCommoditySpark()}
-                              {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
-                            </>
-                          : <span style={{fontSize:10,color:'var(--text-dim)'}}>—</span>
-                      }
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-
-          // ── 심리·달러 그룹: VIX(넓게) + DXY(게이지 포함) ──
-          if (group.id === 'sentiment') return (
-            <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
-              <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-              <div className="db-sentiment-grid">
-                {group.items.map(item=>{
-                  const d        = getItemData(item, dashData, globalData, forexData)
-                  const rate     = d?.changeRate
-                  const up       = (rate??0) > 0
-                  const badge    = getMarketBadge(item, d)
-                  const isClosed = badge?.cls === 'closed'
-                  const active   = selId === item.id
-                  const dateLabel = getItemDateLabel(item, d)
-                  const warnClass = getWarnClass(item, d)
-                  return (
-                    <button key={item.id}
-                      className={`db-idx-card ${item.id==='VIX'?'db-sentiment-vix':'db-sentiment-dxy'} ${active?'active':''} ${isClosed?'closed':''} ${warnClass}`}
-                      onClick={()=>setSelId(item.id)}>
-                      <div className="db-idx-top-row">
-                        <span className="db-idx-name">{item.label}</span>
-                        <span style={{display:'flex',alignItems:'center',gap:3}}>
-                          <TooltipIcon id={item.id} tipPosition="left"/>
-                          {badge&&<span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
-                            {badge.cls==='live'&&<span className="db-idx-live-dot"/>}{badge.label}
-                          </span>}
-                        </span>
-                      </div>
-                      {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
-                       d?.price!=null ? (
-                        <>
-                          <div className="db-idx-price">
-                            {d.price.toFixed(2)}{item.unit||''}
-                          </div>
-                          {rate!=null&&<div className={`db-idx-rate-badge ${up?'up':'down'}`}>
-                            {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
-                          </div>}
-                          {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
-                          {dateLabel&&<div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
-                        </>
-                      ) : <div className="db-idx-na">—</div>}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )
-
-          // ── 나머지 그룹: 기존 카드 렌더링 ──
-          return (
-          <div key={group.id}
-            className="db-card-group"
-            style={{'--group-accent':group.accent, ...(group.id==='domestic'?{alignSelf:'start'}:{})}}>
-            <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-            <div className={`db-card-group-items ${group.id==='domestic'?'domestic-items':group.id==='bond'?'bond-items':''}`}>
-              {group.items.map(item=>{
-                if (item.type==='divider') return (
-                  <div key={item.id} className="db-card-group-divider">{item.label}</div>
-                )
-                const d        = getItemData(item, dashData, globalData, forexData)
-                // KOSPI/KOSDAQ: sparkData 마지막 2봉으로 등락률 직접 계산
-                // (globalData.changeRate는 스파크 기간 전체 수익률이 섞일 수 있음)
-                const displayRate = (() => {
-                  if (item.id === 'KOSPI' || item.id === 'KOSDAQ') {
-                    const spark = sparkData?.[item.id]
-                    if (spark && spark.length >= 2) {
-                      const prev = spark[spark.length - 2]
-                      const cur  = spark[spark.length - 1]
-                      if (prev > 0 && cur > 0) return (cur - prev) / prev * 100
-                    }
-                  }
-                  return d?.changeRate ?? null
-                })()
-                const rate     = displayRate
-                const up       = (rate ?? 0) > 0
-                const badge    = getMarketBadge(item, d)
-                const isClosed = badge?.cls === 'closed'
-                const active   = selId === item.id
-                const dateLabel = getItemDateLabel(item, d)
-                const warnClass = getWarnClass(item, d)
-                return (
-                  <button key={item.id}
-                    className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''} ${item.type==='spread'?'spread-card':''} ${warnClass}`}
-                    onClick={()=>(item.type==='global'||item.type==='forex') && setSelId(item.id)}>
-                <div className="db-idx-top-row">
-                      <span className="db-idx-name">{item.label}</span>
-                      <span style={{display:'flex',alignItems:'center',gap:3}}>
-                        <TooltipIcon id={item.id} tipPosition={tipPos}/>
-                        {badge && (
-                          <span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
-                            {badge.cls==='live' && <span className="db-idx-live-dot"/>}
-                            {badge.label}
-                          </span>
-                        )}
-                        {/* 차트 분석 아이콘 — KOSPI/KOSDAQ 전용 */}
-                        {(item.id==='KOSPI'||item.id==='KOSDAQ') && d?.price!=null && (
-                          <span
-                            className="db-idx-chart-icon"
-                            title="차트 분석"
-                            onClick={e=>{
-                              e.stopPropagation()
-                              setChartItem({type:'global', sym:item.sym, label:item.label, price:d.price, changeRate:rate})
-                            }}>
-                            📈
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                    {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
-                     d?.price!=null ? (
-                      <>
-                        <div className="db-idx-price" style={d.isSpread?{color:d.inverted?'var(--color-down)':d.price<0.5?'#d97706':'var(--color-up)'}:{}}>
-                          {d.isSpread
-                            ? `${d.price>=0?'+':''}${d.price.toFixed(2)}%`
-                            : item.unit==='%'
-                              ? `${d.price.toFixed(2)}${item.unit}`
-                              : `${Math.round(d.price).toLocaleString()}${item.unit||''}`
-                          }
-                        </div>
-                        {d.isSpread
-                          ? <div className="db-idx-spread-label" style={{color:d.inverted?'var(--color-down)':d.price<0.5?'#d97706':'#16a34a'}}>
-                              {d.inverted?'⚠️ 역전 (경기침체 경보)':d.price<0.5?'⚡ 주의 구간':'✅ 정상'}
-                            </div>
-                          : rate!=null
-                            ? <div className={`db-idx-rate-badge ${up?'up':'down'}`}>
-                                {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
-                              </div>
-                            : null
-                        }
-                        {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
-                        {/* KOSPI/KOSDAQ 전용 — 스파크라인 + 52주 게이지 */}
-                        {(item.id==='KOSPI'||item.id==='KOSDAQ') && (
-                          <div className="db-kospi-extra">
-                            {/* 스파크라인 */}
-                            {sparkData?.[item.id]?.length > 1 && (() => {
-                              const raw = sparkData[item.id]
-                              const closes = raw.filter(v => typeof v === 'number' && isFinite(v))
-                              if (closes.length < 2) return null
-                              const W=160, H=32, pad=2
-                              const mn = Math.min(...closes), mx = Math.max(...closes)
-                              const rng = mx - mn || 1
-                              const px = i => pad + (i/(closes.length-1))*(W-pad*2)
-                              const py = v => H-pad-(v-mn)/rng*(H-pad*2)
-                              const validPts = closes.map((v,i)=>{const x=px(i),y=py(v);return isFinite(x)&&isFinite(y)?`${x.toFixed(1)},${y.toFixed(1)}`:null}).filter(Boolean)
-                              if (validPts.length < 2) return null
-                              const pts = validPts.join(' ')
-                              const color = closes[closes.length-1] >= closes[0] ? '#22c55e' : '#ef4444'
-                              const apts = `${pad},${H-pad} ${pts} ${W-pad},${H-pad}`
-                              const lastX = px(closes.length-1), lastY = py(closes[closes.length-1])
-                              if (!isFinite(lastX)||!isFinite(lastY)) return null
-                              return (
-                                <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',margin:'6px 0 2px'}}>
-                                  <defs>
-                                    <linearGradient id={`sg-${item.id}`} x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="0%" stopColor={color} stopOpacity="0.15"/>
-                                      <stop offset="100%" stopColor={color} stopOpacity="0"/>
-                                    </linearGradient>
-                                  </defs>
-                                  <polygon points={apts} fill={`url(#sg-${item.id})`}/>
-                                  <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
-                                  <circle cx={lastX.toFixed(1)} cy={lastY.toFixed(1)} r="2.5" fill={color} stroke="white" strokeWidth="1.5"/>
-                                </svg>
-                              )
-                            })()}
-                            {/* 52주 고저 게이지 */}
-                            {weekData?.[item.id] && (() => {
-                              const w = weekData[item.id]
-                              const low = w.low52, high = w.high52
-                              if (!low||!high||high<=low) return null
-                              const pct = Math.min(100, Math.max(0, (d.price-low)/(high-low)*100))
-                              return (
-                                <div className="db-52w-wrap">
-                                  <div className="db-52w-track">
-                                    <div className="db-52w-fill" style={{width:`${pct}%`}}/>
-                                    <div className="db-52w-thumb" style={{left:`${pct}%`}}/>
-                                  </div>
-                                  <div className="db-52w-labels">
-                                    <span>저 {Math.round(low).toLocaleString()}</span>
-                                    <span style={{color:'var(--accent-mid)'}}>▲ 52주 {Math.round(pct)}%</span>
-                                    <span>고 {Math.round(high).toLocaleString()}</span>
-                                  </div>
-                                </div>
-                              )
-                            })()}
-                            {/* 기준일 */}
-                            {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
-                          </div>
-                        )}
-                        {/* 일반 카드 기준일 */}
-                        {item.id!=='KOSPI' && item.id!=='KOSDAQ' && dateLabel &&
-                          <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>
-                        }
-                      </>
-                    ) : <div className="db-idx-na">—</div>}
-                  </button>
-                )
-              })}
-            </div>
-            {/* 국내지수 그룹 하단 — 외인/기관 수급 플로우 바 */}
-            {group.id === 'domestic' && (
-              <div className="db-flow-section">
-                <div className="db-flow-header">
-                  <span className="db-flow-title">수급 (코스피+코스닥 합산)</span>
-                  <div className="tip-wrap" style={{position:'relative',display:'inline-flex'}}>
-                    <TooltipIcon id="FLOW" tipPosition="right"/>
-                  </div>
-                  {flowData && <span className="db-date-badge" style={{marginLeft:'auto'}}>{isOpen ? '장중 기준' : isAfter ? '장마감 기준' : '전일 기준'}</span>}
-                </div>
-                {(()=>{
-                  const f = flowData?.total
-                  // 장중에만 allZero 체크 — 장 마감 후엔 마지막 수급값 그대로 표시
-                  const allZero = f && isOpen && f.foreign===0 && f.institution===0 && f.individual===0
-                  if (!flowData || allZero) return (
-                    <div className="db-flow-empty">
-                      {isOpen ? '수급 데이터 로딩 중...' : isAfter ? '수급 데이터 로딩 중...' : '장 시작 후 표시됩니다'}
-                    </div>
-                  )
-                  return (
-                    <div className="db-flow-rows">
-                      {[
-                        {label:'외국인', val:f?.foreign     ?? 0},
-                        {label:'기관',   val:f?.institution ?? 0},
-                        {label:'개인',   val:f?.individual  ?? 0},
-                      ].map(({label, val})=>{
-                        const abs    = Math.abs(val)
-                        const maxAbs = Math.max(
-                          Math.abs(f?.foreign     ?? 0),
-                          Math.abs(f?.institution ?? 0),
-                          Math.abs(f?.individual  ?? 0),
-                          1
-                        )
-                        const pct   = Math.min(100, (abs / maxAbs) * 100)
-                        const isBuy = val >= 0
-                        return (
-                          <div key={label} className="db-flow-row">
-                            <span className="db-flow-label">{label}</span>
-                            <div className="db-flow-bar-wrap">
-                              {/* 좌측 절반: 매도(빨강) — 오른쪽에서 채워짐 */}
-                              <div className="db-flow-half db-flow-half-left">
-                                {!isBuy && (
-                                  <div className="db-flow-fill"
-                                    style={{width:`${pct}%`, background:'#DC2626'}}/>
-                                )}
-                              </div>
-                              {/* 중앙 0 기준선 */}
-                              <div className="db-flow-center-line"/>
-                              {/* 우측 절반: 매수(파랑) — 왼쪽에서 채워짐 */}
-                              <div className="db-flow-half db-flow-half-right">
-                                {isBuy && (
-                                  <div className="db-flow-fill"
-                                    style={{width:`${pct}%`, background:'#1D4ED8'}}/>
-                                )}
-                              </div>
-                            </div>
-                            <span className="db-flow-val" style={{color:isBuy?'#1D4ED8':'#DC2626'}}>
-                              {isBuy?'+':''}{Math.abs(val)>=10000
-                                ? `${(val/10000).toFixed(1)}조`
-                                : Math.abs(val)>=1000
-                                ? `${Math.round(val/1000).toLocaleString()}천억`
-                                : `${Math.round(val).toLocaleString()}억`}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })()}
-              </div>
-            )}
-          </div>
-          )
-        })}
-      </div>
-
-      {/* 영역 3: 업종 히트맵 */}
-      <div className="db-heatmap-section">
-        <div className="db-heatmap-header">
-          <span className="db-heatmap-title">📊 업종별 등락 히트맵</span>
-          <TooltipIcon id="HEATMAP" tipPosition="right"/>
-          <span style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:6}}>
-            {isOpen && <span className="db-heatmap-live-dot"/>}
-            <span className="db-date-badge" style={{
-              background: isOpen ? 'rgba(34,197,94,.1)' : isAfter ? 'rgba(124,58,237,.1)' : 'var(--bg-base)',
-              borderColor: isOpen ? 'rgba(34,197,94,.4)' : isAfter ? 'rgba(124,58,237,.3)' : 'var(--border)',
-              color: isOpen ? '#15803d' : isAfter ? '#6d28d9' : 'var(--text-dim)',
-            }}>
-              {isOpen ? '실시간' : isAfter ? '시간외' : '전일 종가'} · {getPrevTradingDay()}
-            </span>
-          </span>
-        </div>
-        <div className="db-heatmap-grid">
-          {HEATMAP_SECTORS.map(sector=>{
-            // 실제 API 데이터 — 업종코드로 등락률 조회
-            const rate = heatmapData?.[sector.inds_cd] ?? null
-            // 장외 시간에 0% 값은 의미 없으므로 null 처리
-            const effectiveRate = (!isOpen && !isAfter && rate === 0) ? null : rate
-            const { bg, neutral } = getHeatmapColor(effectiveRate)
-            return (
-              <div key={sector.id}
-                className={`db-heatmap-cell${neutral?' neutral':''}`}
-                style={{background: bg, opacity: (!isOpen && effectiveRate==null) ? 0.55 : 1}}
-                onClick={()=>openSectorPopup(sector)}>
-                <span className="db-heatmap-cell-name">{sector.name}</span>
-                <span className="db-heatmap-cell-rate">
-                  {effectiveRate!=null ? `${effectiveRate>=0?'+':''}${effectiveRate.toFixed(2)}%` : '—'}
-                </span>
-                <span className="db-heatmap-cell-stocks">{sector.stocks}</span>
-              </div>
-            )
-          })}
-        </div>
-        <div className="db-heatmap-legend">
-          <span>약세</span>
-          <div className="db-heatmap-legend-bar"/>
-          <span>강세</span>
-        </div>
-        {!isOpen && !isAfter && (
-          <div className="db-heatmap-footer-note">
-            📌 장 마감 시간 · 다음 거래일 시작 시 업데이트됩니다
-          </div>
+      {/* 포트폴리오 미니바 */}
+      <div className="db-portbar">
+        <button className="db-portbar-toggle" onClick={togglePortBar} title={showPortBar?'수익률 숨기기':'수익률 보기'}>
+          💼 {showPortBar ? '숨기기' : '내 수익률'}
+        </button>
+        {showPortBar && (
+          <a href="/portfolio" style={{
+            display:'flex', alignItems:'center', gap:8,
+            fontSize:12, color:'var(--text-secondary)', textDecoration:'none'
+          }}>
+            <span>💼 포트폴리오 페이지에서 확인</span>
+            <span style={{fontSize:10, color:'var(--accent-mid)'}}>→</span>
+          </a>
         )}
       </div>
 
-      <div className="dash-footer-note">
-        ✅ KIS API · {isOpen?'장중 30초':isAfter?'시간외 2분':'장외 5분'} 자동 갱신
-        · 해외지수 {isUSMarketOpen()?'미장 운영중 60초':'5분'} 갱신 · 기준금리 6시간 캐시
+      {/* 지수 스트립 */}
+      <div className="db-strip">
+        {STRIP_ITEMS.map(item => {
+          const d = getStripData(item)
+          const up = (d?.changeRate ?? 0) >= 0
+          const rc = up ? 'var(--color-up)' : 'var(--color-down)'
+          const spark = sparkData?.[item.id]
+          // 클릭 가능 여부: 차트 지원 항목만
+          const canChart = item.type === 'global' || item.type === 'domestic'
+          const handleClick = () => {
+            if (!canChart || !d?.price) return
+            if (item.type === 'domestic') {
+              // KS11/KQ11 → Yahoo Finance 호환 심볼로 GlobalChartModal 호출
+              setChartItem({ type:'global', sym: item.id==='KOSPI'?'KS11':'KQ11', label:item.label, price:d.price, changeRate:d.changeRate })
+            } else {
+              setChartItem({ type:'global', sym:item.sym, label:item.label, price:d.price, changeRate:d.changeRate })
+            }
+          }
+          return (
+            <div key={item.id}
+              className={`db-strip-card${d?.changeRate > 0 ?' up':d?.changeRate < 0?' down':''}${canChart&&d?.price?' clickable':''}`}
+              onClick={handleClick}
+              title={canChart && d?.price ? `${item.label} 차트 보기` : ''}>
+              <div className="db-strip-top">
+                <span className="db-strip-name">{item.label}</span>
+                {d?.price > 0 && d?.changeRate != null && (
+                  <span className="db-strip-badge" style={{background: up?'rgba(220,38,38,.1)':'rgba(29,78,216,.1)', color: rc}}>
+                    {up?'▲':'▼'}{Math.abs(d.changeRate).toFixed(2)}%
+                  </span>
+                )}
+              </div>
+              <div className="db-strip-price" style={{color: rc}}>
+                {d?.price > 0 ? (item.id==='VIX' ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()) : '—'}
+              </div>
+              {/* 스파크 미니라인 항상 표시 */}
+              {spark && spark.length > 2 && d?.price > 0 && (
+                <MiniSparkline closes={spark} color={rc} w={80} h={18}/>
+              )}
+            </div>
+          )
+        })}
+        {/* 우측: 상태 + 새로고침 */}
+        <div className="db-strip-right">
+          <div className="db-status-badge" style={{background:st.color+'15',color:st.color,borderColor:st.color+'30'}}>
+            {st.dot&&<span className="db-status-dot" style={{background:st.color}}/>}{st.label}
+          </div>
+          <span style={{fontSize:9,color:'var(--text-dim)',textAlign:'right'}}>{dataLabel}</span>
+          <button className="db-strip-refresh" disabled={loading} onClick={refresh} title="새로고침">
+            {loading ? <span className="db-spinner-sm"/> : '↺'}
+          </button>
+        </div>
       </div>
 
-      {showGuide && <GuideModal onClose={()=>setShowGuide(false)}/>}
+      {/* 테마 태그 스트립 — 지수 스트립 바로 아래 */}
+      <div className="db-theme-strip">
+        <span className="db-theme-strip-label">🔥 2026 테마</span>
+        <div className="db-theme-strip-tags">
+          {HOT_THEMES.map(theme => (
+            <button
+              key={theme.id}
+              className="db-theme-strip-tag"
+              style={{'--tc': theme.color}}
+              onClick={() => openThemeBigPopup(theme)}
+            >
+              <span>{theme.icon}</span>
+              <span>{theme.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* AI 브리핑 드로어 */}
-      <AiBriefing
-        open={showBriefing}
-        onClose={()=>setShowBriefing(false)}
-        marketData={{
-          kospi:  globalData?.['KS11'],
-          kosdaq: globalData?.['KQ11'],
-          sp500:  globalData?.['SP500'],
-          nasdaq: globalData?.['NASDAQ'],
-          vix:    globalData?.['VIX'],
-          wti:    globalData?.['WTI'],
-          gold:   globalData?.['GOLD'],
-          us10y:  globalData?.['US10Y'],
-          usdkrw: forexData?.['USD'],
-          spread: globalData?.['US10Y']?.price != null && globalData?.['US2Y']?.price != null
-            ? Math.round((globalData['US10Y'].price - globalData['US2Y'].price) * 100) / 100
-            : null,
-        }}
-      />
+      {/* 바디: 좌측 패널 + 메인 */}
+      <div className="db-body">
+
+        {/* 좌측 패널 */}
+        <aside className="db-left">
+
+          {/* 시장 체온계 — 5단계 배지 + 바 */}
+          {((dashData?.KOSPI?.rising || dashData?.KOSPI?.fall || domesticIdx?.KOSPI?.rising || domesticIdx?.KOSPI?.fall)) && (() => {
+            const src = dashData?.KOSPI?.rising > 0 ? dashData : domesticIdx
+            const rising = Number(src?.KOSPI?.rising || 0) + Number(src?.KOSDAQ?.rising || 0)
+            const fall   = Number(src?.KOSPI?.fall   || 0) + Number(src?.KOSDAQ?.fall   || 0)
+            const total  = rising + fall || 1
+            const upPct  = Math.round(rising / total * 100)
+            // 5단계 배지
+            const badge = upPct >= 70 ? { label:'강세 🔥', color:'#dc2626', bg:'rgba(220,38,38,.1)' }
+                        : upPct >= 55 ? { label:'상승 🟢', color:'#16a34a', bg:'rgba(22,163,74,.1)' }
+                        : upPct >= 45 ? { label:'중립 ⚪', color:'#64748b', bg:'rgba(100,116,139,.1)' }
+                        : upPct >= 30 ? { label:'하락 🔵', color:'#2563eb', bg:'rgba(37,99,235,.1)' }
+                        :               { label:'약세 ❄️', color:'#1d4ed8', bg:'rgba(29,78,216,.15)' }
+            return (
+              <div className="db-left-section">
+                <div className="db-left-title">🌡️ 시장 체온계
+                  <span className="db-left-badge">{isOpen?'장중':isAfter?'시간외':'직전장'}</span>
+                </div>
+                {/* 5단계 배지 */}
+                <div className="db-temp-badge" style={{background: badge.bg, color: badge.color, borderColor: badge.color+'40'}}>
+                  {badge.label} <span style={{fontSize:11, fontWeight:400}}>상승 {upPct}%</span>
+                </div>
+                {/* 바 */}
+                <div className="db-breadth-bar" style={{marginTop:6}}>
+                  <div className="db-breadth-up"   style={{width:`${upPct}%`}}/>
+                  <div className="db-breadth-down" style={{width:`${100-upPct}%`}}/>
+                </div>
+                <div className="db-breadth-labels">
+                  <span style={{color:'var(--color-up)'}}>↑ {rising.toLocaleString()}</span>
+                  <span style={{color:'var(--text-dim)',fontSize:10}}>종목 {total.toLocaleString()}개</span>
+                  <span style={{color:'var(--color-down)'}}>↓ {fall.toLocaleString()}</span>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* 수급 동향 — 직전 장 기준 항상 표시 */}
+          {flowData?.total && (() => {
+            const f = flowData.total
+            const items = [
+              {label:'외국인', val: f.foreign     ?? 0},
+              {label:'기관',   val: f.institution ?? 0},
+              {label:'개인',   val: f.individual  ?? 0},
+            ]
+            const maxAbs = Math.max(...items.map(i => Math.abs(i.val)), 1)
+            const fmt = v => Math.abs(v) >= 10000 ? `${(v/10000).toFixed(1)}조` : Math.abs(v) >= 1000 ? `${Math.round(v/1000)}천억` : `${Math.round(v)}억`
+            return (
+              <div className="db-left-section">
+                <div className="db-left-title">💰 수급 동향
+                  <span className="db-left-badge">{isOpen?'장중':isAfter?'시간외':'직전장'}</span>
+                </div>
+                {items.map(({label,val}) => {
+                  const pct = Math.min(100, Math.abs(val)/maxAbs*100)
+                  const isBuy = val >= 0
+                  return (
+                    <div key={label} className="db-flow-mini-row">
+                      <span className="db-flow-mini-label">{label}</span>
+                      <div className="db-flow-mini-bar">
+                        <div className="db-flow-mini-fill" style={{width:`${pct}%`, background: isBuy?'#1d4ed8':'#dc2626', float: isBuy?'left':'right'}}/>
+                      </div>
+                      <span className="db-flow-mini-val" style={{color: isBuy?'#1d4ed8':'#dc2626'}}>
+                        {isBuy?'+':''}{fmt(val)}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
+
+          {/* 섹터 동향 — 전체 업종 표시 */}
+          <div className="db-left-section db-left-sector-full">
+            <div className="db-left-title">🏭 업종 동향
+              <span className="db-left-badge">{hotSectorList.length > 0 ? `${hotSectorList.length}개` : ''}</span>
+            </div>
+            {hotSectorList.length === 0
+              ? <div className="db-sector-empty">직전장 데이터 로딩 중...</div>
+              : hotSectorList.map(({sector, rate}) => {
+                  const intensity = Math.min(100, Math.abs(rate) / 5 * 100)
+                  const bg = rate > 0
+                    ? `rgba(220,38,38,${(intensity * 0.003).toFixed(2)})`
+                    : `rgba(37,99,235,${(intensity * 0.003).toFixed(2)})`
+                  return (
+                    <div key={sector.inds_cd} className="db-sector-row"
+                      style={{background: bg}}
+                      onClick={()=>openSectorPopup(sector)}>
+                      <span className="db-sector-name">{sector.name}</span>
+                      <span className="db-sector-rate" style={{color: rate>=0?'var(--color-up)':'var(--color-down)'}}>
+                        {rate>=0?'+':''}{rate.toFixed(2)}%
+                      </span>
+                    </div>
+                  )
+                })
+            }
+
+          </div>
+
+          {/* 이벤트 카운트다운 — AI 자동 갱신 */}
+          {(() => {
+            const kst = new Date(Date.now() + 9 * 3600000)
+            const upcoming = scheduleEvents
+              .map(e => {
+                const target = new Date(e.date + 'T09:00:00+09:00')
+                const diff = Math.ceil((target - kst) / 86400000)
+                return { ...e, diff }
+              })
+              .filter(e => e.diff >= 0 && e.diff <= 30)
+              .sort((a,b) => a.diff - b.diff)
+              .slice(0, 5)
+            return (
+              <div className="db-left-section">
+                <div className="db-left-title">📅 주요 일정
+                  <button className="db-sch-refresh" onClick={refreshSchedule}
+                    disabled={scheduleLoading} title="AI로 일정 갱신">
+                    {scheduleLoading ? '⏳' : '🔄'}
+                  </button>
+                </div>
+                {upcoming.length === 0
+                  ? <div style={{fontSize:11,color:'var(--text-dim)'}}>30일 내 일정 없음</div>
+                  : upcoming.map((e, i) => (
+                    <div key={i} className="db-event-row">
+                      <span className="db-event-icon">{e.icon}</span>
+                      <div className="db-event-info">
+                        <span className="db-event-label">{e.label}</span>
+                        {e.desc && <span className="db-event-desc">{e.desc}</span>}
+                        {e.effect && <span className="db-event-effect">{e.effect}</span>}
+                      </div>
+                      <span className="db-event-dday" style={{
+                        color: e.diff === 0 ? '#dc2626' : e.diff <= 3 ? '#d97706' : 'var(--text-dim)'
+                      }}>
+                        {e.diff === 0 ? '오늘' : `D-${e.diff}`}
+                      </span>
+                    </div>
+                  ))
+                }
+              </div>
+            )
+          })()}
+
+
+        </aside>
+
+        {/* 메인: AI 분석 센터 */}
+        <main className="db-main">
+          <div className="db-ai-center">
+            {/* AI 센터 헤더 */}
+            <div className="db-ai-header">
+              <div className="db-ai-title-row">
+                <span className="db-ai-icon">🤖</span>
+                <div>
+                  <div className="db-ai-title">AI 시장 분석</div>
+                  <div className="db-ai-subtitle">{timeCtx.emoji} {timeCtx.label}</div>
+                </div>
+                {aiContent?.generatedAt && (
+                  <span className="db-ai-ts">
+                    {new Date(aiContent.generatedAt.toMillis?.() || aiContent.generatedAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})} 생성
+                  </span>
+                )}
+                <button className="db-ai-gen-btn" onClick={generateAi} disabled={aiLoading}>
+                  {aiLoading ? <><span className="db-spinner-sm"/> 분석 중...</> : aiContent ? '🔄 재분석' : '✨ 분석 시작'}
+                </button>
+              </div>
+              <div className="db-ai-focus-label">
+                집중 분석: <strong>{timeCtx.focus}</strong>
+              </div>
+
+              {/* 탭 — 콘텐츠 있을 때만 표시 */}
+              {aiContent && (
+                <div className="db-ai-tabs">
+                  {[
+                    {id:'brief',    label:'📋 브리핑'},
+                    {id:'scenario', label:'📊 시나리오'},
+                    {id:'sector',   label:'🏭 섹터'},
+                    {id:'strategy', label:'💡 전략'},
+                  ].map(t => (
+                    <button key={t.id}
+                      className={`db-ai-tab ${aiTab===t.id?'active':''}`}
+                      onClick={()=>setAiTab(t.id)}>{t.label}</button>
+                  ))}
+                </div>
+              )}
+
+              <div className="db-ai-disclaimer">
+                ⚠️ AI 생성 참고용 · 웹 검색 기반 · 투자 결정의 책임은 본인에게 있습니다
+              </div>
+            </div>
+
+            {/* AI 콘텐츠 */}
+            {aiLoading && (
+              <div className="db-ai-loading">
+                <div className="db-ai-spinner"/>
+                <div>
+                  <div style={{fontWeight:700,marginBottom:4}}>시장 데이터 분석 중...</div>
+                  <div style={{fontSize:12,color:'var(--text-dim)'}}>웹 검색 → 전문가 시각 통합 → 시나리오 도출</div>
+                </div>
+              </div>
+            )}
+
+            {aiError && !aiLoading && (
+              <div className="db-ai-error">⚠️ {aiError}</div>
+            )}
+
+            {aiContent && !aiLoading && (
+              <div className="db-ai-tab-content">
+
+                {/* 브리핑 탭 */}
+                {aiTab === 'brief' && (<>
+                  <div className="db-ai-headline-row">
+                    <div className="db-ai-headline">"{aiContent.headline}"</div>
+                    {aiContent.mood && (
+                      <span className="db-ai-mood" style={{color: moodColor[aiContent.mood] || '#64748b'}}>
+                        {moodLabel[aiContent.mood] || aiContent.mood}
+                      </span>
+                    )}
+                  </div>
+                  <div className="db-ai-brief">{aiContent.brief}</div>
+
+                  {/* 핵심 레벨 */}
+                  {aiContent.keyLevel && (
+                    <div className="db-ai-keylevel">
+                      <div className="db-ai-keylevel-title">🎯 핵심 레벨</div>
+                      <div className="db-ai-keylevel-val">{aiContent.keyLevel.kospi}</div>
+                      <div className="db-ai-keylevel-action">→ {aiContent.keyLevel.action}</div>
+                    </div>
+                  )}
+
+                  {/* 오늘의 액션 */}
+                  {aiContent.actions?.length > 0 && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">✅ 오늘의 액션</div>
+                      {aiContent.actions.map((a,i) => (
+                        <div key={i} className={`db-ai-action-item ${i===aiContent.actions.length-1?'warn':''}`}>
+                          <span className="db-ai-action-icon">{i===aiContent.actions.length-1?'🚫':'▶'}</span>
+                          <span>{a}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 포트폴리오 영향 */}
+                  {aiContent.portImpact && (
+                    <div className="db-ai-portimpact">
+                      <div className="db-ai-section-title">💼 내 포트폴리오 영향</div>
+                      <div className="db-ai-portimpact-body">{aiContent.portImpact}</div>
+                    </div>
+                  )}
+
+                  {/* 구버전 핵심 포인트 호환 */}
+                  {aiContent.points?.length > 0 && !aiContent.actions && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">📌 핵심 포인트</div>
+                      {aiContent.points.map((p,i) => (
+                        <div key={i} className="db-ai-point">
+                          <span className="db-ai-point-num">{i+1}</span>
+                          <span>{p}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {aiContent.schedule?.length > 0 && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">📅 오늘의 주요 일정</div>
+                      <div className="db-ai-schedule">
+                        {aiContent.schedule.map((s,i) => (
+                          <div key={i} className="db-ai-schedule-row">
+                            <span className="db-ai-sch-time">{s.time}</span>
+                            <div style={{flex:1}}>
+                              <span className="db-ai-sch-event">{s.event}</span>
+                              {s.effect && <div style={{fontSize:10,color:'var(--text-dim)',marginTop:2}}>{s.effect}</div>}
+                            </div>
+                            <span className={`db-ai-sch-impact impact-${s.impact}`}>{s.impact}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>)}
+
+                {/* 시나리오 탭 */}
+                {aiTab === 'scenario' && (<>
+                  <div className="db-ai-scenarios" style={{padding:'16px 20px 0'}}>
+                    {aiContent.bullScenario && (
+                      <div className="db-ai-scenario bull">
+                        <div className="db-ai-scenario-title">🟢 강세 시나리오 (단기 1~5일)</div>
+                        <div className="db-ai-scenario-body">{aiContent.bullScenario}</div>
+                      </div>
+                    )}
+                    {aiContent.bearScenario && (
+                      <div className="db-ai-scenario bear">
+                        <div className="db-ai-scenario-title">🔴 약세 시나리오 (단기 1~5일)</div>
+                        <div className="db-ai-scenario-body">{aiContent.bearScenario}</div>
+                      </div>
+                    )}
+                  </div>
+                  {aiContent.midTermView && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">🔭 중기 전망 (1~3개월)</div>
+                      <div className="db-ai-midterm">{aiContent.midTermView}</div>
+                    </div>
+                  )}
+                  {aiContent.riskFactors?.length > 0 && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">⚠️ 주요 리스크</div>
+                      {aiContent.riskFactors.map((r,i) => (
+                        <div key={i} className="db-ai-risk-item">• {r}</div>
+                      ))}
+                    </div>
+                  )}
+                </>)}
+
+                {/* 섹터 탭 */}
+                {aiTab === 'sector' && (
+                  <div className="db-ai-section">
+                    <div className="db-ai-section-title">🏭 섹터 시그널</div>
+                    {aiContent.sectorWatch?.length > 0 ? (
+                      <div className="db-ai-sector-watch">
+                        {aiContent.sectorWatch.map((s,i) => {
+                          const sigColor = s.signal==='매수관심'?'#16a34a':s.signal==='주의'?'#dc2626':'#64748b'
+                          return (
+                            <div key={i} className="db-ai-sector-row">
+                              <span className="db-ai-sector-name">{s.name}</span>
+                              <span className="db-ai-sector-sig" style={{color:sigColor,borderColor:sigColor+'40'}}>
+                                {s.signal}
+                              </span>
+                              <span className="db-ai-sector-reason">{s.reason}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : <div className="db-ai-empty-small">섹터 데이터 없음</div>}
+                  </div>
+                )}
+
+                {/* 전략 탭 */}
+                {aiTab === 'strategy' && (<>
+                  {/* 오늘의 액션 (actions 필드) */}
+                  {aiContent.actions?.length > 0 && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">✅ 오늘의 액션</div>
+                      {aiContent.actions.map((a,i) => (
+                        <div key={i} className={`db-ai-action-item ${i===aiContent.actions.length-1?'warn':''}`}>
+                          <span className="db-ai-action-icon">{i===aiContent.actions.length-1?'🚫':'▶'}</span>
+                          <span>{a}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* 오늘의 투자 전략 */}
+                  {(aiContent.strategy || aiContent.midTermView) && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">💡 오늘의 투자 전략</div>
+                      {aiContent.strategy
+                        ? <div className="db-ai-strategy-body" style={{fontSize:14,lineHeight:1.8}}>{aiContent.strategy}</div>
+                        : <div className="db-ai-strategy-body" style={{fontSize:13,color:'var(--text-secondary)'}}>
+                            전략 데이터 없음 — 아래 중기 관점 참고
+                          </div>
+                      }
+                    </div>
+                  )}
+                  {/* 핵심 레벨 */}
+                  {aiContent.keyLevel && (
+                    <div className="db-ai-keylevel">
+                      <div className="db-ai-keylevel-title">🎯 핵심 레벨</div>
+                      <div className="db-ai-keylevel-val">{aiContent.keyLevel.kospi}</div>
+                      <div className="db-ai-keylevel-action">→ {aiContent.keyLevel.action}</div>
+                    </div>
+                  )}
+                  {aiContent.midTermView && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">🔭 중기 관점</div>
+                      <div className="db-ai-midterm">{aiContent.midTermView}</div>
+                    </div>
+                  )}
+                  {aiContent.riskFactors?.length > 0 && (
+                    <div className="db-ai-section" style={{paddingBottom:16}}>
+                      <div className="db-ai-section-title">⚠️ 유의 리스크</div>
+                      {aiContent.riskFactors.map((r,i) => (
+                        <div key={i} className="db-ai-risk-item">• {r}</div>
+                      ))}
+                    </div>
+                  )}
+                </>)}
+
+              </div>
+            )}
+
+            {/* 초기 안내 */}
+            {!aiContent && !aiLoading && !aiError && (
+              <div className="db-ai-empty">
+                <div className="db-ai-empty-icon">🤖</div>
+                <div className="db-ai-empty-title">AI 시장 분석 준비</div>
+                <div className="db-ai-empty-desc">
+                  현재 시각 기준 <strong>{timeCtx.label}</strong> 모드로<br/>
+                  {timeCtx.focus}에 집중하여 분석합니다.
+                </div>
+                <button className="db-ai-gen-btn large" onClick={generateAi} disabled={aiLoading}>
+                  ✨ 지금 분석 시작하기
+                </button>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+
+
+
+
+      {/* ── 테마 통합 팝업 (좌: 정적 정보+종목 / 우: AI 분석) ── */}
+      {themeBigPopup && (
+        <div className="db-sector-popup-overlay" onClick={() => setThemeBigPopup(null)}>
+          <div className="db-tbp-modal" onClick={e => e.stopPropagation()}
+            style={{'--tbp-color': themeBigPopup.theme.color}}>
+
+            {/* 헤더 */}
+            <div className="db-tbp-header">
+              <div className="db-tbp-header-left">
+                <span className="db-tbp-icon">{themeBigPopup.theme.icon}</span>
+                <div>
+                  <div className="db-tbp-title">{themeBigPopup.theme.label}</div>
+                  <div className="db-tbp-sub">
+                    2026 핫 테마
+                    {themeBigPopup.aiText?.cachedAt && (
+                      <span className="db-tbp-cache-date">
+                        · AI분석 {new Date(themeBigPopup.aiText.cachedAt).toLocaleDateString('ko-KR')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="db-tbp-header-actions">
+                <button className="db-tbp-refresh-btn"
+                  onClick={() => generateThemeAi(themeBigPopup.theme)}
+                  disabled={themeBigPopup.aiLoading}>
+                  {themeBigPopup.aiLoading ? <span className="db-spinner-sm"/> : '🔄 재분석'}
+                </button>
+                <button className="db-tbp-close-btn" onClick={() => setThemeBigPopup(null)}>✕</button>
+              </div>
+            </div>
+
+            {/* 바디: 좌우 분할 */}
+            <div className="db-tbp-body">
+
+              {/* 좌측 패널 — 정적 정보 + 대표 종목 */}
+              <div className="db-tbp-left">
+
+                {/* 왜 지금인가 */}
+                {themeBigPopup.theme.catalyst?.length > 0 && (
+                  <div className="db-tbp-section">
+                    <div className="db-tbp-section-title">📌 왜 지금인가</div>
+                    {themeBigPopup.theme.catalyst.map((c, i) => (
+                      <div key={i} className="db-tbp-bullet">· {c}</div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 투자 논리 */}
+                {themeBigPopup.theme.thesis && (
+                  <div className="db-tbp-section">
+                    <div className="db-tbp-section-title">💡 투자 논리</div>
+                    <div className="db-tbp-thesis">{themeBigPopup.theme.thesis}</div>
+                  </div>
+                )}
+
+                {/* 대표 종목 — 실시간 주가 */}
+                <div className="db-tbp-section">
+                  <div className="db-tbp-section-title">📈 대표 종목</div>
+                  {themeBigPopup.stocksLoading ? (
+                    <div className="db-tbp-loading-row">
+                      <span className="db-spinner-sm"/> 주가 조회 중...
+                    </div>
+                  ) : themeBigPopup.stocks.length === 0 ? (
+                    <div className="db-tbp-empty">종목 데이터 없음</div>
+                  ) : (
+                    themeBigPopup.stocks.map((s, i) => {
+                      const up = s.flu_rt >= 0
+                      const rc = s.cur_prc > 0 ? (up ? 'var(--color-up)' : 'var(--color-down)') : 'var(--text-dim)'
+                      return (
+                        <div key={i} className="db-tbp-stock-row">
+                          <span className="db-tbp-stock-rank">{i + 1}</span>
+                          <span className="db-tbp-stock-name">{s.stk_nm}</span>
+                          <span className="db-tbp-stock-price" style={{color: rc}}>
+                            {s.cur_prc > 0 ? Math.round(s.cur_prc).toLocaleString() : '—'}
+                          </span>
+                          <span className="db-tbp-stock-rate" style={{color: rc}}>
+                            {s.cur_prc > 0 ? `${up?'+':''}${s.flu_rt.toFixed(2)}%` : '장외'}
+                          </span>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+
+                {/* 핵심 리스크 */}
+                {themeBigPopup.theme.risk && (
+                  <div className="db-tbp-section db-tbp-risk-section">
+                    <div className="db-tbp-section-title">⚠️ 핵심 리스크</div>
+                    <div className="db-tbp-risk-text">{themeBigPopup.theme.risk}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* 우측 패널 — AI 분석 */}
+              <div className="db-tbp-right">
+                <div className="db-tbp-ai-header">
+                  🤖 AI 심층 분석
+                  {themeBigPopup.aiLoading && (
+                    <span className="db-tbp-ai-loading-label">분석 중...</span>
+                  )}
+                </div>
+
+                {/* 로딩 */}
+                {themeBigPopup.aiLoading && (
+                  <div className="db-tbp-ai-loading">
+                    <div style={{fontSize:28, marginBottom:8}}>🔍</div>
+                    <div style={{fontSize:13, fontWeight:600, marginBottom:4}}>AI 분석 중...</div>
+                    <div style={{fontSize:11, color:'var(--text-dim)'}}>웹 검색으로 최신 정보 수집 중</div>
+                  </div>
+                )}
+
+                {/* 에러 */}
+                {themeBigPopup.aiError && !themeBigPopup.aiLoading && (
+                  <div className="db-tbp-ai-error">
+                    <div>⚠️ {themeBigPopup.aiError}</div>
+                    <button className="db-tbp-refresh-btn" style={{marginTop:8}}
+                      onClick={() => generateThemeAi(themeBigPopup.theme)}
+                      disabled={themeBigPopup.aiLoading}>
+                      🔄 다시 시도
+                    </button>
+                  </div>
+                )}
+
+                {/* AI 분석 결과 */}
+                {themeBigPopup.aiText && !themeBigPopup.aiLoading && (
+                  <div className="db-tbp-ai-content">
+
+                    {/* 강세 시나리오 */}
+                    {themeBigPopup.aiText.bullCase && (
+                      <div className="db-tbp-ai-section db-tbp-ai-bull">
+                        <div className="db-tbp-ai-label">📈 강세 시나리오</div>
+                        <div className="db-tbp-ai-text">{themeBigPopup.aiText.bullCase}</div>
+                      </div>
+                    )}
+
+                    {/* 약세 시나리오 */}
+                    {themeBigPopup.aiText.bearCase && (
+                      <div className="db-tbp-ai-section db-tbp-ai-bear">
+                        <div className="db-tbp-ai-label">📉 약세 시나리오</div>
+                        <div className="db-tbp-ai-text">{themeBigPopup.aiText.bearCase}</div>
+                      </div>
+                    )}
+
+                    {/* 핵심 촉매제 */}
+                    {themeBigPopup.aiText.catalysts?.length > 0 && (
+                      <div className="db-tbp-ai-section">
+                        <div className="db-tbp-ai-label">⚡ AI 선별 촉매제</div>
+                        {themeBigPopup.aiText.catalysts.map((c, i) => (
+                          <div key={i} className="db-tbp-ai-bullet">· {c}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 종목별 AI 분석 */}
+                    {themeBigPopup.aiText.keyStocks?.length > 0 && (
+                      <div className="db-tbp-ai-section">
+                        <div className="db-tbp-ai-label">🎯 종목별 분석</div>
+                        {themeBigPopup.aiText.keyStocks.map((s, i) => (
+                          <div key={i} className="db-tbp-ai-stock">
+                            <span className="db-tbp-ai-stock-name">{s.name}</span>
+                            <div className="db-tbp-ai-stock-point">{s.point}</div>
+                            {s.risk && <div className="db-tbp-ai-stock-risk">⚠️ {s.risk}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 투자 전략 */}
+                    {themeBigPopup.aiText.strategy && (
+                      <div className="db-tbp-ai-section db-tbp-ai-strategy">
+                        <div className="db-tbp-ai-label">💡 투자 전략</div>
+                        <div className="db-tbp-ai-text">{themeBigPopup.aiText.strategy}</div>
+                      </div>
+                    )}
+
+                    {/* 다음 확인 이벤트 */}
+                    {themeBigPopup.aiText.nextCatalyst && (
+                      <div className="db-tbp-ai-section db-tbp-ai-next">
+                        <div className="db-tbp-ai-label">📅 다음 확인 포인트</div>
+                        <div className="db-tbp-ai-text">{themeBigPopup.aiText.nextCatalyst}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 분석 없고 로딩도 아닌 경우 (캐시도 없을 때) */}
+                {!themeBigPopup.aiText && !themeBigPopup.aiLoading && !themeBigPopup.aiError && (
+                  <div className="db-tbp-ai-empty">
+                    <div style={{fontSize:28, marginBottom:8}}>🤖</div>
+                    <div style={{fontSize:13, fontWeight:600}}>AI 분석 준비됨</div>
+                    <div style={{fontSize:11, color:'var(--text-dim)', margin:'6px 0 12px'}}>
+                      재분석 버튼을 눌러 분석을 시작하세요
+                    </div>
+                    <button className="db-tbp-refresh-btn"
+                      onClick={() => generateThemeAi(themeBigPopup.theme)}
+                      disabled={themeBigPopup.aiLoading}>
+                      ✨ 분석 시작
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {chartItem && <GlobalChartModal
         type={chartItem.type==='forex'?'forex':'global'}
@@ -890,8 +1503,8 @@ export default function DashboardPage() {
             <div className="db-sector-popup-header">
               <div className="db-sector-popup-title-row">
                 <span className="db-sector-popup-title">{sectorPopup.sector.name}</span>
-                {heatmapData?.[sectorPopup.sector.inds_cd] != null && (() => {
-                  const r = heatmapData[sectorPopup.sector.inds_cd]
+                {effectiveHeatmap?.[sectorPopup.sector.inds_cd] != null && (() => {
+                  const r = effectiveHeatmap?.[sectorPopup.sector.inds_cd]
                   const up = r >= 0
                   return (
                     <span className={`db-sector-popup-rate ${up?'up':'down'}`}>
