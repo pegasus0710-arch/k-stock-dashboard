@@ -671,14 +671,14 @@ export default function DashboardPage() {
         }
       } catch {}
     }
-    // 캐시 없으면 → 자동 생성 시작
-    generateThemeAi(theme)
+    // 캐시 없으면 → 버튼 대기 (수동으로만 분석 시작)
   }
 
   // AI 재분석 트리거
   const generateThemeAi = async (theme) => {
     setThemeBigPopup(prev => prev ? { ...prev, aiLoading: true, aiError: null } : null)
     try {
+      const schema = '{"bullCase":"string","bearCase":"string","strategy":"string","keyStocks":[{"name":"string","point":"string","risk":"string"}],"catalysts":["string"],"nextCatalyst":"string"}'
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -690,11 +690,17 @@ export default function DashboardPage() {
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
           max_tokens: 1500,
-          system: '당신은 한국 주식시장 전문가입니다. 요청한 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트는 절대 출력하지 마세요.',
-          messages: [{
-            role: 'user',
-            content: `2026년 "${theme.label}" 투자 테마를 분석하여 아래 JSON으로만 응답하세요.\n대표 종목: ${(theme.tags || []).join(', ')}\n\n{"bullCase":"강세 조건과 기대 수익률","bearCase":"약세 조건과 리스크 신호","strategy":"지금 투자자가 취할 구체적 행동","keyStocks":[{"name":"종목명","point":"투자 포인트","risk":"리스크"}],"catalysts":["촉매1","촉매2","촉매3"],"nextCatalyst":"다음 확인 이벤트"}`
-          }]
+          system: 'You are a Korean stock market expert. Respond ONLY with a valid JSON object. No markdown, no explanation, no code blocks. Start directly with { and end with }.',
+          messages: [
+            {
+              role: 'user',
+              content: `Analyze the 2026 Korean stock investment theme: "${theme.label}". Representative stocks: ${(theme.tags || []).join(', ')}. Return this exact JSON schema filled with Korean content: ${schema}`
+            },
+            {
+              role: 'assistant',
+              content: '{'
+            }
+          ]
         })
       })
 
@@ -712,16 +718,36 @@ export default function DashboardPage() {
         .join('')
       if (!rawT) throw new Error('빈 응답')
 
-      const cleanT = rawT.replace(/<[^>]+>/g, '').trim()
+      // assistant prefill '{' + 응답을 합쳐서 완전한 JSON 생성
+      const combined = '{' + rawT
+
+      // 마크다운 코드블록 제거
+      const withoutMd = combined
+        .replace(/```json\s*/gi, '')
+        .replace(/```\s*/g, '')
+        .trim()
+
+      // HTML 태그 제거
+      const cleanT = withoutMd.replace(/<[^>]+>/g, '').trim()
 
       let parsed = null
-      try { parsed = JSON.parse(cleanT) } catch {
+
+      // 방법 1: 직접 파싱
+      try { parsed = JSON.parse(cleanT) } catch {}
+
+      // 방법 2: { ... } 추출 후 파싱
+      if (!parsed) {
         const m = cleanT.match(/\{[\s\S]*\}/)
         if (m) { try { parsed = JSON.parse(m[0]) } catch {} }
       }
 
+      // 방법 3: combined 원본 그대로 시도
       if (!parsed) {
-        console.error('[ThemeAI] 파싱 실패. raw:', rawT.slice(0, 300))
+        try { parsed = JSON.parse(rawT.startsWith('{') ? rawT : '{' + rawT) } catch {}
+      }
+
+      if (!parsed) {
+        console.error('[ThemeAI] 파싱 실패. raw:', rawT.slice(0, 400))
         setThemeBigPopup(prev => prev ? { ...prev, aiLoading: false, aiError: 'AI 응답 파싱 오류. 재분석을 눌러주세요.' } : null)
         return
       }
