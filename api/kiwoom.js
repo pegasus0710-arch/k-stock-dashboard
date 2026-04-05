@@ -345,10 +345,27 @@ export default async function handler(req, res) {
     }, res)
   }
 
+  // 종목 기본 정보 — /api/kiwoom?type=stockbasic&code=005930
+  // ChartAnalysisPage: 종목명, 시가총액, PER, PBR 등 기본 정보
+  if (q.type === 'stockbasic') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/stockbasic', { stk_cd: q.code }, res)
+  }
+
+  // 종목 상세 정보 — /api/kiwoom?type=stockinfo&code=005930
+  if (q.type === 'stockinfo') {
+    if (!q.code) return res.status(400).json({ error: 'code required' })
+    return relay('/stockinfo', { stk_cd: q.code }, res)
+  }
+
+  // 전종목 목록 (검색용) — /api/kiwoom?type=stocks-list  
+  // (기존 stocks-list도 valid 목록에 추가)
+
   return res.status(400).json({
     error: 'Invalid type',
     valid: [
-      'price', 'hoga', 'stock-chart', 'index-chart', 'index-price', 'index-52week',
+      'price', 'hoga', 'stock-chart', 'index-chart', 'index-price', 'index-52week', 'stocks-list',
+      'stockbasic', 'stockinfo',
       'supply-foreign', 'supply-investor', 'supply-institution',
       'supply-short', 'supply-strength', 'supply-institution-stock',
       'invsr-chart', 'market-flow',
