@@ -310,8 +310,8 @@ export default function DashboardPage() {
     setAiLoading(true); setAiError(null)
     const ctx = getTimeContext()
     // 현재 지표 요약
-    const kospi  = dashData?.KOSPI  || globalData?.['KS11']
-    const kosdaq = dashData?.KOSDAQ || globalData?.['KQ11']
+    const kospi  = (dashData?.KOSPI?.price > 0 ? dashData?.KOSPI : null) || domesticIdx?.KOSPI || globalData?.['KS11']
+    const kosdaq = (dashData?.KOSDAQ?.price > 0 ? dashData?.KOSDAQ : null) || domesticIdx?.KOSDAQ || globalData?.['KQ11']
     const sp500  = globalData?.['SP500']
     const vix    = globalData?.['VIX']
     const usd    = forexData?.['USD/KRW']
@@ -397,8 +397,15 @@ export default function DashboardPage() {
   const getStripData = (item) => {
     if (item.type === 'global')  return globalData?.[item.sym] || null
     if (item.type === 'forex')   return forexData?.[item.pair] ? { price: forexData[item.pair].price, changeRate: forexData[item.pair].changeRate } : null
-    if (item.id === 'KOSPI')     return dashData?.KOSPI  ? { price: dashData.KOSPI.price,  changeRate: dashData.KOSPI.changeRate  } : null
-    if (item.id === 'KOSDAQ')    return dashData?.KOSDAQ ? { price: dashData.KOSDAQ.price, changeRate: dashData.KOSDAQ.changeRate } : null
+    // 국내 지수: dashData 우선, 없으면 domesticIdx(직접 로드) fallback
+    if (item.id === 'KOSPI') {
+      const src = (dashData?.KOSPI?.price > 0 ? dashData.KOSPI : null) || domesticIdx?.KOSPI || null
+      return src ? { price: src.price, changeRate: src.changeRate } : null
+    }
+    if (item.id === 'KOSDAQ') {
+      const src = (dashData?.KOSDAQ?.price > 0 ? dashData.KOSDAQ : null) || domesticIdx?.KOSDAQ || null
+      return src ? { price: src.price, changeRate: src.changeRate } : null
+    }
     return null
   }
 
@@ -411,6 +418,22 @@ export default function DashboardPage() {
         .map(([k,v]) => ({ sector: HEATMAP_SECTORS.find(h => h.inds_cd === k), rate: v }))
         .filter(r => r.sector)
     : []
+
+  // ── 국내 지수 직접 로드 (장외에도 직전장 데이터 표시) ───
+  const [domesticIdx, setDomesticIdx] = useState({})
+
+  useEffect(() => {
+    const load = () => {
+      fetch('/api/kiwoom?type=index-domestic')
+        .then(r => r.json())
+        .then(d => { if (d.KOSPI || d.KOSDAQ) setDomesticIdx(d) })
+        .catch(() => {})
+    }
+    load()
+    // 5분마다 갱신
+    const timer = setInterval(load, 5 * 60 * 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   // ── 이벤트 일정 — Firestore + AI 자동 갱신 ────────────
   const DEFAULT_EVENTS = [
@@ -574,9 +597,10 @@ export default function DashboardPage() {
         <aside className="db-left">
 
           {/* 시장 체온계 — 5단계 배지 + 바 */}
-          {(dashData?.KOSPI?.rising || dashData?.KOSPI?.fall) && (() => {
-            const rising = Number(dashData.KOSPI.rising || 0) + Number(dashData.KOSDAQ?.rising || 0)
-            const fall   = Number(dashData.KOSPI.fall   || 0) + Number(dashData.KOSDAQ?.fall   || 0)
+          {((dashData?.KOSPI?.rising || dashData?.KOSPI?.fall) || (domesticIdx?.KOSPI?.rising || domesticIdx?.KOSPI?.fall)) && (() => {
+            const src = (dashData?.KOSPI?.rising > 0 ? dashData : null) || domesticIdx || {}
+            const rising = Number(src?.KOSPI?.rising || 0) + Number(src?.KOSDAQ?.rising || 0)
+            const fall   = Number(src?.KOSPI?.fall   || 0) + Number(src?.KOSDAQ?.fall   || 0)
             const total  = rising + fall || 1
             const upPct  = Math.round(rising / total * 100)
             // 5단계 배지
