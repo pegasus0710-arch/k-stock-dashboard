@@ -334,6 +334,7 @@ export default function DashboardPage() {
   const isOpen    = kstStatus === 'open'
   const isAfter   = kstStatus === 'after'
   const st        = ST_MAP[kstStatus] || ST_MAP.closed
+  const dataLabel = isOpen ? '장중 실시간' : isAfter ? '시간외' : '직전장 기준'
 
   // 지수 스트립용 아이템 추출
   const STRIP_ITEMS = [
@@ -426,6 +427,7 @@ export default function DashboardPage() {
           <div className="db-status-badge" style={{background:st.color+'15',color:st.color,borderColor:st.color+'30'}}>
             {st.dot&&<span className="db-status-dot" style={{background:st.color}}/>}{st.label}
           </div>
+          <span style={{fontSize:9,color:'var(--text-dim)',textAlign:'right'}}>{dataLabel}</span>
           <button className="db-strip-refresh" disabled={loading} onClick={refresh} title="새로고침">
             {loading ? <span className="db-spinner-sm"/> : '↺'}
           </button>
@@ -438,32 +440,7 @@ export default function DashboardPage() {
         {/* 좌측 패널 */}
         <aside className="db-left">
 
-          {/* 장외 시간 안내 (체온계/수급 데이터 없을 때) */}
-          {!isOpen && !isAfter && !dashData?.KOSPI?.rising && (
-            <div className="db-left-section">
-              <div className="db-left-title">🕐 장외 시간</div>
-              <div className="db-offline-info">
-                <div className="db-offline-row">
-                  <span>다음 개장</span>
-                  <span className="db-offline-val">월~금 09:00</span>
-                </div>
-                <div className="db-offline-row">
-                  <span>전일 KOSPI</span>
-                  <span className="db-offline-val" style={{color:'var(--color-up)'}}>
-                    {dashData?.KOSPI?.price ? `${dashData.KOSPI.price.toLocaleString()} (${dashData.KOSPI.changeRate >= 0 ? '+' : ''}${dashData.KOSPI.changeRate?.toFixed(2)}%)` : '—'}
-                  </span>
-                </div>
-                <div className="db-offline-row">
-                  <span>전일 KOSDAQ</span>
-                  <span className="db-offline-val" style={{color:'var(--color-up)'}}>
-                    {dashData?.KOSDAQ?.price ? `${dashData.KOSDAQ.price.toLocaleString()} (${dashData.KOSDAQ.changeRate >= 0 ? '+' : ''}${dashData.KOSDAQ.changeRate?.toFixed(2)}%)` : '—'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 시장 체온계 */}
+          {/* 시장 체온계 — 항상 표시 (직전 장 기준) */}
           {(dashData?.KOSPI?.rising || dashData?.KOSPI?.fall) && (() => {
             const rising = Number(dashData.KOSPI.rising || 0) + Number(dashData.KOSDAQ?.rising || 0)
             const fall   = Number(dashData.KOSPI.fall   || 0) + Number(dashData.KOSDAQ?.fall   || 0)
@@ -471,7 +448,9 @@ export default function DashboardPage() {
             const upPct  = Math.round(rising / total * 100)
             return (
               <div className="db-left-section">
-                <div className="db-left-title">🌡️ 시장 체온계</div>
+                <div className="db-left-title">🌡️ 시장 체온계
+                  <span className="db-left-badge">{isOpen?'장중':isAfter?'시간외':'직전장'}</span>
+                </div>
                 <div className="db-breadth-bar">
                   <div className="db-breadth-up"   style={{width:`${upPct}%`}}/>
                   <div className="db-breadth-down" style={{width:`${100-upPct}%`}}/>
@@ -485,7 +464,7 @@ export default function DashboardPage() {
             )
           })()}
 
-          {/* 수급 플로우 */}
+          {/* 수급 동향 — 직전 장 기준 항상 표시 */}
           {flowData?.total && (() => {
             const f = flowData.total
             const items = [
@@ -498,7 +477,7 @@ export default function DashboardPage() {
             return (
               <div className="db-left-section">
                 <div className="db-left-title">💰 수급 동향
-                  <span className="db-left-badge">{isOpen?'장중':isAfter?'마감':'전일'}</span>
+                  <span className="db-left-badge">{isOpen?'장중':isAfter?'시간외':'직전장'}</span>
                 </div>
                 {items.map(({label,val}) => {
                   const pct = Math.min(100, Math.abs(val)/maxAbs*100)
@@ -757,7 +736,7 @@ export default function DashboardPage() {
       {/* ── 데이터 패널 (접이식) ── */}
       <div className="db-data-wrap">
         <button className="db-data-toggle" onClick={()=>setShowDataPanel(v=>!v)}>
-          <span>📋 상세 지수 데이터</span>
+          <span>📋 상세 지수 데이터 <span style={{fontSize:10,color:'var(--text-dim)',fontWeight:400}}>· {dataLabel}</span></span>
           <span className="db-data-toggle-arr">{showDataPanel ? '▲' : '▼'}</span>
         </button>
         {showDataPanel && (
@@ -1316,19 +1295,19 @@ export default function DashboardPage() {
               borderColor: isOpen ? 'rgba(34,197,94,.4)' : isAfter ? 'rgba(124,58,237,.3)' : 'var(--border)',
               color: isOpen ? '#15803d' : isAfter ? '#6d28d9' : 'var(--text-dim)',
             }}>
-              {isOpen ? '실시간' : isAfter ? '시간외' : '전일 종가'} · {getPrevTradingDay()}
+              {isOpen ? '실시간' : isAfter ? '시간외' : '직전 종가'} · {getPrevTradingDay()}
             </span>
           </span>
         </div>
         <div className="db-heatmap-grid">
           {HEATMAP_SECTORS.map(sector=>{
             const rate = heatmapData?.[sector.inds_cd] ?? null
-            const effectiveRate = (!isOpen && !isAfter && rate === 0) ? null : rate
+            const effectiveRate = rate  // 장외에도 직전장 데이터 그대로 표시
             const { bg, neutral } = getHeatmapColor(effectiveRate)
             return (
               <div key={sector.id}
                 className={`db-heatmap-cell${neutral?' neutral':''}`}
-                style={{background: bg, opacity: (!isOpen && effectiveRate==null) ? 0.55 : 1}}
+                style={{background: bg}}
                 onClick={()=>openSectorPopup(sector)}>
                 <span className="db-heatmap-cell-name">{sector.name}</span>
                 <span className="db-heatmap-cell-rate">
@@ -1344,15 +1323,11 @@ export default function DashboardPage() {
           <div className="db-heatmap-legend-bar"/>
           <span>강세</span>
         </div>
-        {!isOpen && !isAfter && (
-          <div className="db-heatmap-footer-note">
-            📌 장 마감 시간 · 다음 거래일 시작 시 업데이트됩니다
-          </div>
-        )}
+
       </div>
 
       <div className="dash-footer-note">
-        ✅ KIS API · {isOpen?'장중 30초':isAfter?'시간외 2분':'장외 5분'} 자동 갱신
+        ✅ KIS API · {isOpen?'장중 30초':isAfter?'시간외 2분':'장외 5분'} 자동 갱신 · {dataLabel}
         · 해외지수 {isUSMarketOpen()?'미장 운영중 60초':'5분'} 갱신 · 기준금리 6시간 캐시
       </div>
 
