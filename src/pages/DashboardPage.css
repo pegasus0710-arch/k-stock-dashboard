@@ -2116,3 +2116,66 @@
   .db-ai-tabs { overflow-x: auto; flex-wrap: nowrap; }
   .db-ai-tab  { flex-shrink: 0; }
 }
+
+/* ── 좌측 섹터 전체 표시 — 스크롤 ─────────────────── */
+.db-left-sector-full {
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.db-left-sector-full::-webkit-scrollbar { width: 3px; }
+.db-left-sector-full::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── 테마 태그 스트립 ─────────────────────────────── */
+.db-theme-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.db-theme-strip::-webkit-scrollbar { display: none; }
+
+.db-theme-strip-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.db-theme-strip-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.db-theme-strip-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--tc) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tc) 30%, transparent);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tc);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.db-theme-strip-tag:hover {
+  background: color-mix(in srgb, var(--tc) 20%, transparent);
+}
+
+/* 팝업 서브타이틀 */
+.db-sector-popup-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}

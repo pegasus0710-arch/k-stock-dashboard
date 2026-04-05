@@ -4,7 +4,7 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import { rateColor, getTodayStr, getKstStatus, isMarketOpen, isUSMarketOpen, getSymbolMarketStatus } from '../utils/format'
-import { SECTOR_GROUPS, ALL_ITEMS, GAUGE_CONFIG, HEATMAP_SECTORS, getHeatmapColor } from '../constants/dashboardData'
+import { SECTOR_GROUPS, ALL_ITEMS, GAUGE_CONFIG, HEATMAP_SECTORS, getHeatmapColor, HOT_THEMES } from '../constants/dashboardData'
 import { GaugeBar, TooltipIcon } from '../components/ui/GaugeBar'
 import GuideModal        from '../components/dashboard/GuideModal'
 import GlobalChartModal  from '../components/GlobalChartModal'
@@ -291,6 +291,7 @@ export default function DashboardPage() {
 
   // ── 포트폴리오 미니바 ─────────────────────────────
   const [themePopup, setThemePopup] = useState(null)    // {theme, aiText, loading}
+  const [themeStockPopup, setThemeStockPopup] = useState(null) // {theme, stocks, loading}
   const [showPortBar, setShowPortBar] = useState(() => {
     try { return localStorage.getItem('db_portbar') === 'true' } catch { return false }
   })
@@ -617,6 +618,46 @@ export default function DashboardPage() {
     finally { setScheduleLoading(false) }
   }
 
+  // 테마 종목 팝업 (기본 정보 — AI 분석 없음)
+  const openThemeStockPopup = async (theme) => {
+    setThemeStockPopup({ theme, stocks: [], loading: true })
+    try {
+      const codes = theme.repCodes || []
+      const KNOWN_NAMES = {
+        '035420':'NAVER','035720':'카카오','259960':'크래프톤','042700':'한미반도체','251270':'넷마블',
+        '005380':'현대차','010120':'LS','277810':'레인보우로보틱스','336570':'솔트웨어','214150':'클래시스',
+        '034020':'두산에너빌리티','015760':'한국전력','083650':'비에이치아이','298040':'효성중공업','071970':'STX에너지솔루션',
+        '012450':'한화에어로스페이스','079550':'LIG넥스원','064350':'현대로템','047810':'한국항공우주','272210':'한화시스템',
+        '267260':'현대일렉트릭','103590':'일진전기','090355':'노루홀딩스',
+        '141080':'레고켐바이오','196170':'알테오젠','128940':'한미약품','326030':'SK바이오팜','068270':'셀트리온',
+        '009540':'HD한국조선해양','010140':'삼성중공업','042660':'한화오션','329180':'HD현대중공업','000720':'현대건설',
+        '005930':'삼성전자','000660':'SK하이닉스','005490':'포스코홀딩스','003670':'포스코퓨처엠','051910':'LG화학',
+      }
+      const results = await Promise.allSettled(
+        codes.slice(0,5).map(code =>
+          fetch(`/api/kiwoom?type=price&code=${code}`).then(r => r.json())
+        )
+      )
+      const stocks = results.map((r, i) => {
+        const code = codes[i]
+        if (r.status !== 'fulfilled' || r.value?.error) {
+          return { stk_cd: code, stk_nm: KNOWN_NAMES[code] || code, cur_prc: 0, flu_rt: 0, mkt_cap: 0 }
+        }
+        const v = r.value
+        return {
+          stk_cd:  v.stk_cd  || code,
+          stk_nm:  v.stk_nm  || KNOWN_NAMES[code] || code,
+          cur_prc: Math.abs(v.cur_prc || 0),
+          flu_rt:  parseFloat(v.flu_rt || 0),
+          mkt_cap: v.mkt_cap || 0,
+        }
+      }).filter(s => s.stk_nm)
+      setThemeStockPopup({ theme, stocks, loading: false })
+    } catch {
+      setThemeStockPopup(prev => ({ ...prev, loading: false, error: true }))
+    }
+  }
+
   // 핫테마 AI 상세 분석 — Firestore 24시간 캐시 (로그인 시) / 직접 호출 (비로그인)
   const openThemePopup = async (theme) => {
     // 로그인 없어도 팝업 열기 (캐시만 불가)
@@ -774,6 +815,24 @@ export default function DashboardPage() {
           <button className="db-strip-refresh" disabled={loading} onClick={refresh} title="새로고침">
             {loading ? <span className="db-spinner-sm"/> : '↺'}
           </button>
+        </div>
+      </div>
+
+      {/* 테마 태그 스트립 — 지수 스트립 바로 아래 */}
+      <div className="db-theme-strip">
+        <span className="db-theme-strip-label">🔥 2026 테마</span>
+        <div className="db-theme-strip-tags">
+          {HOT_THEMES.map(theme => (
+            <button
+              key={theme.id}
+              className="db-theme-strip-tag"
+              style={{'--tc': theme.color}}
+              onClick={() => openThemeStockPopup(theme)}
+            >
+              <span>{theme.icon}</span>
+              <span>{theme.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -1229,6 +1288,62 @@ export default function DashboardPage() {
 
 
       {/* 핫테마 AI 상세 팝업 */}
+      {/* 테마 종목 팝업 (기본 정보) */}
+      {themeStockPopup && (
+        <div className="db-popup-overlay" onClick={() => setThemeStockPopup(null)}>
+          <div className="db-sector-popup" onClick={e => e.stopPropagation()}
+            style={{'--sp-accent': themeStockPopup.theme.color}}>
+            <div className="db-sector-popup-header">
+              <span style={{fontSize:20}}>{themeStockPopup.theme.icon}</span>
+              <div>
+                <div className="db-sector-popup-title">{themeStockPopup.theme.label}</div>
+                <div className="db-sector-popup-sub">{themeStockPopup.theme.desc}</div>
+              </div>
+              <button className="db-sector-popup-close" onClick={() => setThemeStockPopup(null)}>✕</button>
+            </div>
+
+            {themeStockPopup.loading ? (
+              <div className="db-sector-popup-loading"><span className="db-spinner-sm"/> 종목 로딩 중...</div>
+            ) : (
+              <div className="db-sector-popup-stocks">
+                {themeStockPopup.stocks.length === 0
+                  ? <div className="db-sector-popup-empty">종목 데이터를 불러올 수 없습니다</div>
+                  : themeStockPopup.stocks.map((s, i) => {
+                    const up = s.flu_rt >= 0
+                    const rc = up ? 'var(--color-up)' : 'var(--color-down)'
+                    return (
+                      <div key={i} className="db-sector-popup-stock-row">
+                        <span className="db-sector-popup-rank">{i+1}</span>
+                        <div className="db-sector-popup-stock-info">
+                          <div className="db-sector-popup-stock-name">{s.stk_nm}</div>
+                          <div className="db-sector-popup-stock-code">{s.stk_cd}</div>
+                        </div>
+                        <div className="db-sector-popup-stock-price" style={{color: s.cur_prc > 0 ? rc : 'var(--text-dim)'}}>
+                          {s.cur_prc > 0 ? Math.round(s.cur_prc).toLocaleString() : '—'}
+                        </div>
+                        <div className="db-sector-popup-stock-rate" style={{color: s.cur_prc > 0 ? rc : 'var(--text-dim)'}}>
+                          {s.cur_prc > 0 ? `${up?'+':''}${s.flu_rt.toFixed(2)}%` : '주말'}
+                        </div>
+                      </div>
+                    )
+                  })
+                }
+              </div>
+            )}
+            {/* AI 분석 버튼 */}
+            <div style={{padding:'8px 16px 12px', borderTop:'1px solid var(--border)'}}>
+              <button
+                style={{width:'100%',padding:'8px',background:'var(--accent-mid)',color:'#fff',
+                  border:'none',borderRadius:6,fontSize:12,cursor:'pointer',fontWeight:600}}
+                onClick={() => { setThemeStockPopup(null); openThemePopup(themeStockPopup.theme) }}
+              >
+                🤖 AI 심층 분석 보기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {themePopup && (
         <div className="db-theme-popup-overlay" onClick={()=>setThemePopup(null)}>
           <div className="db-theme-popup" onClick={e=>e.stopPropagation()}

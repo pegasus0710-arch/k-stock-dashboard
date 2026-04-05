@@ -116,3 +116,56 @@ export function getHeatmapColor(rate) {
   if (rate >= -3.0) return { bg: '#3b82f6', neutral: false }
   return               { bg: '#1d4ed8', neutral: false }
 }
+
+// ── 2026 핫 테마 ─────────────────────────────────────
+// tags: 화면 표시용 종목명 / repCodes: API 조회용 종목코드
+export const HOT_THEMES = [
+  {
+    id:'ai-agent', label:'AI 에이전트', icon:'🤖', color:'#7c3aed',
+    desc:'자율 AI 소프트웨어 에이전트 확산',
+    tags:['NAVER','카카오','크래프톤'],
+    repCodes:['035420','035720','259960','042700','251270'],
+  },
+  {
+    id:'robotics', label:'로보틱스', icon:'🦾', color:'#2563eb',
+    desc:'산업용 협동로봇 물류 자동화 가속',
+    tags:['현대차','LS산전','레인보우로보틱스'],
+    repCodes:['005380','010120','277810','336570','214150'],
+  },
+  {
+    id:'smr', label:'SMR 원전', icon:'⚛️', color:'#16a34a',
+    desc:'소형모듈원전 수주 개발 본격화',
+    tags:['두산에너빌','한전','비에이치아이'],
+    repCodes:['034020','015760','083650','298040','071970'],
+  },
+  {
+    id:'defense', label:'K-방산 수출', icon:'🛡️', color:'#dc2626',
+    desc:'유럽·중동 방산 수출 확대',
+    tags:['한화에어로','LIG넥스원','현대로템'],
+    repCodes:['012450','079550','064350','047810','272210'],
+  },
+  {
+    id:'powergrid', label:'전력망 인프라', icon:'⚡', color:'#d97706',
+    desc:'AI 데이터센터 전력 수요 급증',
+    tags:['LS ELECTRIC','현대일렉트릭','일진전기'],
+    repCodes:['010120','267260','103590','298040','090355'],
+  },
+  {
+    id:'adc', label:'바이오 ADC', icon:'💉', color:'#ec4899',
+    desc:'항체약물접합체 글로벌 임상 활발',
+    tags:['레고켐바이오','알테오젠','한미약품'],
+    repCodes:['141080','196170','128940','326030','068270'],
+  },
+  {
+    id:'lng', label:'LNG 조선', icon:'🚢', color:'#0891b2',
+    desc:'LNG 운반선 수주 호황',
+    tags:['HD한국조선','삼성중공업','한화오션'],
+    repCodes:['009540','010140','042660','329180','000720'],
+  },
+  {
+    id:'supply', label:'공급망 재편', icon:'🌏', color:'#64748b',
+    desc:'미중 디커플링 국내 제조 리쇼어링',
+    tags:['삼성전자','SK하이닉스','포스코'],
+    repCodes:['005930','000660','005490','003670','051910'],
+  },
+]
