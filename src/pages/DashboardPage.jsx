@@ -693,12 +693,11 @@ export default function DashboardPage() {
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          // P0-1: 영어 시스템 + 한국어 플레이스홀더 완전 제거
-          system: 'You are a Korean stock market expert. Output ONLY a raw JSON object. No explanation, no markdown, no code blocks. All values must be written in Korean and must be your actual analysis, not placeholder text.',
+          max_tokens: 2000,
+          system: 'You are a Korean stock market expert. Output ONLY a valid JSON object. No markdown, no explanation, no code blocks. Write all values in Korean.',
           messages: [{
             role: 'user',
-            content: `Investment theme: "${theme.label}" (2026 Korea market)\nRepresentative stocks: ${(theme.tags || []).join(', ')}\n\nAnalyze this theme and return a JSON object with these exact keys:\n- bullCase: specific bullish scenario with expected return range\n- bearCase: specific bearish scenario with warning signals\n- strategy: concrete investor action (buy/hold/watch + reason + level)\n- keyStocks: array of objects with name/point/risk for top 3 stocks\n- catalysts: array of 3 specific upcoming catalysts\n- nextCatalyst: single most important upcoming event to monitor\n\nAll values must be substantive Korean analysis, NOT generic placeholder text.`
+            content: `2026년 한국 주식 투자 테마 "${theme.label}"을 분석하세요. 대표종목: ${(theme.tags || []).join(', ')}\n\n아래 JSON 형식으로만 응답하세요:\n{"bullCase":"강세 시나리오 (구체적 조건과 기대수익률, 100자 이내)","bearCase":"약세 시나리오 (경고 신호, 100자 이내)","strategy":"투자 전략 (매수/관망/주의 + 구체적 이유, 100자 이내)","catalysts":["촉매1","촉매2","촉매3"],"nextCatalyst":"가장 중요한 다음 확인 이벤트"}`
           }]
         })
       })
@@ -710,6 +709,11 @@ export default function DashboardPage() {
 
       const data = await res.json()
       if (data.error) throw new Error(data.error.message || 'API 에러')
+
+      // 토큰 한도 초과로 잘린 경우 조기 감지
+      if (data.stop_reason === 'max_tokens') {
+        throw new Error('응답이 너무 길어 잘렸습니다. 재분석을 눌러주세요.')
+      }
 
       const rawT = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
       if (!rawT) throw new Error('빈 응답')

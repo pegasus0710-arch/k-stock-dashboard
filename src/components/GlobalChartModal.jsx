@@ -16,6 +16,7 @@ import './GlobalChartModal.css'
 // ── MA 기본 스타일 ──────────────────────────────────────
 const DEFAULT_MA_STYLE = {
   5:   { color: '#f59e0b', width: 1.2 },
+  10:  { color: '#38bdf8', width: 1.2 },
   20:  { color: '#a78bfa', width: 2.0 },
   60:  { color: '#22c55e', width: 1.5 },
   120: { color: '#f43f5e', width: 1.2 },
@@ -66,7 +67,7 @@ export default function GlobalChartModal({
   const [selectedColor, setSelectedColor] = useState('#f59e0b')
 
   // MA ON/OFF — 전체 기본 ON
-  const [showMA, setShowMA] = useState({ 5:true, 20:true, 60:true, 120:true })
+  const [showMA, setShowMA] = useState({ 5:true, 10:true, 20:true, 60:true, 120:true })
   // MA 스타일 (색상/두께) — Firestore 저장
   const [maStyle, setMaStyle] = useState(DEFAULT_MA_STYLE)
   // MA 스타일 팝오버 (어느 MA가 열려 있는지)
@@ -450,6 +451,7 @@ export default function GlobalChartModal({
             <div className="gcm-ma-toggles" style={{position:'relative'}}>
               {[
                 { p:5,   label:'MA5'   },
+                { p:10,  label:'MA10'  },
                 { p:20,  label:'MA20'  },
                 { p:60,  label:'MA60'  },
                 { p:120, label:'MA120' },
