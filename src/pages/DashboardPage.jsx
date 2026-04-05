@@ -1247,96 +1247,85 @@ export default function DashboardPage() {
       </div>
 
 
-      {/* ── 2026 핫 테마 섹션 ── */}
-      <div className="db-theme-section">
-        <div className="db-theme-header">
-          <span className="db-theme-title">🔥 2026 핫 테마</span>
-          <span className="db-theme-sub">AI 에이전트 시대 · 클릭하면 AI 상세 분석</span>
-        </div>
-        <div className="db-theme-grid">
-          {[
-            { id:'ai-agent',  label:'AI 에이전트',   icon:'🤖', desc:'자율 AI 소프트웨어 에이전트 확산', tags:['NAVER','카카오','크래프톤'], color:'#7c3aed' },
-            { id:'robotics',  label:'로보틱스',      icon:'🦾', desc:'산업용 협동로봇 물류 자동화 가속', tags:['현대차','LS산전','레인보우로보틱스'], color:'#2563eb' },
-            { id:'smr',       label:'SMR 원전',      icon:'⚛️', desc:'소형모듈원전 수주 개발 본격화',    tags:['두산에너빌','한전','비에이치아이'], color:'#16a34a' },
-            { id:'defense',   label:'K-방산 수출',   icon:'🛡️', desc:'유럽 중동 방산 수출 확대',         tags:['한화에어로','LIG넥스원','현대로템'], color:'#dc2626' },
-            { id:'powergrid', label:'전력망 인프라', icon:'⚡', desc:'AI 데이터센터 전력 수요 급증',     tags:['LS ELECTRIC','현대일렉트릭','일진전기'], color:'#d97706' },
-            { id:'adc',       label:'바이오 ADC',    icon:'💉', desc:'항체약물접합체 글로벌 임상 활발',  tags:['레고켐바이오','알테오젠','한미약품'], color:'#ec4899' },
-            { id:'lng',       label:'LNG 조선',      icon:'🚢', desc:'LNG 운반선 수주 호황',             tags:['HD한국조선','삼성중공업','한화오션'], color:'#0891b2' },
-            { id:'supply',    label:'공급망 재편',   icon:'🌏', desc:'미중 디커플링 국내 제조 리쇼어링', tags:['삼성전자','SK하이닉스','포스코'], color:'#64748b' },
-          ].map(theme => (
-            <div key={theme.id} className="db-theme-card"
-              style={{'--theme-color': theme.color}}
-              onClick={()=>openThemePopup(theme)}>
-              <div className="db-theme-card-top">
-                <span className="db-theme-icon">{theme.icon}</span>
-                <span className="db-theme-name">{theme.label}</span>
-                <span className="db-theme-ai-badge">AI →</span>
-              </div>
-              <div className="db-theme-desc">{theme.desc}</div>
-              <div className="db-theme-tags">
-                {theme.tags.map(t => (
-                  <span key={t} className="db-theme-tag">{t}</span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="db-theme-footer">
-          📌 카드 클릭 시 AI가 최신 정보를 검색하여 상세 분석합니다
-        </div>
-      </div>
 
 
       {/* 핫테마 AI 상세 팝업 */}
-      {/* 테마 종목 팝업 (기본 정보) */}
       {themeStockPopup && (
         <div className="db-popup-overlay" onClick={() => setThemeStockPopup(null)}>
-          <div className="db-sector-popup" onClick={e => e.stopPropagation()}
-            style={{'--sp-accent': themeStockPopup.theme.color}}>
-            <div className="db-sector-popup-header">
-              <span style={{fontSize:20}}>{themeStockPopup.theme.icon}</span>
-              <div>
-                <div className="db-sector-popup-title">{themeStockPopup.theme.label}</div>
-                <div className="db-sector-popup-sub">{themeStockPopup.theme.desc}</div>
+          <div className="db-theme-report-popup" onClick={e => e.stopPropagation()}
+            style={{'--tr-color': themeStockPopup.theme.color}}>
+
+            {/* 헤더 */}
+            <div className="db-tr-header">
+              <span className="db-tr-icon">{themeStockPopup.theme.icon}</span>
+              <div className="db-tr-title-block">
+                <div className="db-tr-title">{themeStockPopup.theme.label}</div>
+                <div className="db-tr-desc">{themeStockPopup.theme.desc}</div>
               </div>
               <button className="db-sector-popup-close" onClick={() => setThemeStockPopup(null)}>✕</button>
             </div>
 
-            {themeStockPopup.loading ? (
-              <div className="db-sector-popup-loading"><span className="db-spinner-sm"/> 종목 로딩 중...</div>
-            ) : (
-              <div className="db-sector-popup-stocks">
-                {themeStockPopup.stocks.length === 0
-                  ? <div className="db-sector-popup-empty">종목 데이터를 불러올 수 없습니다</div>
-                  : themeStockPopup.stocks.map((s, i) => {
+            <div className="db-tr-body">
+              {/* 왜 지금인가 */}
+              {themeStockPopup.theme.catalyst?.length > 0 && (
+                <div className="db-tr-section">
+                  <div className="db-tr-section-title">📌 왜 지금인가</div>
+                  {themeStockPopup.theme.catalyst.map((c, i) => (
+                    <div key={i} className="db-tr-bullet">· {c}</div>
+                  ))}
+                </div>
+              )}
+
+              {/* 투자 논리 */}
+              {themeStockPopup.theme.thesis && (
+                <div className="db-tr-section">
+                  <div className="db-tr-section-title">💡 투자 논리</div>
+                  <div className="db-tr-thesis">{themeStockPopup.theme.thesis}</div>
+                </div>
+              )}
+
+              {/* 대표 종목 */}
+              <div className="db-tr-section">
+                <div className="db-tr-section-title">📈 대표 종목</div>
+                {themeStockPopup.loading ? (
+                  <div style={{padding:'8px 0',color:'var(--text-dim)',fontSize:12}}>
+                    <span className="db-spinner-sm"/> 주가 로딩 중...
+                  </div>
+                ) : themeStockPopup.stocks.length === 0 ? (
+                  <div style={{fontSize:12,color:'var(--text-dim)'}}>종목 데이터 없음</div>
+                ) : (
+                  themeStockPopup.stocks.map((s, i) => {
                     const up = s.flu_rt >= 0
-                    const rc = up ? 'var(--color-up)' : 'var(--color-down)'
+                    const rc = s.cur_prc > 0 ? (up ? 'var(--color-up)' : 'var(--color-down)') : 'var(--text-dim)'
                     return (
-                      <div key={i} className="db-sector-popup-stock-row">
-                        <span className="db-sector-popup-rank">{i+1}</span>
-                        <div className="db-sector-popup-stock-info">
-                          <div className="db-sector-popup-stock-name">{s.stk_nm}</div>
-                          <div className="db-sector-popup-stock-code">{s.stk_cd}</div>
-                        </div>
-                        <div className="db-sector-popup-stock-price" style={{color: s.cur_prc > 0 ? rc : 'var(--text-dim)'}}>
+                      <div key={i} className="db-tr-stock-row">
+                        <span className="db-tr-stock-rank">{i+1}</span>
+                        <div className="db-tr-stock-name">{s.stk_nm}</div>
+                        <div className="db-tr-stock-price" style={{color: rc}}>
                           {s.cur_prc > 0 ? Math.round(s.cur_prc).toLocaleString() : '—'}
                         </div>
-                        <div className="db-sector-popup-stock-rate" style={{color: s.cur_prc > 0 ? rc : 'var(--text-dim)'}}>
-                          {s.cur_prc > 0 ? `${up?'+':''}${s.flu_rt.toFixed(2)}%` : '주말'}
+                        <div className="db-tr-stock-rate" style={{color: rc}}>
+                          {s.cur_prc > 0 ? `${up?'+':''}${s.flu_rt.toFixed(2)}%` : '장외'}
                         </div>
                       </div>
                     )
                   })
-                }
+                )}
               </div>
-            )}
-            {/* AI 분석 버튼 */}
-            <div style={{padding:'8px 16px 12px', borderTop:'1px solid var(--border)'}}>
-              <button
-                style={{width:'100%',padding:'8px',background:'var(--accent-mid)',color:'#fff',
-                  border:'none',borderRadius:6,fontSize:12,cursor:'pointer',fontWeight:600}}
-                onClick={() => { setThemeStockPopup(null); openThemePopup(themeStockPopup.theme) }}
-              >
+
+              {/* 핵심 리스크 */}
+              {themeStockPopup.theme.risk && (
+                <div className="db-tr-section db-tr-risk-section">
+                  <div className="db-tr-section-title">⚠️ 핵심 리스크</div>
+                  <div className="db-tr-risk">{themeStockPopup.theme.risk}</div>
+                </div>
+              )}
+            </div>
+
+            {/* AI 심층 분석 버튼 */}
+            <div className="db-tr-footer">
+              <button className="db-tr-ai-btn"
+                onClick={() => { setThemeStockPopup(null); openThemePopup(themeStockPopup.theme) }}>
                 🤖 AI 심층 분석 보기
               </button>
             </div>

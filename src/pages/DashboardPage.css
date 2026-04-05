@@ -2179,3 +2179,77 @@
   color: var(--text-dim);
   margin-top: 2px;
 }
+
+/* ── 테마 보고서 팝업 ─────────────────────────────── */
+.db-theme-report-popup {
+  background: var(--bg-card);
+  border-radius: 12px;
+  width: 420px;
+  max-width: 94vw;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,.18);
+  border-top: 3px solid var(--tr-color);
+}
+.db-tr-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.db-tr-icon { font-size: 24px; flex-shrink: 0; margin-top: 2px; }
+.db-tr-title-block { flex: 1; min-width: 0; }
+.db-tr-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.db-tr-desc { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+.db-tr-body { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+.db-tr-section {}
+.db-tr-section-title {
+  font-size: 11px; font-weight: 700;
+  color: var(--tr-color);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.db-tr-bullet {
+  font-size: 12px; color: var(--text-secondary);
+  line-height: 1.6; padding-left: 4px;
+}
+.db-tr-thesis {
+  font-size: 12px; color: var(--text-primary);
+  line-height: 1.7;
+  background: color-mix(in srgb, var(--tr-color) 6%, transparent);
+  border-left: 3px solid var(--tr-color);
+  padding: 8px 10px;
+  border-radius: 0 6px 6px 0;
+}
+.db-tr-stock-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+.db-tr-stock-row:last-child { border-bottom: none; }
+.db-tr-stock-rank { font-size: 10px; color: var(--text-dim); width: 14px; flex-shrink: 0; }
+.db-tr-stock-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.db-tr-stock-price { font-size: 12px; font-weight: 600; min-width: 64px; text-align: right; }
+.db-tr-stock-rate { font-size: 11px; min-width: 52px; text-align: right; }
+
+.db-tr-risk-section { background: rgba(220,38,38,.04); border-radius: 6px; padding: 8px 10px; }
+.db-tr-risk { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+
+.db-tr-footer {
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--border);
+}
+.db-tr-ai-btn {
+  width: 100%; padding: 9px;
+  background: var(--tr-color); color: #fff;
+  border: none; border-radius: 7px;
+  font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: opacity .15s;
+}
+.db-tr-ai-btn:hover { opacity: .88; }
