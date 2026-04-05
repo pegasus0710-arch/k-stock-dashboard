@@ -378,7 +378,7 @@ export default function DashboardPage() {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 2000,
           tools: [{ type:'web_search_20250305', name:'web_search' }],
           system: [
@@ -592,7 +592,7 @@ export default function DashboardPage() {
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 800,
           tools: [{ type: 'web_search_20250305', name: 'web_search' }],
           system: [
@@ -668,7 +668,7 @@ export default function DashboardPage() {
           method: 'POST',
           headers: { 'Content-Type':'application/json', 'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514', max_tokens: 1000,
+            model: 'claude-sonnet-4-6', max_tokens: 1000,
             tools: [{ type:'web_search_20250305', name:'web_search' }],
             system: '한국 주식시장 전문가. 웹 검색으로 최신 정보 확인 후 JSON만 반환. 다른 텍스트 금지.',
             messages: [{ role:'user', content: [
@@ -710,7 +710,7 @@ export default function DashboardPage() {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 1000,
           tools: [{ type:'web_search_20250305', name:'web_search' }],
           system: '한국 주식시장 전문가. 웹 검색으로 최신 정보 확인 후 JSON만 반환. 다른 텍스트 금지.',
@@ -1251,7 +1251,7 @@ export default function DashboardPage() {
 
       {/* 핫테마 AI 상세 팝업 */}
       {themeStockPopup && (
-        <div className="db-popup-overlay" onClick={() => setThemeStockPopup(null)}>
+        <div className="db-sector-popup-overlay" onClick={() => setThemeStockPopup(null)}>
           <div className="db-theme-report-popup" onClick={e => e.stopPropagation()}
             style={{'--tr-color': themeStockPopup.theme.color}}>
 
