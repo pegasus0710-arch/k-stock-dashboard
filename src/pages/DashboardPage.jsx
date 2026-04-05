@@ -159,7 +159,13 @@ export default function DashboardPage() {
 
   // 52주 고저 — HeroChart candles에서 계산 (별도 API 불필요)
   const [weekData,  setWeekData]  = useState({})
-  const [sparkData, setSparkData] = useState({})
+  const LS_SPARK_KEY = 'ks_spark_cache'
+  const [sparkData, setSparkData] = useState(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem('ks_spark_cache') || '{}')
+      return cached  // { KOSPI: [prices...], KOSDAQ: [prices...] }
+    } catch { return {} }
+  })
   const handleWeekRange = useCallback((id, high, low) => {
     if(id) setWeekData(prev => ({...prev, [id]: {high52: high, low52: low}}))
   }, [])
@@ -184,7 +190,16 @@ export default function DashboardPage() {
           .filter(c => c.close > 0)
           .slice(-52)
         if (!raw.length) return
-        setSparkData(prev => ({ ...prev, [id]: raw.map(c => c.close) }))
+        const closes = raw.map(c => c.close)
+        setSparkData(prev => {
+          const next = { ...prev, [id]: closes }
+          // localStorage에 캐시 저장 (직전 종가 보존)
+          try {
+            const existing = JSON.parse(localStorage.getItem('ks_spark_cache') || '{}')
+            localStorage.setItem('ks_spark_cache', JSON.stringify({ ...existing, [id]: closes }))
+          } catch {}
+          return next
+        })
         const hs = raw.map(c => c.high || c.close)
         const ls = raw.map(c => c.low  || c.close)
         setWeekData(prev => ({
@@ -469,8 +484,11 @@ export default function DashboardPage() {
   const getStripData = (item) => {
     if (item.type === 'global')  return globalData?.[item.sym] || null
     if (item.type === 'forex') {
+      // 1순위: forexData (KIS API 실시간)
       if (forexData?.[item.pair]?.price > 0) return { price: forexData[item.pair].price, changeRate: forexData[item.pair].changeRate }
-      // localStorage fallback
+      // 2순위: forexCache (직접 호출)
+      if (forexCache?.price > 0) return forexCache
+      // 3순위: localStorage 캐시
       const cached = loadCache()
       if (cached?.forex?.[item.pair]?.price > 0) return cached.forex[item.pair]
       return null
@@ -514,6 +532,28 @@ export default function DashboardPage() {
   const LS_KEY = 'ks_strip_cache'
   const loadCache = () => { try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}') } catch { return {} } }
   const saveCache = (data) => { try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {} }
+
+  // ── 환율 직접 로드 fallback (forexData가 없을 때) ────
+  const [forexCache, setForexCache] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ks_forex_cache') || 'null') } catch { return null }
+  })
+
+  useEffect(() => {
+    // forexData가 이미 있으면 스킵
+    if (forexData?.['USD/KRW']?.price > 0) return
+    // KIS API 직접 호출
+    fetch('/api/kis?type=forex&pair=USD/KRW')
+      .then(r => r.json())
+      .then(d => {
+        const price = d?.price || d?.close || 0
+        const changeRate = d?.changeRate || d?.rate || 0
+        if (price > 0) {
+          const val = { price, changeRate }
+          setForexCache(val)
+          try { localStorage.setItem('ks_forex_cache', JSON.stringify(val)) } catch {}
+        }
+      }).catch(() => {})
+  }, [forexData])
 
   // ── 국내 지수 직접 로드 (장외에도 직전장 데이터 표시) ───
   const [domesticIdx, setDomesticIdx] = useState(() => loadCache())
