@@ -229,6 +229,22 @@ export default function DashboardPage() {
 
       let stocks = []
 
+      // 종목코드 → 종목명 fallback (API 미응답 시)
+      const KNOWN_NAMES = {
+        '005930':'삼성전자','000660':'SK하이닉스','042700':'한미반도체','009150':'삼성전기','066970':'L&F',
+        '373220':'LG에너지솔루션','006400':'삼성SDI','003670':'포스코퓨처엠','247540':'에코프로비엠','086520':'에코프로',
+        '005380':'현대차','000270':'기아','012330':'현대모비스','011210':'현대위아','064350':'현대로템',
+        '207940':'삼성바이오로직스','068270':'셀트리온','000100':'유한양행','128940':'한미약품','326030':'SK바이오팜',
+        '259960':'크래프톤','036570':'엔씨소프트','251270':'넷마블','352820':'하이브','035420':'NAVER',
+        '105560':'KB금융','055550':'신한지주','086790':'하나금융지주','316140':'우리금융지주','138040':'메리츠금융지주',
+        '015760':'한국전력','036460':'한국가스공사','034020':'두산에너빌리티','117000':'루트로닉','267260':'현대일렉트릭',
+        '051910':'LG화학','011170':'롯데케미칼','009830':'한화솔루션','010950':'S-Oil','285130':'SK케미칼',
+        '017670':'SK텔레콤','030200':'KT','032640':'LG유플러스','035720':'카카오',
+        '139480':'이마트','023530':'롯데쇼핑','004170':'신세계','069960':'현대백화점','005440':'현대글로비스',
+        '000720':'현대건설','006360':'GS건설','047040':'대우건설','375500':'DL이앤씨','028260':'삼성물산',
+        '009540':'HD한국조선해양','010140':'삼성중공업','042660':'한화오션','329180':'HD현대중공업',
+      }
+
       if (codes.length > 0) {
         const results = await Promise.allSettled(
           codes.map(code =>
@@ -236,13 +252,19 @@ export default function DashboardPage() {
           )
         )
         stocks = results
-          .filter(r => r.status === 'fulfilled' && r.value?.stk_nm && !r.value?.error)
-          .map(r => ({
-            stk_cd:  r.value.stk_cd  || '',
-            stk_nm:  r.value.stk_nm  || '',
-            cur_prc: Math.abs(r.value.cur_prc || 0),
-            flu_rt:  r.value.flu_rt  || 0,
-          }))
+          .map((r, i) => {
+            const code = codes[i]
+            if (r.status !== 'fulfilled') return { stk_cd: code, stk_nm: KNOWN_NAMES[code] || code, cur_prc: 0, flu_rt: 0 }
+            const v = r.value
+            if (v?.error) return { stk_cd: code, stk_nm: KNOWN_NAMES[code] || code, cur_prc: 0, flu_rt: 0 }
+            return {
+              stk_cd:  v.stk_cd  || code,
+              stk_nm:  v.stk_nm  || KNOWN_NAMES[code] || code,
+              cur_prc: Math.abs(v.cur_prc || 0),
+              flu_rt:  v.flu_rt  || 0,
+            }
+          })
+          .filter(s => s.stk_nm)  // 이름 있는 것만
       }
 
       // 2순위: repCodes 없거나 조회 실패 시 → investor 상위 종목으로 대체
