@@ -22,6 +22,14 @@ async function relay(endpoint, body, res) {
 function today() {
   return new Date().toISOString().slice(0, 10).replace(/-/g, '')
 }
+// 마지막 거래일 반환 (주말이면 금요일로 조정)
+function lastTradingDay() {
+  const d = new Date()
+  const day = d.getDay() // 0=일, 6=토
+  if (day === 0) d.setDate(d.getDate() - 2) // 일 → 금
+  if (day === 6) d.setDate(d.getDate() - 1) // 토 → 금
+  return d.toISOString().slice(0, 10).replace(/-/g, '')
+}
 function daysAgo(n) {
   const d = new Date(Date.now() - n * 86400000)
   return d.toISOString().slice(0, 10).replace(/-/g, '')
@@ -64,7 +72,7 @@ export default async function handler(req, res) {
       stk_cd:    q.code,
       period:    q.period   || 'day',
       tic_scope: q.tic      || '5',
-      base_dt:   today(),
+      base_dt:   lastTradingDay(), // 주말이면 금요일로 조정
       min_days:  Number(q.min_days || 1),
     }, res)
   }
@@ -76,7 +84,7 @@ export default async function handler(req, res) {
       inds_cd:   cd,
       period:    q.period || 'day',
       tic_scope: q.tic    || '5',
-      base_dt:   today(),
+      base_dt:   lastTradingDay(), // 주말이면 금요일로 조정
       min_days:  Number(q.min_days || 1),
     }, res)
   }
