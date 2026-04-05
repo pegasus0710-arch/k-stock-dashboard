@@ -290,8 +290,8 @@ export default function DashboardPage() {
   const { user } = useAuth()
 
   // ── 포트폴리오 미니바 ─────────────────────────────
-  const [themePopup, setThemePopup] = useState(null)    // {theme, aiText, loading}
-  const [themeStockPopup, setThemeStockPopup] = useState(null) // {theme, stocks, loading}
+  // 테마 통합 팝업 {theme, stocks, stocksLoading, aiText, aiLoading, aiError}
+  const [themeBigPopup, setThemeBigPopup] = useState(null)
   const [showPortBar, setShowPortBar] = useState(() => {
     try { return localStorage.getItem('db_portbar') === 'true' } catch { return false }
   })
@@ -618,125 +618,105 @@ export default function DashboardPage() {
     finally { setScheduleLoading(false) }
   }
 
-  // 테마 종목 팝업 (기본 정보 — AI 분석 없음)
-  const openThemeStockPopup = async (theme) => {
-    setThemeStockPopup({ theme, stocks: [], loading: true })
-    try {
-      const codes = theme.repCodes || []
-      const KNOWN_NAMES = {
-        '035420':'NAVER','035720':'카카오','259960':'크래프톤','042700':'한미반도체','251270':'넷마블',
-        '005380':'현대차','010120':'LS','277810':'레인보우로보틱스','336570':'솔트웨어','214150':'클래시스',
-        '034020':'두산에너빌리티','015760':'한국전력','083650':'비에이치아이','298040':'효성중공업','071970':'STX에너지솔루션',
-        '012450':'한화에어로스페이스','079550':'LIG넥스원','064350':'현대로템','047810':'한국항공우주','272210':'한화시스템',
-        '267260':'현대일렉트릭','103590':'일진전기','090355':'노루홀딩스',
-        '141080':'레고켐바이오','196170':'알테오젠','128940':'한미약품','326030':'SK바이오팜','068270':'셀트리온',
-        '009540':'HD한국조선해양','010140':'삼성중공업','042660':'한화오션','329180':'HD현대중공업','000720':'현대건설',
-        '005930':'삼성전자','000660':'SK하이닉스','005490':'포스코홀딩스','003670':'포스코퓨처엠','051910':'LG화학',
-      }
-      const results = await Promise.allSettled(
-        codes.slice(0,5).map(code =>
-          fetch(`/api/kiwoom?type=price&code=${code}`).then(r => r.json())
-        )
+  // ── 테마 통합 팝업 열기 (좌: 정적 정보+종목 / 우: AI 분석) ──
+  const openThemeBigPopup = async (theme) => {
+    // 팝업 즉시 열기 (로딩 상태)
+    setThemeBigPopup({ theme, stocks: [], stocksLoading: true, aiText: null, aiLoading: false, aiError: null })
+
+    // 병렬: 종목 가격 로드
+    const KNOWN_NAMES = {
+      '035420':'NAVER','035720':'카카오','259960':'크래프톤','042700':'한미반도체','251270':'넷마블',
+      '005380':'현대차','010120':'LS','277810':'레인보우로보틱스','336570':'솔트웨어','214150':'클래시스',
+      '034020':'두산에너빌리티','015760':'한국전력','083650':'비에이치아이','298040':'효성중공업','071970':'STX에너지솔루션',
+      '012450':'한화에어로스페이스','079550':'LIG넥스원','064350':'현대로템','047810':'한국항공우주','272210':'한화시스템',
+      '267260':'현대일렉트릭','103590':'일진전기','090355':'노루홀딩스',
+      '141080':'레고켐바이오','196170':'알테오젠','128940':'한미약품','326030':'SK바이오팜','068270':'셀트리온',
+      '009540':'HD한국조선해양','010140':'삼성중공업','042660':'한화오션','329180':'HD현대중공업','000720':'현대건설',
+      '005930':'삼성전자','000660':'SK하이닉스','005490':'포스코홀딩스','003670':'포스코퓨처엠','051910':'LG화학',
+    }
+    const codes = theme.repCodes || []
+    Promise.allSettled(
+      codes.slice(0, 5).map(code =>
+        fetch(`/api/kiwoom?type=price&code=${code}`).then(r => r.json())
       )
+    ).then(results => {
       const stocks = results.map((r, i) => {
         const code = codes[i]
-        if (r.status !== 'fulfilled' || r.value?.error) {
-          return { stk_cd: code, stk_nm: KNOWN_NAMES[code] || code, cur_prc: 0, flu_rt: 0, mkt_cap: 0 }
-        }
+        if (r.status !== 'fulfilled' || r.value?.error)
+          return { stk_cd: code, stk_nm: KNOWN_NAMES[code] || code, cur_prc: 0, flu_rt: 0 }
         const v = r.value
         return {
           stk_cd:  v.stk_cd  || code,
           stk_nm:  v.stk_nm  || KNOWN_NAMES[code] || code,
           cur_prc: Math.abs(v.cur_prc || 0),
           flu_rt:  parseFloat(v.flu_rt || 0),
-          mkt_cap: v.mkt_cap || 0,
         }
       }).filter(s => s.stk_nm)
-      setThemeStockPopup({ theme, stocks, loading: false })
-    } catch {
-      setThemeStockPopup(prev => ({ ...prev, loading: false, error: true }))
+      setThemeBigPopup(prev => prev ? { ...prev, stocks, stocksLoading: false } : null)
+    }).catch(() => {
+      setThemeBigPopup(prev => prev ? { ...prev, stocksLoading: false } : null)
+    })
+
+    // AI 캐시 로드 (로그인 시) — 만료 없음, 캐시 있으면 즉시 표시
+    if (user) {
+      const cacheRef = doc(db, 'users', user.uid, 'theme_cache', theme.id)
+      try {
+        const snap = await getDoc(cacheRef)
+        if (snap.exists()) {
+          const { data: cached, cachedAt } = snap.data()
+          if (cached) {
+            setThemeBigPopup(prev => prev ? { ...prev, aiText: { ...cached, cachedAt }, aiLoading: false } : null)
+            return
+          }
+        }
+      } catch {}
     }
+    // 캐시 없으면 → 자동 생성 시작
+    generateThemeAi(theme)
   }
 
-  // 핫테마 AI 상세 분석 — Firestore 24시간 캐시 (로그인 시) / 직접 호출 (비로그인)
-  const openThemePopup = async (theme) => {
-    // 로그인 없어도 팝업 열기 (캐시만 불가)
-    if (!user) {
-      setThemePopup({ theme, aiText: null, loading: true })
-      try {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json', 'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-6', max_tokens: 1000,
-            tools: [{ type:'web_search_20250305', name:'web_search' }],
-            system: '한국 주식시장 전문가. 웹 검색으로 최신 정보 확인 후 JSON만 반환. 다른 텍스트 금지.',
-            messages: [{ role:'user', content: [
-              `2026년 "${theme.label}" 투자 테마 분석. 대표종목: ${theme.tags.join(', ')}`,
-              '{"summary":"배경(150자)","catalyst":"촉매 2~3가지","stocks":[{"name":"종목","reason":"30자"}],"risk":"리스크(80자)","timing":"진입 타이밍 판단"}'
-            ].join("\n") }]
-          })
-        })
-        const data = await res.json()
-        const rawT = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')
-        const cleanT = rawT.replace(/<cite[^>]*>|<\/cite>/g, '').replace(/\s+/g, ' ')
-        const match = cleanT.match(/\{[\s\S]*\}/)
-        const parsed = match ? JSON.parse(match[0]) : null
-        setThemePopup(prev => ({ ...prev, aiText: parsed, loading: false }))
-      } catch {
-        setThemePopup(prev => ({ ...prev, aiText: { summary: '분석 오류. 다시 시도해주세요.' }, loading: false }))
-      }
-      return
-    }
-    // Firestore 캐시 확인
-    const cacheRef = doc(db, 'users', user.uid, 'theme_cache', theme.id)
-    try {
-      const snap = await getDoc(cacheRef)
-      if (snap.exists()) {
-        const { data: cached, cachedAt } = snap.data()
-        const ageHrs = (Date.now() - new Date(cachedAt).getTime()) / 3600000
-        if (ageHrs < 24 && cached) {
-          // 24시간 이내 캐시 → 즉시 표시
-          setThemePopup({ theme, aiText: cached, loading: false })
-          return
-        }
-      }
-    } catch {}
-
-    // 캐시 없거나 만료 → AI 호출
-    setThemePopup({ theme, aiText: null, loading: true })
+  // AI 재분석 트리거
+  const generateThemeAi = async (theme) => {
+    setThemeBigPopup(prev => prev ? { ...prev, aiLoading: true, aiError: null } : null)
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type':'application/json', 'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          tools: [{ type:'web_search_20250305', name:'web_search' }],
-          system: '한국 주식시장 전문가. 웹 검색으로 최신 정보 확인 후 JSON만 반환. 다른 텍스트 금지.',
-          messages: [{ role:'user', content: [
-            `2026년 "${theme.label}" 투자 테마를 분석해주세요.`,
-            `대표 종목: ${theme.tags.join(', ')}`,
-            '반드시 아래 JSON만 반환:',
-            '{"summary":"테마 배경과 2026년 왜 주목받는지 (150자)","catalyst":"핵심 촉매제 2~3가지","stocks":[{"name":"종목명","reason":"투자 포인트 30자"}],"risk":"이 테마의 핵심 리스크 (80자)","timing":"지금 진입 적절한지 타이밍 판단","cachedAt":"' + new Date().toISOString() + '"}'
-          ].join("\n") }]
+          max_tokens: 1200,
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+          system: '한국 주식시장 20년 경력 전문가. 웹 검색으로 최신 정보 확인 후 반드시 JSON만 반환. 다른 텍스트 절대 금지.',
+          messages: [{ role: 'user', content: [
+            `2026년 "${theme.label}" 투자 테마를 전문가 시각으로 분석해주세요.`,
+            `대표 종목: ${(theme.tags || []).join(', ')}`,
+            '반드시 아래 JSON만 반환 (다른 텍스트 절대 없이):',
+            '{"bullCase":"강세 시나리오 — 이 테마가 상승할 구체적 조건과 목표 수익률 (100자)","bearCase":"약세 시나리오 — 꺾이는 조건과 주의 신호 (100자)","strategy":"지금 이 테마에 진입하거나 관망해야 하는 구체적 이유와 접근 전략 (120자)","keyStocks":[{"name":"종목명","point":"핵심 투자 포인트 30자","risk":"종목별 리스크 20자"}],"catalysts":["가장 강력한 촉매제 1","촉매제 2","촉매제 3"],"nextCatalyst":"앞으로 가장 먼저 확인해야 할 이벤트나 지표"}',
+          ].join('\n') }]
         })
       })
       const data = await res.json()
-      const rawT = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')
+      const rawT = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
       const cleanT = rawT.replace(/<cite[^>]*>|<\/cite>/g, '').replace(/\s+/g, ' ')
       const match = cleanT.match(/\{[\s\S]*\}/)
       const parsed = match ? JSON.parse(match[0]) : null
-      if (parsed) {
-        // Firestore에 캐시 저장
-        await setDoc(cacheRef, { data: parsed, cachedAt: new Date().toISOString() })
+      const now = new Date().toISOString()
+      const aiText = parsed ? { ...parsed, cachedAt: now } : null
+      // Firestore 저장 (로그인 시) — 만료 없이 영구 보존
+      if (user && aiText) {
+        const cacheRef = doc(db, 'users', user.uid, 'theme_cache', theme.id)
+        await setDoc(cacheRef, { data: parsed, cachedAt: now }).catch(() => {})
       }
-      setThemePopup(prev => ({ ...prev, aiText: parsed, loading: false }))
-    } catch(e) {
-      setThemePopup(prev => ({ ...prev, aiText: { summary: '분석 오류. 다시 시도해주세요.' }, loading: false }))
+      setThemeBigPopup(prev => prev ? { ...prev, aiText, aiLoading: false } : null)
+    } catch {
+      setThemeBigPopup(prev => prev ? { ...prev, aiLoading: false, aiError: '분석 오류. 재분석 버튼을 눌러주세요.' } : null)
     }
   }
-
   const moodColor = { bullish:'#16a34a', cautious:'#d97706', bearish:'#dc2626', neutral:'#64748b' }
   const moodLabel = { bullish:'강세 🟢', cautious:'주의 🟡', bearish:'약세 🔴', neutral:'중립 ⚪' }
 
@@ -778,7 +758,8 @@ export default function DashboardPage() {
           const handleClick = () => {
             if (!canChart || !d?.price) return
             if (item.type === 'domestic') {
-              setChartItem({ type:'domestic', sym: item.id==='KOSPI'?'001':'101', label:item.label, price:d.price, changeRate:d.changeRate })
+              // KS11/KQ11 → Yahoo Finance 호환 심볼로 GlobalChartModal 호출
+              setChartItem({ type:'global', sym: item.id==='KOSPI'?'KS11':'KQ11', label:item.label, price:d.price, changeRate:d.changeRate })
             } else {
               setChartItem({ type:'global', sym:item.sym, label:item.label, price:d.price, changeRate:d.changeRate })
             }
@@ -827,7 +808,7 @@ export default function DashboardPage() {
               key={theme.id}
               className="db-theme-strip-tag"
               style={{'--tc': theme.color}}
-              onClick={() => openThemeStockPopup(theme)}
+              onClick={() => openThemeBigPopup(theme)}
             >
               <span>{theme.icon}</span>
               <span>{theme.label}</span>
@@ -1249,161 +1230,207 @@ export default function DashboardPage() {
 
 
 
-      {/* 핫테마 AI 상세 팝업 */}
-      {themeStockPopup && (
-        <div className="db-sector-popup-overlay" onClick={() => setThemeStockPopup(null)}>
-          <div className="db-theme-report-popup" onClick={e => e.stopPropagation()}
-            style={{'--tr-color': themeStockPopup.theme.color}}>
+      {/* ── 테마 통합 팝업 (좌: 정적 정보+종목 / 우: AI 분석) ── */}
+      {themeBigPopup && (
+        <div className="db-sector-popup-overlay" onClick={() => setThemeBigPopup(null)}>
+          <div className="db-tbp-modal" onClick={e => e.stopPropagation()}
+            style={{'--tbp-color': themeBigPopup.theme.color}}>
 
             {/* 헤더 */}
-            <div className="db-tr-header">
-              <span className="db-tr-icon">{themeStockPopup.theme.icon}</span>
-              <div className="db-tr-title-block">
-                <div className="db-tr-title">{themeStockPopup.theme.label}</div>
-                <div className="db-tr-desc">{themeStockPopup.theme.desc}</div>
-              </div>
-              <button className="db-sector-popup-close" onClick={() => setThemeStockPopup(null)}>✕</button>
-            </div>
-
-            <div className="db-tr-body">
-              {/* 왜 지금인가 */}
-              {themeStockPopup.theme.catalyst?.length > 0 && (
-                <div className="db-tr-section">
-                  <div className="db-tr-section-title">📌 왜 지금인가</div>
-                  {themeStockPopup.theme.catalyst.map((c, i) => (
-                    <div key={i} className="db-tr-bullet">· {c}</div>
-                  ))}
-                </div>
-              )}
-
-              {/* 투자 논리 */}
-              {themeStockPopup.theme.thesis && (
-                <div className="db-tr-section">
-                  <div className="db-tr-section-title">💡 투자 논리</div>
-                  <div className="db-tr-thesis">{themeStockPopup.theme.thesis}</div>
-                </div>
-              )}
-
-              {/* 대표 종목 */}
-              <div className="db-tr-section">
-                <div className="db-tr-section-title">📈 대표 종목</div>
-                {themeStockPopup.loading ? (
-                  <div style={{padding:'8px 0',color:'var(--text-dim)',fontSize:12}}>
-                    <span className="db-spinner-sm"/> 주가 로딩 중...
-                  </div>
-                ) : themeStockPopup.stocks.length === 0 ? (
-                  <div style={{fontSize:12,color:'var(--text-dim)'}}>종목 데이터 없음</div>
-                ) : (
-                  themeStockPopup.stocks.map((s, i) => {
-                    const up = s.flu_rt >= 0
-                    const rc = s.cur_prc > 0 ? (up ? 'var(--color-up)' : 'var(--color-down)') : 'var(--text-dim)'
-                    return (
-                      <div key={i} className="db-tr-stock-row">
-                        <span className="db-tr-stock-rank">{i+1}</span>
-                        <div className="db-tr-stock-name">{s.stk_nm}</div>
-                        <div className="db-tr-stock-price" style={{color: rc}}>
-                          {s.cur_prc > 0 ? Math.round(s.cur_prc).toLocaleString() : '—'}
-                        </div>
-                        <div className="db-tr-stock-rate" style={{color: rc}}>
-                          {s.cur_prc > 0 ? `${up?'+':''}${s.flu_rt.toFixed(2)}%` : '장외'}
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-
-              {/* 핵심 리스크 */}
-              {themeStockPopup.theme.risk && (
-                <div className="db-tr-section db-tr-risk-section">
-                  <div className="db-tr-section-title">⚠️ 핵심 리스크</div>
-                  <div className="db-tr-risk">{themeStockPopup.theme.risk}</div>
-                </div>
-              )}
-            </div>
-
-            {/* AI 심층 분석 버튼 */}
-            <div className="db-tr-footer">
-              <button className="db-tr-ai-btn"
-                onClick={() => { setThemeStockPopup(null); openThemePopup(themeStockPopup.theme) }}>
-                🤖 AI 심층 분석 보기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {themePopup && (
-        <div className="db-theme-popup-overlay" onClick={()=>setThemePopup(null)}>
-          <div className="db-theme-popup" onClick={e=>e.stopPropagation()}
-            style={{'--theme-color': themePopup.theme.color}}>
-            <div className="db-theme-popup-header">
-              <span className="db-theme-popup-icon">{themePopup.theme.icon}</span>
-              <div>
-                <div className="db-theme-popup-title">{themePopup.theme.label}</div>
-                <div className="db-theme-popup-sub">
-                  2026 핫 테마 AI 분석
-                  {themePopup.aiText?.cachedAt && (
-                    <span style={{marginLeft:6,fontSize:9,color:'var(--text-dim)'}}>
-                      캐시 {new Date(themePopup.aiText.cachedAt).toLocaleDateString('ko-KR')}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <button className="db-theme-popup-close" onClick={()=>setThemePopup(null)}>✕</button>
-            </div>
-            {themePopup.loading && (
-              <div className="db-theme-popup-loading">
-                <div style={{textAlign:'center', padding:'32px 20px'}}>
-                  <div style={{fontSize:32, marginBottom:12}}>🔍</div>
-                  <div style={{fontSize:14, fontWeight:600, color:'var(--text-primary)', marginBottom:6}}>
-                    AI 분석 중...
-                  </div>
-                  <div style={{fontSize:12, color:'var(--text-dim)'}}>
-                    웹 검색으로 최신 정보를 수집하고 있습니다
+            <div className="db-tbp-header">
+              <div className="db-tbp-header-left">
+                <span className="db-tbp-icon">{themeBigPopup.theme.icon}</span>
+                <div>
+                  <div className="db-tbp-title">{themeBigPopup.theme.label}</div>
+                  <div className="db-tbp-sub">
+                    2026 핫 테마
+                    {themeBigPopup.aiText?.cachedAt && (
+                      <span className="db-tbp-cache-date">
+                        · AI분석 {new Date(themeBigPopup.aiText.cachedAt).toLocaleDateString('ko-KR')}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
-            )}
-            {themePopup.aiText && !themePopup.loading && (
-              <div className="db-theme-popup-body">
-                {themePopup.aiText.summary && (
-                  <div className="db-theme-popup-section">
-                    <div className="db-theme-popup-label">📋 테마 배경</div>
-                    <div className="db-theme-popup-text">{themePopup.aiText.summary}</div>
-                  </div>
-                )}
-                {themePopup.aiText.catalyst && (
-                  <div className="db-theme-popup-section">
-                    <div className="db-theme-popup-label">⚡ 핵심 촉매제</div>
-                    <div className="db-theme-popup-text">{themePopup.aiText.catalyst}</div>
-                  </div>
-                )}
-                {themePopup.aiText.stocks?.length > 0 && (
-                  <div className="db-theme-popup-section">
-                    <div className="db-theme-popup-label">📈 관련 종목</div>
-                    {themePopup.aiText.stocks.map((s,i) => (
-                      <div key={i} className="db-theme-popup-stock">
-                        <span className="db-theme-popup-stock-name">{s.name}</span>
-                        <span className="db-theme-popup-stock-reason">{s.reason}</span>
-                      </div>
+              <div className="db-tbp-header-actions">
+                <button className="db-tbp-refresh-btn"
+                  onClick={() => generateThemeAi(themeBigPopup.theme)}
+                  disabled={themeBigPopup.aiLoading}>
+                  {themeBigPopup.aiLoading ? <span className="db-spinner-sm"/> : '🔄 재분석'}
+                </button>
+                <button className="db-tbp-close-btn" onClick={() => setThemeBigPopup(null)}>✕</button>
+              </div>
+            </div>
+
+            {/* 바디: 좌우 분할 */}
+            <div className="db-tbp-body">
+
+              {/* 좌측 패널 — 정적 정보 + 대표 종목 */}
+              <div className="db-tbp-left">
+
+                {/* 왜 지금인가 */}
+                {themeBigPopup.theme.catalyst?.length > 0 && (
+                  <div className="db-tbp-section">
+                    <div className="db-tbp-section-title">📌 왜 지금인가</div>
+                    {themeBigPopup.theme.catalyst.map((c, i) => (
+                      <div key={i} className="db-tbp-bullet">· {c}</div>
                     ))}
                   </div>
                 )}
-                {themePopup.aiText.timing && (
-                  <div className="db-theme-popup-section">
-                    <div className="db-theme-popup-label">⏰ 진입 타이밍</div>
-                    <div className="db-theme-popup-text">{themePopup.aiText.timing}</div>
+
+                {/* 투자 논리 */}
+                {themeBigPopup.theme.thesis && (
+                  <div className="db-tbp-section">
+                    <div className="db-tbp-section-title">💡 투자 논리</div>
+                    <div className="db-tbp-thesis">{themeBigPopup.theme.thesis}</div>
                   </div>
                 )}
-                {themePopup.aiText.risk && (
-                  <div className="db-theme-popup-section risk">
-                    <div className="db-theme-popup-label">⚠️ 핵심 리스크</div>
-                    <div className="db-theme-popup-text">{themePopup.aiText.risk}</div>
+
+                {/* 대표 종목 — 실시간 주가 */}
+                <div className="db-tbp-section">
+                  <div className="db-tbp-section-title">📈 대표 종목</div>
+                  {themeBigPopup.stocksLoading ? (
+                    <div className="db-tbp-loading-row">
+                      <span className="db-spinner-sm"/> 주가 조회 중...
+                    </div>
+                  ) : themeBigPopup.stocks.length === 0 ? (
+                    <div className="db-tbp-empty">종목 데이터 없음</div>
+                  ) : (
+                    themeBigPopup.stocks.map((s, i) => {
+                      const up = s.flu_rt >= 0
+                      const rc = s.cur_prc > 0 ? (up ? 'var(--color-up)' : 'var(--color-down)') : 'var(--text-dim)'
+                      return (
+                        <div key={i} className="db-tbp-stock-row">
+                          <span className="db-tbp-stock-rank">{i + 1}</span>
+                          <span className="db-tbp-stock-name">{s.stk_nm}</span>
+                          <span className="db-tbp-stock-price" style={{color: rc}}>
+                            {s.cur_prc > 0 ? Math.round(s.cur_prc).toLocaleString() : '—'}
+                          </span>
+                          <span className="db-tbp-stock-rate" style={{color: rc}}>
+                            {s.cur_prc > 0 ? `${up?'+':''}${s.flu_rt.toFixed(2)}%` : '장외'}
+                          </span>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+
+                {/* 핵심 리스크 */}
+                {themeBigPopup.theme.risk && (
+                  <div className="db-tbp-section db-tbp-risk-section">
+                    <div className="db-tbp-section-title">⚠️ 핵심 리스크</div>
+                    <div className="db-tbp-risk-text">{themeBigPopup.theme.risk}</div>
                   </div>
                 )}
               </div>
-            )}
+
+              {/* 우측 패널 — AI 분석 */}
+              <div className="db-tbp-right">
+                <div className="db-tbp-ai-header">
+                  🤖 AI 심층 분석
+                  {themeBigPopup.aiLoading && (
+                    <span className="db-tbp-ai-loading-label">분석 중...</span>
+                  )}
+                </div>
+
+                {/* 로딩 */}
+                {themeBigPopup.aiLoading && (
+                  <div className="db-tbp-ai-loading">
+                    <div style={{fontSize:28, marginBottom:8}}>🔍</div>
+                    <div style={{fontSize:13, fontWeight:600, marginBottom:4}}>AI 분석 중...</div>
+                    <div style={{fontSize:11, color:'var(--text-dim)'}}>웹 검색으로 최신 정보 수집 중</div>
+                  </div>
+                )}
+
+                {/* 에러 */}
+                {themeBigPopup.aiError && !themeBigPopup.aiLoading && (
+                  <div className="db-tbp-ai-error">
+                    <div>⚠️ {themeBigPopup.aiError}</div>
+                    <button className="db-tbp-refresh-btn" style={{marginTop:8}}
+                      onClick={() => generateThemeAi(themeBigPopup.theme)}>
+                      🔄 다시 시도
+                    </button>
+                  </div>
+                )}
+
+                {/* AI 분석 결과 */}
+                {themeBigPopup.aiText && !themeBigPopup.aiLoading && (
+                  <div className="db-tbp-ai-content">
+
+                    {/* 강세 시나리오 */}
+                    {themeBigPopup.aiText.bullCase && (
+                      <div className="db-tbp-ai-section db-tbp-ai-bull">
+                        <div className="db-tbp-ai-label">📈 강세 시나리오</div>
+                        <div className="db-tbp-ai-text">{themeBigPopup.aiText.bullCase}</div>
+                      </div>
+                    )}
+
+                    {/* 약세 시나리오 */}
+                    {themeBigPopup.aiText.bearCase && (
+                      <div className="db-tbp-ai-section db-tbp-ai-bear">
+                        <div className="db-tbp-ai-label">📉 약세 시나리오</div>
+                        <div className="db-tbp-ai-text">{themeBigPopup.aiText.bearCase}</div>
+                      </div>
+                    )}
+
+                    {/* 핵심 촉매제 */}
+                    {themeBigPopup.aiText.catalysts?.length > 0 && (
+                      <div className="db-tbp-ai-section">
+                        <div className="db-tbp-ai-label">⚡ AI 선별 촉매제</div>
+                        {themeBigPopup.aiText.catalysts.map((c, i) => (
+                          <div key={i} className="db-tbp-ai-bullet">· {c}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 종목별 AI 분석 */}
+                    {themeBigPopup.aiText.keyStocks?.length > 0 && (
+                      <div className="db-tbp-ai-section">
+                        <div className="db-tbp-ai-label">🎯 종목별 분석</div>
+                        {themeBigPopup.aiText.keyStocks.map((s, i) => (
+                          <div key={i} className="db-tbp-ai-stock">
+                            <span className="db-tbp-ai-stock-name">{s.name}</span>
+                            <div className="db-tbp-ai-stock-point">{s.point}</div>
+                            {s.risk && <div className="db-tbp-ai-stock-risk">⚠️ {s.risk}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 투자 전략 */}
+                    {themeBigPopup.aiText.strategy && (
+                      <div className="db-tbp-ai-section db-tbp-ai-strategy">
+                        <div className="db-tbp-ai-label">💡 투자 전략</div>
+                        <div className="db-tbp-ai-text">{themeBigPopup.aiText.strategy}</div>
+                      </div>
+                    )}
+
+                    {/* 다음 확인 이벤트 */}
+                    {themeBigPopup.aiText.nextCatalyst && (
+                      <div className="db-tbp-ai-section db-tbp-ai-next">
+                        <div className="db-tbp-ai-label">📅 다음 확인 포인트</div>
+                        <div className="db-tbp-ai-text">{themeBigPopup.aiText.nextCatalyst}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 분석 없고 로딩도 아닌 경우 (캐시도 없을 때) */}
+                {!themeBigPopup.aiText && !themeBigPopup.aiLoading && !themeBigPopup.aiError && (
+                  <div className="db-tbp-ai-empty">
+                    <div style={{fontSize:28, marginBottom:8}}>🤖</div>
+                    <div style={{fontSize:13, fontWeight:600}}>AI 분석 준비됨</div>
+                    <div style={{fontSize:11, color:'var(--text-dim)', margin:'6px 0 12px'}}>
+                      재분석 버튼을 눌러 분석을 시작하세요
+                    </div>
+                    <button className="db-tbp-refresh-btn"
+                      onClick={() => generateThemeAi(themeBigPopup.theme)}>
+                      ✨ 분석 시작
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
