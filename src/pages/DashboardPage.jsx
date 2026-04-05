@@ -533,26 +533,18 @@ export default function DashboardPage() {
   const loadCache = () => { try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}') } catch { return {} } }
   const saveCache = (data) => { try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {} }
 
-  // ── 환율 직접 로드 fallback (forexData가 없을 때) ────
+  // ── 환율 캐시 (forexData 유효값 감지 시 저장) ────
   const [forexCache, setForexCache] = useState(() => {
     try { return JSON.parse(localStorage.getItem('ks_forex_cache') || 'null') } catch { return null }
   })
 
   useEffect(() => {
-    // forexData가 이미 있으면 스킵
-    if (forexData?.['USD/KRW']?.price > 0) return
-    // KIS API 직접 호출
-    fetch('/api/kis?type=forex&pair=USD/KRW')
-      .then(r => r.json())
-      .then(d => {
-        const price = d?.price || d?.close || 0
-        const changeRate = d?.changeRate || d?.rate || 0
-        if (price > 0) {
-          const val = { price, changeRate }
-          setForexCache(val)
-          try { localStorage.setItem('ks_forex_cache', JSON.stringify(val)) } catch {}
-        }
-      }).catch(() => {})
+    const usd = forexData?.['USD/KRW']
+    if (usd?.price > 0) {
+      const val = { price: usd.price, changeRate: usd.changeRate }
+      setForexCache(val)
+      try { localStorage.setItem('ks_forex_cache', JSON.stringify(val)) } catch {}
+    }
   }, [forexData])
 
   // ── 국내 지수 직접 로드 (장외에도 직전장 데이터 표시) ───
