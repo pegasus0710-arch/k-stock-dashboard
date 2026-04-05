@@ -1778,3 +1778,19 @@
   .db-strip-price { font-size: 12px; }
   .db-main { padding: 10px; }
 }
+
+/* ── 데이터 패널 접이식 ──────────────────────────── */
+.db-data-wrap {
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.db-data-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; background: none; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
+  transition: background .1s;
+}
+.db-data-toggle:hover { background: var(--bg-hover); }
+.db-data-toggle-arr { font-size: 11px; color: var(--text-dim); }
+.db-data-panel { padding: 0 16px 16px; }

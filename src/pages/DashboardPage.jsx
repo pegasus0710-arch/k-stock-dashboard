@@ -245,6 +245,7 @@ export default function DashboardPage() {
   const [aiLoading,  setAiLoading]  = useState(false)
   const [aiError,    setAiError]    = useState(null)
   const [expandCard, setExpandCard] = useState(null)   // 확장된 지수 카드 ID
+  const [showDataPanel, setShowDataPanel] = useState(false)  // 상세 데이터 패널 접이식
   const timeCtx = getTimeContext()
 
   // Firestore 캐시 로드 (6시간 이내)
@@ -692,7 +693,558 @@ export default function DashboardPage() {
         </main>
       </div>
 
-      {/* ── 히트맵 섹션 (기존 유지) ── */}
+
+      {/* ── 데이터 패널 (접이식) ── */}
+      <div className="db-data-wrap">
+        <button className="db-data-toggle" onClick={()=>setShowDataPanel(v=>!v)}>
+          <span>📋 상세 지수 데이터</span>
+          <span className="db-data-toggle-arr">{showDataPanel ? '▲' : '▼'}</span>
+        </button>
+        {showDataPanel && (
+          {/* 영역 2: 중단 지수 카드 그리드 */}
+      <div className="db-data-panel">
+        {SECTOR_GROUPS.map((group, gi)=>{
+          const tipPos = gi % 3 === 0 ? 'right' : 'left'
+
+          // ── 해외지수 그룹: 2×2 메인 카드(52주 게이지) + 미니 아이콘 행 ──
+          if (group.id === 'global') {
+            const makeSparkSvg = (id, color) => {
+              const raw = sparkData?.[id]
+              if (!raw || raw.length < 2) return null
+              const closes = raw.filter(v => typeof v === 'number' && isFinite(v))
+              if (closes.length < 2) return null
+              const W=120, H=28, pad=2
+              const mn=Math.min(...closes), mx=Math.max(...closes), rng=mx-mn||1
+              const px=i => pad + (i/(closes.length-1))*(W-pad*2)
+              const py=v  => H-pad-(v-mn)/rng*(H-pad*2)
+              const validPts = closes
+                .map((v,i) => { const x=px(i), y=py(v); return isFinite(x)&&isFinite(y)?`${x.toFixed(1)},${y.toFixed(1)}`:null })
+                .filter(Boolean)
+              if (validPts.length < 2) return null
+              const pts  = validPts.join(' ')
+              const apts = `${pad},${H-pad} ${pts} ${W-pad},${H-pad}`
+              const lastX = px(closes.length-1), lastY = py(closes[closes.length-1])
+              if (!isFinite(lastX) || !isFinite(lastY)) return null
+              return (
+                <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',margin:'4px 0 2px'}}>
+                  <defs>
+                    <linearGradient id={`gsg-${id}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={color} stopOpacity="0.15"/>
+                      <stop offset="100%" stopColor={color} stopOpacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <polygon points={apts} fill={`url(#gsg-${id})`}/>
+                  <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
+                  <circle cx={lastX.toFixed(1)} cy={lastY.toFixed(1)} r="2.5" fill={color} stroke="white" strokeWidth="1.5"/>
+                </svg>
+              )
+            }
+            return (
+              <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
+                <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
+                {/* 메인 2×2 카드 */}
+                <div className="db-global-grid">
+                  {group.items.map(item=>{
+                    const d         = getItemData(item, dashData, globalData, forexData)
+                    const rate      = d?.changeRate
+                    const up        = (rate??0) > 0
+                    const badge     = getMarketBadge(item, d)
+                    const isClosed  = badge?.cls === 'closed'
+                    const dateLabel = getItemDateLabel(item, d)
+                    const active    = selId === item.id
+                    const spark     = makeSparkSvg(item.id, up ? '#DC2626' : '#1D4ED8')
+                    // 52주 고저 게이지
+                    const wk = weekData?.[item.id]
+                    const week52 = wk && d?.price && wk.high52 > wk.low52 ? (() => {
+                      const pct = Math.min(100, Math.max(0, (d.price - wk.low52) / (wk.high52 - wk.low52) * 100))
+                      return (
+                        <div className="db-52w-wrap">
+                          <div className="db-52w-track">
+                            <div className="db-52w-fill" style={{width:`${pct}%`}}/>
+                            <div className="db-52w-thumb" style={{left:`${pct}%`}}/>
+                          </div>
+                          <div className="db-52w-labels">
+                            <span>저 {Math.round(wk.low52).toLocaleString()}</span>
+                            <span style={{color:'var(--accent-mid)'}}>▲ 52주 {Math.round(pct)}%</span>
+                            <span>고 {Math.round(wk.high52).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      )
+                    })() : null
+                    return (
+                      <button key={item.id}
+                        className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''}`}
+                        onClick={()=>setSelId(item.id)}>
+                        <div className="db-idx-top-row">
+                          <span className="db-idx-name">{item.label}</span>
+                          <span style={{display:'flex',alignItems:'center',gap:3}}>
+                            <TooltipIcon id={item.id} tipPosition="left"/>
+                            {badge&&<span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
+                              {badge.cls==='live'&&<span className="db-idx-live-dot"/>}{badge.label}
+                            </span>}
+                          </span>
+                        </div>
+                        {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
+                         d?.price!=null ? (
+                          <>
+                            <div className="db-idx-price">{Math.round(d.price).toLocaleString()}</div>
+                            {rate!=null&&<div className={`db-idx-rate-badge ${up?'up':'down'}`}>
+                              {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
+                            </div>}
+                            {spark}
+                            {week52}
+                            {dateLabel&&<div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
+                          </>
+                        ) : <div className="db-idx-na">—</div>}
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* 미니 아이콘 행 — 상해/대만/DAX */}
+                {group.miniItems && (
+                  <div className="db-global-mini-row">
+                    {group.miniItems.map(mini=>{
+                      const d    = globalData?.[mini.sym]
+                      const rate = d?.changeRate
+                      const up   = (rate??0) > 0
+                      return (
+                        <div key={mini.id} className="db-global-mini-item">
+                          <span className="db-global-mini-label" style={{color: mini.color}}>{mini.label}</span>
+                          {d?.price!=null ? (
+                            <>
+                              <span className="db-global-mini-price">{Math.round(d.price).toLocaleString()}</span>
+                              {rate!=null&&<span className="db-global-mini-rate" style={{color: up?'var(--color-up)':'var(--color-down)'}}>
+                                {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
+                              </span>}
+                            </>
+                          ) : <span className="db-global-mini-na">—</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          }
+          // ── 환율 그룹: USD 와이드 + 나머지 3개 소형 ──
+          if (group.id === 'forex') {
+            const usdItem = group.items.find(it=>it.id==='FX_USD')
+            const otherItems = group.items.filter(it=>it.id!=='FX_USD')
+            const usdData = usdItem ? getItemData(usdItem, dashData, globalData, forexData) : null
+            return (
+              <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
+                <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
+                {/* USD/KRW — 와이드 카드 */}
+                {usdItem && (
+                  <button
+                    className={`db-idx-card db-forex-wide ${selId===usdItem.id?'active':''} ${usdData?.price>=1500?'db-idx-card--warn-orange':''}`}
+                    onClick={()=>setSelId(usdItem.id)}>
+                    <div className="db-idx-top-row">
+                      <span className="db-idx-name">{usdItem.label}</span>
+                      <span style={{display:'flex',alignItems:'center',gap:3}}>
+                        <TooltipIcon id={usdItem.id} tipPosition="left"/>
+                      </span>
+                    </div>
+                    {usdData?.price!=null ? (
+                      <>
+                        <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:2}}>
+                          <div className="db-idx-price">{Math.round(usdData.price).toLocaleString()}</div>
+                          {usdData.changeRate!=null && (
+                            <div className={`db-idx-rate-badge ${usdData.changeRate>=0?'up':'down'}`}>
+                              {usdData.changeRate>=0?'▲':'▼'} {Math.abs(usdData.changeRate).toFixed(2)}%
+                            </div>
+                          )}
+                        </div>
+                        <GaugeBar id={usdItem.id} price={usdData.price}/>
+                        {getItemDateLabel(usdItem, usdData) && (
+                          <div style={{textAlign:'right',marginTop:4}}>
+                            <span className="db-date-badge">{getItemDateLabel(usdItem, usdData)}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : <div className="db-idx-na">—</div>}
+                  </button>
+                )}
+                {/* JPY/CNY/EUR — 소형 카드 3개 */}
+                <div className="db-forex-small-grid">
+                  {otherItems.map(item=>{
+                    const d    = getItemData(item, dashData, globalData, forexData)
+                    const rate = d?.changeRate
+                    const up   = (rate ?? 0) > 0
+                    const dateLabel = getItemDateLabel(item, d)
+                    return (
+                      <button key={item.id}
+                        className={`db-idx-card db-forex-small ${selId===item.id?'active':''}`}
+                        style={{display:'flex',flexDirection:'column',alignItems:'center'}}
+                        onClick={()=>setSelId(item.id)}>
+                        <div className="db-idx-top-row">
+                          <span className="db-idx-name" style={{fontSize:10}}>{item.label}</span>
+                          <TooltipIcon id={item.id} tipPosition="left"/>
+                        </div>
+                        {d?.price!=null ? (
+                          <>
+                            <div className="db-idx-price" style={{fontSize:14}}>
+                              {Math.round(d.price).toLocaleString()}
+                            </div>
+                            {rate!=null && (
+                              <div className={`db-idx-rate-badge ${up?'up':'down'}`}>
+                                {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
+                              </div>
+                            )}
+                            {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
+                          </>
+                        ) : <div className="db-idx-na">—</div>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          }
+
+          // ── 원자재 그룹: 도트 히트맵 렌더링 ──
+          if (group.id === 'commodity') return (
+            <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
+              <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
+              <div className="db-commodity-grid">
+                {group.items.map(item=>{
+                  const d    = getItemData(item, dashData, globalData, forexData)
+                  const rate = d?.changeRate
+                  const up   = (rate ?? 0) > 0
+                  const dotColor = getCommodityDotColor(rate)
+                  const dateLabel = getItemDateLabel(item, d)
+                  // 스파크라인
+                  const makeCommoditySpark = () => {
+                    const raw = sparkData?.[item.id]
+                    if (!raw || raw.length < 2) return null
+                    const closes = raw.filter(v => typeof v === 'number' && isFinite(v))
+                    if (closes.length < 2) return null
+                    const W=80, H=20, pad=1
+                    const mn=Math.min(...closes), mx=Math.max(...closes), rng=mx-mn||1
+                    const px=i => pad+(i/(closes.length-1))*(W-pad*2)
+                    const py=v  => H-pad-(v-mn)/rng*(H-pad*2)
+                    const validPts = closes.map((v,i)=>{const x=px(i),y=py(v);return isFinite(x)&&isFinite(y)?`${x.toFixed(1)},${y.toFixed(1)}`:null}).filter(Boolean)
+                    if (validPts.length < 2) return null
+                    const color = up ? '#DC2626' : '#1D4ED8'
+                    return (
+                      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',marginTop:4}}>
+                        <polyline points={validPts.join(' ')} fill="none" stroke={color} strokeWidth="1.2" strokeLinejoin="round" opacity="0.8"/>
+                      </svg>
+                    )
+                  }
+                  return (
+                    <div key={item.id} className="db-commodity-dot-card"
+                      onClick={()=>setSelId(item.id)} style={{cursor:'pointer'}}>
+                      <div className="db-commodity-tip">
+                        <TooltipIcon id={item.id} tipPosition="right"/>
+                      </div>
+                      <div className="db-commodity-circle" style={{background: dotColor}}>
+                        {item.label.slice(0,3).toUpperCase()}
+                      </div>
+                      <span className="db-commodity-name">{item.label}</span>
+                      {globalLoading&&!d
+                        ? <Skeleton w="50%" h={11}/>
+                        : d?.price!=null
+                          ? <>
+                              <span className="db-commodity-price">
+                                {['WTI','BRENT','GOLD','SILVER','COPPER'].includes(item.id)
+                                  ? `$${Math.round(d.price).toLocaleString()}`
+                                  : `${Math.round(d.price).toLocaleString()}${item.unit||''}`
+                                }
+                              </span>
+                              {rate!=null && (
+                                <span className="db-commodity-rate" style={{color: up?'var(--color-up)':'var(--color-down)'}}>
+                                  {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
+                                </span>
+                              )}
+                              {makeCommoditySpark()}
+                              {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
+                            </>
+                          : <span style={{fontSize:10,color:'var(--text-dim)'}}>—</span>
+                      }
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+
+          // ── 심리·달러 그룹: VIX(넓게) + DXY(게이지 포함) ──
+          if (group.id === 'sentiment') return (
+            <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
+              <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
+              <div className="db-sentiment-grid">
+                {group.items.map(item=>{
+                  const d        = getItemData(item, dashData, globalData, forexData)
+                  const rate     = d?.changeRate
+                  const up       = (rate??0) > 0
+                  const badge    = getMarketBadge(item, d)
+                  const isClosed = badge?.cls === 'closed'
+                  const active   = selId === item.id
+                  const dateLabel = getItemDateLabel(item, d)
+                  const warnClass = getWarnClass(item, d)
+                  return (
+                    <button key={item.id}
+                      className={`db-idx-card ${item.id==='VIX'?'db-sentiment-vix':'db-sentiment-dxy'} ${active?'active':''} ${isClosed?'closed':''} ${warnClass}`}
+                      onClick={()=>setSelId(item.id)}>
+                      <div className="db-idx-top-row">
+                        <span className="db-idx-name">{item.label}</span>
+                        <span style={{display:'flex',alignItems:'center',gap:3}}>
+                          <TooltipIcon id={item.id} tipPosition="left"/>
+                          {badge&&<span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
+                            {badge.cls==='live'&&<span className="db-idx-live-dot"/>}{badge.label}
+                          </span>}
+                        </span>
+                      </div>
+                      {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
+                       d?.price!=null ? (
+                        <>
+                          <div className="db-idx-price">
+                            {d.price.toFixed(2)}{item.unit||''}
+                          </div>
+                          {rate!=null&&<div className={`db-idx-rate-badge ${up?'up':'down'}`}>
+                            {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
+                          </div>}
+                          {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
+                          {dateLabel&&<div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
+                        </>
+                      ) : <div className="db-idx-na">—</div>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+
+          // ── 나머지 그룹: 기존 카드 렌더링 ──
+          return (
+          <div key={group.id}
+            className="db-card-group"
+            style={{'--group-accent':group.accent, ...(group.id==='domestic'?{alignSelf:'start'}:{})}}>
+            <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
+            <div className={`db-card-group-items ${group.id==='domestic'?'domestic-items':group.id==='bond'?'bond-items':''}`}>
+              {group.items.map(item=>{
+                if (item.type==='divider') return (
+                  <div key={item.id} className="db-card-group-divider">{item.label}</div>
+                )
+                const d        = getItemData(item, dashData, globalData, forexData)
+                // KOSPI/KOSDAQ: sparkData 마지막 2봉으로 등락률 직접 계산
+                // (globalData.changeRate는 스파크 기간 전체 수익률이 섞일 수 있음)
+                const displayRate = (() => {
+                  if (item.id === 'KOSPI' || item.id === 'KOSDAQ') {
+                    const spark = sparkData?.[item.id]
+                    if (spark && spark.length >= 2) {
+                      const prev = spark[spark.length - 2]
+                      const cur  = spark[spark.length - 1]
+                      if (prev > 0 && cur > 0) return (cur - prev) / prev * 100
+                    }
+                  }
+                  return d?.changeRate ?? null
+                })()
+                const rate     = displayRate
+                const up       = (rate ?? 0) > 0
+                const badge    = getMarketBadge(item, d)
+                const isClosed = badge?.cls === 'closed'
+                const active   = selId === item.id
+                const dateLabel = getItemDateLabel(item, d)
+                const warnClass = getWarnClass(item, d)
+                return (
+                  <button key={item.id}
+                    className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''} ${item.type==='spread'?'spread-card':''} ${warnClass}`}
+                    onClick={()=>(item.type==='global'||item.type==='forex') && setSelId(item.id)}>
+                <div className="db-idx-top-row">
+                      <span className="db-idx-name">{item.label}</span>
+                      <span style={{display:'flex',alignItems:'center',gap:3}}>
+                        <TooltipIcon id={item.id} tipPosition={tipPos}/>
+                        {badge && (
+                          <span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
+                            {badge.cls==='live' && <span className="db-idx-live-dot"/>}
+                            {badge.label}
+                          </span>
+                        )}
+                        {/* 차트 분석 아이콘 — KOSPI/KOSDAQ 전용 */}
+                        {(item.id==='KOSPI'||item.id==='KOSDAQ') && d?.price!=null && (
+                          <span
+                            className="db-idx-chart-icon"
+                            title="차트 분석"
+                            onClick={e=>{
+                              e.stopPropagation()
+                              setChartItem({type:'global', sym:item.sym, label:item.label, price:d.price, changeRate:rate})
+                            }}>
+                            📈
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
+                     d?.price!=null ? (
+                      <>
+                        <div className="db-idx-price" style={d.isSpread?{color:d.inverted?'var(--color-down)':d.price<0.5?'#d97706':'var(--color-up)'}:{}}>
+                          {d.isSpread
+                            ? `${d.price>=0?'+':''}${d.price.toFixed(2)}%`
+                            : item.unit==='%'
+                              ? `${d.price.toFixed(2)}${item.unit}`
+                              : `${Math.round(d.price).toLocaleString()}${item.unit||''}`
+                          }
+                        </div>
+                        {d.isSpread
+                          ? <div className="db-idx-spread-label" style={{color:d.inverted?'var(--color-down)':d.price<0.5?'#d97706':'#16a34a'}}>
+                              {d.inverted?'⚠️ 역전 (경기침체 경보)':d.price<0.5?'⚡ 주의 구간':'✅ 정상'}
+                            </div>
+                          : rate!=null
+                            ? <div className={`db-idx-rate-badge ${up?'up':'down'}`}>
+                                {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
+                              </div>
+                            : null
+                        }
+                        {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
+                        {/* KOSPI/KOSDAQ 전용 — 스파크라인 + 52주 게이지 */}
+                        {(item.id==='KOSPI'||item.id==='KOSDAQ') && (
+                          <div className="db-kospi-extra">
+                            {/* 스파크라인 */}
+                            {sparkData?.[item.id]?.length > 1 && (() => {
+                              const raw = sparkData[item.id]
+                              const closes = raw.filter(v => typeof v === 'number' && isFinite(v))
+                              if (closes.length < 2) return null
+                              const W=160, H=32, pad=2
+                              const mn = Math.min(...closes), mx = Math.max(...closes)
+                              const rng = mx - mn || 1
+                              const px = i => pad + (i/(closes.length-1))*(W-pad*2)
+                              const py = v => H-pad-(v-mn)/rng*(H-pad*2)
+                              const validPts = closes.map((v,i)=>{const x=px(i),y=py(v);return isFinite(x)&&isFinite(y)?`${x.toFixed(1)},${y.toFixed(1)}`:null}).filter(Boolean)
+                              if (validPts.length < 2) return null
+                              const pts = validPts.join(' ')
+                              const color = closes[closes.length-1] >= closes[0] ? '#22c55e' : '#ef4444'
+                              const apts = `${pad},${H-pad} ${pts} ${W-pad},${H-pad}`
+                              const lastX = px(closes.length-1), lastY = py(closes[closes.length-1])
+                              if (!isFinite(lastX)||!isFinite(lastY)) return null
+                              return (
+                                <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',margin:'6px 0 2px'}}>
+                                  <defs>
+                                    <linearGradient id={`sg-${item.id}`} x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={color} stopOpacity="0.15"/>
+                                      <stop offset="100%" stopColor={color} stopOpacity="0"/>
+                                    </linearGradient>
+                                  </defs>
+                                  <polygon points={apts} fill={`url(#sg-${item.id})`}/>
+                                  <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
+                                  <circle cx={lastX.toFixed(1)} cy={lastY.toFixed(1)} r="2.5" fill={color} stroke="white" strokeWidth="1.5"/>
+                                </svg>
+                              )
+                            })()}
+                            {/* 52주 고저 게이지 */}
+                            {weekData?.[item.id] && (() => {
+                              const w = weekData[item.id]
+                              const low = w.low52, high = w.high52
+                              if (!low||!high||high<=low) return null
+                              const pct = Math.min(100, Math.max(0, (d.price-low)/(high-low)*100))
+                              return (
+                                <div className="db-52w-wrap">
+                                  <div className="db-52w-track">
+                                    <div className="db-52w-fill" style={{width:`${pct}%`}}/>
+                                    <div className="db-52w-thumb" style={{left:`${pct}%`}}/>
+                                  </div>
+                                  <div className="db-52w-labels">
+                                    <span>저 {Math.round(low).toLocaleString()}</span>
+                                    <span style={{color:'var(--accent-mid)'}}>▲ 52주 {Math.round(pct)}%</span>
+                                    <span>고 {Math.round(high).toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              )
+                            })()}
+                            {/* 기준일 */}
+                            {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
+                          </div>
+                        )}
+                        {/* 일반 카드 기준일 */}
+                        {item.id!=='KOSPI' && item.id!=='KOSDAQ' && dateLabel &&
+                          <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>
+                        }
+                      </>
+                    ) : <div className="db-idx-na">—</div>}
+                  </button>
+                )
+              })}
+            </div>
+            {/* 국내지수 그룹 하단 — 외인/기관 수급 플로우 바 */}
+            {group.id === 'domestic' && (
+              <div className="db-flow-section">
+                <div className="db-flow-header">
+                  <span className="db-flow-title">수급 (코스피+코스닥 합산)</span>
+                  <div className="tip-wrap" style={{position:'relative',display:'inline-flex'}}>
+                    <TooltipIcon id="FLOW" tipPosition="right"/>
+                  </div>
+                  {flowData && <span className="db-date-badge" style={{marginLeft:'auto'}}>{isOpen ? '장중 기준' : isAfter ? '장마감 기준' : '전일 기준'}</span>}
+                </div>
+                {(()=>{
+                  const f = flowData?.total
+                  // 장중에만 allZero 체크 — 장 마감 후엔 마지막 수급값 그대로 표시
+                  const allZero = f && isOpen && f.foreign===0 && f.institution===0 && f.individual===0
+                  if (!flowData || allZero) return (
+                    <div className="db-flow-empty">
+                      {isOpen ? '수급 데이터 로딩 중...' : isAfter ? '수급 데이터 로딩 중...' : '장 시작 후 표시됩니다'}
+                    </div>
+                  )
+                  return (
+                    <div className="db-flow-rows">
+                      {[
+                        {label:'외국인', val:f?.foreign     ?? 0},
+                        {label:'기관',   val:f?.institution ?? 0},
+                        {label:'개인',   val:f?.individual  ?? 0},
+                      ].map(({label, val})=>{
+                        const abs    = Math.abs(val)
+                        const maxAbs = Math.max(
+                          Math.abs(f?.foreign     ?? 0),
+                          Math.abs(f?.institution ?? 0),
+                          Math.abs(f?.individual  ?? 0),
+                          1
+                        )
+                        const pct   = Math.min(100, (abs / maxAbs) * 100)
+                        const isBuy = val >= 0
+                        return (
+                          <div key={label} className="db-flow-row">
+                            <span className="db-flow-label">{label}</span>
+                            <div className="db-flow-bar-wrap">
+                              {/* 좌측 절반: 매도(빨강) — 오른쪽에서 채워짐 */}
+                              <div className="db-flow-half db-flow-half-left">
+                                {!isBuy && (
+                                  <div className="db-flow-fill"
+                                    style={{width:`${pct}%`, background:'#DC2626'}}/>
+                                )}
+                              </div>
+                              {/* 중앙 0 기준선 */}
+                              <div className="db-flow-center-line"/>
+                              {/* 우측 절반: 매수(파랑) — 왼쪽에서 채워짐 */}
+                              <div className="db-flow-half db-flow-half-right">
+                                {isBuy && (
+                                  <div className="db-flow-fill"
+                                    style={{width:`${pct}%`, background:'#1D4ED8'}}/>
+                                )}
+                              </div>
+                            </div>
+                            <span className="db-flow-val" style={{color:isBuy?'#1D4ED8':'#DC2626'}}>
+                              {isBuy?'+':''}{Math.abs(val)>=10000
+                                ? `${(val/10000).toFixed(1)}조`
+                                : Math.abs(val)>=1000
+                                ? `${Math.round(val/1000).toLocaleString()}천억`
+                                : `${Math.round(val).toLocaleString()}억`}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+          </div>
+          )
+        })}
+      </div>
+        )}
+      </div>
+
+      {/* ── 히트맵 섹션 (기존 유지) ── */
       <div className="db-heatmap-section">
         <div className="db-heatmap-header">
           <span className="db-heatmap-title">📊 업종별 등락 히트맵</span>
