@@ -761,8 +761,7 @@ export default function DashboardPage() {
           <span className="db-data-toggle-arr">{showDataPanel ? '▲' : '▼'}</span>
         </button>
         {showDataPanel && (
-          {/* 영역 2: 중단 지수 카드 그리드 */}
-      <div className="db-data-panel">
+          <div className="db-data-panel">
         {SECTOR_GROUPS.map((group, gi)=>{
           const tipPos = gi % 3 === 0 ? 'right' : 'left'
 
@@ -1301,6 +1300,7 @@ export default function DashboardPage() {
           )
         })}
       </div>
+          </div>
         )}
       </div>
 
