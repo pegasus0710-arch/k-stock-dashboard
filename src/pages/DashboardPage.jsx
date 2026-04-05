@@ -240,6 +240,7 @@ export default function DashboardPage() {
   const { user } = useAuth()
 
   // ── 포트폴리오 미니바 ─────────────────────────────
+  const [themePopup, setThemePopup] = useState(null)    // {theme, aiText, loading}
   const [showPortBar, setShowPortBar] = useState(() => {
     try { return localStorage.getItem('db_portbar') === 'true' } catch { return false }
   })
@@ -336,41 +337,65 @@ export default function DashboardPage() {
       .filter(([,v]) => v != null).sort(([,a],[,b]) => b - a).slice(0,3)
       .map(([k,v]) => { const s = HEATMAP_SECTORS.find(h => h.inds_cd === k); return s ? `${s.name}(${v >= 0 ? '+' : ''}${v?.toFixed(1)}%)` : null })
       .filter(Boolean).join(', ') : '데이터 로딩 중'
+    // 포트폴리오 컨텍스트
+    const portContext = (() => {
+      const list = Object.entries(holdings)
+      if (!list.length) return '보유종목 없음'
+      return list.map(([code, h]) => {
+        const p = dashData?.[code] || null
+        return `${h.name}(${code}) 평균${h.avg?.toLocaleString()}원 ${h.rate >= 0 ? '+' : ''}${h.rate?.toFixed(1)}% 평가손익${Math.round(h.evltPrft || 0).toLocaleString()}원`
+      }).join(' | ')
+    })()
+
+    // 수급 컨텍스트
+    const flowContext = flowData?.total ? (() => {
+      const f = flowData.total
+      const fmt = v => Math.abs(v) >= 10000 ? `${(v/10000).toFixed(1)}조` : `${Math.round(v/1000)}천억`
+      return `외국인${fmt(f.foreign)} 기관${fmt(f.institution)} 개인${fmt(f.individual)}`
+    })() : '수급 데이터 없음'
+
+    // 주요 일정 컨텍스트
+    const schedCtx = scheduleEvents.slice(0,3).map(e => {
+      const diff = Math.ceil((new Date(e.date+'T09:00:00+09:00') - new Date()) / 86400000)
+      return `${e.label}(D-${diff})`
+    }).join(', ')
+
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 1500,
+          max_tokens: 2000,
           tools: [{ type:'web_search_20250305', name:'web_search' }],
           system: [
-            '당신은 20년 경력의 한국 주식시장 전문가입니다. 펀더멘털 분석과 기술적 분석을 모두 활용하며, 매크로 환경과 수급 흐름을 종합해 투자자에게 실질적인 통찰을 제공합니다.',
+            '당신은 20년 경력 한국 주식시장 전문가입니다. 실전 트레이더 관점에서 구체적이고 실용적인 인사이트를 제공합니다.',
+            '뻔한 말은 절대 하지 마세요. "조심하세요", "관망하세요" 같은 무의미한 조언은 금지입니다.',
+            '투자자가 오늘 실제로 취할 수 있는 구체적 액션을 중심으로 분석하세요.',
             '',
-            `현재 시각: ${new Date().toLocaleString('ko-KR')}`,
-            `분석 모드: ${ctx.label}`,
-            `집중 영역: ${ctx.focus}`,
+            `분석 시각: ${new Date().toLocaleString('ko-KR')} / 모드: ${ctx.label}`,
+            `시장 데이터: ${marketSummary}`,
+            `수급: ${flowContext}`,
+            `강약 섹터: ${hotSectors}`,
+            `사용자 보유종목: ${portContext}`,
+            `주요 일정: ${schedCtx}`,
             '',
-            `현재 시장 데이터: ${marketSummary}`,
-            `강세 섹터: ${hotSectors}`,
-            '',
-            '웹 검색으로 최신 뉴스와 이슈를 확인한 후, 반드시 아래 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트 절대 금지.',
+            '웹 검색으로 오늘 실제 뉴스를 확인 후 반드시 아래 JSON만 반환하세요.',
             '{',
-            '  "headline": "오늘의 핵심 한 줄 (30자 이내)",',
-            '  "brief": "시장 현황 요약 (150자)",',
-            '  "points": ["핵심 포인트1", "핵심 포인트2", "핵심 포인트3"],',
-            '  "bullScenario": "강세 시나리오 (단기 1~5일 관점, 100자)",',
-            '  "bearScenario": "약세 시나리오 (단기 1~5일 관점, 100자)",',
-            '  "midTermView": "중기 1~3개월 전망 (100자)",',
-            '  "sectorWatch": [{"name":"섹터명","signal":"매수관심 또는 중립 또는 주의","reason":"이유 50자"}],',
-            '  "riskFactors": ["리스크1", "리스크2"],',
-            '  "strategy": "오늘 투자 전략 핵심 (100자)",',
-            '  "schedule": [{"time":"HH:MM","event":"이벤트명","impact":"high 또는 medium 또는 low"}],',
+            '  "headline": "핵심 한 줄 (30자 이내, 구체적 수치 포함)",',
+            '  "brief": "지금 시장의 실제 상황 요약 — 왜 이렇게 됐는지 원인 중심 (150자)",',
+            '  "keyLevel": {"kospi": "주목해야 할 KOSPI 레벨과 이유", "action": "이 레벨에서 할 것"},',
+            '  "actions": ["오늘 반드시 할 것 1", "오늘 반드시 할 것 2", "오늘 하지 말아야 할 것"],',
+            '  "portImpact": "보유종목에 오늘 영향을 줄 구체적 이슈 (보유종목 없으면 관망 추천 종목 1개)",',
+            '  "bullScenario": "강세 전환 조건 — 무엇이 바뀌어야 하는가 (구체적 수치나 이벤트)",',
+            '  "bearScenario": "추가 하락 조건 — 무엇이 깨지면 위험한가 (구체적 지지선)",',
+            '  "sectorWatch": [{"name":"섹터명","signal":"매수관심 또는 중립 또는 주의","reason":"구체적 이유와 대표종목 언급"}],',
+            '  "riskFactors": ["지금 당장 주시해야 할 리스크 (추상적 표현 금지)", "두번째 리스크"],',            '  "schedule": [{"time":"HH:MM","event":"오늘 발표 예정 지표명","impact":"high 또는 medium","effect":"이 지표가 어떻게 나오면 어떻게 될지"}],',
             '  "mood": "bullish 또는 cautious 또는 bearish 또는 neutral",',
-            '  "disclaimer": "이 분석은 AI 생성 참고용입니다. 투자 결정의 책임은 본인에게 있습니다."',
+            '  "midTermView": "1~3개월 관점에서 지금 이 하락이 기회인지 위기인지 구체적 판단"',
             '}',
           ].join('\n'),
-          messages: [{ role:'user', content:`${ctx.focus} 관점에서 웹 검색 후 분석해주세요.` }]
+          messages: [{ role:'user', content:`${ctx.focus} 관점에서 웹 검색 후 위 사용자의 포트폴리오와 시장 상황을 종합 분석해주세요.` }]
         })
       })
       const data = await res.json()
@@ -426,12 +451,11 @@ export default function DashboardPage() {
     return null
   }
 
-  // 핫 섹터 TOP3 계산
+  // 섹터 전체 리스트 (등락률 순 정렬)
   const hotSectorList = heatmapData
     ? Object.entries(heatmapData)
         .filter(([,v]) => v != null)
         .sort(([,a],[,b]) => b - a)
-        .slice(0,5)
         .map(([k,v]) => ({ sector: HEATMAP_SECTORS.find(h => h.inds_cd === k), rate: v }))
         .filter(r => r.sector)
     : []
@@ -454,12 +478,12 @@ export default function DashboardPage() {
 
   // ── 이벤트 일정 — Firestore + AI 자동 갱신 ────────────
   const DEFAULT_EVENTS = [
-    { label:'한국 GDP', date:'2026-04-24', icon:'🇰🇷' },
-    { label:'삼성전자 실적', date:'2026-04-30', icon:'💹' },
-    { label:'미국 고용지표', date:'2026-05-02', icon:'📊' },
-    { label:'FOMC 금리 결정', date:'2026-05-07', icon:'🏦' },
-    { label:'미국 CPI', date:'2026-05-13', icon:'📈' },
-    { label:'SK하이닉스 실적', date:'2026-04-24', icon:'💹' },
+    { label:'SK하이닉스 실적', date:'2026-04-24', icon:'💹', desc:'HBM 수요 가이던스 주목', effect:'어닝서프라이즈 시 반도체 섹터 강세' },
+    { label:'한국 GDP (1분기)', date:'2026-04-24', icon:'🇰🇷', desc:'수출 둔화 반영 여부', effect:'예상 하회 시 원화 약세 우려' },
+    { label:'삼성전자 실적', date:'2026-04-30', icon:'💹', desc:'반도체·스마트폰 실적 동시 발표', effect:'DS부문 흑자 전환 여부가 핵심' },
+    { label:'미국 고용지표', date:'2026-05-02', icon:'📊', desc:'비농업 고용 예상 18만명', effect:'호조 시 금리 인하 기대 후퇴' },
+    { label:'FOMC 금리 결정', date:'2026-05-07', icon:'🏦', desc:'동결 유력, 점도표 변화 주목', effect:'비둘기파 신호 시 코스피 긍정' },
+    { label:'미국 CPI', date:'2026-05-13', icon:'📈', desc:'근원 CPI 둔화 여부', effect:'3% 하회 시 금리 인하 기대 강화' },
   ]
   const [scheduleEvents, setScheduleEvents] = useState(DEFAULT_EVENTS)
   const [scheduleLoading, setScheduleLoading] = useState(false)
@@ -514,6 +538,36 @@ export default function DashboardPage() {
     finally { setScheduleLoading(false) }
   }
 
+  // 핫테마 AI 상세 분석
+  const openThemePopup = async (theme) => {
+    setThemePopup({ theme, aiText: null, loading: true })
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          tools: [{ type:'web_search_20250305', name:'web_search' }],
+          system: '한국 주식시장 전문가. 웹 검색으로 최신 정보 확인 후 JSON만 반환. 다른 텍스트 금지.',
+          messages: [{ role:'user', content: [
+            `2026년 "${theme.label}" 투자 테마를 분석해주세요.`,
+            `대표 종목: ${theme.tags.join(', ')}`,
+            '반드시 아래 JSON만 반환:',
+            '{"summary":"테마 배경과 2026년 왜 주목받는지 (150자)","catalyst":"핵심 촉매제 2~3가지","stocks":[{"name":"종목명","reason":"투자 포인트 30자"}],"risk":"이 테마의 핵심 리스크 (80자)","timing":"지금 진입 적절한지 타이밍 판단"}'
+          ].join("\n") }]
+        })
+      })
+      const data = await res.json()
+      const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')
+      const match = text.match(/\{[\s\S]*\}/)
+      const parsed = match ? JSON.parse(match[0]) : null
+      setThemePopup(prev => ({ ...prev, aiText: parsed, loading: false }))
+    } catch(e) {
+      setThemePopup(prev => ({ ...prev, aiText: { summary: '분석 오류. 다시 시도해주세요.' }, loading: false }))
+    }
+  }
+
   const moodColor = { bullish:'#16a34a', cautious:'#d97706', bearish:'#dc2626', neutral:'#64748b' }
   const moodLabel = { bullish:'강세 🟢', cautious:'주의 🟡', bearish:'약세 🔴', neutral:'중립 ⚪' }
 
@@ -557,12 +611,22 @@ export default function DashboardPage() {
           const d = getStripData(item)
           const up = (d?.changeRate ?? 0) >= 0
           const rc = up ? 'var(--color-up)' : 'var(--color-down)'
-          const isExpanded = expandCard === item.id
           const spark = sparkData?.[item.id]
+          // 클릭 가능 여부: 차트 지원 항목만
+          const canChart = item.type === 'global' || item.type === 'domestic'
+          const handleClick = () => {
+            if (!canChart || !d?.price) return
+            if (item.type === 'domestic') {
+              setChartItem({ type:'domestic', sym: item.id==='KOSPI'?'001':'101', label:item.label, price:d.price, changeRate:d.changeRate })
+            } else {
+              setChartItem({ type:'global', sym:item.sym, label:item.label, price:d.price, changeRate:d.changeRate })
+            }
+          }
           return (
             <div key={item.id}
-              className={`db-strip-card${isExpanded?' expanded':''}${d?.changeRate > 0 ?' up':d?.changeRate < 0?' down':''}`}
-              onClick={()=>setExpandCard(isExpanded ? null : item.id)}>
+              className={`db-strip-card${d?.changeRate > 0 ?' up':d?.changeRate < 0?' down':''}${canChart&&d?.price?' clickable':''}`}
+              onClick={handleClick}
+              title={canChart && d?.price ? `${item.label} 차트 보기` : ''}>
               <div className="db-strip-top">
                 <span className="db-strip-name">{item.label}</span>
                 {d?.price > 0 && d?.changeRate != null && (
@@ -574,23 +638,9 @@ export default function DashboardPage() {
               <div className="db-strip-price" style={{color: rc}}>
                 {d?.price > 0 ? (item.id==='VIX' ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()) : '—'}
               </div>
-              {isExpanded && spark && (
-                <div className="db-strip-expand">
-                  <MiniSparkline closes={spark} color={up?'#dc2626':'#2563eb'} w={120} h={32}/>
-                  {weekData?.[item.id] && d?.price && (() => {
-                    const {high52, low52} = weekData[item.id]
-                    if (high52 <= low52) return null
-                    const pct = Math.min(100, Math.max(0, (d.price - low52)/(high52 - low52)*100))
-                    return (
-                      <div className="db-strip-gauge">
-                        <div className="db-strip-gauge-track">
-                          <div className="db-strip-gauge-fill" style={{width:`${pct}%`}}/>
-                        </div>
-                        <span className="db-strip-gauge-label">52주 {Math.round(pct)}%</span>
-                      </div>
-                    )
-                  })()}
-                </div>
+              {/* 스파크 미니라인 항상 표시 */}
+              {spark && spark.length > 2 && d?.price > 0 && (
+                <MiniSparkline closes={spark} color={rc} w={80} h={18}/>
               )}
             </div>
           )
@@ -683,20 +733,31 @@ export default function DashboardPage() {
             )
           })()}
 
-          {/* 핫 섹터 */}
-          {hotSectorList.length > 0 && (
-            <div className="db-left-section">
-              <div className="db-left-title">🔥 섹터 동향</div>
-              {hotSectorList.map(({sector, rate}) => (
-                <div key={sector.id} className="db-hot-sector-row" onClick={()=>openSectorPopup(sector)}>
-                  <span className="db-hot-sector-name">{sector.name}</span>
-                  <span className="db-hot-sector-rate" style={{color: rate>=0?'var(--color-up)':'var(--color-down)'}}>
-                    {rate>=0?'+':''}{rate.toFixed(2)}%
-                  </span>
-                </div>
-              ))}
+          {/* 섹터 동향 — 전체 업종 표시 */}
+          <div className="db-left-section db-left-sector-full">
+            <div className="db-left-title">🏭 업종 동향
+              <span className="db-left-badge">{hotSectorList.length > 0 ? `${hotSectorList.length}개` : '로딩중'}</span>
             </div>
-          )}
+            {hotSectorList.length === 0
+              ? <div className="db-sector-empty">직전장 데이터 로딩 중...</div>
+              : hotSectorList.map(({sector, rate}) => {
+                  const intensity = Math.min(100, Math.abs(rate) / 5 * 100)
+                  const bg = rate > 0
+                    ? `rgba(220,38,38,${(intensity * 0.003).toFixed(2)})`
+                    : `rgba(37,99,235,${(intensity * 0.003).toFixed(2)})`
+                  return (
+                    <div key={sector.inds_cd} className="db-sector-row"
+                      style={{background: bg}}
+                      onClick={()=>openSectorPopup(sector)}>
+                      <span className="db-sector-name">{sector.name}</span>
+                      <span className="db-sector-rate" style={{color: rate>=0?'var(--color-up)':'var(--color-down)'}}>
+                        {rate>=0?'+':''}{rate.toFixed(2)}%
+                      </span>
+                    </div>
+                  )
+                })
+            }
+          </div>
 
           {/* 이벤트 카운트다운 — AI 자동 갱신 */}
           {(() => {
@@ -723,7 +784,11 @@ export default function DashboardPage() {
                   : upcoming.map((e, i) => (
                     <div key={i} className="db-event-row">
                       <span className="db-event-icon">{e.icon}</span>
-                      <span className="db-event-label">{e.label}</span>
+                      <div className="db-event-info">
+                        <span className="db-event-label">{e.label}</span>
+                        {e.desc && <span className="db-event-desc">{e.desc}</span>}
+                        {e.effect && <span className="db-event-effect">{e.effect}</span>}
+                      </div>
                       <span className="db-event-dday" style={{
                         color: e.diff === 0 ? '#dc2626' : e.diff <= 3 ? '#d97706' : 'var(--text-dim)'
                       }}>
@@ -736,19 +801,6 @@ export default function DashboardPage() {
             )
           })()}
 
-          {/* 히어로 차트 (접이식) */}
-          <div className="db-left-section db-left-hero">
-            <div className="db-left-title">📈 차트
-              <select className="db-left-sel" value={selId} onChange={e=>setSelId(e.target.value)}>
-                {SECTOR_GROUPS.flatMap(g => g.items.filter(i=>i.type==='global'||i.type==='forex')).map(it=>(
-                  <option key={it.id} value={it.id}>{it.label}</option>
-                ))}
-              </select>
-            </div>
-            <HeroChart selId={selId} onSelChange={setSelId}
-              dashData={dashData} globalData={globalData} forexData={forexData}
-              onWeekRange={handleWeekRange} onSparkData={handleSparkData}/>
-          </div>
 
         </aside>
 
@@ -826,7 +878,39 @@ export default function DashboardPage() {
                     )}
                   </div>
                   <div className="db-ai-brief">{aiContent.brief}</div>
-                  {aiContent.points?.length > 0 && (
+
+                  {/* 핵심 레벨 */}
+                  {aiContent.keyLevel && (
+                    <div className="db-ai-keylevel">
+                      <div className="db-ai-keylevel-title">🎯 핵심 레벨</div>
+                      <div className="db-ai-keylevel-val">{aiContent.keyLevel.kospi}</div>
+                      <div className="db-ai-keylevel-action">→ {aiContent.keyLevel.action}</div>
+                    </div>
+                  )}
+
+                  {/* 오늘의 액션 */}
+                  {aiContent.actions?.length > 0 && (
+                    <div className="db-ai-section">
+                      <div className="db-ai-section-title">✅ 오늘의 액션</div>
+                      {aiContent.actions.map((a,i) => (
+                        <div key={i} className={`db-ai-action-item ${i===aiContent.actions.length-1?'warn':''}`}>
+                          <span className="db-ai-action-icon">{i===aiContent.actions.length-1?'🚫':'▶'}</span>
+                          <span>{a}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 포트폴리오 영향 */}
+                  {aiContent.portImpact && (
+                    <div className="db-ai-portimpact">
+                      <div className="db-ai-section-title">💼 내 포트폴리오 영향</div>
+                      <div className="db-ai-portimpact-body">{aiContent.portImpact}</div>
+                    </div>
+                  )}
+
+                  {/* 구버전 핵심 포인트 호환 */}
+                  {aiContent.points?.length > 0 && !aiContent.actions && (
                     <div className="db-ai-section">
                       <div className="db-ai-section-title">📌 핵심 포인트</div>
                       {aiContent.points.map((p,i) => (
@@ -844,7 +928,10 @@ export default function DashboardPage() {
                         {aiContent.schedule.map((s,i) => (
                           <div key={i} className="db-ai-schedule-row">
                             <span className="db-ai-sch-time">{s.time}</span>
-                            <span className="db-ai-sch-event">{s.event}</span>
+                            <div style={{flex:1}}>
+                              <span className="db-ai-sch-event">{s.event}</span>
+                              {s.effect && <div style={{fontSize:10,color:'var(--text-dim)',marginTop:2}}>{s.effect}</div>}
+                            </div>
                             <span className={`db-ai-sch-impact impact-${s.impact}`}>{s.impact}</span>
                           </div>
                         ))}
@@ -956,576 +1043,30 @@ export default function DashboardPage() {
       </div>
 
 
-      {/* 데이터 패널 (접이식) */}
-      <div className="db-data-wrap">
-        <button className="db-data-toggle" onClick={()=>setShowDataPanel(v=>!v)}>
-          <span>📋 상세 지수 데이터 <span style={{fontSize:10,color:'var(--text-dim)',fontWeight:400}}>· {dataLabel}</span></span>
-          <span className="db-data-toggle-arr">{showDataPanel ? '▲' : '▼'}</span>
-        </button>
-        {showDataPanel && (
-          <div className="db-data-panel">
-        {SECTOR_GROUPS.map((group, gi)=>{
-          const tipPos = gi % 3 === 0 ? 'right' : 'left'
-
-          // ── 해외지수 그룹: 2×2 메인 카드(52주 게이지) + 미니 아이콘 행 ──
-          if (group.id === 'global') {
-            const makeSparkSvg = (id, color) => {
-              const raw = sparkData?.[id]
-              if (!raw || raw.length < 2) return null
-              const closes = raw.filter(v => typeof v === 'number' && isFinite(v))
-              if (closes.length < 2) return null
-              const W=120, H=28, pad=2
-              const mn=Math.min(...closes), mx=Math.max(...closes), rng=mx-mn||1
-              const px=i => pad + (i/(closes.length-1))*(W-pad*2)
-              const py=v  => H-pad-(v-mn)/rng*(H-pad*2)
-              const validPts = closes
-                .map((v,i) => { const x=px(i), y=py(v); return isFinite(x)&&isFinite(y)?`${x.toFixed(1)},${y.toFixed(1)}`:null })
-                .filter(Boolean)
-              if (validPts.length < 2) return null
-              const pts  = validPts.join(' ')
-              const apts = `${pad},${H-pad} ${pts} ${W-pad},${H-pad}`
-              const lastX = px(closes.length-1), lastY = py(closes[closes.length-1])
-              if (!isFinite(lastX) || !isFinite(lastY)) return null
-              return (
-                <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',margin:'4px 0 2px'}}>
-                  <defs>
-                    <linearGradient id={`gsg-${id}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={color} stopOpacity="0.15"/>
-                      <stop offset="100%" stopColor={color} stopOpacity="0"/>
-                    </linearGradient>
-                  </defs>
-                  <polygon points={apts} fill={`url(#gsg-${id})`}/>
-                  <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
-                  <circle cx={lastX.toFixed(1)} cy={lastY.toFixed(1)} r="2.5" fill={color} stroke="white" strokeWidth="1.5"/>
-                </svg>
-              )
-            }
-            return (
-              <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
-                <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-                {/* 메인 2×2 카드 */}
-                <div className="db-global-grid">
-                  {group.items.map(item=>{
-                    const d         = getItemData(item, dashData, globalData, forexData)
-                    const rate      = d?.changeRate
-                    const up        = (rate??0) > 0
-                    const badge     = getMarketBadge(item, d)
-                    const isClosed  = badge?.cls === 'closed'
-                    const dateLabel = getItemDateLabel(item, d)
-                    const active    = selId === item.id
-                    const spark     = makeSparkSvg(item.id, up ? '#DC2626' : '#1D4ED8')
-                    // 52주 고저 게이지
-                    const wk = weekData?.[item.id]
-                    const week52 = wk && d?.price && wk.high52 > wk.low52 ? (() => {
-                      const pct = Math.min(100, Math.max(0, (d.price - wk.low52) / (wk.high52 - wk.low52) * 100))
-                      return (
-                        <div className="db-52w-wrap">
-                          <div className="db-52w-track">
-                            <div className="db-52w-fill" style={{width:`${pct}%`}}/>
-                            <div className="db-52w-thumb" style={{left:`${pct}%`}}/>
-                          </div>
-                          <div className="db-52w-labels">
-                            <span>저 {Math.round(wk.low52).toLocaleString()}</span>
-                            <span style={{color:'var(--accent-mid)'}}>▲ 52주 {Math.round(pct)}%</span>
-                            <span>고 {Math.round(wk.high52).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      )
-                    })() : null
-                    return (
-                      <button key={item.id}
-                        className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''}`}
-                        onClick={()=>setSelId(item.id)}>
-                        <div className="db-idx-top-row">
-                          <span className="db-idx-name">{item.label}</span>
-                          <span style={{display:'flex',alignItems:'center',gap:3}}>
-                            <TooltipIcon id={item.id} tipPosition="left"/>
-                            {badge&&<span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
-                              {badge.cls==='live'&&<span className="db-idx-live-dot"/>}{badge.label}
-                            </span>}
-                          </span>
-                        </div>
-                        {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
-                         d?.price!=null ? (
-                          <>
-                            <div className="db-idx-price">{Math.round(d.price).toLocaleString()}</div>
-                            {rate!=null&&<div className={`db-idx-rate-badge ${up?'up':'down'}`}>
-                              {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
-                            </div>}
-                            {spark}
-                            {week52}
-                            {dateLabel&&<div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
-                          </>
-                        ) : <div className="db-idx-na">—</div>}
-                      </button>
-                    )
-                  })}
-                </div>
-                {/* 미니 아이콘 행 — 상해/대만/DAX */}
-                {group.miniItems && (
-                  <div className="db-global-mini-row">
-                    {group.miniItems.map(mini=>{
-                      const d    = globalData?.[mini.sym]
-                      const rate = d?.changeRate
-                      const up   = (rate??0) > 0
-                      return (
-                        <div key={mini.id} className="db-global-mini-item">
-                          <span className="db-global-mini-label" style={{color: mini.color}}>{mini.label}</span>
-                          {d?.price!=null ? (
-                            <>
-                              <span className="db-global-mini-price">{Math.round(d.price).toLocaleString()}</span>
-                              {rate!=null&&<span className="db-global-mini-rate" style={{color: up?'var(--color-up)':'var(--color-down)'}}>
-                                {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
-                              </span>}
-                            </>
-                          ) : <span className="db-global-mini-na">—</span>}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          }
-          // ── 환율 그룹: USD 와이드 + 나머지 3개 소형 ──
-          if (group.id === 'forex') {
-            const usdItem = group.items.find(it=>it.id==='FX_USD')
-            const otherItems = group.items.filter(it=>it.id!=='FX_USD')
-            const usdData = usdItem ? getItemData(usdItem, dashData, globalData, forexData) : null
-            return (
-              <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
-                <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-                {/* USD/KRW — 와이드 카드 */}
-                {usdItem && (
-                  <button
-                    className={`db-idx-card db-forex-wide ${selId===usdItem.id?'active':''} ${usdData?.price>=1500?'db-idx-card--warn-orange':''}`}
-                    onClick={()=>setSelId(usdItem.id)}>
-                    <div className="db-idx-top-row">
-                      <span className="db-idx-name">{usdItem.label}</span>
-                      <span style={{display:'flex',alignItems:'center',gap:3}}>
-                        <TooltipIcon id={usdItem.id} tipPosition="left"/>
-                      </span>
-                    </div>
-                    {usdData?.price!=null ? (
-                      <>
-                        <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:2}}>
-                          <div className="db-idx-price">{Math.round(usdData.price).toLocaleString()}</div>
-                          {usdData.changeRate!=null && (
-                            <div className={`db-idx-rate-badge ${usdData.changeRate>=0?'up':'down'}`}>
-                              {usdData.changeRate>=0?'▲':'▼'} {Math.abs(usdData.changeRate).toFixed(2)}%
-                            </div>
-                          )}
-                        </div>
-                        <GaugeBar id={usdItem.id} price={usdData.price}/>
-                        {getItemDateLabel(usdItem, usdData) && (
-                          <div style={{textAlign:'right',marginTop:4}}>
-                            <span className="db-date-badge">{getItemDateLabel(usdItem, usdData)}</span>
-                          </div>
-                        )}
-                      </>
-                    ) : <div className="db-idx-na">—</div>}
-                  </button>
-                )}
-                {/* JPY/CNY/EUR — 소형 카드 3개 */}
-                <div className="db-forex-small-grid">
-                  {otherItems.map(item=>{
-                    const d    = getItemData(item, dashData, globalData, forexData)
-                    const rate = d?.changeRate
-                    const up   = (rate ?? 0) > 0
-                    const dateLabel = getItemDateLabel(item, d)
-                    return (
-                      <button key={item.id}
-                        className={`db-idx-card db-forex-small ${selId===item.id?'active':''}`}
-                        style={{display:'flex',flexDirection:'column',alignItems:'center'}}
-                        onClick={()=>setSelId(item.id)}>
-                        <div className="db-idx-top-row">
-                          <span className="db-idx-name" style={{fontSize:10}}>{item.label}</span>
-                          <TooltipIcon id={item.id} tipPosition="left"/>
-                        </div>
-                        {d?.price!=null ? (
-                          <>
-                            <div className="db-idx-price" style={{fontSize:14}}>
-                              {Math.round(d.price).toLocaleString()}
-                            </div>
-                            {rate!=null && (
-                              <div className={`db-idx-rate-badge ${up?'up':'down'}`}>
-                                {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
-                              </div>
-                            )}
-                            {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
-                          </>
-                        ) : <div className="db-idx-na">—</div>}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          }
-
-          // ── 원자재 그룹: 도트 히트맵 렌더링 ──
-          if (group.id === 'commodity') return (
-            <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
-              <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-              <div className="db-commodity-grid">
-                {group.items.map(item=>{
-                  const d    = getItemData(item, dashData, globalData, forexData)
-                  const rate = d?.changeRate
-                  const up   = (rate ?? 0) > 0
-                  const dotColor = getCommodityDotColor(rate)
-                  const dateLabel = getItemDateLabel(item, d)
-                  // 스파크라인
-                  const makeCommoditySpark = () => {
-                    const raw = sparkData?.[item.id]
-                    if (!raw || raw.length < 2) return null
-                    const closes = raw.filter(v => typeof v === 'number' && isFinite(v))
-                    if (closes.length < 2) return null
-                    const W=80, H=20, pad=1
-                    const mn=Math.min(...closes), mx=Math.max(...closes), rng=mx-mn||1
-                    const px=i => pad+(i/(closes.length-1))*(W-pad*2)
-                    const py=v  => H-pad-(v-mn)/rng*(H-pad*2)
-                    const validPts = closes.map((v,i)=>{const x=px(i),y=py(v);return isFinite(x)&&isFinite(y)?`${x.toFixed(1)},${y.toFixed(1)}`:null}).filter(Boolean)
-                    if (validPts.length < 2) return null
-                    const color = up ? '#DC2626' : '#1D4ED8'
-                    return (
-                      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',marginTop:4}}>
-                        <polyline points={validPts.join(' ')} fill="none" stroke={color} strokeWidth="1.2" strokeLinejoin="round" opacity="0.8"/>
-                      </svg>
-                    )
-                  }
-                  return (
-                    <div key={item.id} className="db-commodity-dot-card"
-                      onClick={()=>setSelId(item.id)} style={{cursor:'pointer'}}>
-                      <div className="db-commodity-tip">
-                        <TooltipIcon id={item.id} tipPosition="right"/>
-                      </div>
-                      <div className="db-commodity-circle" style={{background: dotColor}}>
-                        {item.label.slice(0,3).toUpperCase()}
-                      </div>
-                      <span className="db-commodity-name">{item.label}</span>
-                      {globalLoading&&!d
-                        ? <Skeleton w="50%" h={11}/>
-                        : d?.price!=null
-                          ? <>
-                              <span className="db-commodity-price">
-                                {['WTI','BRENT','GOLD','SILVER','COPPER'].includes(item.id)
-                                  ? `$${Math.round(d.price).toLocaleString()}`
-                                  : `${Math.round(d.price).toLocaleString()}${item.unit||''}`
-                                }
-                              </span>
-                              {rate!=null && (
-                                <span className="db-commodity-rate" style={{color: up?'var(--color-up)':'var(--color-down)'}}>
-                                  {up?'▲':'▼'}{Math.abs(rate).toFixed(2)}%
-                                </span>
-                              )}
-                              {makeCommoditySpark()}
-                              {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
-                            </>
-                          : <span style={{fontSize:10,color:'var(--text-dim)'}}>—</span>
-                      }
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-
-          // ── 심리·달러 그룹: VIX(넓게) + DXY(게이지 포함) ──
-          if (group.id === 'sentiment') return (
-            <div key={group.id} className="db-card-group" style={{'--group-accent':group.accent}}>
-              <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-              <div className="db-sentiment-grid">
-                {group.items.map(item=>{
-                  const d        = getItemData(item, dashData, globalData, forexData)
-                  const rate     = d?.changeRate
-                  const up       = (rate??0) > 0
-                  const badge    = getMarketBadge(item, d)
-                  const isClosed = badge?.cls === 'closed'
-                  const active   = selId === item.id
-                  const dateLabel = getItemDateLabel(item, d)
-                  const warnClass = getWarnClass(item, d)
-                  return (
-                    <button key={item.id}
-                      className={`db-idx-card ${item.id==='VIX'?'db-sentiment-vix':'db-sentiment-dxy'} ${active?'active':''} ${isClosed?'closed':''} ${warnClass}`}
-                      onClick={()=>setSelId(item.id)}>
-                      <div className="db-idx-top-row">
-                        <span className="db-idx-name">{item.label}</span>
-                        <span style={{display:'flex',alignItems:'center',gap:3}}>
-                          <TooltipIcon id={item.id} tipPosition="left"/>
-                          {badge&&<span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
-                            {badge.cls==='live'&&<span className="db-idx-live-dot"/>}{badge.label}
-                          </span>}
-                        </span>
-                      </div>
-                      {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
-                       d?.price!=null ? (
-                        <>
-                          <div className="db-idx-price">
-                            {d.price.toFixed(2)}{item.unit||''}
-                          </div>
-                          {rate!=null&&<div className={`db-idx-rate-badge ${up?'up':'down'}`}>
-                            {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
-                          </div>}
-                          {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
-                          {dateLabel&&<div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
-                        </>
-                      ) : <div className="db-idx-na">—</div>}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )
-
-          // ── 나머지 그룹: 기존 카드 렌더링 ──
-          return (
-          <div key={group.id}
-            className="db-card-group"
-            style={{'--group-accent':group.accent, ...(group.id==='domestic'?{alignSelf:'start'}:{})}}>
-            <div className="db-card-group-label" style={{color:group.accent}}>{group.label}</div>
-            <div className={`db-card-group-items ${group.id==='domestic'?'domestic-items':group.id==='bond'?'bond-items':''}`}>
-              {group.items.map(item=>{
-                if (item.type==='divider') return (
-                  <div key={item.id} className="db-card-group-divider">{item.label}</div>
-                )
-                const d        = getItemData(item, dashData, globalData, forexData)
-                // KOSPI/KOSDAQ: sparkData 마지막 2봉으로 등락률 직접 계산
-                // (globalData.changeRate는 스파크 기간 전체 수익률이 섞일 수 있음)
-                const displayRate = (() => {
-                  if (item.id === 'KOSPI' || item.id === 'KOSDAQ') {
-                    const spark = sparkData?.[item.id]
-                    if (spark && spark.length >= 2) {
-                      const prev = spark[spark.length - 2]
-                      const cur  = spark[spark.length - 1]
-                      if (prev > 0 && cur > 0) return (cur - prev) / prev * 100
-                    }
-                  }
-                  return d?.changeRate ?? null
-                })()
-                const rate     = displayRate
-                const up       = (rate ?? 0) > 0
-                const badge    = getMarketBadge(item, d)
-                const isClosed = badge?.cls === 'closed'
-                const active   = selId === item.id
-                const dateLabel = getItemDateLabel(item, d)
-                const warnClass = getWarnClass(item, d)
-                return (
-                  <button key={item.id}
-                    className={`db-idx-card ${active?'active':''} ${isClosed?'closed':''} ${item.type==='spread'?'spread-card':''} ${warnClass}`}
-                    onClick={()=>(item.type==='global'||item.type==='forex') && setSelId(item.id)}>
-                <div className="db-idx-top-row">
-                      <span className="db-idx-name">{item.label}</span>
-                      <span style={{display:'flex',alignItems:'center',gap:3}}>
-                        <TooltipIcon id={item.id} tipPosition={tipPos}/>
-                        {badge && (
-                          <span className={`db-idx-badge db-idx-badge--${badge.cls}`}>
-                            {badge.cls==='live' && <span className="db-idx-live-dot"/>}
-                            {badge.label}
-                          </span>
-                        )}
-                        {/* 차트 분석 아이콘 — KOSPI/KOSDAQ 전용 */}
-                        {(item.id==='KOSPI'||item.id==='KOSDAQ') && d?.price!=null && (
-                          <span
-                            className="db-idx-chart-icon"
-                            title="차트 분석"
-                            onClick={e=>{
-                              e.stopPropagation()
-                              setChartItem({type:'global', sym:item.sym, label:item.label, price:d.price, changeRate:rate})
-                            }}>
-                            📈
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                    {globalLoading&&!d ? <Skeleton w="70%" h={14}/> :
-                     d?.price!=null ? (
-                      <>
-                        <div className="db-idx-price" style={d.isSpread?{color:d.inverted?'var(--color-down)':d.price<0.5?'#d97706':'var(--color-up)'}:{}}>
-                          {d.isSpread
-                            ? `${d.price>=0?'+':''}${d.price.toFixed(2)}%`
-                            : item.unit==='%'
-                              ? `${d.price.toFixed(2)}${item.unit}`
-                              : `${Math.round(d.price).toLocaleString()}${item.unit||''}`
-                          }
-                        </div>
-                        {d.isSpread
-                          ? <div className="db-idx-spread-label" style={{color:d.inverted?'var(--color-down)':d.price<0.5?'#d97706':'#16a34a'}}>
-                              {d.inverted?'⚠️ 역전 (경기침체 경보)':d.price<0.5?'⚡ 주의 구간':'✅ 정상'}
-                            </div>
-                          : rate!=null
-                            ? <div className={`db-idx-rate-badge ${up?'up':'down'}`}>
-                                {up?'▲':'▼'} {Math.abs(rate).toFixed(2)}%
-                              </div>
-                            : null
-                        }
-                        {GAUGE_CONFIG[item.id] && <GaugeBar id={item.id} price={d.price}/>}
-                        {/* KOSPI/KOSDAQ 전용 — 스파크라인 + 52주 게이지 */}
-                        {(item.id==='KOSPI'||item.id==='KOSDAQ') && (
-                          <div className="db-kospi-extra">
-                            {/* 스파크라인 */}
-                            {sparkData?.[item.id]?.length > 1 && (() => {
-                              const raw = sparkData[item.id]
-                              const closes = raw.filter(v => typeof v === 'number' && isFinite(v))
-                              if (closes.length < 2) return null
-                              const W=160, H=32, pad=2
-                              const mn = Math.min(...closes), mx = Math.max(...closes)
-                              const rng = mx - mn || 1
-                              const px = i => pad + (i/(closes.length-1))*(W-pad*2)
-                              const py = v => H-pad-(v-mn)/rng*(H-pad*2)
-                              const validPts = closes.map((v,i)=>{const x=px(i),y=py(v);return isFinite(x)&&isFinite(y)?`${x.toFixed(1)},${y.toFixed(1)}`:null}).filter(Boolean)
-                              if (validPts.length < 2) return null
-                              const pts = validPts.join(' ')
-                              const color = closes[closes.length-1] >= closes[0] ? '#22c55e' : '#ef4444'
-                              const apts = `${pad},${H-pad} ${pts} ${W-pad},${H-pad}`
-                              const lastX = px(closes.length-1), lastY = py(closes[closes.length-1])
-                              if (!isFinite(lastX)||!isFinite(lastY)) return null
-                              return (
-                                <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',margin:'6px 0 2px'}}>
-                                  <defs>
-                                    <linearGradient id={`sg-${item.id}`} x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="0%" stopColor={color} stopOpacity="0.15"/>
-                                      <stop offset="100%" stopColor={color} stopOpacity="0"/>
-                                    </linearGradient>
-                                  </defs>
-                                  <polygon points={apts} fill={`url(#sg-${item.id})`}/>
-                                  <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
-                                  <circle cx={lastX.toFixed(1)} cy={lastY.toFixed(1)} r="2.5" fill={color} stroke="white" strokeWidth="1.5"/>
-                                </svg>
-                              )
-                            })()}
-                            {/* 52주 고저 게이지 */}
-                            {weekData?.[item.id] && (() => {
-                              const w = weekData[item.id]
-                              const low = w.low52, high = w.high52
-                              if (!low||!high||high<=low) return null
-                              const pct = Math.min(100, Math.max(0, (d.price-low)/(high-low)*100))
-                              return (
-                                <div className="db-52w-wrap">
-                                  <div className="db-52w-track">
-                                    <div className="db-52w-fill" style={{width:`${pct}%`}}/>
-                                    <div className="db-52w-thumb" style={{left:`${pct}%`}}/>
-                                  </div>
-                                  <div className="db-52w-labels">
-                                    <span>저 {Math.round(low).toLocaleString()}</span>
-                                    <span style={{color:'var(--accent-mid)'}}>▲ 52주 {Math.round(pct)}%</span>
-                                    <span>고 {Math.round(high).toLocaleString()}</span>
-                                  </div>
-                                </div>
-                              )
-                            })()}
-                            {/* 기준일 */}
-                            {dateLabel && <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>}
-                          </div>
-                        )}
-                        {/* 일반 카드 기준일 */}
-                        {item.id!=='KOSPI' && item.id!=='KOSDAQ' && dateLabel &&
-                          <div style={{textAlign:'right',marginTop:4}}><span className="db-date-badge">{dateLabel}</span></div>
-                        }
-                      </>
-                    ) : <div className="db-idx-na">—</div>}
-                  </button>
-                )
-              })}
-            </div>
-            {/* 국내지수 그룹 하단 — 외인/기관 수급 플로우 바 */}
-            {group.id === 'domestic' && (
-              <div className="db-flow-section">
-                <div className="db-flow-header">
-                  <span className="db-flow-title">수급 (코스피+코스닥 합산)</span>
-                  <div className="tip-wrap" style={{position:'relative',display:'inline-flex'}}>
-                    <TooltipIcon id="FLOW" tipPosition="right"/>
-                  </div>
-                  {flowData && <span className="db-date-badge" style={{marginLeft:'auto'}}>{isOpen ? '장중 기준' : isAfter ? '장마감 기준' : '전일 기준'}</span>}
-                </div>
-                {(()=>{
-                  const f = flowData?.total
-                  // 장중에만 allZero 체크 — 장 마감 후엔 마지막 수급값 그대로 표시
-                  const allZero = f && isOpen && f.foreign===0 && f.institution===0 && f.individual===0
-                  if (!flowData || allZero) return (
-                    <div className="db-flow-empty">
-                      {isOpen ? '수급 데이터 로딩 중...' : isAfter ? '수급 데이터 로딩 중...' : '장 시작 후 표시됩니다'}
-                    </div>
-                  )
-                  return (
-                    <div className="db-flow-rows">
-                      {[
-                        {label:'외국인', val:f?.foreign     ?? 0},
-                        {label:'기관',   val:f?.institution ?? 0},
-                        {label:'개인',   val:f?.individual  ?? 0},
-                      ].map(({label, val})=>{
-                        const abs    = Math.abs(val)
-                        const maxAbs = Math.max(
-                          Math.abs(f?.foreign     ?? 0),
-                          Math.abs(f?.institution ?? 0),
-                          Math.abs(f?.individual  ?? 0),
-                          1
-                        )
-                        const pct   = Math.min(100, (abs / maxAbs) * 100)
-                        const isBuy = val >= 0
-                        return (
-                          <div key={label} className="db-flow-row">
-                            <span className="db-flow-label">{label}</span>
-                            <div className="db-flow-bar-wrap">
-                              {/* 좌측 절반: 매도(빨강) — 오른쪽에서 채워짐 */}
-                              <div className="db-flow-half db-flow-half-left">
-                                {!isBuy && (
-                                  <div className="db-flow-fill"
-                                    style={{width:`${pct}%`, background:'#DC2626'}}/>
-                                )}
-                              </div>
-                              {/* 중앙 0 기준선 */}
-                              <div className="db-flow-center-line"/>
-                              {/* 우측 절반: 매수(파랑) — 왼쪽에서 채워짐 */}
-                              <div className="db-flow-half db-flow-half-right">
-                                {isBuy && (
-                                  <div className="db-flow-fill"
-                                    style={{width:`${pct}%`, background:'#1D4ED8'}}/>
-                                )}
-                              </div>
-                            </div>
-                            <span className="db-flow-val" style={{color:isBuy?'#1D4ED8':'#DC2626'}}>
-                              {isBuy?'+':''}{Math.abs(val)>=10000
-                                ? `${(val/10000).toFixed(1)}조`
-                                : Math.abs(val)>=1000
-                                ? `${Math.round(val/1000).toLocaleString()}천억`
-                                : `${Math.round(val).toLocaleString()}억`}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })()}
-              </div>
-            )}
-          </div>
-          )
-        })}
-      </div>
-        )}
-      </div>
-
       {/* ── 2026 핫 테마 섹션 ── */}
       <div className="db-theme-section">
         <div className="db-theme-header">
           <span className="db-theme-title">🔥 2026 핫 테마</span>
-          <span className="db-theme-sub">AI 에이전트 시대 · 분기별 AI 큐레이션</span>
+          <span className="db-theme-sub">AI 에이전트 시대 · 클릭하면 AI 상세 분석</span>
         </div>
         <div className="db-theme-grid">
           {[
             { id:'ai-agent',  label:'AI 에이전트',   icon:'🤖', desc:'자율 AI 소프트웨어 에이전트 확산', tags:['NAVER','카카오','크래프톤'], color:'#7c3aed' },
-            { id:'robotics',  label:'로보틱스',      icon:'🦾', desc:'산업용 협동로봇·물류 자동화 가속', tags:['현대차','LS산전','레인보우로보틱스'], color:'#2563eb' },
-            { id:'smr',       label:'SMR 원전',      icon:'⚛️', desc:'소형모듈원전 수주·개발 본격화',    tags:['두산에너빌','한전','비에이치아이'], color:'#16a34a' },
-            { id:'defense',   label:'K-방산 수출',   icon:'🛡️', desc:'유럽·중동 방산 수출 확대',         tags:['한화에어로','LIG넥스원','현대로템'], color:'#dc2626' },
+            { id:'robotics',  label:'로보틱스',      icon:'🦾', desc:'산업용 협동로봇 물류 자동화 가속', tags:['현대차','LS산전','레인보우로보틱스'], color:'#2563eb' },
+            { id:'smr',       label:'SMR 원전',      icon:'⚛️', desc:'소형모듈원전 수주 개발 본격화',    tags:['두산에너빌','한전','비에이치아이'], color:'#16a34a' },
+            { id:'defense',   label:'K-방산 수출',   icon:'🛡️', desc:'유럽 중동 방산 수출 확대',         tags:['한화에어로','LIG넥스원','현대로템'], color:'#dc2626' },
             { id:'powergrid', label:'전력망 인프라', icon:'⚡', desc:'AI 데이터센터 전력 수요 급증',     tags:['LS ELECTRIC','현대일렉트릭','일진전기'], color:'#d97706' },
             { id:'adc',       label:'바이오 ADC',    icon:'💉', desc:'항체약물접합체 글로벌 임상 활발',  tags:['레고켐바이오','알테오젠','한미약품'], color:'#ec4899' },
             { id:'lng',       label:'LNG 조선',      icon:'🚢', desc:'LNG 운반선 수주 호황',             tags:['HD한국조선','삼성중공업','한화오션'], color:'#0891b2' },
-            { id:'supply',    label:'공급망 재편',   icon:'🌏', desc:'미중 디커플링·국내 제조 리쇼어링', tags:['삼성전자','SK하이닉스','포스코'], color:'#64748b' },
+            { id:'supply',    label:'공급망 재편',   icon:'🌏', desc:'미중 디커플링 국내 제조 리쇼어링', tags:['삼성전자','SK하이닉스','포스코'], color:'#64748b' },
           ].map(theme => (
-            <div key={theme.id} className="db-theme-card" style={{'--theme-color': theme.color}}>
+            <div key={theme.id} className="db-theme-card"
+              style={{'--theme-color': theme.color}}
+              onClick={()=>openThemePopup(theme)}>
               <div className="db-theme-card-top">
                 <span className="db-theme-icon">{theme.icon}</span>
                 <span className="db-theme-name">{theme.label}</span>
+                <span className="db-theme-ai-badge">AI →</span>
               </div>
               <div className="db-theme-desc">{theme.desc}</div>
               <div className="db-theme-tags">
@@ -1537,7 +1078,7 @@ export default function DashboardPage() {
           ))}
         </div>
         <div className="db-theme-footer">
-          📌 2026년 주요 투자 테마 · AI 분기별 업데이트 예정
+          📌 카드 클릭 시 AI가 최신 정보를 검색하여 상세 분석합니다
         </div>
       </div>
 
@@ -1610,6 +1151,67 @@ export default function DashboardPage() {
             : null,
         }}
       />
+
+      {/* 핫테마 AI 상세 팝업 */}
+      {themePopup && (
+        <div className="db-theme-popup-overlay" onClick={()=>setThemePopup(null)}>
+          <div className="db-theme-popup" onClick={e=>e.stopPropagation()}
+            style={{'--theme-color': themePopup.theme.color}}>
+            <div className="db-theme-popup-header">
+              <span className="db-theme-popup-icon">{themePopup.theme.icon}</span>
+              <div>
+                <div className="db-theme-popup-title">{themePopup.theme.label}</div>
+                <div className="db-theme-popup-sub">2026 핫 테마 AI 분석</div>
+              </div>
+              <button className="db-theme-popup-close" onClick={()=>setThemePopup(null)}>✕</button>
+            </div>
+            {themePopup.loading && (
+              <div className="db-theme-popup-loading">
+                <span className="db-spinner-sm"/>  AI가 최신 정보를 검색 중입니다...
+              </div>
+            )}
+            {themePopup.aiText && !themePopup.loading && (
+              <div className="db-theme-popup-body">
+                {themePopup.aiText.summary && (
+                  <div className="db-theme-popup-section">
+                    <div className="db-theme-popup-label">📋 테마 배경</div>
+                    <div className="db-theme-popup-text">{themePopup.aiText.summary}</div>
+                  </div>
+                )}
+                {themePopup.aiText.catalyst && (
+                  <div className="db-theme-popup-section">
+                    <div className="db-theme-popup-label">⚡ 핵심 촉매제</div>
+                    <div className="db-theme-popup-text">{themePopup.aiText.catalyst}</div>
+                  </div>
+                )}
+                {themePopup.aiText.stocks?.length > 0 && (
+                  <div className="db-theme-popup-section">
+                    <div className="db-theme-popup-label">📈 관련 종목</div>
+                    {themePopup.aiText.stocks.map((s,i) => (
+                      <div key={i} className="db-theme-popup-stock">
+                        <span className="db-theme-popup-stock-name">{s.name}</span>
+                        <span className="db-theme-popup-stock-reason">{s.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {themePopup.aiText.timing && (
+                  <div className="db-theme-popup-section">
+                    <div className="db-theme-popup-label">⏰ 진입 타이밍</div>
+                    <div className="db-theme-popup-text">{themePopup.aiText.timing}</div>
+                  </div>
+                )}
+                {themePopup.aiText.risk && (
+                  <div className="db-theme-popup-section risk">
+                    <div className="db-theme-popup-label">⚠️ 핵심 리스크</div>
+                    <div className="db-theme-popup-text">{themePopup.aiText.risk}</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {chartItem && <GlobalChartModal
         type={chartItem.type==='forex'?'forex':'global'}
