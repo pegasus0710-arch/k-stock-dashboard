@@ -2,8 +2,8 @@
 
 /* ── 페이지 레이아웃 ─────────────────────────────── */
 .cmp-page {
-  padding: 20px 24px 32px;
-  max-width: 1100px;
+  padding: 20px 32px 32px;
+  max-width: 1600px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -271,7 +271,7 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
-  min-height: 300px;
+  min-height: 420px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -279,13 +279,14 @@
 .cmp-chart-wrap {
   position: relative;
   width: 100%;
-  padding: 12px 12px 4px;
+  padding: 16px 16px 8px;
 }
 .cmp-svg {
   width: 100%;
   height: auto;
   display: block;
   overflow: visible;
+  min-height: 360px;
 }
 
 /* 툴팁 */
@@ -427,6 +428,9 @@
 }
 
 /* ── 반응형 ──────────────────────────────────────── */
+@media (max-width: 1200px) {
+  .cmp-page { padding: 16px 20px 28px; }
+}
 @media (max-width: 768px) {
   .cmp-page { padding: 14px 14px 24px; gap: 12px; }
   .cmp-header { flex-direction: column; align-items: flex-start; }
@@ -436,4 +440,5 @@
   .cmp-perf-row > *:nth-child(3),
   .cmp-perf-header > *:nth-child(3) { display: none; }
   .cmp-legend-note { display: none; }
+  .cmp-chart-area { min-height: 280px; }
 }

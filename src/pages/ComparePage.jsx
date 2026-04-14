@@ -109,8 +109,8 @@ async function loadSeriesData(item, pCfg) {
 }
 
 // ── SVG 차트 ──────────────────────────────────────────
-const W = 900, H = 360
-const PAD = { top: 24, right: 68, bottom: 40, left: 60 }
+const W = 1200, H = 480
+const PAD = { top: 28, right: 75, bottom: 44, left: 65 }
 
 function CompareChart({ series, logScale, onHover }) {
   const svgRef = useRef(null)
@@ -350,12 +350,13 @@ function SeriesSelector({ idx, value, onChange, type, stockList }) {
 
   const filtered = opts
     ? opts.filter(o => !localSearch || o.label.toLowerCase().includes(localSearch.toLowerCase()))
-    : (stockList || []).filter(s =>
-        localSearch && (
-          s.name?.includes(localSearch) ||
-          s.code?.includes(localSearch)
-        )
-      ).slice(0, 30)
+    : (stockList || []).filter(s => {
+        if (!localSearch) return false
+        const q = localSearch.trim()
+        if (!q) return false
+        return (s.name || s.stk_nm || '').includes(q) ||
+               (s.code || s.stk_cd || '').includes(q)
+      }).slice(0, 40)
 
   const handleSelect = item => {
     onChange(item)
@@ -411,10 +412,15 @@ function SeriesSelector({ idx, value, onChange, type, stockList }) {
               filtered.map(item => (
                 <button key={item.id || item.code} className="cmp-sel-item"
                   onClick={() => handleSelect(
-                    item.id ? item : { id: item.code, label: item.name, src: 'stock', code: item.code }
+                    item.id ? item : {
+                      id: item.code || item.stk_cd,
+                      label: item.name || item.stk_nm,
+                      src: 'stock',
+                      code: item.code || item.stk_cd
+                    }
                   )}>
-                  <span className="cmp-sel-item-label">{item.label || item.name}</span>
-                  {item.code && <span className="cmp-sel-item-code">{item.code}</span>}
+                  <span className="cmp-sel-item-label">{item.label || item.name || item.stk_nm}</span>
+                  {(item.code || item.stk_cd) && <span className="cmp-sel-item-code">{item.code || item.stk_cd}</span>}
                 </button>
               ))
             )}
@@ -438,7 +444,16 @@ export default function ComparePage() {
   useEffect(() => {
     fetch('/api/kiwoom?type=stocks-list')
       .then(r => r.json())
-      .then(d => setStockList(d.stocks || []))
+      .then(d => {
+        // API 응답 구조 다양성 대응
+        const list = d.stocks || d.data || d.items || d.list || []
+        // stk_cd/stk_nm 필드도 name/code로 정규화
+        const normalized = list.map(s => ({
+          code: s.code || s.stk_cd || '',
+          name: s.name || s.stk_nm || s.label || '',
+        })).filter(s => s.code && s.name)
+        setStockList(normalized)
+      })
       .catch(() => {})
   }, [])
 
