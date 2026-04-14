@@ -481,7 +481,7 @@ const POPULAR_STOCKS = [
 // ── 메인 페이지 ───────────────────────────────────────
 export default function ComparePage() {
   const [period,   setPeriod]   = useState(PERIODS[2])   // 기본 6개월
-  const [logScale, setLogScale] = useState(false)
+  const [logScale, setLogScale] = useState(true)
   const [items,    setItems]    = useState([null, null, null])
   const [series,   setSeries]   = useState([null, null, null])
   const [errors,   setErrors]   = useState([null, null, null])
