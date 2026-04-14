@@ -4,17 +4,17 @@ import './ComparePage.css'
 
 // ── 대표 지수 목록 ────────────────────────────────────
 const MAJOR_INDICES = [
-  { id:'KOSPI',   label:'KOSPI',       src:'kiwoom-idx', code:'001' },
-  { id:'KOSDAQ',  label:'KOSDAQ',      src:'kiwoom-idx', code:'101' },
-  { id:'KPI200',  label:'코스피 200',  src:'kiwoom-idx', code:'028' },
-  { id:'KQ150',   label:'코스닥 150',  src:'kiwoom-idx', code:'300' },
-  { id:'SP500',   label:'S&P 500',     src:'global',     code:'SP500'  },
-  { id:'NASDAQ',  label:'나스닥 100',  src:'global',     code:'NASDAQ' },
-  { id:'DOW',     label:'다우존스',    src:'global',     code:'DOW'    },
-  { id:'N225',    label:'니케이 225',  src:'global',     code:'N225'   },
-  { id:'DAX',     label:'DAX',         src:'global',     code:'DAX'    },
-  { id:'HSI',     label:'항셍',        src:'global',     code:'HSI'    },
-  { id:'SSE',     label:'상해종합',    src:'global',     code:'SSE'    },
+  // KOSPI/KOSDAQ → Yahoo Finance (KS11/KQ11) — Kiwoom index-chart 우회
+  { id:'KOSPI',   label:'KOSPI',       src:'global', code:'KS11'  },
+  { id:'KOSDAQ',  label:'KOSDAQ',      src:'global', code:'KQ11'  },
+  { id:'KPI200',  label:'코스피 200',  src:'global', code:'KPI200' },
+  { id:'SP500',   label:'S&P 500',     src:'global', code:'SP500'  },
+  { id:'NASDAQ',  label:'나스닥 100',  src:'global', code:'NASDAQ' },
+  { id:'DOW',     label:'다우존스',    src:'global', code:'DOW'    },
+  { id:'N225',    label:'니케이 225',  src:'global', code:'N225'   },
+  { id:'DAX',     label:'DAX',         src:'global', code:'DAX'    },
+  { id:'HSI',     label:'항셍',        src:'global', code:'HSI'    },
+  { id:'SSE',     label:'상해종합',    src:'global', code:'SSE'    },
 ]
 
 // ── ETF / 업종 목록 ───────────────────────────────────
@@ -63,26 +63,37 @@ const COLORS_BG = [
 ]
 const COLORS_LIGHT = ['#93c5fd', '#fca5a5', '#86efac']
 
+// ── 기간별 키움 업종 cnt (day 고정) ──────────────────
+const IDX_DAY_CNT = {
+  '1mo': 22, '3mo': 65, '6mo': 130,
+  '1y': 250, '3y': 500, '5y': 700,
+}
+
 // ── 데이터 로드 함수 ──────────────────────────────────
 async function loadSeriesData(item, pCfg) {
   if (!item) return null
   try {
     let raw = []
     if (item.src === 'kiwoom-idx') {
+      // 업종 지수: 주봉(week) 미지원 → 항상 일봉(day)으로 고정
+      const cnt = IDX_DAY_CNT[pCfg.value] || 130
       const res = await fetch(
-        `/api/kiwoom?type=index-chart&inds_cd=${item.code}&period=${pCfg.period}`
+        `/api/kiwoom?type=index-chart&inds_cd=${item.code}&period=day`
       )
       const j = await res.json()
       const candles = j.candles || j.data || []
-      raw = candles.slice(-pCfg.cnt).map(c => ({
+      raw = candles.slice(-cnt).map(c => ({
         date:  String(c.time || c.date || ''),
-        // 키움 지수: close 그대로 사용 (100 나누기 제거)
         close: Math.abs(Number(c.close || c.cls_prc || 0)),
       }))
-      console.log(`[ComparePage] ${item.id} index-chart: ${candles.length}봉, 첫값=${raw[0]?.close}`)
+      console.log(`[ComparePage] ${item.id} index-chart: ${candles.length}봉→${cnt}봉 사용`)
     } else if (item.src === 'global') {
+      // 해외/국내 Yahoo Finance: 1y 이상은 5y range로 요청 후 slice
+      const range = ['3y','5y'].includes(pCfg.value) ? '5y'
+                  : pCfg.value === '1y' ? '2y'
+                  : pCfg.kisRange
       const res = await fetch(
-        `/api/kis?type=global&symbol=${item.code}&range=${pCfg.kisRange}`
+        `/api/kis?type=global&symbol=${item.code}&range=${range}`
       )
       const j = await res.json()
       const candles = j.candles || j.data || []
@@ -90,7 +101,7 @@ async function loadSeriesData(item, pCfg) {
         date:  String(c.date || c.time || ''),
         close: Math.abs(Number(c.close || c.cls_prc || 0)),
       }))
-      console.log(`[ComparePage] ${item.id} global: ${candles.length}봉, 첫값=${raw[0]?.close}`)
+      console.log(`[ComparePage] ${item.id} global(${range}): ${candles.length}봉→${pCfg.cnt}봉 사용`)
     } else if (item.src === 'stock') {
       const res = await fetch(
         `/api/kiwoom?type=stock-chart&code=${item.code}&period=${pCfg.period}`
@@ -101,10 +112,10 @@ async function loadSeriesData(item, pCfg) {
         date:  String(c.time || c.date || ''),
         close: Math.abs(Number(c.close || c.cls_prc || 0)),
       }))
-      console.log(`[ComparePage] ${item.id} stock: ${candles.length}봉, 첫값=${raw[0]?.close}`)
+      console.log(`[ComparePage] ${item.id} stock: ${candles.length}봉→${pCfg.cnt}봉 사용`)
     }
     const valid = raw.filter(c => c.close > 0)
-    console.log(`[ComparePage] ${item.id} valid봉수: ${valid.length}`)
+    console.log(`[ComparePage] ${item.id} valid: ${valid.length}봉`)
     if (valid.length < 2) return null
     const base = valid[0].close
     return valid.map(c => ({
@@ -120,8 +131,8 @@ async function loadSeriesData(item, pCfg) {
 }
 
 // ── SVG 차트 ──────────────────────────────────────────
-const W = 1200, H = 480
-const PAD = { top: 28, right: 75, bottom: 44, left: 65 }
+const W = 1400, H = 560
+const PAD = { top: 30, right: 80, bottom: 46, left: 68 }
 
 function CompareChart({ series, logScale, onHover }) {
   const svgRef = useRef(null)
