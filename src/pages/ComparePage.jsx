@@ -73,30 +73,38 @@ async function loadSeriesData(item, pCfg) {
         `/api/kiwoom?type=index-chart&inds_cd=${item.code}&period=${pCfg.period}`
       )
       const j = await res.json()
-      raw = (j.candles || []).slice(-pCfg.cnt).map(c => ({
+      const candles = j.candles || j.data || []
+      raw = candles.slice(-pCfg.cnt).map(c => ({
         date:  String(c.time || c.date || ''),
-        close: Number(c.close || 0) / 100,
+        // 키움 지수: close 그대로 사용 (100 나누기 제거)
+        close: Math.abs(Number(c.close || c.cls_prc || 0)),
       }))
+      console.log(`[ComparePage] ${item.id} index-chart: ${candles.length}봉, 첫값=${raw[0]?.close}`)
     } else if (item.src === 'global') {
       const res = await fetch(
         `/api/kis?type=global&symbol=${item.code}&range=${pCfg.kisRange}`
       )
       const j = await res.json()
-      raw = (j.candles || []).slice(-pCfg.cnt).map(c => ({
+      const candles = j.candles || j.data || []
+      raw = candles.slice(-pCfg.cnt).map(c => ({
         date:  String(c.date || c.time || ''),
-        close: Number(c.close || 0),
+        close: Math.abs(Number(c.close || c.cls_prc || 0)),
       }))
+      console.log(`[ComparePage] ${item.id} global: ${candles.length}봉, 첫값=${raw[0]?.close}`)
     } else if (item.src === 'stock') {
       const res = await fetch(
         `/api/kiwoom?type=stock-chart&code=${item.code}&period=${pCfg.period}`
       )
       const j = await res.json()
-      raw = (j.candles || []).slice(-pCfg.cnt).map(c => ({
+      const candles = j.candles || j.data || []
+      raw = candles.slice(-pCfg.cnt).map(c => ({
         date:  String(c.time || c.date || ''),
-        close: Number(c.close || 0),
+        close: Math.abs(Number(c.close || c.cls_prc || 0)),
       }))
+      console.log(`[ComparePage] ${item.id} stock: ${candles.length}봉, 첫값=${raw[0]?.close}`)
     }
     const valid = raw.filter(c => c.close > 0)
+    console.log(`[ComparePage] ${item.id} valid봉수: ${valid.length}`)
     if (valid.length < 2) return null
     const base = valid[0].close
     return valid.map(c => ({
@@ -105,7 +113,10 @@ async function loadSeriesData(item, pCfg) {
       indexed: (c.close / base) * 100,
       ret:     (c.close / base - 1) * 100,
     }))
-  } catch { return null }
+  } catch(e) {
+    console.error(`[ComparePage] ${item?.id} 로드 실패:`, e)
+    return null
+  }
 }
 
 // ── SVG 차트 ──────────────────────────────────────────
@@ -431,50 +442,82 @@ function SeriesSelector({ idx, value, onChange, type, stockList }) {
   )
 }
 
+// ── 인기 종목 fallback (stockList 로드 전 검색용) ─────
+const POPULAR_STOCKS = [
+  {code:'005930',name:'삼성전자'},{code:'000660',name:'SK하이닉스'},
+  {code:'005490',name:'포스코홀딩스'},{code:'005380',name:'현대차'},
+  {code:'000270',name:'기아'},{code:'068270',name:'셀트리온'},
+  {code:'207940',name:'삼성바이오로직스'},{code:'051910',name:'LG화학'},
+  {code:'006400',name:'삼성SDI'},{code:'035420',name:'NAVER'},
+  {code:'035720',name:'카카오'},{code:'012330',name:'현대모비스'},
+  {code:'009540',name:'HD한국조선해양'},{code:'329180',name:'HD현대중공업'},
+  {code:'042660',name:'한화오션'},{code:'010140',name:'삼성중공업'},
+  {code:'012450',name:'한화에어로스페이스'},{code:'079550',name:'LIG넥스원'},
+  {code:'064350',name:'현대로템'},{code:'047810',name:'한국항공우주'},
+  {code:'373220',name:'LG에너지솔루션'},{code:'003670',name:'포스코퓨처엠'},
+  {code:'247540',name:'에코프로비엠'},{code:'086520',name:'에코프로'},
+  {code:'105560',name:'KB금융'},{code:'055550',name:'신한지주'},
+  {code:'086790',name:'하나금융지주'},{code:'066570',name:'LG전자'},
+  {code:'034020',name:'두산에너빌리티'},{code:'267260',name:'현대일렉트릭'},
+  {code:'259960',name:'크래프톤'},{code:'352820',name:'하이브'},
+  {code:'000100',name:'유한양행'},{code:'128940',name:'한미약품'},
+  {code:'196170',name:'알테오젠'},{code:'141080',name:'레인보우로보틱스'},
+  {code:'069500',name:'KODEX 200'},{code:'091160',name:'KODEX 반도체'},
+  {code:'305720',name:'KODEX 2차전지'},{code:'379800',name:'KODEX S&P500'},
+  {code:'133690',name:'KODEX 미국나스닥100'},{code:'102110',name:'TIGER 200'},
+]
+
 // ── 메인 페이지 ───────────────────────────────────────
 export default function ComparePage() {
   const [period,   setPeriod]   = useState(PERIODS[2])   // 기본 6개월
   const [logScale, setLogScale] = useState(false)
   const [items,    setItems]    = useState([null, null, null])
   const [series,   setSeries]   = useState([null, null, null])
+  const [errors,   setErrors]   = useState([null, null, null])
   const [loading,  setLoading]  = useState([false, false, false])
-  const [stockList, setStockList] = useState([])
+  const [stockList, setStockList] = useState(POPULAR_STOCKS) // fallback으로 시작
 
-  // 전종목 목록 로드 (시리즈 3용)
+  // 전종목 목록 로드 (시리즈 3용) — 실패해도 인기종목 fallback 유지
   useEffect(() => {
     fetch('/api/kiwoom?type=stocks-list')
       .then(r => r.json())
       .then(d => {
-        // API 응답 구조 다양성 대응
         const list = d.stocks || d.data || d.items || d.list || []
-        // stk_cd/stk_nm 필드도 name/code로 정규화
         const normalized = list.map(s => ({
           code: s.code || s.stk_cd || '',
           name: s.name || s.stk_nm || s.label || '',
         })).filter(s => s.code && s.name)
-        setStockList(normalized)
+        if (normalized.length > 0) {
+          setStockList(normalized)
+          console.log(`[ComparePage] 전종목 ${normalized.length}개 로드`)
+        }
       })
-      .catch(() => {})
+      .catch(e => console.warn('[ComparePage] stocks-list 실패, 인기종목 사용:', e))
   }, [])
 
   // 아이템 또는 기간 변경 시 데이터 로드
   const loadSeries = useCallback(async (i, item) => {
     if (!item) {
       setSeries(prev => { const n=[...prev]; n[i]=null; return n })
+      setErrors(prev => { const n=[...prev]; n[i]=null; return n })
       return
     }
     setLoading(prev => { const n=[...prev]; n[i]=true; return n })
+    setErrors(prev => { const n=[...prev]; n[i]=null; return n })
     const data = await loadSeriesData(item, period)
     setSeries(prev => {
       const n = [...prev]
       n[i] = data ? { item, data } : null
       return n
     })
+    if (!data) {
+      setErrors(prev => { const n=[...prev]; n[i]='데이터 없음'; return n })
+    }
     setLoading(prev => { const n=[...prev]; n[i]=false; return n })
   }, [period])
 
   useEffect(() => {
-    items.forEach((item, i) => loadSeries(i, item))
+    items.forEach((item, i) => { if (item) loadSeries(i, item) })
   }, [period])
 
   const handleItemChange = (i, item) => {
@@ -489,7 +532,9 @@ export default function ComparePage() {
     return { ret: last.ret, indexed: last.indexed }
   }
 
-  const hasAny = series.some(Boolean)
+  // 하나라도 선택됐거나 로딩 중이면 차트 영역 표시
+  const hasItems = items.some(Boolean)
+  const hasAny   = series.some(Boolean)
 
   return (
     <div className="cmp-page">
@@ -539,24 +584,28 @@ export default function ComparePage() {
       </div>
 
       {/* 범례 + 성과 요약 */}
-      {hasAny && (
+      {hasItems && (
         <div className="cmp-legend">
-          {series.map((s, i) => {
-            if (!s) return null
-            const perf = getPerf(s)
+          {items.map((item, i) => {
+            if (!item) return null
+            const s = series[i]
+            const perf = s ? getPerf(s) : null
             return (
               <div key={i} className="cmp-legend-item"
                 style={{'--lc': COLORS[i]}}>
                 <span className="cmp-legend-line"
                   style={{background: COLORS[i]}}/>
-                <span className="cmp-legend-name">{s.item.label}</span>
-                {perf && (
+                <span className="cmp-legend-name">{item.label}</span>
+                {loading[i] && <span className="cmp-legend-loading">↻</span>}
+                {errors[i] && !loading[i] && (
+                  <span style={{fontSize:10,color:'#ef4444'}}>데이터 없음</span>
+                )}
+                {perf && !loading[i] && (
                   <span className="cmp-legend-ret"
                     style={{color: perf.ret >= 0 ? 'var(--color-up)' : 'var(--color-down)'}}>
                     {perf.ret >= 0 ? '▲' : '▼'} {Math.abs(perf.ret).toFixed(2)}%
                   </span>
                 )}
-                {loading[i] && <span className="cmp-legend-loading">↻</span>}
               </div>
             )
           })}
@@ -569,12 +618,7 @@ export default function ComparePage() {
 
       {/* 차트 */}
       <div className="cmp-chart-area">
-        {loading.some(Boolean) && !hasAny ? (
-          <div className="cmp-loading">
-            <div className="cmp-spinner"/>
-            <span>데이터 로딩 중...</span>
-          </div>
-        ) : !hasAny ? (
+        {!hasItems ? (
           <div className="cmp-empty">
             <div className="cmp-empty-icon">📈</div>
             <div className="cmp-empty-title">비교할 항목을 선택하세요</div>
@@ -583,11 +627,25 @@ export default function ComparePage() {
               기간 대비 상대 성과를 한눈에 비교합니다
             </div>
           </div>
-        ) : (
+        ) : loading.some(Boolean) && !hasAny ? (
+          <div className="cmp-loading">
+            <div className="cmp-spinner"/>
+            <span>데이터 로딩 중...</span>
+          </div>
+        ) : hasAny ? (
           <CompareChart
             series={series}
             logScale={logScale}
           />
+        ) : (
+          <div className="cmp-empty">
+            <div className="cmp-empty-icon">⚠️</div>
+            <div className="cmp-empty-title">데이터를 불러오지 못했습니다</div>
+            <div className="cmp-empty-desc">
+              EC2 서버 또는 API 연결을 확인하세요<br/>
+              <small style={{fontSize:10,color:'var(--text-dim)'}}>DevTools Console에서 [ComparePage] 로그 확인</small>
+            </div>
+          </div>
         )}
       </div>
 
