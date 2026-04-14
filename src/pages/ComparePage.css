@@ -1,0 +1,439 @@
+/* ComparePage.css — 비교 차트 페이지 */
+
+/* ── 페이지 레이아웃 ─────────────────────────────── */
+.cmp-page {
+  padding: 20px 24px 32px;
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── 헤더 ────────────────────────────────────────── */
+.cmp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.cmp-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cmp-header-icon { font-size: 20px; }
+.cmp-header-title h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+.cmp-header-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+.cmp-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 기간 탭 */
+.cmp-period-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+}
+.cmp-period-btn {
+  padding: 5px 11px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .14s;
+}
+.cmp-period-btn:hover  { background: var(--bg-hover); color: var(--text-primary); }
+.cmp-period-btn.active {
+  background: var(--accent-mid);
+  color: white;
+  font-weight: 700;
+}
+
+/* 차트 타입 */
+.cmp-chart-opts {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+}
+.cmp-opt-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .14s;
+}
+.cmp-opt-btn:hover  { background: var(--bg-hover); }
+.cmp-opt-btn.active { background: var(--text-primary); color: var(--bg-panel); font-weight: 700; }
+
+/* ── 선택기 3개 ──────────────────────────────────── */
+.cmp-selectors {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.cmp-selector {
+  position: relative;
+}
+.cmp-sel-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+  display: block;
+}
+.cmp-sel-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-panel);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .12s, box-shadow .12s;
+  min-height: 40px;
+}
+.cmp-sel-trigger:hover,
+.cmp-sel-trigger.open {
+  border-color: var(--s-color, var(--accent-mid));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--s-color, var(--accent-mid)) 15%, transparent);
+}
+.cmp-sel-chosen {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmp-sel-placeholder {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.cmp-sel-arrow {
+  font-size: 9px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.cmp-sel-clear {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.cmp-sel-clear:hover { background: rgba(220,38,38,.1); color: #dc2626; }
+
+/* 드롭다운 */
+.cmp-sel-drop {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0; right: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.14);
+  z-index: 200;
+  overflow: hidden;
+}
+.cmp-sel-search-wrap {
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--border-light);
+}
+.cmp-sel-search {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  box-sizing: border-box;
+}
+.cmp-sel-search:focus { border-color: var(--accent-mid); }
+.cmp-sel-list {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.cmp-sel-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background .1s;
+}
+.cmp-sel-item:hover { background: var(--bg-hover); }
+.cmp-sel-item-label {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.cmp-sel-item-code {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: monospace;
+}
+.cmp-sel-empty {
+  padding: 14px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ── 범례 ────────────────────────────────────────── */
+.cmp-legend {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+.cmp-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cmp-legend-line {
+  width: 22px; height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.cmp-legend-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.cmp-legend-ret {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cmp-legend-loading {
+  font-size: 11px;
+  color: var(--text-dim);
+  animation: cmp-spin .8s linear infinite;
+  display: inline-block;
+}
+@keyframes cmp-spin { to { transform: rotate(360deg); } }
+.cmp-legend-note {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* ── 차트 영역 ───────────────────────────────────── */
+.cmp-chart-area {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cmp-chart-wrap {
+  position: relative;
+  width: 100%;
+  padding: 12px 12px 4px;
+}
+.cmp-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+/* 툴팁 */
+.cmp-tooltip {
+  position: absolute;
+  top: 16px;
+  left: 72px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.12);
+  z-index: 10;
+  pointer-events: none;
+  min-width: 200px;
+}
+.cmp-tt-date {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin-bottom: 5px;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 4px;
+}
+.cmp-tt-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.cmp-tt-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cmp-tt-name {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+.cmp-tt-idx {
+  font-size: 11px;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cmp-tt-ret {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 54px;
+  text-align: right;
+}
+
+/* 로딩 / 빈 상태 */
+.cmp-loading, .cmp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+}
+.cmp-spinner {
+  width: 32px; height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent-mid);
+  border-radius: 50%;
+  animation: cmp-spin .7s linear infinite;
+}
+.cmp-empty-icon { font-size: 36px; opacity: .4; }
+.cmp-empty-title { font-size: 15px; font-weight: 600; color: var(--text-secondary); }
+.cmp-empty-desc { font-size: 12px; color: var(--text-dim); text-align: center; line-height: 1.7; }
+
+/* ── 하단 성과 테이블 ────────────────────────────── */
+.cmp-perf-table {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.cmp-perf-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  padding: 9px 16px;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.cmp-perf-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border-light);
+  align-items: center;
+  transition: background .1s;
+}
+.cmp-perf-row:last-child { border-bottom: none; }
+.cmp-perf-row:hover { background: var(--bg-hover); }
+.cmp-perf-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.cmp-perf-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cmp-perf-val {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.cmp-perf-change {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cmp-perf-ret {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* ── 반응형 ──────────────────────────────────────── */
+@media (max-width: 768px) {
+  .cmp-page { padding: 14px 14px 24px; gap: 12px; }
+  .cmp-header { flex-direction: column; align-items: flex-start; }
+  .cmp-selectors { grid-template-columns: 1fr; }
+  .cmp-perf-header,
+  .cmp-perf-row { grid-template-columns: 2fr 1fr 1fr; }
+  .cmp-perf-row > *:nth-child(3),
+  .cmp-perf-header > *:nth-child(3) { display: none; }
+  .cmp-legend-note { display: none; }
+}

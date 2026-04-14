@@ -10,6 +10,7 @@ import ETFPage           from './pages/ETFPage'
 import PortfolioPage     from './pages/PortfolioPage'
 import MemoPage          from './pages/MemoPage'
 import NewsPage          from './pages/NewsPage'
+import ComparePage       from './pages/ComparePage'
 import './App.css'
 import './index.css'
 import './layout.css'
@@ -23,6 +24,7 @@ const MENU = [
   { path: '/etf',         label: 'ETF',        sub: 'ETF 시세·분석' },
   { path: '/portfolio',   label: '포트폴리오', sub: '보유·매매·분석' },
   { path: '/memo',        label: '메모장',     sub: '투자 아이디어·기록' },
+  { path: '/compare',    label: '비교차트',   sub: '지수·ETF·종목 비교' },
   { path: '/news',        label: '뉴스·공시',  sub: '실시간 뉴스' },
 ]
 
@@ -296,6 +298,7 @@ const PAGE_THEMES = {
   '/etf':         'theme-teal',
   '/portfolio':   'theme-indigo',
   '/memo':        'theme-slate',
+  '/compare':    'theme-teal',
   '/news':        'theme-slate',
 }
 
@@ -322,6 +325,7 @@ function AppLayout() {
           <Route path="/portfolio"     element={<PortfolioPage/>}/>
           <Route path="/trading-log"   element={<Navigate to="/portfolio" replace/>}/>
           <Route path="/memo"          element={<MemoPage/>}/>
+          <Route path="/compare"      element={<ComparePage/>}/>
           <Route path="/news"          element={<NewsPage/>}/>
           <Route path="*"             element={<Navigate to="/dashboard" replace/>}/>
         </Routes>
